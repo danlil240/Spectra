@@ -34,6 +34,7 @@
 #include "ui/app/window_ui_context_builder.hpp"
 #include "ui/app/window_ui_context_runtime.hpp"
 #include "ui/app/window_manager_bootstrap.hpp"
+#include "ui/app/window_png_export.hpp"
 #include "ui/app/window_ui_context.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -79,6 +80,7 @@
 #endif
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -1037,6 +1039,10 @@ int main(int argc, char* argv[])
     auto last_heartbeat     = std::chrono::steady_clock::now();
     auto heartbeat_interval = std::chrono::milliseconds(heartbeat_ms);
 
+    // File > Export PNG / SVG and Copy to Clipboard queue requests on the
+    // figure; this window process writes them (same path as App::step()).
+    spectra::WindowPngExport png_export;
+
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
     {
         // ── Drain all pending IPC messages (non-blocking) ────────────────
@@ -1446,6 +1452,13 @@ int main(int argc, char* argv[])
         }
 
         // ── Standard session tick (same as inproc) ───────────────────────
+        // A PNG capture with its own theme draws the captured frame with it.
+        std::optional<spectra::ui::ScopedExportTheme> capture_theme;
+        if (png_export.awaiting_capture() && !png_export.theme().empty())
+        {
+            capture_theme.emplace(&theme_mgr, png_export.theme());
+            session.redraw_tracker().mark_dirty("themed export");
+        }
         session.tick(scheduler,
                      animator,
                      cmd_queue,
@@ -1456,6 +1469,30 @@ int main(int argc, char* argv[])
 #endif
                      frame_state);
         active_figure = frame_state.active_figure;
+        if (capture_theme)
+        {
+            capture_theme.reset();
+            session.redraw_tracker().mark_dirty("themed export done");
+        }
+
+        // ── Exports requested from this window's UI ──────────────────────
+        png_export.collect(backend.get());
+        if (active_figure && registry.get(frame_state.active_figure_id) == active_figure
+            && !png_export.active())
+        {
+            spectra::WindowContext* target_wctx = nullptr;
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+            target_wctx =
+                spectra::find_window_for_figure(window_mgr.get(), frame_state.active_figure_id);
+#endif
+            if (png_export.schedule(*active_figure, backend.get(), target_wctx))
+                session.redraw_tracker().mark_dirty("png export");
+        }
+        for (auto id : registry.all_ids())
+        {
+            if (auto* fig = registry.get(id); fig && !fig->export_req_.svg_path.empty())
+                spectra::write_pending_svg(*fig, &theme_mgr);
+        }
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         // Auto-exit when the last window has been closed by the user.

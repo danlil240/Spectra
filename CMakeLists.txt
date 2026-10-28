@@ -263,6 +263,7 @@ foreach(_ui_src
     src/ui/app/window_ui_context_builder.cpp
     src/ui/app/window_manager_bootstrap.cpp
     src/ui/app/window_ui_context_runtime.cpp
+    src/ui/app/window_png_export.cpp
     src/ui/input/input.cpp
     src/ui/input/input_pan_zoom.cpp
     src/ui/input/input_select.cpp

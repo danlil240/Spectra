@@ -158,14 +158,32 @@ TEST(CrosshairMapping, RoundTripsOnEveryScale)
     }
 }
 
-TEST(CrosshairMapping, SqrtMatchesRendererIdentityMapping)
+TEST(CrosshairMapping, SqrtUnprojectsThroughSquareRoot)
 {
-    // core/axis_scale.hpp draws Sqrt axes untransformed; the crosshair must
-    // agree with the renderer, not with an idealized sqrt mapping.
+    // A sqrt axis is linear in sqrt(v): the middle of [0, 100] is 25, not 50.
+    TwoAxes t;
+    t.top.xscale(ScaleType::Sqrt);
+    t.top.yscale(ScaleType::Sqrt);
+    t.top.xlim(0.0, 100.0);
+    t.top.ylim(-16.0, 16.0);
+    EXPECT_NEAR(cm::screen_to_data_x(t.top, mid_x(TOP_VP)), 25.0, 1e-9);
+    EXPECT_NEAR(cm::data_to_screen_x(t.top, 25.0), mid_x(TOP_VP), 1e-9);
+    // Signed sqrt: y = -4 (axis -2) sits a quarter of the way up the viewport.
+    const double sy = TOP_VP.y + 0.75 * TOP_VP.h;
+    EXPECT_NEAR(cm::screen_to_data_y(t.top, sy), -4.0, 1e-9);
+    EXPECT_NEAR(cm::data_to_screen_y(t.top, -4.0), sy, 1e-9);
+}
+
+TEST(CrosshairMapping, LinkedSqrtCursorReprojectsOntoLinearPeer)
+{
+    // Hover the sqrt top axes at its midpoint (x = 25) and reproject onto the
+    // linear bottom axes [0, 100]: 25% across.
     TwoAxes t;
     t.top.xscale(ScaleType::Sqrt);
     t.top.xlim(0.0, 100.0);
-    EXPECT_NEAR(cm::screen_to_data_x(t.top, mid_x(TOP_VP)), 50.0, 1e-9);
+    t.bottom.xlim(0.0, 100.0);
+    const double x = cm::screen_to_data_x(t.top, mid_x(TOP_VP));
+    EXPECT_NEAR(cm::data_to_screen_x(t.bottom, x), BOTTOM_VP.x + 0.25 * BOTTOM_VP.w, 1e-6);
 }
 
 TEST(CrosshairMapping, NonPositiveValueOnLogTargetFallsOutsideViewport)

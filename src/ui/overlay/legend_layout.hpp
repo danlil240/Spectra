@@ -223,7 +223,10 @@ inline bool apply_scale(ScaleType s, double v, double& out)
                 return false;
             out = std::log2(v);
             return true;
-        default:   // Linear and Sqrt: Sqrt axes are drawn untransformed (core/axis_scale.hpp)
+        case ScaleType::Sqrt:   // signed square root, as in core/axis_scale.hpp
+            out = std::copysign(std::sqrt(std::abs(v)), v);
+            return std::isfinite(v);
+        default:
             out = v;
             return std::isfinite(v);
     }

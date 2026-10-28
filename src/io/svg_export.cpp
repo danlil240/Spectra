@@ -1448,9 +1448,10 @@ void emit_grid_2d(SvgContext& c, const Axes& axes, const DataToSvg& m)
     // Log axes: minor lines at 2..9 x 10^k / 1.25..1.75 x 2^k (render_geometry.cpp).
     auto minor = [](ScaleType sc, const std::vector<double>& t, double lo, double hi)
     {
+        // lo / hi are axis-space limits; the minor values are data values.
         return is_log_scale(sc)
                    ? log_minor_ticks(sc, from_axis_space(sc, lo), from_axis_space(sc, hi))
-                   : minor_grid_values(t, lo, hi);
+                   : minor_grid_values(t, from_axis_space(sc, lo), from_axis_space(sc, hi));
     };
     emit_lines(minor(m.xscale, x_ticks.positions, m.x_min, m.x_max),
                minor(m.yscale, y_ticks.positions, m.y_min, m.y_max),

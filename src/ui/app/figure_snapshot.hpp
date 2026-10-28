@@ -434,7 +434,7 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
 {
     ipc::SnapshotFigureState snap;
     snap.figure_id = figure_id;
-    snap.title     = fig.tab_title();   // empty = caller / window picks "Figure N"
+    snap.title           = fig.tab_title();   // empty = caller / window picks "Figure N"
     snap.width     = fig.width();
     snap.height    = fig.height();
     snap.grid_rows = fig.grid_rows();

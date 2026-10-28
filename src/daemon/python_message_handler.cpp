@@ -389,26 +389,11 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
     auto                  base_rev = ctx.fig_model.revision();
 
     // Check for unknown property before applying
-    static const char* known_props[] = {"color",
-                                        "color_letter",
-                                        "xlim",
-                                        "ylim",
-                                        "zlim",
-                                        "title",
-                                        "grid",
-                                        "visible",
-                                        "line_width",
-                                        "marker_size",
-                                        "opacity",
-                                        "xlabel",
-                                        "ylabel",
-                                        "axes_title",
-                                        "label",
-                                        "legend",
-                                        "legend_visible",
-                                        "add_knob",
-                                        "annotation",
-                                        "clear_annotations"};
+    static const char* known_props[] = {
+        "color",   "color_letter",   "xlim",     "ylim",       "zlim",
+        "title",   "grid",           "visible",  "line_width", "marker_size",
+        "opacity", "xlabel",         "ylabel",   "axes_title", "label",
+        "legend",  "legend_visible", "add_knob", "annotation", "clear_annotations"};
     bool               known         = false;
     for (const auto* p : known_props)
     {

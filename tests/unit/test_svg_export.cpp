@@ -25,6 +25,7 @@
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/text_fit.hpp"
+#include "ui/overlay/legend_layout.hpp"
 
 // The test's own (internal-linkage) stb_truetype, to parse the embedded font subset.
 #if defined(__GNUC__)
@@ -674,6 +675,51 @@ TEST(SvgExport, FortyEntryLegendStaysInsideNarrowPlot)
     EXPECT_EQ(std::count(title.begin(), title.end(), '\n'), more - 1) << title;
     EXPECT_NE(title.find("Series 40"), std::string::npos) << title;
     EXPECT_EQ(title.find(" more"), std::string::npos) << title;
+}
+
+// S4-U01: an explicitly placed dense legend (the QA gallery "layout" scene:
+// 50 long labels, TopRight, 640 x 480) keeps its corner but is capped to a
+// share of the plot area; the rest is counted by "+N more".
+TEST(SvgExport, DenseExplicitLegendLeavesMostOfThePlotVisible)
+{
+    Figure             fig({.width = 640, .height = 480});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x = {0.0f, 1.0f}, y = {0.0f, 1.0f};
+    for (int i = 0; i < 50; ++i)
+        ax.line(x, y).label("Sensor " + std::to_string(i + 1) + " / descriptive long legend entry");
+    fig.legend().position  = LegendPosition::TopRight;
+    fig.legend().font_size = 12.0f;
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+
+    const SvgRect plot = plot_rect(svg);
+    const size_t  g    = svg.find("<g class=\"legend\">");
+    ASSERT_NE(g, std::string::npos);
+    const size_t  end = svg.find("</g>", g);
+    const SvgRect box{attr(svg, g, "x"),
+                      attr(svg, g, "y"),
+                      attr(svg, g, "width"),
+                      attr(svg, g, "height")};
+    EXPECT_LE(box.w * box.h, legend_layout::INSIDE_MAX_COVERAGE * plot.w * plot.h + 1.0f);
+    // Still the requested corner: top-right, MARGIN inside the plot.
+    EXPECT_NEAR(box.x + box.w, plot.x + plot.w - legend_layout::MARGIN, 0.5f);
+    EXPECT_NEAR(box.y, plot.y + legend_layout::MARGIN, 0.5f);
+
+    int    shown = 0;
+    int    more  = 0;
+    size_t p     = g;
+    while ((p = svg.find("<text ", p + 1)) != std::string::npos && p < end)
+    {
+        const size_t gt  = svg.find('>', p);
+        const auto   txt = svg.substr(gt + 1, svg.find('<', gt) - gt - 1);
+        if (txt.rfind("Sensor ", 0) == 0)
+            ++shown;
+        else if (!txt.empty() && txt.front() == '+')
+            more = std::stoi(txt.substr(1));
+    }
+    EXPECT_GE(shown, legend_layout::INSIDE_MIN_ROWS);
+    EXPECT_GT(more, 0);
+    EXPECT_EQ(shown + more, 50);
 }
 
 // A crowded Best legend (50 entries, small panel) moves to the strip right of

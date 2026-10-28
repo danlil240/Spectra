@@ -384,8 +384,9 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
     const float pad_y = config.padding;
 
     // A static image cannot scroll, so every entry must be represented: see
-    // legend_layout::compute_static_grid for the policy (tighter rows, then
-    // an explicit "+N more" cell).  Shrink-to-fit rule shared with the SVG
+    // legend_layout::compute_legend_grid for the policy (tighter rows, then
+    // an explicit "+N more" cell; inside legends are capped to a share of the
+    // plot area).  Shrink-to-fit rule shared with the SVG
     // exporter (see legend_layout::compute_static_grid): only the automatic
     // size may fall back to the smaller tick font before entries are
     // summarised; an explicitly requested font_size is always honoured.
@@ -409,17 +410,16 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
         const float overflow_w =
             text_renderer_.measure_text(legend_layout::overflow_text(n), f.preset, f.scale).width;
         const float cw = SWATCH_W + SWATCH_GAP + max_label_w;
-        const auto  g =
-            legend_layout::compute_static_grid(n,
-                                               cw,
-                                               th + 6.0f,
-                                               th + 2.0f,
-                                               overflow_w,
-                                               pad_x,
-                                               pad_y,
-                                               legend_layout::COL_GAP,
-                                               legend_layout::max_box_w(area, config.position),
-                                               legend_layout::max_box_h(area, config.position));
+        const auto  g  = legend_layout::compute_legend_grid(n,
+                                                          cw,
+                                                          th + 6.0f,
+                                                          th + 2.0f,
+                                                          overflow_w,
+                                                          pad_x,
+                                                          pad_y,
+                                                          legend_layout::COL_GAP,
+                                                          area,
+                                                          config.position);
         return Fit{f, g};
     };
     Fit fit = fit_with(legend_font(config.font_size));

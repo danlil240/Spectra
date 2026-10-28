@@ -8,6 +8,7 @@
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
     #include <span>
+    #include <string>
     #include <unordered_map>
     #include <vector>
 
@@ -92,12 +93,15 @@ class LegendInteraction
     // State of the "+N more" cell drawn by the last draw() of a legend, for
     // hit-testing and tests.  Hovering the cell lists the hidden entries (with
     // colour keys); clicking it opens the full legend popup, whose rows toggle
-    // series visibility like the legend's own rows.
+    // series visibility like the legend's own rows.  The mouse wheel over
+    // the legend scrolls the run of entries the box shows (`first`).
     struct OverflowCell
     {
         Rect cell;                 // screen pixels
         int  shown      = 0;       // entries drawn in the legend box
         int  hidden     = 0;       // entries summarised by the cell
+        int         first      = 0;       // first entry drawn (mouse-wheel scroll offset)
+        std::string tooltip_first;        // first hidden label listed by the hover tooltip
         bool hovered    = false;   // tooltip shown this frame
         bool popup_open = false;   // full legend popup shown this frame
         int  popup_rows = 0;       // rows submitted to the popup list
@@ -151,6 +155,7 @@ class LegendInteraction
     // The "+N more" cell at @p pos, its hover tooltip and the full legend
     // popup it opens.  Returns true if it consumed a click.
     bool draw_overflow_cell(std::span<Series* const> entries,
+                            int                      first,
                             int                      shown,
                             const ImVec2&            pos,
                             float                    width,
@@ -172,6 +177,10 @@ class LegendInteraction
 
     // "+N more" cell per (figure, axes), as drawn by the last draw().
     std::unordered_map<OffsetKey, OverflowCell> overflow_cells_;
+
+    // Mouse-wheel scroll offset (in entries) of a summarised legend, per
+    // (figure, axes); see legend_layout::scroll_offset.
+    std::unordered_map<OffsetKey, float> scroll_offsets_;
 
     // Drag state
     bool   dragging_        = false;

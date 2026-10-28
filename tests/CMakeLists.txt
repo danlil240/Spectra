@@ -291,6 +291,7 @@ set(SPECTRA_UNIT_TESTS
     test_expression_eval
     test_visual_correctness
     test_logger_defaults
+    test_config_paths
     test_runtime_robustness
     test_app_init_failure
     test_export_viewport
@@ -2045,7 +2046,8 @@ if(SPECTRA_BUILD_QA_AGENT)
 
         # Design review: 63 named captures, each proved by semantic assertions
         # (menu open, hover/crosshair, panels closed, UI scale...).  Runs under
-        # Xvfb + lavapipe with an isolated HOME; fails on any failed assertion.
+        # Xvfb + lavapipe with an isolated SPECTRA_CONFIG_DIR; fails on any failed
+        # assertion.
         if(SPECTRA_USE_GLFW AND SPECTRA_USE_IMGUI AND NOT WIN32)
             add_test(NAME qa_design_review
                 COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/qa/run_design_review.sh

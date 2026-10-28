@@ -139,6 +139,21 @@ xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure
 ./build/tests/unit_test_ipc
 ```
 
+### Isolating user configuration
+
+Every per-user file Spectra reads or writes (`settings.json`, `keybindings.json`,
+`workspace.spectra`, `autosave.spectra`, `default_theme.json`, `plugins/`, PX4/ROS2 recent
+files and sessions) lives in one config directory (`src/core/config_paths.hpp`), resolved as:
+
+1. `$SPECTRA_CONFIG_DIR` if set and non-empty — used as the Spectra directory itself;
+2. `$XDG_CONFIG_HOME/spectra` if `XDG_CONFIG_HOME` is set and absolute (not on Windows);
+3. `$HOME/.config/spectra` (falling back to `%USERPROFILE%\.config\spectra`) — the historical default.
+
+Tests, QA runs and screenshot scripts should export `SPECTRA_CONFIG_DIR=$(mktemp -d)` instead of
+overriding `HOME`; windowed apps then cannot read saved user settings. Log files follow
+`XDG_STATE_HOME` separately (`$HOME/.local/state/spectra` by default). A legacy
+`~/.spectra/default_theme.json` is still read when the config directory is not redirected.
+
 ### Formatting
 
 Spectra is formatted with **clang-format 18** (`.clang-format`; CI installs `clang-format-18`).
@@ -635,7 +650,7 @@ named UI states (menu open, crosshair hover, panels closed, 125% UI scale, Setti
 Each capture carries semantic assertions checked on the captured frame (ImGui windows/popups
 drawn, layout/palette/settings state, pointer readout, swapchain size); a failed assertion is an
 `ERROR` (`design_assertion`) in `qa_report.{txt,json}` and the agent exits non-zero. CI-like run
-(private Xvfb, lavapipe, throw-away `HOME`):
+(private Xvfb, lavapipe, throw-away `SPECTRA_CONFIG_DIR`; `HOME` is not overridden):
 ```bash
 ctest --test-dir build -R qa_design_review --output-on-failure      # label gpu;qa
 tests/qa/run_design_review.sh build/tests/spectra_qa_agent /tmp/design   # same, keeps output

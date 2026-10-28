@@ -9,8 +9,10 @@
 #
 # Conditions: a private Xvfb display (always, when xvfb-run exists, so window
 # positions/sizes are not changed by a desktop window manager), software Vulkan
-# (lavapipe) unless an ICD is already pinned, and a throw-away HOME /
-# XDG_RUNTIME_DIR so saved user settings (UI scale, theme) cannot leak in.
+# (lavapipe) unless an ICD is already pinned, and a throw-away
+# SPECTRA_CONFIG_DIR / XDG_CONFIG_HOME / XDG_STATE_HOME / XDG_RUNTIME_DIR so
+# saved user settings (UI scale, theme), autosave and logs cannot leak in or
+# out.  HOME is inherited unchanged.
 #
 # Usage: run_design_review.sh <spectra_qa_agent> [output-dir]
 # Exit:  the agent's exit code; 77 (ctest SKIP) when no X server is available.
@@ -21,14 +23,15 @@ out=${2:-}
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/home" "$tmp/xdg"
+mkdir -p "$tmp/config" "$tmp/xdg-config" "$tmp/state" "$tmp/xdg"
 chmod 700 "$tmp/xdg"
 [ -n "$out" ] || out="$tmp/out"
 rm -rf "$out"
 mkdir -p "$out"
 
-export HOME="$tmp/home"
-export XDG_CONFIG_HOME="$tmp/home/.config"
+export SPECTRA_CONFIG_DIR="$tmp/config"
+export XDG_CONFIG_HOME="$tmp/xdg-config"
+export XDG_STATE_HOME="$tmp/state"
 export XDG_RUNTIME_DIR="$tmp/xdg"
 
 if [ -z "${VK_ICD_FILENAMES:-}" ] && [ -z "${VK_DRIVER_FILES:-}" ]; then

@@ -820,7 +820,7 @@ class PluginManager
     // Discover plugins in a directory (scans for .so/.dll/.dylib files).
     std::vector<std::string> discover(const std::string& directory) const;
 
-    // Default plugin directory (~/.config/spectra/plugins/).
+    // Default plugin directory (<config dir>/plugins/, see core/config_paths.hpp).
     static std::string default_plugin_dir();
 
     // Serialize plugin state (enabled/disabled) to JSON.

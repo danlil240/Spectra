@@ -941,10 +941,11 @@ TEST(RecentList, DeserializeInvalidJson)
 // Suite 9: Recent list management (push_recent / remove_recent)
 // ===========================================================================
 
-// Use a custom HOME dir to avoid touching the real ~/.config
+// Use a private SPECTRA_CONFIG_DIR to avoid touching the real ~/.config
 struct RecentFixture : public ::testing::Test
 {
-    std::string old_home;
+    std::string old_config_dir;
+    bool        had_config_dir = false;
     std::string fake_home;
 
     void SetUp() override
@@ -952,13 +953,20 @@ struct RecentFixture : public ::testing::Test
         fake_home = "/tmp/spectra_test_home_"
                     + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
         std::filesystem::create_directories(fake_home);
-        old_home = std::getenv("HOME") ? std::getenv("HOME") : "";
-        setenv("HOME", fake_home.c_str(), 1);
+        if (const char* v = std::getenv("SPECTRA_CONFIG_DIR"))
+        {
+            had_config_dir = true;
+            old_config_dir = v;
+        }
+        setenv("SPECTRA_CONFIG_DIR", fake_home.c_str(), 1);
     }
 
     void TearDown() override
     {
-        setenv("HOME", old_home.c_str(), 1);
+        if (had_config_dir)
+            setenv("SPECTRA_CONFIG_DIR", old_config_dir.c_str(), 1);
+        else
+            unsetenv("SPECTRA_CONFIG_DIR");
         std::filesystem::remove_all(fake_home);
     }
 };

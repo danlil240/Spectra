@@ -139,7 +139,8 @@ g++ -shared -fPIC -std=c++20 -o my_plugin.so my_plugin.cpp \
 ### Plugin discovery
 
 Place the built `.so` in one of:
-- `~/.config/spectra/plugins/` — scanned automatically on startup
+- `<config dir>/plugins/` — scanned automatically on startup (`~/.config/spectra/plugins/` by
+  default; `$SPECTRA_CONFIG_DIR/plugins/` or `$XDG_CONFIG_HOME/spectra/plugins/` when set)
 - Any directory passed to `PluginManager::discover()`
 - Loaded manually via **View → Plugins → Load Plugin...**
 

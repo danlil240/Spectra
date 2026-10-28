@@ -47,9 +47,15 @@ struct AppConfig
     /// Empty → "default" (the theme's own palette) for headless apps, or the user's
     /// saved default for windowed apps.  When set, it overrides the user's settings.
     std::string data_palette{};
-    /// Headless apps ignore ~/.config/spectra/settings.json so exports render the
-    /// same on every machine.  Set to true to apply the user's saved theme and
+    /// Headless apps ignore the user's settings.json so exports render the same
+    /// on every machine.  Set to true to apply the user's saved theme and
     /// palette anyway.  Windowed apps always read the user's settings.
+    ///
+    /// settings.json (like every per-user Spectra file) lives in Spectra's config
+    /// directory: $SPECTRA_CONFIG_DIR if set (used as-is), else
+    /// $XDG_CONFIG_HOME/spectra (absolute paths, non-Windows), else
+    /// $HOME/.config/spectra.  Point SPECTRA_CONFIG_DIR at an empty directory to
+    /// isolate a windowed app from saved user settings.
     bool use_user_settings = false;
 };
 

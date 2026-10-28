@@ -1,4 +1,5 @@
 #include "settings_store.hpp"
+#include "core/config_paths.hpp"
 #include "core/json_key.hpp"
 
 #include <cmath>
@@ -142,10 +143,10 @@ StartupTheme resolve_startup_theme(const SettingsData* user,
 
 std::string SettingsStore::default_path()
 {
-    const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0')
-        home = ".";
-    return std::string(home) + "/.config/spectra/settings.json";
+    std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
+        dir = std::filesystem::path(".") / ".config" / "spectra";
+    return (dir / "settings.json").string();
 }
 
 bool SettingsStore::load()

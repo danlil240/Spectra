@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
+#include "core/config_paths.hpp"
 #include "spectra/logger.hpp"
 
 namespace spectra
@@ -183,10 +184,10 @@ bool WorkspaceAutosave::autosave_is_newer_than(const std::string& reference_path
 
 std::string WorkspaceAutosave::default_autosave_path()
 {
-    const char* home = std::getenv("HOME");
-    if (!home)
-        home = ".";
-    return std::string(home) + "/.config/spectra/autosave.spectra";
+    std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
+        dir = std::filesystem::path(".") / ".config" / "spectra";
+    return (dir / "autosave.spectra").string();
 }
 
 }   // namespace spectra

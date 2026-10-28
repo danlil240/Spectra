@@ -12,7 +12,7 @@ struct WorkspaceData;
 /// Auto-save mechanism for workspace state.
 ///
 /// Periodically serializes workspace state to a well-known path
-/// (~/.config/spectra/autosave.spectra). On startup, the host can
+/// (<config dir>/autosave.spectra). On startup, the host can
 /// check for an autosave newer than the last clean save and offer
 /// recovery.
 ///
@@ -47,7 +47,7 @@ class WorkspaceAutosave
     [[nodiscard]] Duration debounce() const;
 
     /// Set the output path for auto-saves.
-    /// Default: ~/.config/spectra/autosave.spectra
+    /// Default: <config dir>/autosave.spectra (see core/config_paths.hpp)
     void                             set_autosave_path(const std::string& path);
     [[nodiscard]] const std::string& autosave_path() const;
 

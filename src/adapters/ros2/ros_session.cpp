@@ -2,6 +2,8 @@
 
 #include "ros_session.hpp"
 
+#include "core/config_paths.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -693,36 +695,31 @@ bool RosSessionManager::is_favorite(const std::string& topic)
 // Paths
 // ---------------------------------------------------------------------------
 
+namespace
+{
+// Spectra's config dir (see core/config_paths.hpp); /tmp/.config/spectra when
+// no home directory is known (historical fallback).
+std::string ros_config_dir()
+{
+    const std::filesystem::path dir = spectra::user_config_dir();
+    if (dir.empty())
+        return "/tmp/.config/spectra";
+    return dir.string();
+}
+}   // namespace
+
 std::string RosSessionManager::default_recent_path()
 {
-    // Use $HOME/.config/spectra/ros_recent.json
-    const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0')
-    {
-        home = "/tmp";
-    }
-    std::string dir = std::string(home) + "/.config/spectra";
-    return dir + "/ros_recent.json";
+    return ros_config_dir() + "/ros_recent.json";
 }
 
 std::string RosSessionManager::default_favorites_path()
 {
-    const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0')
-    {
-        home = "/tmp";
-    }
-    std::string dir = std::string(home) + "/.config/spectra";
-    return dir + "/ros_favorites.json";
+    return ros_config_dir() + "/ros_favorites.json";
 }
 
 std::string RosSessionManager::default_session_path(const std::string& node_name)
 {
-    const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0')
-    {
-        home = "/tmp";
-    }
     std::string name = node_name.empty() ? "default" : node_name;
     // Sanitise: replace '/' with '_'
     for (char& c : name)
@@ -730,7 +727,7 @@ std::string RosSessionManager::default_session_path(const std::string& node_name
         if (c == '/' || c == '\\' || c == ':')
             c = '_';
     }
-    return std::string(home) + "/.config/spectra/sessions/" + name + ".spectra-ros-session";
+    return ros_config_dir() + "/sessions/" + name + ".spectra-ros-session";
 }
 
 // ===========================================================================

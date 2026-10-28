@@ -423,8 +423,13 @@ class ThemeManager
 
     // Palette swatches as the plot actually draws them: palette `name` ("" =
     // the current palette, "default" = the theme's own) passed through
-    // visible_data_palette() against the theme canvas.  Settings and colour
-    // picker swatches use this so they match auto-coloured series.
+    // visible_data_palette() against the theme canvas, then through the final
+    // adapt_series_color_to_theme() ink step (pure black / white slots become
+    // the theme foreground), exactly as auto-coloured series reach the screen.
+    // Settings and colour-picker swatches draw (and the picker assigns) these
+    // final colours.  The raw palette definition stays available through
+    // get_data_palette() / current_data_palette(), and the pre-ink auto slot
+    // values (what Series::color() holds) through visible_data_palette().
     DataPalette displayed_data_palette(const std::string& name = {}) const;
 
     // Animated palette transition
@@ -571,12 +576,13 @@ class ThemeManager
     } export_override_;
 
     // displayed_data_palette() cache: recomputed only when the source colours,
-    // the ramp flag or the canvas change.
+    // the ramp flag, the canvas or the theme ink change.
     struct DisplayedPaletteCache
     {
         std::vector<Color> src;
         bool               sequential = false;
         Color              canvas;
+        Color              ink;   // text_primary used for the final ink step
         DataPalette        result;
         bool               valid = false;
     };
@@ -809,9 +815,14 @@ struct StatusPerfColors
 StatusPerfColors status_perf_colors(const ThemeColors& c, bool fps_live, float glow_intensity);
 
 // Empty-state / welcome action buttons, resolved against the opaque `backdrop`
-// they are drawn on. Fills are opaque. Text reaches 4.5:1 against every fill
-// state, and the button edge (secondary: border; primary: fill) reaches 4.5:1
-// against the backdrop so the button reads as a button.
+// they are drawn on. Fills are opaque. Contract (per fill / hover / active
+// state, guarded by UiShellButtons.ActionButtonsReachContrastTargets):
+//  * text reaches 4.5:1 (WCAG text) against every fill state;
+//  * primary: the filled shape itself is the button edge, a graphical object,
+//    so each fill state reaches 3:1 (WCAG 1.4.11 non-text) against the
+//    backdrop — not 4.5:1 (Light's accent fill is ~4.15:1 on bg_primary);
+//  * secondary: the fill barely differs from the backdrop, so the outline
+//    carries the edge and is held to 4.5:1 against the backdrop.
 struct ActionButtonColors
 {
     Color fill;

@@ -15,6 +15,7 @@
     #include <spectra/figure.hpp>
     #include <spectra/figure_registry.hpp>
     #include <string>
+    #include <utility>
     #include <vector>
 
     #include "imgui.h"
@@ -584,21 +585,40 @@ TEST(UiShellButtons, ActionButtonsReachContrastTargets)
     {
         tm.set_theme(name);
         const auto& c = tm.colors();
-        for (bool primary : {true, false})
+        // bg_primary is what the welcome / empty-state widget draws on; bg_canvas
+        // is the other supported backdrop.
+        const std::pair<const char*, ui::Color> backdrops[] = {{"bg_primary", c.bg_primary},
+                                                               {"bg_canvas", c.bg_canvas}};
+        for (const auto& [backdrop_name, backdrop] : backdrops)
         {
-            SCOPED_TRACE(std::string(name) + (primary ? " primary" : " secondary"));
-            const auto b = ui::action_button_colors(c, primary, c.bg_primary);
-            EXPECT_GE(b.text.contrast_ratio(b.fill), 4.5f);
-            EXPECT_GE(b.text.contrast_ratio(b.hover), 4.5f);
-            EXPECT_GE(b.text.contrast_ratio(b.active), 4.5f);
-            if (primary)
+            const ui::Color bg = backdrop.with_alpha(1.0f);
+            for (bool primary : {true, false})
             {
-                EXPECT_GE(b.fill.contrast_ratio(c.bg_primary), 3.0f);
-            }
-            else
-            {
-                ASSERT_GT(b.border.a, 0.0f);
-                EXPECT_GE(b.border.contrast_ratio(c.bg_primary), 4.5f);
+                SCOPED_TRACE(std::string(name) + (primary ? " primary on " : " secondary on ")
+                             + backdrop_name);
+                const auto b = ui::action_button_colors(c, primary, backdrop);
+                const std::pair<const char*, ui::Color> states[] = {
+                    {"fill", b.fill}, {"hover", b.hover}, {"active", b.active}};
+                for (const auto& [state, fill] : states)
+                {
+                    SCOPED_TRACE(state);
+                    EXPECT_FLOAT_EQ(fill.a, 1.0f);
+                    // Text: 4.5:1 on every state.
+                    EXPECT_GE(b.text.contrast_ratio(fill), 4.5f);
+                    // Primary: the fill is the edge, a graphical object: 3:1.
+                    if (primary)
+                        EXPECT_GE(fill.contrast_ratio(bg), 3.0f);
+                }
+                if (primary)
+                {
+                    EXPECT_EQ(b.border.a, 0.0f);
+                }
+                else
+                {
+                    // Secondary: the outline carries the edge: 4.5:1.
+                    ASSERT_GT(b.border.a, 0.0f);
+                    EXPECT_GE(b.border.contrast_ratio(bg), 4.5f);
+                }
             }
         }
     }

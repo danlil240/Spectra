@@ -494,7 +494,8 @@ bool color_field(const char* label, spectra::Color& color)
         }
 
         // Palette swatches from the current data palette, as auto series draw
-        // them on the canvas (contrast-adjusted), so a picked swatch matches.
+        // them on the canvas (contrast-adjusted, ink slots in the theme
+        // foreground).  Clicking one assigns exactly the colour shown.
         const auto palette = ThemeManager::instance().displayed_data_palette();
         if (!palette.colors.empty())
         {

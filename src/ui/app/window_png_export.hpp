@@ -19,6 +19,7 @@ namespace spectra
 {
 
 class Figure;
+class FigureRegistry;
 class VulkanBackend;
 struct WindowContext;
 class WindowManager;
@@ -81,5 +82,20 @@ WindowContext* find_window_for_figure(WindowManager* window_mgr, uint64_t fig_id
 // Write the pending SVG request of @p fig (if any) and clear it.  Returns false
 // only when a write was attempted and failed.
 bool write_pending_svg(Figure& fig, ui::ThemeManager* theme_mgr);
+
+// One frame of windowed export servicing, shared by App::step() (inproc) and
+// the multiproc window agent, called after the frame has been rendered:
+//  - writes a finished PNG / clipboard capture,
+//  - schedules a capture for the active figure's pending PNG / clipboard
+//    request (aimed at the window showing it),
+//  - writes every figure's pending SVG request right away.
+// @p active_id may be INVALID / unknown (no PNG scheduled).  Returns true when
+// a PNG capture was scheduled: the caller must make the next frame render.
+bool service_window_exports(WindowPngExport&  png_export,
+                            FigureRegistry&   registry,
+                            uint64_t          active_id,
+                            VulkanBackend*    vk,
+                            WindowManager*    window_mgr,
+                            ui::ThemeManager* theme_mgr);
 
 }   // namespace spectra

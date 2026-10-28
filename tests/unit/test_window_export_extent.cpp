@@ -206,6 +206,18 @@ TEST_F(WindowExportExtent, ExplicitSizeScalesInsteadOfCropping)
     EXPECT_LT(diff_fraction(e, expected, 240, 300), 0.05);
 }
 
+TEST_F(WindowExportExtent, SvgIsWrittenWhileTheWindowIsOpen)
+{
+    steps(2);
+    const fs::path svg = dir_ / "live.svg";
+    ASSERT_TRUE(fig_->save_svg(svg.string()));
+    steps(1);
+    // Written during the frame, not deferred to shutdown_runtime().
+    EXPECT_TRUE(fs::exists(svg));
+    EXPECT_TRUE(fig_->export_req_.svg_path.empty());
+    steps(2);   // the window keeps rendering normally afterwards
+}
+
 #ifdef SPECTRA_USE_GLFW
 TEST_F(WindowExportExtent, ResizeBetweenRequestAndCaptureUsesCapturedFrame)
 {

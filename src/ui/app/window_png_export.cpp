@@ -2,6 +2,7 @@
 
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/figure_registry.hpp>
 #include <spectra/logger.hpp>
 
 #include <algorithm>
@@ -268,6 +269,38 @@ bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr)
     if (!ok)
         SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", path);
     return ok;
+}
+
+bool service_window_exports(WindowPngExport&  png_export,
+                            FigureRegistry&   registry,
+                            uint64_t          active_id,
+                            VulkanBackend*    vk,
+                            WindowManager*    window_mgr,
+                            ui::ThemeManager* theme_mgr)
+{
+    png_export.collect(vk);
+
+    bool scheduled = false;
+    if (Figure* active = registry.get(active_id); active && !png_export.active())
+    {
+        WindowContext* target_wctx = nullptr;
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        // Target the window that owns this figure so multi-window captures
+        // read the correct swapchain image.
+        target_wctx = find_window_for_figure(window_mgr, active_id);
+#else
+        (void)window_mgr;
+#endif
+        scheduled = png_export.schedule(*active, vk, target_wctx);
+    }
+
+    // SVG is a CPU export of the figure model: write it now, not at shutdown.
+    for (auto id : registry.all_ids())
+    {
+        if (Figure* fig = registry.get(id); fig && !fig->export_req_.svg_path.empty())
+            write_pending_svg(*fig, theme_mgr);
+    }
+    return scheduled;
 }
 
 }   // namespace spectra

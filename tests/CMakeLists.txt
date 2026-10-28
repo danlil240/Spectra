@@ -2055,7 +2055,7 @@ if(SPECTRA_USE_PX4)
     endif()
 endif()
 
-# QA Agents (interactive/manual harnesses; only the design review is a CTest test)
+# QA Agents (interactive/manual harnesses; the design review and soak are CTest tests)
 option(SPECTRA_BUILD_QA_AGENT "Build QA stress testing agent" OFF)
 if(SPECTRA_BUILD_QA_AGENT)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/qa/qa_agent.cpp)
@@ -2093,6 +2093,19 @@ if(SPECTRA_BUILD_QA_AGENT)
                 RESOURCE_LOCK gpu
                 SKIP_RETURN_CODE 77
                 TIMEOUT 900)
+
+            # Soak: 3 scenarios x 12 iterations in one process each; fails when
+            # the RSS (0.5 MB/iter) or in-use heap (0.05 MB/iter) slope after
+            # 2 warm-up iterations keeps growing.  See qa/run_soak.sh.
+            add_test(NAME qa_soak
+                COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/qa/run_soak.sh
+                        $<TARGET_FILE:spectra_qa_agent>
+                        ${CMAKE_CURRENT_BINARY_DIR}/qa_soak)
+            set_tests_properties(qa_soak PROPERTIES
+                LABELS "gpu;qa"
+                RESOURCE_LOCK gpu
+                SKIP_RETURN_CODE 77
+                TIMEOUT 300)
         endif()
     endif()
 

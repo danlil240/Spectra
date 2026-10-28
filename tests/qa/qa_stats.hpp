@@ -60,6 +60,94 @@ inline RetentionVerdict judge_retention(int64_t                     baseline,
     return v;
 }
 
+// Ordinary least-squares fit y = intercept + slope * i over i = 0..n-1.
+struct LinearFit
+{
+    size_t samples   = 0;
+    double slope     = 0.0;
+    double intercept = 0.0;
+};
+
+inline LinearFit least_squares_fit(const std::vector<double>& y)
+{
+    LinearFit fit;
+    fit.samples = y.size();
+    if (y.empty())
+        return fit;
+    const double n      = static_cast<double>(y.size());
+    const double mean_x = (n - 1.0) / 2.0;
+    double       mean_y = 0.0;
+    for (double v : y)
+        mean_y += v;
+    mean_y /= n;
+    double sxy = 0.0;
+    double sxx = 0.0;
+    for (size_t i = 0; i < y.size(); ++i)
+    {
+        const double dx = static_cast<double>(i) - mean_x;
+        sxy += dx * (y[i] - mean_y);
+        sxx += dx * dx;
+    }
+    fit.slope     = sxx > 0.0 ? sxy / sxx : 0.0;
+    fit.intercept = mean_y - fit.slope * mean_x;
+    return fit;
+}
+
+// Theil-Sen slope: median of the pairwise slopes (y[j]-y[i])/(j-i).  Unlike
+// least squares a single transient spike (an allocator arena or a driver
+// staging buffer that happens to be live at one sample) cannot move it, so it
+// suits a tight gate on the in-use heap.
+inline double theil_sen_slope(const std::vector<double>& y)
+{
+    std::vector<double> slopes;
+    for (size_t i = 0; i < y.size(); ++i)
+        for (size_t j = i + 1; j < y.size(); ++j)
+            slopes.push_back((y[j] - y[i]) / static_cast<double>(j - i));
+    if (slopes.empty())
+        return 0.0;
+    const size_t mid = slopes.size() / 2;
+    std::nth_element(slopes.begin(), slopes.begin() + mid, slopes.end());
+    double m = slopes[mid];
+    if (slopes.size() % 2 == 0)
+        m = (m + *std::max_element(slopes.begin(), slopes.begin() + mid)) / 2.0;
+    return m;
+}
+
+// Soak gate for `--repeat N`: RSS sampled after each iteration; the first
+// `warmup_iterations` samples are dropped (they pay one-time warm-up), the
+// rest are fitted by least squares.  The slope (MB per iteration) fails the
+// gate when it exceeds `max_slope_mb` and at least `min_measured` iterations
+// were measured (fewer cannot tell a trend from noise, so they are not judged).
+struct SlopeVerdict
+{
+    bool   judged            = false;
+    bool   exceeds           = false;
+    size_t measured          = 0;     // samples after warm-up
+    double slope_mb_per_iter = 0.0;   // least-squares slope of the measured samples
+    double warmup_mb         = 0.0;   // baseline -> first measured sample
+};
+
+inline SlopeVerdict judge_rss_slope(int64_t                     baseline_bytes,
+                                    const std::vector<int64_t>& after_bytes,
+                                    size_t                      warmup_iterations,
+                                    double                      max_slope_mb,
+                                    size_t                      min_measured = 3)
+{
+    constexpr double MB = 1024.0 * 1024.0;
+    SlopeVerdict     v;
+    if (after_bytes.size() <= warmup_iterations)
+        return v;
+    std::vector<double> y;
+    for (size_t i = warmup_iterations; i < after_bytes.size(); ++i)
+        y.push_back(static_cast<double>(after_bytes[i]) / MB);
+    v.measured          = y.size();
+    v.warmup_mb         = y.front() - static_cast<double>(baseline_bytes) / MB;
+    v.slope_mb_per_iter = least_squares_fit(y).slope;
+    v.judged            = v.measured >= std::max<size_t>(min_measured, 2);
+    v.exceeds           = v.judged && v.slope_mb_per_iter > max_slope_mb;
+    return v;
+}
+
 // Running RSS check: a transient peak (e.g. five windows open at once) is not
 // growth.  Growth counts only when the *floor* of the last `window` samples
 // rises above baseline + threshold, i.e. memory stays up across ~window

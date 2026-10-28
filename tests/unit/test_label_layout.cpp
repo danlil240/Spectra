@@ -426,7 +426,9 @@ TEST(LabelLayoutSvg, TitleShrinksSmoothlyBetweenTiers)
         EXPECT_LE(tt->font_px, 18.0f + 1e-3f);
         EXPECT_GE(tt->font_px, prev_px - 1e-3f);   // never larger in a narrower figure
         if (tt->font_px > 14.0f + 1e-3f)
+        {
             EXPECT_EQ(tt->content, title);   // only ellipsized at the Label size
+        }
         if (tt->font_px > 14.5f && tt->font_px < 17.5f)
             ++intermediate;
         prev_px = tt->font_px;

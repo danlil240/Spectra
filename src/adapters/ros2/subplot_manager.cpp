@@ -242,13 +242,13 @@ SubplotHandle SubplotManager::add_plot(int                slot,
         entry->field_path = field_path;
         entry->type_name  = resolved_type;
 
-        std::string lbl    = topic + "/" + field_path;
-        const int   slot   = next_color_slot();
-        entry->color_index = static_cast<size_t>(slot);
+        std::string lbl        = topic + "/" + field_path;
+        const int   color_slot = next_color_slot();
+        entry->color_index     = static_cast<size_t>(color_slot);
 
         spectra::LineSeries& ls = se.axes->line();
         ls.label(lbl);
-        ls.set_auto_color_index(slot);
+        ls.set_auto_color_index(color_slot);
         ls.width(3.0f);
         entry->series = &ls;
 
@@ -362,11 +362,11 @@ SubplotHandle SubplotManager::add_plot(int                slot,
     std::string lbl = topic + "/" + field_path;
 
     // Add a LineSeries to the subplot axes.
-    const int slot          = next_color_slot();
-    se.color_index          = static_cast<size_t>(slot);
+    const int color_slot    = next_color_slot();
+    se.color_index          = static_cast<size_t>(color_slot);
     spectra::LineSeries& ls = se.axes->line();
     ls.label(lbl);
-    ls.set_auto_color_index(slot);
+    ls.set_auto_color_index(color_slot);
     ls.width(3.0f);
     se.series = &ls;
 

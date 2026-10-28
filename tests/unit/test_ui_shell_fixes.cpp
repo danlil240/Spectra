@@ -285,6 +285,24 @@ TEST_F(UiShellFixture, FallbackPanelItemsTrackPanelState)
 
 namespace
 {
+void set_env_var(const char* name, const std::string& value)
+{
+    #ifdef _WIN32
+    _putenv_s(name, value.c_str());
+    #else
+    setenv(name, value.c_str(), 1);
+    #endif
+}
+
+void unset_env_var(const char* name)
+{
+    #ifdef _WIN32
+    _putenv_s(name, "");
+    #else
+    unsetenv(name);
+    #endif
+}
+
 struct ScopedHome
 {
     explicit ScopedHome(const std::filesystem::path& dir)
@@ -292,14 +310,14 @@ struct ScopedHome
         if (const char* h = std::getenv("HOME"))
             old_ = h;
         std::filesystem::create_directories(dir);
-        setenv("HOME", dir.c_str(), 1);
+        set_env_var("HOME", dir.string());
     }
     ~ScopedHome()
     {
         if (old_.empty())
-            unsetenv("HOME");
+            unset_env_var("HOME");
         else
-            setenv("HOME", old_.c_str(), 1);
+            set_env_var("HOME", old_);
     }
     std::string old_;
 };

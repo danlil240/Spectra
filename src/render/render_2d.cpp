@@ -74,7 +74,9 @@ void Renderer::render_series(Series&             series,
                              const VisibleRange* visible,
                              double              view_cx,
                              double              view_cy,
-                             int                 shape3d_range)
+                             int                 shape3d_range,
+                             uint32_t            shape3d_first_shape,
+                             uint32_t            shape3d_shape_count)
 {
     auto it = series_gpu_data_.find(&series);
     if (it == series_gpu_data_.end())
@@ -605,9 +607,25 @@ void Renderer::render_series(Series&             series,
                         const auto& r = ranges[ri];
                         if (shape3d_range >= 0 && ri != static_cast<size_t>(shape3d_range))
                             continue;
-                        if (r.first_index >= idx_limit)
+                        // Optionally narrow one range to a run of its shapes.
+                        uint32_t first = r.first_index;
+                        uint32_t total = r.index_count;
+                        if (shape3d_range >= 0 && shape3d_shape_count > 0)
+                        {
+                            const auto   shapes = sh3d->shape_ranges();
+                            const size_t s0 = std::max<size_t>(shape3d_first_shape, r.first_shape);
+                            const size_t s1 = std::min<size_t>(
+                                {shapes.size(),
+                                 static_cast<size_t>(shape3d_first_shape) + shape3d_shape_count,
+                                 static_cast<size_t>(r.first_shape) + r.shape_count});
+                            if (s0 >= s1)
+                                continue;
+                            first = shapes[s0].first_index;
+                            total = shapes[s1 - 1].first_index + shapes[s1 - 1].index_count - first;
+                        }
+                        if (first >= idx_limit)
                             continue;
-                        const uint32_t count = std::min(r.index_count, idx_limit - r.first_index);
+                        const uint32_t      count    = std::min(total, idx_limit - first);
                         SeriesPushConstants range_pc = pc;
                         if (!r.inherits_series_color())
                         {
@@ -639,7 +657,7 @@ void Renderer::render_series(Series&             series,
                             bound = pipe;
                         }
                         backend_.push_constants(range_pc);
-                        backend_.draw_indexed(count, r.first_index, 0);
+                        backend_.draw_indexed(count, first, 0);
                     }
                 }
             }

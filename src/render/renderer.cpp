@@ -32,21 +32,21 @@ namespace spectra
 namespace
 {
 
-// Centroid (data space) of the vertices referenced by one ShapeSeries3D draw
-// range.  Each shape owns a contiguous vertex block, so the referenced vertex
-// span [min, max] covers exactly the range's shapes.
-vec3 shape3d_range_centroid(const ShapeSeries3D& series, const ShapeSeries3D::DrawRange& range)
+// Centroid (data space) of the vertices referenced by one ShapeSeries3D index
+// block (a shape or a draw range).  Each shape owns a contiguous vertex block,
+// so the referenced vertex span [min, max] covers exactly the block's shapes.
+vec3 shape3d_block_centroid(const ShapeSeries3D& series, uint32_t first_index, uint32_t index_count)
 {
     const auto indices  = series.indices();
     const auto vertices = series.vertices();
-    const auto end      = std::min<size_t>(indices.size(),
-                                      static_cast<size_t>(range.first_index) + range.index_count);
-    if (range.first_index >= end)
+    const auto end =
+        std::min<size_t>(indices.size(), static_cast<size_t>(first_index) + index_count);
+    if (first_index >= end)
         return series.compute_centroid();
 
-    uint32_t vmin = indices[range.first_index];
+    uint32_t vmin = indices[first_index];
     uint32_t vmax = vmin;
-    for (size_t i = range.first_index; i < end; ++i)
+    for (size_t i = first_index; i < end; ++i)
     {
         vmin = std::min(vmin, indices[i]);
         vmax = std::max(vmax, indices[i]);
@@ -106,18 +106,25 @@ void Renderer::prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
     {
         gpu.sorted_indices.assign(indices.begin(), indices.end());
         const auto vertices = series.vertices();
+        const auto shapes   = series.shape_ranges();
+        // Sort each translucent shape on its own: the 3D pass orders (and may
+        // draw) translucent shapes individually, so a shape's index block must
+        // stay intact, exactly as if it were its own series.
         for (const auto& r : series.draw_ranges())
         {
             if (!shape3d_range_transparent(r, series_alpha, style_opacity))
                 continue;
-            sort_triangles_back_to_front(gpu.sorted_indices,
-                                         r.first_index,
-                                         r.index_count,
-                                         vertices,
-                                         model,
-                                         cam.position,
-                                         forward,
-                                         ortho);
+            const size_t shape_end =
+                std::min<size_t>(shapes.size(), static_cast<size_t>(r.first_shape) + r.shape_count);
+            for (size_t si = r.first_shape; si < shape_end; ++si)
+                sort_triangles_back_to_front(gpu.sorted_indices,
+                                             shapes[si].first_index,
+                                             shapes[si].index_count,
+                                             vertices,
+                                             model,
+                                             cam.position,
+                                             forward,
+                                             ortho);
         }
         gpu.sort_key = std::move(key);
         ++gpu.sorted_version;
@@ -1035,9 +1042,11 @@ void Renderer::render_axes(AxesBase&   axes,
         // Collect visible series with their distances.
         struct SortEntry
         {
-            Series* series;
-            float   distance;
-            int     shape3d_range = kShape3DAllRanges;
+            Series*  series;
+            float    distance;
+            int      shape3d_range = kShape3DAllRanges;
+            uint32_t first_shape   = 0;   // translucent shape run within shape3d_range
+            uint32_t shape_count   = 0;   // 0 = the whole range
         };
         std::vector<SortEntry> opaque_entries;
         std::vector<SortEntry> transparent_entries;
@@ -1122,13 +1131,16 @@ void Renderer::render_axes(AxesBase&   axes,
             }
             // A shape series may mix opaque and translucent per-shape colours.
             // Its opaque ranges draw with the other opaque geometry (depth
-            // write on); each translucent range joins the sorted transparent
-            // pass at its own centroid, exactly as if submitted separately.
+            // write on).  Every translucent shape joins the sorted transparent
+            // pass at its own centroid, even when same-colour shapes share one
+            // range, so other series can interleave between them exactly as if
+            // each shape were submitted separately.
             if (gpu_it != series_gpu_data_.end() && gpu_it->second.type == SeriesType::Shape3D)
             {
                 const auto* sh3d          = static_cast<ShapeSeries3D*>(series_ptr.get());
                 const float style_opacity = series_ptr->plot_style().opacity;
                 const auto  ranges        = sh3d->draw_ranges();
+                const auto  shapes        = sh3d->shape_ranges();
                 bool        has_opaque    = false;
                 bool        has_blended   = false;
                 for (const auto& r : ranges)
@@ -1149,11 +1161,24 @@ void Renderer::render_axes(AxesBase&   axes,
                         has_opaque = true;
                         continue;
                     }
-                    const vec3 rc = shape3d_range_centroid(*sh3d, ranges[ri]);
-                    const vec4 rw = mat4_mul_vec4(model_mat, {rc.x, rc.y, rc.z, 1.0f});
-                    const auto rd =
-                        static_cast<float>(vec3_length(vec3{rw.x, rw.y, rw.z} - cam_pos));
-                    transparent_entries.push_back({series_ptr.get(), rd, static_cast<int>(ri)});
+                    const auto&  r = ranges[ri];
+                    const size_t shape_end =
+                        std::min<size_t>(shapes.size(),
+                                         static_cast<size_t>(r.first_shape) + r.shape_count);
+                    for (size_t si = r.first_shape; si < shape_end; ++si)
+                    {
+                        const vec3 sc = shape3d_block_centroid(*sh3d,
+                                                               shapes[si].first_index,
+                                                               shapes[si].index_count);
+                        const vec4 sw = mat4_mul_vec4(model_mat, {sc.x, sc.y, sc.z, 1.0f});
+                        const auto sd =
+                            static_cast<float>(vec3_length(vec3{sw.x, sw.y, sw.z} - cam_pos));
+                        transparent_entries.push_back({series_ptr.get(),
+                                                       sd,
+                                                       static_cast<int>(ri),
+                                                       static_cast<uint32_t>(si),
+                                                       1u});
+                    }
                 }
                 if (has_opaque)
                     opaque_entries.push_back({series_ptr.get(), dist, kShape3DOpaqueRanges});
@@ -1185,6 +1210,28 @@ void Renderer::render_axes(AxesBase&   axes,
                          [](const SortEntry& a, const SortEntry& b)
                          { return a.distance > b.distance; });
 
+        // Consecutive translucent shapes of one range whose index blocks are
+        // adjacent in draw order collapse into one draw (e.g. shapes already
+        // added far to near), keeping draw calls low without changing order.
+        size_t merged = 0;
+        for (size_t i = 0; i < transparent_entries.size(); ++i)
+        {
+            const SortEntry& e = transparent_entries[i];
+            if (merged > 0)
+            {
+                SortEntry& last = transparent_entries[merged - 1];
+                if (e.shape_count > 0 && last.shape_count > 0 && last.series == e.series
+                    && last.shape3d_range == e.shape3d_range
+                    && last.first_shape + last.shape_count == e.first_shape)
+                {
+                    last.shape_count += e.shape_count;
+                    continue;
+                }
+            }
+            transparent_entries[merged++] = e;
+        }
+        transparent_entries.resize(merged);
+
         // Render opaque first, then transparent
         for (auto& entry : opaque_entries)
         {
@@ -1192,7 +1239,14 @@ void Renderer::render_axes(AxesBase&   axes,
         }
         for (auto& entry : transparent_entries)
         {
-            render_series(*entry.series, viewport, nullptr, 0.0, 0.0, entry.shape3d_range);
+            render_series(*entry.series,
+                          viewport,
+                          nullptr,
+                          0.0,
+                          0.0,
+                          entry.shape3d_range,
+                          entry.first_shape,
+                          entry.shape_count);
         }
 
         // Selection highlight on top of all 3D series

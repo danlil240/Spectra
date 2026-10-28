@@ -280,6 +280,8 @@ class Renderer
     };
     // ShapeSeries3D draw-range selection for render_series(): all ranges (opaque
     // then translucent), only the opaque ranges, or a single range index (>= 0).
+    // With a single range, a non-zero shape count narrows the draw further to
+    // that run of the range's shapes (ShapeSeries3D::shape_ranges()).
     // Lets the 3D pass draw a mixed series' opaque ranges with opaque geometry
     // and sort each translucent range into the global transparent pass.
     static constexpr int kShape3DAllRanges    = -1;
@@ -295,10 +297,12 @@ class Renderer
 
     void render_series(Series&             series,
                        const Rect&         viewport,
-                       const VisibleRange* visible       = nullptr,
-                       double              view_cx       = 0.0,
-                       double              view_cy       = 0.0,
-                       int                 shape3d_range = kShape3DAllRanges);
+                       const VisibleRange* visible             = nullptr,
+                       double              view_cx             = 0.0,
+                       double              view_cy             = 0.0,
+                       int                 shape3d_range       = kShape3DAllRanges,
+                       uint32_t            shape3d_first_shape = 0,
+                       uint32_t            shape3d_shape_count = 0);
     void render_selection_highlight(AxesBase& axes, const Rect& viewport);
 
     // Build orthographic projection matrix for given axis limits

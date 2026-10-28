@@ -9,7 +9,10 @@
 //    exporter — which both read the resulting viewport — agree.  All axes of
 //    a grid column grow by the same amount so their left edges stay aligned.
 //  * LegendPosition::OutsideRight: a strip on the right of each cell is
-//    reserved for the legend (AxesBase::outside_legend_area()).
+//    reserved for the legend (AxesBase::outside_legend_area()).  A
+//    LegendPosition::Best legend that would cover too much of a small plot
+//    gets the same strip (legend_layout::auto_outside); the legend drawers
+//    then place it there (legend_layout::effective_position).
 //
 // Every layout path (Figure::compute_layout for headless export, the window,
 // the Qt and embed surfaces) goes through apply_subplot_layout().

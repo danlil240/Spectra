@@ -1175,10 +1175,13 @@ std::string fit_label(std::string_view text, float max_w, float font_px, bool& t
     return candidate(lo);
 }
 
-void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const LegendConfig& cfg)
+void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const LegendConfig& requested)
 {
-    if (!cfg.visible || cfg.position == LegendPosition::None)
+    if (!requested.visible || requested.position == LegendPosition::None)
         return;
+    // A Best legend the figure layout moved outside (legend_layout::auto_outside).
+    LegendConfig cfg            = requested;
+    cfg.position                = legend_layout::effective_position(axes, requested);
     const SvgStyle&          st = c.style;
     std::vector<LegendEntry> entries;
     for (const auto& s : axes.series())
@@ -1327,14 +1330,16 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
     }
     if (grid.overflow > 0)
     {
-        // The hidden entries' names as a hover tooltip in SVG viewers; the
-        // visible cell keeps the plain "+N more" text.
+        // Every hidden entry's name (uncapped: a static file has no other
+        // way to show them) as the cell's accessible name / hover tooltip in
+        // SVG viewers; the visible cell keeps the plain "+N more" text.
         std::vector<std::string> labels;
         labels.reserve(entries.size());
         for (const auto& e : entries)
             labels.push_back(e.label);
         std::string tip;
-        for (const auto& line : legend_layout::overflow_tooltip_lines(labels, grid.shown))
+        for (const auto& line :
+             legend_layout::overflow_tooltip_lines(labels, grid.shown, static_cast<int>(n)))
             tip += (tip.empty() ? "" : "\n") + line;
         c.body << "      <g class=\"legend-overflow\"><title>" << xml_escape(tip) << "</title>\n";
         const int idx = grid.shown;

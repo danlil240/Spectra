@@ -657,6 +657,16 @@ inline float max_box_h(const Rect& area, LegendPosition pos)
     return pos == LegendPosition::OutsideRight ? area.h : area.h - 2.0f * MARGIN;
 }
 
+// True if a w x h legend fits inside the viewport with the CLAMP_INSET
+// border.  Legends that do not (e.g. tiny subplot cells where not even one
+// row fits) are skipped rather than drawn over neighbouring plots.
+inline bool fits(const Rect& vp, float w, float h, LegendPosition pos = LegendPosition::TopRight)
+{
+    if (pos == LegendPosition::OutsideRight)   // vp is the outside strip: no inset
+        return w > 0.0f && w <= vp.w + 0.5f && h <= vp.h;
+    return w <= vp.w - 2.0f * CLAMP_INSET && h <= vp.h - 2.0f * CLAMP_INSET;
+}
+
 // Series that get a legend entry, in axes order: labeled and not hidden from
 // the legend.  Works for 2D and 3D axes alike, so the window (ImGui) and the
 // GPU / PNG export legends list the same entries.  Hidden series stay listed
@@ -694,6 +704,35 @@ inline float column_width(const GridLayout& g, float pad_x, float col_gap)
     return std::max(0.0f, inner / static_cast<float>(g.cols));
 }
 
+// Widest legend label of @p entries at @p font_px (Inter metrics, so window,
+// PNG and SVG share one layout decision).
+inline float max_label_width(std::span<Series* const> entries, float font_px)
+{
+    float label_w = 0.0f;
+    for (const Series* s : entries)
+        if (s)
+            label_w = std::max(label_w, inter_text_width(s->label(), font_px));
+    return label_w;
+}
+
+// Label size the figure layout assumes for a legend: the explicit
+// LegendConfig::font_size, else the Label tier.
+inline float layout_font_px(const LegendConfig& cfg)
+{
+    return cfg.font_size > 0.0f ? cfg.font_size : OUTSIDE_AUTO_FONT_PX;
+}
+
+namespace detail
+{
+// Strip width for a one-column outside legend of labels up to @p label_w wide
+// (uncapped): gap + box + clamp inset.
+inline float outside_strip_width(const LegendConfig& cfg, float label_w)
+{
+    const float box_w = 2.0f * (cfg.padding + 2.0f) + OUTSIDE_SWATCH_W + label_w + 2.0f;
+    return OUTSIDE_GAP + box_w + CLAMP_INSET;
+}
+}   // namespace detail
+
 // Width the figure layout reserves on the right of a layout cell of width
 // @p cell_w for an OutsideRight legend of @p axes: the gap plus a one-column
 // legend box sized from the labels (Inter metrics, so window, PNG and SVG
@@ -706,22 +745,94 @@ inline float outside_reserved_width(const AxesBase& axes, const LegendConfig& cf
     const auto entries = legend_entries(axes);
     if (entries.empty())
         return 0.0f;
-    const float font_px = cfg.font_size > 0.0f ? cfg.font_size : OUTSIDE_AUTO_FONT_PX;
-    float       label_w = 0.0f;
-    for (const Series* s : entries)
-        label_w = std::max(label_w, inter_text_width(s->label(), font_px));
-    const float box_w = 2.0f * (cfg.padding + 2.0f) + OUTSIDE_SWATCH_W + label_w + 2.0f;
-    return std::min(OUTSIDE_GAP + box_w + CLAMP_INSET, cell_w * OUTSIDE_MAX_FRACTION);
+    const float label_w = max_label_width(entries, layout_font_px(cfg));
+    return std::min(detail::outside_strip_width(cfg, label_w), cell_w * OUTSIDE_MAX_FRACTION);
 }
 
-// True if a w x h legend fits inside the viewport with the CLAMP_INSET
-// border.  Legends that do not (e.g. tiny subplot cells where not even one
-// row fits) are skipped rather than drawn over neighbouring plots.
-inline bool fits(const Rect& vp, float w, float h, LegendPosition pos = LegendPosition::TopRight)
+// ── Automatic outside placement for LegendPosition::Best ────────────────────
+// A Best legend whose compact (inside) layout would cover more than
+// AUTO_OUTSIDE_COVERAGE of its plot area moves to the OutsideRight strip when
+// the cell has room for it: the plot keeps at least AUTO_OUTSIDE_MIN_PLOT_W
+// pixels and the strip can show a swatch plus AUTO_OUTSIDE_MIN_LABEL_W of
+// label.  Otherwise the compact (possibly "+N more") inside legend is kept.
+// Explicitly placed legends are never moved.
+inline constexpr float AUTO_OUTSIDE_COVERAGE    = 0.4f;
+inline constexpr float AUTO_OUTSIDE_MIN_PLOT_W  = 200.0f;
+inline constexpr float AUTO_OUTSIDE_MIN_LABEL_W = 48.0f;
+
+// Fraction of @p plot an inside legend of @p entries would cover, using the
+// static (non-scrolling) grid every legend path sizes itself with and the
+// layout font (layout_font_px).  1 when not even one row fits (the legend
+// would be omitted), 0 for no entries / an empty plot.
+inline float inside_coverage(std::span<Series* const> entries,
+                             const LegendConfig&      cfg,
+                             const Rect&              plot)
 {
-    if (pos == LegendPosition::OutsideRight)   // vp is the outside strip: no inset
-        return w > 0.0f && w <= vp.w + 0.5f && h <= vp.h;
-    return w <= vp.w - 2.0f * CLAMP_INSET && h <= vp.h - 2.0f * CLAMP_INSET;
+    const int n = static_cast<int>(entries.size());
+    if (n <= 0 || !(plot.w > 0.0f) || !(plot.h > 0.0f))
+        return 0.0f;
+    const float font_px = layout_font_px(cfg);
+    const float pad_x   = cfg.padding + 2.0f;
+    const float pad_y   = cfg.padding;
+    const auto  g       = compute_static_grid(n,
+                                       OUTSIDE_SWATCH_W + max_label_width(entries, font_px),
+                                       font_px + 6.0f,
+                                       font_px + 2.0f,
+                                       inter_text_width(overflow_text(n), font_px),
+                                       pad_x,
+                                       pad_y,
+                                       COL_GAP,
+                                       max_box_w(plot, LegendPosition::TopRight),
+                                       max_box_h(plot, LegendPosition::TopRight));
+    if (g.rows <= 0 || !fits(plot, g.width, g.height))
+        return 1.0f;
+    return std::min(1.0f, (g.width * g.height) / (plot.w * plot.h));
+}
+
+// True when a Best legend of @p axes in layout cell @p cell should be placed
+// outside (see AUTO_OUTSIDE_COVERAGE).  Pure function of the cell, the
+// entries and the config, so it does not oscillate between frames.
+inline bool auto_outside(const AxesBase& axes, const LegendConfig& cfg, const Rect& cell)
+{
+    if (!cfg.visible || cfg.position != LegendPosition::Best || !(cell.w > 0.0f)
+        || !(cell.h > 0.0f))
+        return false;
+    const auto entries = legend_entries(axes);
+    if (entries.empty())
+        return false;
+    if (inside_coverage(entries, cfg, cell) <= AUTO_OUTSIDE_COVERAGE)
+        return false;
+    const float label_w = max_label_width(entries, layout_font_px(cfg));
+    const float strip =
+        std::min(detail::outside_strip_width(cfg, label_w), cell.w * OUTSIDE_MAX_FRACTION);
+    const float min_strip =
+        detail::outside_strip_width(cfg, std::min(label_w, AUTO_OUTSIDE_MIN_LABEL_W));
+    const float row_h = layout_font_px(cfg) + 2.0f + 2.0f * cfg.padding;
+    return cell.w - strip >= AUTO_OUTSIDE_MIN_PLOT_W && strip >= min_strip && cell.h >= row_h;
+}
+
+// Width the figure layout reserves right of layout cell @p cell for the
+// legend of @p axes: outside_reserved_width() for OutsideRight, the same
+// strip for a Best legend that auto_outside() moves out, else 0.
+inline float reserved_width(const AxesBase& axes, const LegendConfig& cfg, const Rect& cell)
+{
+    if (cfg.position == LegendPosition::OutsideRight)
+        return outside_reserved_width(axes, cfg, cell.w);
+    if (!auto_outside(axes, cfg, cell))
+        return 0.0f;
+    LegendConfig outside = cfg;
+    outside.position     = LegendPosition::OutsideRight;
+    return outside_reserved_width(axes, outside, cell.w);
+}
+
+// Position the legend drawers (window, GPU/PNG, SVG) use: OutsideRight for a
+// Best legend the figure layout reserved a strip for (see reserved_width),
+// else the configured position.
+inline LegendPosition effective_position(const AxesBase& axes, const LegendConfig& cfg)
+{
+    if (cfg.position == LegendPosition::Best && axes.outside_legend_area().w > 0.0f)
+        return LegendPosition::OutsideRight;
+    return cfg.position;
 }
 
 // Final legend rectangle: the corner placement shifted by an optional user

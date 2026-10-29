@@ -1277,8 +1277,6 @@ class QAAgent
         static constexpr uint64_t SCENARIO_GPU_WARNING_BYTES = 5ull * 1024ull * 1024ull;
         // Single-run retention above this always warns (no warm-up is this big).
         static constexpr size_t SCENARIO_RSS_HARD_LIMIT_BYTES = 128ull * 1024ull * 1024ull;
-        // --repeat: mean growth per repetition after warm-up that counts as a leak.
-        static constexpr size_t SCENARIO_RSS_PER_REP_BYTES = 2ull * 1024ull * 1024ull;
 
         // BUG-8: Per-scenario RSS thresholds for scenarios that legitimately
         // allocate huge transient CPU buffers. These plateau at allocator

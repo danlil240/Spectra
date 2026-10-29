@@ -1,4 +1,5 @@
 #include "theme.hpp"
+#include "core/config_paths.hpp"
 #include "core/json_key.hpp"
 
 #include "design_tokens.hpp"
@@ -12,6 +13,7 @@
 #include <cassert>
 #include <cctype>
 #include <cstddef>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -1259,22 +1261,45 @@ bool ThemeManager::import_theme(const std::string& path)
     return true;
 }
 
+namespace
+{
+
+// <config dir>/default_theme.json (see core/config_paths.hpp).
+std::string default_theme_file()
+{
+    const std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
+        return {};
+    return (dir / "default_theme.json").string();
+}
+
+// Pre-config-dir location (~/.spectra/default_theme.json).  Only consulted when
+// the config dir is not redirected, so SPECTRA_CONFIG_DIR / XDG_CONFIG_HOME
+// fully isolate the theme too.
+std::string legacy_default_theme_file()
+{
+    if (user_config_dir_overridden())
+        return {};
+    const char* home = std::getenv("HOME");
+    if (!home || home[0] == '\0')
+        home = std::getenv("USERPROFILE");
+    if (!home || home[0] == '\0')
+        return {};
+    return (std::filesystem::path(home) / ".spectra" / "default_theme.json").string();
+}
+
+}   // namespace
+
 void ThemeManager::save_current_as_default()
 {
     if (default_theme_path_.empty())
-    {
-        const char* home = std::getenv("HOME");
-        if (!home)
-            home = std::getenv("USERPROFILE");
-        if (home)
-        {
-            default_theme_path_ = std::string(home) + "/.spectra/default_theme.json";
-        }
-    }
+        default_theme_path_ = default_theme_file();
     if (!default_theme_path_.empty())
     {
-        auto dir = std::filesystem::path(default_theme_path_).parent_path();
-        std::filesystem::create_directories(dir);
+        std::error_code ec;
+        std::filesystem::create_directories(
+            std::filesystem::path(default_theme_path_).parent_path(),
+            ec);
         export_theme(default_theme_path_);
     }
 }
@@ -1282,20 +1307,23 @@ void ThemeManager::save_current_as_default()
 void ThemeManager::load_default()
 {
     if (default_theme_path_.empty())
+        default_theme_path_ = default_theme_file();
+
+    // Read the config-dir file, or the legacy one when only that exists.  Saves
+    // always go to default_theme_path_, which migrates the legacy file.
+    std::string     source = default_theme_path_;
+    std::error_code ec;
+    if (source.empty() || !std::filesystem::exists(source, ec))
     {
-        const char* home = std::getenv("HOME");
-        if (!home)
-            home = std::getenv("USERPROFILE");
-        if (home)
-        {
-            default_theme_path_ = std::string(home) + "/.spectra/default_theme.json";
-        }
+        const std::string legacy = legacy_default_theme_file();
+        if (!legacy.empty() && std::filesystem::exists(legacy, ec))
+            source = legacy;
     }
-    if (!default_theme_path_.empty() && std::filesystem::exists(default_theme_path_))
+    if (!source.empty() && std::filesystem::exists(source, ec))
     {
-        if (import_theme(default_theme_path_))
+        if (import_theme(source))
         {
-            std::ifstream lf(default_theme_path_);
+            std::ifstream lf(source);
             std::string   json((std::istreambuf_iterator<char>(lf)),
                              std::istreambuf_iterator<char>());
             size_t        np = json_find_key(json, "name");
@@ -1411,7 +1439,7 @@ void ThemeManager::initialize_default_themes()
                               .grid_major       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
                               .grid_minor       = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MINOR_ALPHA_NIGHT),
                               .grid_line        = Color(0.55f, 0.72f, 0.92f, tokens::GRID_MAJOR_ALPHA_NIGHT),
-                              .axis_line        = Color(0.52f, 0.62f, 0.76f, 0.38f),
+                              .axis_line        = Color(0.52f, 0.62f, 0.76f, 0.70f),
                               .tick_label       = glass_palette::kTextSecondary,
                               .crosshair        = Color(0.24f, 0.84f, 0.96f, 0.58f),
                               .selection_fill   = Color(0.58f, 0.45f, 0.96f, 0.14f),
@@ -1437,63 +1465,64 @@ void ThemeManager::initialize_default_themes()
 
     // Light Glass — frosted blue-slate chrome with restrained aurora accents
     Theme light;
-    light.name             = "light";
-    light.colors           = {// Surfaces — still light, but no longer flat white-on-white
-                              .bg_canvas    = Color::from_hex(0xF7FAFF),   // Plot area: faint cool glass tint
-                              .bg_primary   = Color::from_hex(0xD9E4EE),   // App chrome backdrop
-                              .bg_secondary = Color::from_hex(0xEAF1F7),   // Panels, sidebar, rails
-                              .bg_tertiary  = Color::from_hex(0xD5E3EF),   // Inputs, chips, buttons
-                              .bg_elevated  = Color::from_hex(0xF8FBFF),   // Tooltips and popups
-                              .bg_overlay   = Color(0.04f, 0.08f, 0.13f, 0.66f),   // Modal scrim: slate
+    light.name   = "light";
+    light.colors = {
+        // Surfaces — still light, but no longer flat white-on-white
+        .bg_canvas    = Color::from_hex(0xF7FAFF),           // Plot area: faint cool glass tint
+        .bg_primary   = Color::from_hex(0xD9E4EE),           // App chrome backdrop
+        .bg_secondary = Color::from_hex(0xEAF1F7),           // Panels, sidebar, rails
+        .bg_tertiary  = Color::from_hex(0xD5E3EF),           // Inputs, chips, buttons
+        .bg_elevated  = Color::from_hex(0xF8FBFF),           // Tooltips and popups
+        .bg_overlay   = Color(0.04f, 0.08f, 0.13f, 0.66f),   // Modal scrim: slate
 
-                    // Text — blue-black ink against frosted surfaces
-                              .text_primary   = Color::from_hex(0x102033),
-                              .text_secondary = Color::from_hex(0x33485F),
-                              .text_tertiary  = Color::from_hex(0x566478),
-                              .text_inverse   = Color::from_hex(0xFFFFFF),
+        // Text — blue-black ink against frosted surfaces
+        .text_primary   = Color::from_hex(0x102033),
+        .text_secondary = Color::from_hex(0x273A4F),   // 4.5:1 rendered on the rail foot
+        .text_tertiary  = Color::from_hex(0x566478),
+        .text_inverse   = Color::from_hex(0xFFFFFF),
 
-                    // Borders — cool glass rims with enough contrast to define layers
-                              .border_default = Color(0.39f, 0.52f, 0.66f, 0.58f),
-                              .border_subtle  = Color(0.61f, 0.72f, 0.82f, 0.44f),
-                              .border_strong  = Color(0.17f, 0.33f, 0.48f, 0.80f),
+        // Borders — cool glass rims with enough contrast to define layers
+        .border_default = Color(0.39f, 0.52f, 0.66f, 0.58f),
+        .border_subtle  = Color(0.61f, 0.72f, 0.82f, 0.44f),
+        .border_strong  = Color(0.17f, 0.33f, 0.48f, 0.80f),
 
-                    // Interactive
-                              .accent        = Color::from_hex(0x0E7490),
-                              .accent_hover  = Color::from_hex(0x0F5F78),
-                              .accent_muted  = Color(0.05f, 0.45f, 0.56f, 0.17f),
-                              .accent_subtle = Color(0.05f, 0.45f, 0.56f, 0.08f),
+        // Interactive
+        .accent        = Color::from_hex(0x0E7490),
+        .accent_hover  = Color::from_hex(0x0A4C61),   // active rail label, 4.5:1 rendered
+        .accent_muted  = Color(0.05f, 0.45f, 0.56f, 0.17f),
+        .accent_subtle = Color(0.05f, 0.45f, 0.56f, 0.08f),
 
-                    // Semantic
-                              .success  = Color::from_hex(0x177231),
-                              .warning  = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
-                              .error    = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
-                              .info     = Color::from_hex(0x225AD5),
-                              .critical = Color::from_hex(0xA21CAF),   // WCAG AA on light surfaces
+        // Semantic
+        .success  = Color::from_hex(0x177231),
+        .warning  = Color::from_hex(0x7A5000),   // WCAG AA on light surfaces
+        .error    = Color::from_hex(0xB91C1C),   // WCAG AA on light surfaces
+        .info     = Color::from_hex(0x225AD5),
+        .critical = Color::from_hex(0xA21CAF),   // WCAG AA on light surfaces
 
-                    // Plot-specific — cool academic gridlines on the tinted canvas
-                              .grid_major       = Color(0.32f, 0.40f, 0.48f, 0.24f),
-                              .grid_minor       = Color(0.32f, 0.40f, 0.48f, 0.10f),
-                              .grid_line        = Color(0.32f, 0.40f, 0.48f, 0.24f),
-                              .axis_line        = Color(0.08f, 0.16f, 0.23f, 0.78f),
-                              .tick_label       = Color::from_hex(0x203247),
-                              .crosshair        = Color(0.05f, 0.45f, 0.56f, 0.70f),
-                              .selection_fill   = Color(0.05f, 0.45f, 0.56f, 0.12f),
-                              .selection_border = Color::from_hex(0x0E7490),
-                              .tooltip_bg       = Color(0.97f, 0.99f, 1.0f, 0.96f),
-                              .tooltip_border   = Color(0.45f, 0.57f, 0.70f, 0.48f),
+        // Plot-specific — cool academic gridlines on the tinted canvas
+        .grid_major       = Color(0.32f, 0.40f, 0.48f, 0.24f),
+        .grid_minor       = Color(0.32f, 0.40f, 0.48f, 0.10f),
+        .grid_line        = Color(0.32f, 0.40f, 0.48f, 0.24f),
+        .axis_line        = Color(0.08f, 0.16f, 0.23f, 0.78f),
+        .tick_label       = Color::from_hex(0x203247),
+        .crosshair        = Color(0.05f, 0.45f, 0.56f, 0.70f),
+        .selection_fill   = Color(0.05f, 0.45f, 0.56f, 0.12f),
+        .selection_border = Color::from_hex(0x0E7490),
+        .tooltip_bg       = Color(0.97f, 0.99f, 1.0f, 0.96f),
+        .tooltip_border   = Color(0.45f, 0.57f, 0.70f, 0.48f),
 
-                    // Visual effects — subtle daylight glow, not night neon
-                              .accent_glow       = Color(0.25f, 0.73f, 0.88f, 0.38f),
-                              .glow_intensity    = 0.36f,
-                              .focus_ring        = Color::from_hex(0x0E7490),
-                              .scrollbar_thumb   = Color(0.24f, 0.34f, 0.44f, 0.32f),
-                              .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
-                              .section_header_bg = Color(0.33f, 0.50f, 0.64f, 0.10f),
-                              .input_bg          = Color::from_hex(0xD8E6F2),
-                              .hover_highlight   = Color(0.05f, 0.45f, 0.56f, 0.13f),
-                              .annotation_bg     = Color(0.97f, 0.99f, 1.0f, 0.92f),
-                              .roi_fill          = Color(0.05f, 0.45f, 0.56f, 0.08f),
-                              .roi_border        = Color(0.05f, 0.45f, 0.56f, 0.42f)};
+        // Visual effects — subtle daylight glow, not night neon
+        .accent_glow       = Color(0.25f, 0.73f, 0.88f, 0.38f),
+        .glow_intensity    = 0.36f,
+        .focus_ring        = Color::from_hex(0x0E7490),
+        .scrollbar_thumb   = Color(0.24f, 0.34f, 0.44f, 0.32f),
+        .scrollbar_track   = Color(0.0f, 0.0f, 0.0f, 0.0f),
+        .section_header_bg = Color(0.33f, 0.50f, 0.64f, 0.10f),
+        .input_bg          = Color::from_hex(0xD8E6F2),
+        .hover_highlight   = Color(0.05f, 0.45f, 0.56f, 0.13f),
+        .annotation_bg     = Color(0.97f, 0.99f, 1.0f, 0.92f),
+        .roi_fill          = Color(0.05f, 0.45f, 0.56f, 0.08f),
+        .roi_border        = Color(0.05f, 0.45f, 0.56f, 0.42f)};
     light.shadow_intensity = 0.35f;
     light.display_name     = "Light";
     light.use_blur         = false;
@@ -1536,20 +1565,22 @@ void ThemeManager::initialize_default_themes()
                                                      .info     = Color::from_hex(0xFFD700),
                                                      .critical = Color::from_hex(0xFF6EFF),
 
-                            // Plot-specific — text, axes and ticks stay at full contrast;
-                            // the grid is a dim reference so it never outweighs the data,
-                            // and the minor grid is nearly hidden.  The grid is translucent
+                            // Plot-specific — data, text, axes/spines and ticks stay at full
+                            // contrast; the grid is a quiet reference that recedes behind the
+                            // data, even in dense multi-panel layouts.  The grid is translucent
                             // white rather than opaque grey: on the black canvas it reads
-                            // exactly as #424242 (~2.1:1) / #141414, but where it shows through
-                            // translucent bars, violins or bands it only lightens them slightly
-                            // instead of cutting dark lines through them (no checkerboard).
-                            // The major grid is deliberately below the 3:1 non-text level (3:1
-                            // on black would need alpha >= 0.35, i.e. a stronger grid): it is a
-                            // reference behind labelled axes, kept at >= 2:1 so it stays clearly
-                            // visible without outweighing the data.
-                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.26f),
-                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.08f),
-                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.26f),
+                            // exactly as #333333 (major, ~1.66:1) / #111111 (minor, ~1.11:1),
+                            // but where it shows through translucent bars, violins or bands it
+                            // only lightens them slightly instead of cutting dark lines through
+                            // them (no checkerboard).  Major stays ~3x the minor alpha so the two
+                            // levels remain distinguishable; minor is faint but not hidden.
+                            // The grid is deliberately below the 3:1 non-text level (3:1 on
+                            // black would need alpha >= 0.35, i.e. a much stronger grid): it is
+                            // a non-essential reference behind labelled axes and ticks, which
+                            // carry the values at 21:1.
+                                                     .grid_major       = Color(1.0f, 1.0f, 1.0f, 0.20f),
+                                                     .grid_minor       = Color(1.0f, 1.0f, 1.0f, 0.065f),
+                                                     .grid_line        = Color(1.0f, 1.0f, 1.0f, 0.20f),
                                                      .axis_line        = Color::from_hex(0xFFFFFF),
                                                      .tick_label       = Color::from_hex(0xFFFFFF),
                                                      .crosshair        = Color::from_hex(0xCCFFD700),
@@ -2188,8 +2219,8 @@ void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool
 }
 
 // ─── CVD Simulation ──────────────────────────────────────────────────────────
-// Uses Brettel/Viénot/Mollon (1997) simulation matrices for dichromacy.
-// These are the standard 3x3 linear-RGB transformation matrices.
+// Dichromacy uses the Machado, Oliveira & Fernandes (2009) matrices at
+// severity 1.0, applied to linear RGB.
 
 Color simulate_cvd(const Color& c, CVDType type)
 {
@@ -2208,19 +2239,19 @@ Color simulate_cvd(const Color& c, CVDType type)
     switch (type)
     {
         case CVDType::Protanopia:
-            // Viénot et al. 1999 protanopia simulation
+            // Machado, Oliveira & Fernandes 2009, severity 1.0 (protanopia)
             out_r = 0.152286f * r + 1.052583f * g - 0.204868f * b;
             out_g = 0.114503f * r + 0.786281f * g + 0.099216f * b;
             out_b = -0.003882f * r - 0.048116f * g + 1.051998f * b;
             break;
         case CVDType::Deuteranopia:
-            // Viénot et al. 1999 deuteranopia simulation
+            // Machado, Oliveira & Fernandes 2009, severity 1.0 (deuteranopia)
             out_r = 0.367322f * r + 0.860646f * g - 0.227968f * b;
             out_g = 0.280085f * r + 0.672501f * g + 0.047413f * b;
             out_b = -0.011820f * r + 0.042940f * g + 0.968881f * b;
             break;
         case CVDType::Tritanopia:
-            // Brettel et al. 1997 tritanopia simulation
+            // Machado, Oliveira & Fernandes 2009, severity 1.0 (tritanopia)
             out_r = 1.255528f * r - 0.076749f * g - 0.178779f * b;
             out_g = -0.078411f * r + 0.930809f * g + 0.147602f * b;
             out_b = 0.004733f * r + 0.691367f * g + 0.303900f * b;
@@ -2296,6 +2327,25 @@ ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,
     result.roi_fill          = start.roi_fill.lerp(end.roi_fill, t);
     result.roi_border        = start.roi_border.lerp(end.roi_border, t);
 
+    // Between a dark and a light theme, text and surfaces both pass through
+    // mid-grey at the same time, so plain interpolation drops text to ~1:1
+    // mid-transition (S4-C01, measured on the rendered frame).  Keep text
+    // readable on the interpolated surfaces: it stays near the start ink until
+    // the surface crosses over, then takes the target side.
+    // Checked on chrome (bg_primary) and panels (bg_secondary): both sit on the
+    // same side of mid-grey on almost every frame, where the second push only
+    // adds contrast against the first.
+    for (Color* text : {&result.text_primary, &result.text_secondary, &result.text_tertiary})
+        *text = ensure_contrast(ensure_contrast(*text, result.bg_primary, 4.5f),
+                                result.bg_secondary,
+                                4.5f);
+    result.tick_label = ensure_contrast(result.tick_label, result.bg_canvas, 4.5f);
+    // Accent colours double as text: accent (mode chip, fills) keeps the 3:1
+    // non-text floor; accent_hover (active nav label, open menu title) is
+    // held to the text target, which also clears the tinted pill under it.
+    result.accent       = ensure_contrast(result.accent, result.bg_secondary, 3.0f);
+    result.accent_hover = ensure_contrast(result.accent_hover, result.bg_secondary, 4.5f);
+
     return result;
 }
 
@@ -2334,21 +2384,24 @@ StatusPerfColors status_perf_colors(const ThemeColors& c, bool fps_live, float g
     const bool       glow = glow_intensity > 0.01f;
     if (is_light_chrome(c))
     {
+        // The readouts are small (~11px) dark-on-light text, which antialiasing
+        // lightens by ~10%: specify 5.5:1 so the rendered glyphs reach 4.5:1.
+        constexpr float kSmallText = 5.5f;
         // The glass palette's dark-green badge is tuned for dark chrome; on light
         // chrome use a pale tint of the theme's success colour.
         if (fps_live)
         {
             out.fps_fill   = c.success.with_alpha(0.14f).composite_over(c.bg_primary);
             out.fps_border = c.success.with_alpha(0.55f).composite_over(c.bg_primary);
-            out.fps_text   = ensure_contrast(c.success, out.fps_fill, 4.5f);
+            out.fps_text   = ensure_contrast(c.success, out.fps_fill, kSmallText);
         }
         else
         {
             out.fps_fill   = c.bg_tertiary.with_alpha(1.0f);
             out.fps_border = c.border_subtle.composite_over(c.bg_primary);
-            out.fps_text   = ensure_contrast(c.text_tertiary, out.fps_fill, 4.5f);
+            out.fps_text   = ensure_contrast(c.text_tertiary, out.fps_fill, kSmallText);
         }
-        out.gpu_text = ensure_contrast(c.text_tertiary, c.bg_primary, 4.5f);
+        out.gpu_text = ensure_contrast(c.text_tertiary, c.bg_primary, kSmallText);
         return out;
     }
 

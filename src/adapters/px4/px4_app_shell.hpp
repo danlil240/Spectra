@@ -152,6 +152,19 @@ class Px4AppShell
     // Open a ULog file (offline analysis).
     bool open_ulog(const std::string& path);
 
+    // OS drag-and-drop: a dropped .ulg/.ulog file is queued and opened on the
+    // next poll() (outside the windowing backend's event callback).  Returns
+    // false, and leaves the open log untouched, for any other file type.
+    // set_window_manager() routes the window manager's file drops here.
+    bool handle_file_drop(const std::string& path);
+    // Opens the queued dropped file, if any.  Called by poll().
+    bool process_pending_file_drop();
+    // True for paths with a ULog extension (.ulg / .ulog, any case).
+    static bool is_ulog_path(const std::string& path);
+
+    // Message for the last failed open / rejected drop (empty after a success).
+    const std::string& last_open_error() const { return last_open_error_; }
+
     // Auto-plot interesting fields from the loaded ULog (flight-review style).
     void auto_plot_ulog();
 
@@ -238,6 +251,7 @@ class Px4AppShell
     std::atomic<bool> shutdown_requested_{false};
 
     std::string last_open_error_;
+    std::string pending_drop_path_;
 
     Px4RecentFiles               recent_;
     bool                         recent_menu_dirty_{true};

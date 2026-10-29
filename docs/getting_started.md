@@ -147,7 +147,9 @@ spectra::App user({.headless = true, .use_user_settings = true});   // honour se
 ```
 
 Windowed apps keep using the user's saved theme unless `AppConfig::theme` /
-`data_palette` are set.
+`data_palette` are set.  `settings.json` lives in Spectra's config directory:
+`$SPECTRA_CONFIG_DIR` if set, else `$XDG_CONFIG_HOME/spectra`, else `~/.config/spectra`.
+Set `SPECTRA_CONFIG_DIR` to an empty directory to run a windowed app without saved settings.
 
 ### Scatter Plot
 

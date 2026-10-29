@@ -269,13 +269,24 @@ class Axes:
         self._annotations.clear()
 
     def remove_series(self, index: int) -> None:
-        """Remove a series by index from this axes."""
+        """Remove the series at position ``index`` of this axes (``self.series``).
+
+        The backend addresses series figure-wide, so the position is mapped to
+        the series' figure-wide index; removing from the second subplot no
+        longer removes a series of the first.
+        """
+        if not -len(self._series_list) <= index < len(self._series_list):
+            raise IndexError(
+                f"series index {index} out of range for axes with "
+                f"{len(self._series_list)} series"
+            )
+        figure_index = self._series_list[index]._index
         payload = codec.encode_req_remove_series(
             figure_id=self._figure_id,
-            series_index=index,
+            series_index=figure_index,
         )
         self._session._request(P.REQ_REMOVE_SERIES, payload)
-        self._on_series_removed(index)
+        self._on_series_removed(figure_index)
 
     def clear(self) -> None:
         """Remove all series from this axes."""

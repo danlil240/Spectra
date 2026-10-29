@@ -4,6 +4,7 @@
 
     #include <cfloat>
     #include <cstdint>
+    #include <deque>
     #include <functional>
     #include <memory>
     #include <spectra/fwd.hpp>
@@ -206,7 +207,17 @@ class ImGuiIntegration
     void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
     bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
-    bool     is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
+    // Open the custom transform dialog on the current figure, as the nav
+    // rail's Transform button does (automation / design review).
+    void open_transform_dialog()
+    {
+        if (custom_transform_dialog_.is_open())
+            return;
+        custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+        custom_transform_dialog_.open(current_figure_);
+    }
+    void close_transform_dialog() { custom_transform_dialog_.close(); }
+    bool is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
     const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }
     bool                         is_theme_settings_visible() const { return show_theme_settings_; }
@@ -386,7 +397,21 @@ class ImGuiIntegration
 
     // Queue a CSV file for loading (e.g. from OS drag-and-drop).
     // The file is parsed and the column picker dialog is opened on the next build_ui() call.
-    void request_csv_load(const std::string& path) { pending_csv_drop_path_ = path; }
+    // Several files dropped at once are queued and opened one after another: the next
+    // one is loaded once the column picker of the previous one is closed.
+    void request_csv_load(const std::string& path) { pending_csv_loads_.push_back(path); }
+
+    // CSV column picker state (read by tests and automation).
+    bool               csv_dialog_open() const { return csv_dialog_open_; }
+    const std::string& csv_file_path() const { return csv_file_path_; }
+    const CsvData&     csv_data() const { return csv_data_; }
+    const std::string& csv_error() const { return csv_error_; }
+    size_t             pending_csv_load_count() const { return pending_csv_loads_.size(); }
+
+    // Plots the column picker's current selection through the CSV plot callback
+    // and closes the picker, as its "Plot" button does.  Returns false (and
+    // leaves the picker open) when there is nothing plottable.
+    bool plot_csv_selection();
 
     // Extra draw callback — called at the end of build_ui() within the active
     // ImGui frame.  Used by spectra-ros to inject ROS2 panels.
@@ -899,16 +924,16 @@ class ImGuiIntegration
     SceneRenderCallback scene_render_cb_;
 
     // CSV column picker dialog state (file selected via native OS dialog)
-    bool             pending_open_csv_ = false;   // Set by welcome screen, handled in draw()
-    std::string      pending_csv_drop_path_;      // Set by OS drag-and-drop, handled in draw()
-    bool             csv_dialog_open_ = false;
-    std::string      csv_file_path_;
-    CsvData          csv_data_;
-    bool             csv_data_loaded_ = false;
-    int              csv_col_x_       = 0;
-    std::vector<int> csv_selected_y_;   // selected Y column indices
-    int              csv_col_z_ = -1;   // -1 = no Z column (2D plot)
-    std::string      csv_error_;
+    bool                    pending_open_csv_ = false;   // Set by welcome screen, handled in draw()
+    std::deque<std::string> pending_csv_loads_;   // Set by OS drag-and-drop, handled in draw()
+    bool                    csv_dialog_open_ = false;
+    std::string             csv_file_path_;
+    CsvData                 csv_data_;
+    bool                    csv_data_loaded_ = false;
+    int                     csv_col_x_       = 0;
+    std::vector<int>        csv_selected_y_;   // selected Y column indices
+    int                     csv_col_z_ = -1;   // -1 = no Z column (2D plot)
+    std::string             csv_error_;
 
     // Menubar hover-switch state: tracks which menu popup is currently open
     // so hovering another menu button auto-opens it
@@ -951,6 +976,9 @@ class ImGuiIntegration
     // Native "Open CSV" dialog; on success parses the file and opens the column picker.
     // Shared by Data > Load from CSV, the canvas welcome button and the empty-app welcome.
     void open_csv_with_dialog();
+    // Parses `path` and opens the column picker (also on a parse error, so the
+    // error is shown instead of the load failing silently).
+    void load_csv_into_dialog(const std::string& path);
 };
 
 // Helper factory to construct an ImGuiIntegration instance from translation units

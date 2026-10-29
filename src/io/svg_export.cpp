@@ -1389,26 +1389,26 @@ void emit_legend(SvgContext& c, const AxesBase& axes, const Rect& vp, const Lege
         max_label_w = std::max(max_label_w, measure_text_width(e.label, font_px));
     const int   n          = static_cast<int>(entries.size());
     const float overflow_w = measure_text_width(legend_layout::overflow_text(n), font_px);
-    // A static export cannot scroll: the same legend_layout::compute_static_grid
-    // policy as the GPU/PNG legend (tighter rows, then a "+N more" cell), and
+    // A static export cannot scroll: the same legend_layout::compute_legend_grid
+    // policy as the GPU/PNG legend (tighter rows, then a "+N more" cell, and an
+    // inside legend capped to a share of the plot area), and
     // the box (and every label) stays inside the axes (audit S03/S04).
     // OutsideRight lays out in the strip reserved right of the axes.
-    const bool outside = cfg.position == LegendPosition::OutsideRight;
-    const Rect area    = outside ? legend_layout::legend_area(axes, cfg.position) : vp;
-    const auto grid =
-        legend_layout::compute_static_grid(n,
-                                           swatch_w + gap + max_label_w,
-                                           row_h,
-                                           font_px + 2.0f,
-                                           overflow_w,
-                                           pad_x,
-                                           pad_y,
-                                           col_gap,
-                                           legend_layout::max_box_w(area, cfg.position),
-                                           legend_layout::max_box_h(area, cfg.position));
-    const float w     = grid.width;
-    const float h     = grid.height;
-    const float col_w = legend_layout::column_width(grid, pad_x, col_gap);
+    const bool  outside = cfg.position == LegendPosition::OutsideRight;
+    const Rect  area    = outside ? legend_layout::legend_area(axes, cfg.position) : vp;
+    const auto  grid    = legend_layout::compute_legend_grid(n,
+                                                         swatch_w + gap + max_label_w,
+                                                         row_h,
+                                                         font_px + 2.0f,
+                                                         overflow_w,
+                                                         pad_x,
+                                                         pad_y,
+                                                         col_gap,
+                                                         area,
+                                                         cfg.position);
+    const float w       = grid.width;
+    const float h       = grid.height;
+    const float col_w   = legend_layout::column_width(grid, pad_x, col_gap);
     if (grid.rows <= 0 || !legend_layout::fits(area, w, h, cfg.position))
         return;   // not even one row fits this (tiny) axes
 

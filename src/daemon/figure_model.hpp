@@ -154,6 +154,17 @@ class FigureModel
                                 uint32_t                  series_index,
                                 const std::vector<float>& data);
 
+    // Set the double-precision data origins of a 2D series (logical value =
+    // origin + stored float), e.g. for epoch timestamps sent from Python as
+    // float offsets.  Returns a SET_SERIES_DATA op carrying the data and the new
+    // origins.  *ok_out is false (nothing changed; do not broadcast) when the
+    // figure or series does not exist.
+    ipc::DiffOp set_series_origin(uint64_t figure_id,
+                                  uint32_t series_index,
+                                  double   x_origin,
+                                  double   y_origin,
+                                  bool*    ok_out = nullptr);
+
     // Append data to existing series (streaming). Returns a DiffOp.
     // When max_points > 0 the series is trimmed to its newest max_points
     // points (rolling window), which also bounds the size of the returned diff.

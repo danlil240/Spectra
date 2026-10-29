@@ -544,7 +544,7 @@ bool CommandPalette::draw(float window_width, float window_height)
                                           ImVec4(colors.text_tertiary.r,
                                                  colors.text_tertiary.g,
                                                  colors.text_tertiary.b,
-                                                 0.8f));
+                                                 1.0f));
                     ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_1));
                     ImGui::TextUnformatted(current_category.data(),
                                            current_category.data() + current_category.size());

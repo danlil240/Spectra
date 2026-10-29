@@ -62,10 +62,11 @@ void wire_timeline_from_figure(WindowUIContext& ui_ctx, Figure* figure, bool has
         ui_ctx.timeline_editor.play();
 }
 
-void wire_demo_animation_channels(WindowUIContext& ui_ctx, Figure& figure)
+void wire_demo_animation_channels(WindowUIContext& ui_ctx, Figure& figure, FigureRegistry& registry)
 {
-    auto& timeline_editor       = ui_ctx.timeline_editor;
-    auto& keyframe_interpolator = ui_ctx.keyframe_interpolator;
+    auto&          timeline_editor       = ui_ctx.timeline_editor;
+    auto&          keyframe_interpolator = ui_ctx.keyframe_interpolator;
+    const FigureId figure_id             = registry.find_id(&figure);
 
     const float anim_dur = timeline_editor.duration();
     int         s_idx    = 0;
@@ -91,11 +92,14 @@ void wire_demo_animation_channels(WindowUIContext& ui_ctx, Figure& figure)
                 timeline_editor.add_animated_keyframe(ch_id, anim_dur * 0.7f, 0.8f, 4);
                 timeline_editor.add_animated_keyframe(ch_id, anim_dur, 1.0f, 5);
 
-                Series* raw = s.get();
-                keyframe_interpolator.bind_callback(ch_id,
-                                                    prefix + " Opacity",
-                                                    [raw](float v)
-                                                    { raw->opacity(std::clamp(v, 0.0f, 1.0f)); });
+                keyframe_interpolator.bind_callback(
+                    ch_id,
+                    prefix + " Opacity",
+                    make_series_anim_callback(registry,
+                                              figure_id,
+                                              s.get(),
+                                              [](Series& live, float v)
+                                              { live.opacity(std::clamp(v, 0.0f, 1.0f)); }));
             }
 
             if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
@@ -107,9 +111,15 @@ void wire_demo_animation_channels(WindowUIContext& ui_ctx, Figure& figure)
                 timeline_editor.add_animated_keyframe(ch_id, anim_dur * 0.6f, base * 0.5f, 6);
                 timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
 
-                keyframe_interpolator.bind_callback(ch_id,
-                                                    prefix + " Size",
-                                                    [sc](float v) { sc->size(std::max(v, 1.0f)); });
+                keyframe_interpolator.bind_callback(
+                    ch_id,
+                    prefix + " Size",
+                    make_series_anim_callback(
+                        registry,
+                        figure_id,
+                        sc,
+                        [](Series& live, float v)
+                        { static_cast<ScatterSeries&>(live).size(std::max(v, 1.0f)); }));
             }
             else if (auto* ln = dynamic_cast<LineSeries*>(s.get()))
             {
@@ -120,10 +130,15 @@ void wire_demo_animation_channels(WindowUIContext& ui_ctx, Figure& figure)
                 timeline_editor.add_animated_keyframe(ch_id, anim_dur * 0.6f, base * 0.5f, 6);
                 timeline_editor.add_animated_keyframe(ch_id, anim_dur, base, 5);
 
-                keyframe_interpolator.bind_callback(ch_id,
-                                                    prefix + " Width",
-                                                    [ln](float v)
-                                                    { ln->width(std::max(v, 0.5f)); });
+                keyframe_interpolator.bind_callback(
+                    ch_id,
+                    prefix + " Width",
+                    make_series_anim_callback(
+                        registry,
+                        figure_id,
+                        ln,
+                        [](Series& live, float v)
+                        { static_cast<LineSeries&>(live).width(std::max(v, 0.5f)); }));
             }
 
             ++s_idx;
@@ -240,7 +255,7 @@ void wire_window_ui_runtime(const WindowUIContextRuntimeWireOptions& options)
     wire_timeline_from_figure(ui_ctx, options.active_figure, options.has_animation);
 
     if (options.wire_demo_animation_channels && options.active_figure)
-        wire_demo_animation_channels(ui_ctx, *options.active_figure);
+        wire_demo_animation_channels(ui_ctx, *options.active_figure, registry);
 
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (options.window_manager)
@@ -334,3 +349,44 @@ void capture_figure_home_limits(FigureRegistry& registry, FigureManager& fig_mgr
 }   // namespace spectra
 
 #endif
+
+// Not ImGui-specific: animation targets are resolved through the registry.
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
+#include <spectra/figure_registry.hpp>
+#include <spectra/series.hpp>
+
+namespace spectra
+{
+
+std::function<void(float)> make_series_anim_callback(const FigureRegistry&               registry,
+                                                     FigureId                            figure_id,
+                                                     const Series*                       series,
+                                                     std::function<void(Series&, float)> apply)
+{
+    return [&registry, figure_id, series, apply = std::move(apply)](float v)
+    {
+        Figure* fig = registry.get(figure_id);
+        if (!fig || !series)
+            return;
+        auto find_in = [series](const auto& axes_list) -> Series*
+        {
+            for (const auto& ax : axes_list)
+            {
+                if (!ax)
+                    continue;
+                for (const auto& s : ax->series())
+                    if (s.get() == series)
+                        return s.get();
+            }
+            return nullptr;
+        };
+        Series* live = find_in(fig->axes());
+        if (!live)
+            live = find_in(fig->all_axes());
+        if (live)
+            apply(*live, v);
+    };
+}
+
+}   // namespace spectra

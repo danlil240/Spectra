@@ -68,6 +68,59 @@ LegendInteraction::LegendOffset& LegendInteraction::get_offset(uintptr_t figure_
     return legend_offsets_[make_offset_key(figure_id, axes_index)];
 }
 
+size_t LegendInteraction::window_slot(uintptr_t figure_id, size_t axes_index, bool& fresh)
+{
+    const OffsetKey key = make_offset_key(figure_id, axes_index);
+    auto            it  = window_slots_.find(key);
+    fresh               = false;
+    if (it != window_slots_.end() && it->second.figure_id == figure_id)
+        return it->second.slot;
+    size_t slot;
+    if (!free_window_slots_.empty())
+    {
+        slot = free_window_slots_.back();
+        free_window_slots_.pop_back();
+        fresh = true;   // reused: the ImGui window still holds another legend's state
+    }
+    else
+    {
+        slot = next_window_slot_++;
+    }
+    if (it != window_slots_.end())   // key collision with another figure: replace
+        free_window_slots_.push_back(it->second.slot);
+    window_slots_[key] = WindowSlot{figure_id, slot};
+    return slot;
+}
+
+std::string LegendInteraction::window_name(uintptr_t figure_id, size_t axes_index) const
+{
+    auto it = window_slots_.find(make_offset_key(figure_id, axes_index));
+    if (it == window_slots_.end() || it->second.figure_id != figure_id)
+        return {};
+    return std::format("##legend_{}", it->second.slot);
+}
+
+void LegendInteraction::forget_figure(uintptr_t figure_id)
+{
+    for (auto it = window_slots_.begin(); it != window_slots_.end();)
+    {
+        if (it->second.figure_id == figure_id)
+        {
+            const OffsetKey key = it->first;
+            free_window_slots_.push_back(it->second.slot);
+            legend_offsets_.erase(key);
+            best_corner_.erase(key);
+            overflow_cells_.erase(key);
+            scroll_offsets_.erase(key);
+            it = window_slots_.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
 // ─── Update ─────────────────────────────────────────────────────────────────
 
 void LegendInteraction::update(float dt, Figure& figure)
@@ -184,10 +237,12 @@ bool LegendInteraction::draw(AxesBase&           axes,
 
     // One column = swatch + label (+ visibility eye).  Entries flow into
     // extra columns instead of being cut off.  When even the widest grid that
-    // fits the plot cannot hold them all, the last cell becomes a "+N more"
-    // cell (the same legend_layout::compute_static_grid policy as the PNG and
-    // SVG legends): hovering it lists the hidden entries, clicking it opens
-    // the full, scrollable legend (draw_overflow_cell).
+    // fits the plot cannot hold them all (or an inside legend would cover too
+    // much of the plot), the last cell becomes a "+N more" cell (the same
+    // legend_layout::compute_legend_grid policy as the PNG and SVG legends):
+    // hovering it lists the hidden entries, clicking it opens the full,
+    // scrollable legend (draw_overflow_cell), and the mouse wheel over the
+    // legend scrolls the visible run of entries.
     constexpr float col_gap    = legend_layout::COL_GAP;
     const float     reserved_w = row_reserved_width();
     float           col_w      = reserved_w + max_label_w;
@@ -195,7 +250,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
     const bool outside = requested == LegendPosition::OutsideRight;
     const Rect region  = outside ? legend_layout::legend_area(axes, requested) : viewport;
     const auto grid =
-        legend_layout::compute_static_grid(labeled_count,
+        legend_layout::compute_legend_grid(labeled_count,
                                            col_w,
                                            row_height,
                                            font_size + 2.0f,
@@ -203,8 +258,8 @@ bool LegendInteraction::draw(AxesBase&           axes,
                                            pad_x,
                                            pad_y,
                                            col_gap,
-                                           legend_layout::max_box_w(region, requested),
-                                           legend_layout::max_box_h(region, requested));
+                                           region,
+                                           requested);
     const OffsetKey key = make_offset_key(figure_id, axes_index);
     if (grid.rows <= 0 || !legend_layout::fits(region, grid.width, grid.height, requested))
     {
@@ -238,12 +293,16 @@ bool LegendInteraction::draw(AxesBase&           axes,
     legend_w       = box.w;   // place() keeps the box inside the viewport
     legend_h       = box.h;
 
-    // Draw legend window — use figure_id in the ImGui ID to prevent cross-figure collisions
-    const std::string win_id =
-        std::format("##legend_{:x}_{}", static_cast<unsigned long>(figure_id), axes_index);
+    // Draw legend window — one pooled window name per (figure, axes) so legends
+    // of figures shown side by side never share ImGui state (scroll).
+    bool              fresh_slot = false;
+    const size_t      slot       = window_slot(figure_id, axes_index, fresh_slot);
+    const std::string win_id     = std::format("##legend_{}", slot);
 
     ImGui::SetNextWindowPos(ImVec2(lx, ly));
     ImGui::SetNextWindowSize(ImVec2(legend_w, legend_h));
+    if (fresh_slot)
+        ImGui::SetNextWindowScroll(ImVec2(0.0f, 0.0f));
 
     // Use LegendConfig colors; fall back to theme colors when unset (see
     // LegendConfig::uses_bg_color: black RGB without has_bg_color = unset).
@@ -362,6 +421,29 @@ bool LegendInteraction::draw(AxesBase&           axes,
         ImVec2         cursor = ImGui::GetCursorScreenPos();
         const RowStyle row_style{font, font_size, row_height, label_w, label_ink, &theme_colors};
 
+        // A summarised legend scrolls its visible run of entries with the
+        // mouse wheel while hovered (legend_layout::scroll_offset).
+        int first = 0;
+        if (grid.overflow > 0)
+        {
+            float&      so    = scroll_offsets_[key];
+            const float wheel = ImGui::GetIO().MouseWheel;
+            if (wheel != 0.0f && ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows))
+            {
+                so       = legend_layout::scroll_offset(so, wheel, labeled_count, grid.shown);
+                consumed = true;
+            }
+            else
+            {
+                so = legend_layout::scroll_offset(so, 0.0f, labeled_count, grid.shown);
+            }
+            first = legend_layout::scroll_first(so, labeled_count, grid.shown);
+        }
+        else
+        {
+            scroll_offsets_.erase(key);
+        }
+
         for (int row = 0; row < grid.shown; ++row)
         {
             // Column-major grid placement (see legend_layout::compute_grid)
@@ -372,8 +454,8 @@ bool LegendInteraction::draw(AxesBase&           axes,
             const std::string id    = std::format("##legend_toggle_{:x}_{}_{}",
                                                static_cast<unsigned long>(figure_id),
                                                axes_index,
-                                               row);
-            consumed |= draw_entry_row(*entries[static_cast<size_t>(row)],
+                                               first + row);
+            consumed |= draw_entry_row(*entries[static_cast<size_t>(first + row)],
                                        ImVec2(row_x, row_y),
                                        col_w,
                                        row_style,
@@ -388,12 +470,34 @@ bool LegendInteraction::draw(AxesBase&           axes,
             const float row_y    = cursor.y + static_cast<float>(grid_row) * row_height;
             const float row_x    = cursor.x + static_cast<float>(grid_col) * (col_w + col_gap);
             consumed |= draw_overflow_cell(std::span<Series* const>(entries),
+                                           first,
                                            grid.shown,
                                            ImVec2(row_x, row_y),
                                            col_w,
                                            row_style,
                                            box,
                                            key);
+
+            // Scroll position hint: a thin thumb in the box's right padding.
+            const float track_y0  = box.y + pad_y + 2.0f;
+            const float track_h   = std::max(0.0f, box.h - 2.0f * pad_y - 4.0f);
+            const int   max_first = legend_layout::max_scroll(labeled_count, grid.shown);
+            if (track_h > 8.0f && max_first > 0)
+            {
+                const float thumb_h = std::max(
+                    6.0f,
+                    track_h * static_cast<float>(grid.shown) / static_cast<float>(labeled_count));
+                const float t       = static_cast<float>(first) / static_cast<float>(max_first);
+                const float thumb_y = track_y0 + t * (track_h - thumb_h);
+                const float bar_x   = box.x + box.w - 6.0f;
+                ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(bar_x, thumb_y),
+                                                          ImVec2(bar_x + 3.0f, thumb_y + thumb_h),
+                                                          to_u32(Color{theme_colors.text_tertiary.r,
+                                                                       theme_colors.text_tertiary.g,
+                                                                       theme_colors.text_tertiary.b,
+                                                                       0.6f}),
+                                                          1.5f);
+            }
         }
         else
         {
@@ -535,6 +639,7 @@ bool LegendInteraction::draw_entry_row(Series&         s,
 }
 
 bool LegendInteraction::draw_overflow_cell(std::span<Series* const> entries,
+                                           int                      first,
                                            int                      shown,
                                            const ImVec2&            pos,
                                            float                    width,
@@ -553,6 +658,10 @@ bool LegendInteraction::draw_overflow_cell(std::span<Series* const> entries,
     oc.cell          = Rect{pos.x, pos.y, width, row_h};
     oc.shown         = shown;
     oc.hidden        = hidden;
+    oc.first         = first;
+
+    // Entries the cell summarises: those before and after the visible run.
+    const std::vector<int> hidden_idx = legend_layout::hidden_entry_indices(n, first, shown);
 
     const std::string text     = legend_layout::overflow_text(hidden);
     const std::string popup_id = std::format("##legend_full_{:x}", key);
@@ -590,8 +699,14 @@ bool LegendInteraction::draw_overflow_cell(std::span<Series* const> entries,
     // Hover: the hidden entries with their colour keys (bounded list).
     if (hovered && !ImGui::IsPopupOpen(popup_id.c_str()))
     {
-        oc.hovered         = true;
-        const auto   lines = legend_layout::overflow_tooltip_lines(entries, shown);
+        oc.hovered = true;
+        std::vector<std::string> hidden_labels;
+        hidden_labels.reserve(hidden_idx.size());
+        for (int i : hidden_idx)
+            hidden_labels.push_back(entries[static_cast<size_t>(i)]->label());
+        oc.tooltip_first = hidden_labels.empty() ? std::string{} : hidden_labels.front();
+        const auto lines =
+            legend_layout::overflow_tooltip_lines(std::span<const std::string>(hidden_labels), 0);
         const size_t keyed =
             static_cast<int>(lines.size()) == hidden ? lines.size() : lines.size() - 1;
         ImGui::BeginTooltip();
@@ -605,7 +720,7 @@ bool LegendInteraction::draw_overflow_cell(std::span<Series* const> entries,
                 ImGui::PopStyleColor();
                 continue;
             }
-            const Series& s  = *entries[static_cast<size_t>(shown) + k];
+            const Series& s  = *entries[static_cast<size_t>(hidden_idx[k])];
             const Color   sc = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
             const float   a  = s.visible() ? 1.0f : HIDDEN_OPACITY;
             const ImVec2  p  = ImGui::GetCursorScreenPos();
@@ -626,6 +741,7 @@ bool LegendInteraction::draw_overflow_cell(std::span<Series* const> entries,
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImGui::ColorConvertU32ToFloat4(to_u32(tc.text_tertiary)));
         ImGui::Text("Click to show all %d entries", n);
+        ImGui::TextUnformatted("Scroll over the legend to page through them");
         ImGui::PopStyleColor();
         ImGui::EndTooltip();
     }

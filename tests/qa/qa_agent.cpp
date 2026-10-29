@@ -13,10 +13,14 @@
 //     --no-fuzz           Skip fuzzing phase
 //     --no-scenarios      Skip scenarios phase
 //     --list-scenarios    List scenarios and exit
-//     --design-review     Capture 63 named UI states, each proved by semantic
+//     --design-review     Capture 65 named UI states, each proved by semantic
 //                         assertions (failed assertion = ERROR, exit 1)
-//     --repeat <N>        Run each scenario N times; N>=3 judges RSS retention
-//                         for sustained growth (see qa_stats.hpp)
+//     --repeat <N>        Run each scenario N times in one process (soak); RSS
+//                         is sampled after each iteration and its least-squares
+//                         slope after warm-up is gated (see qa_stats.hpp)
+//     --max-rss-slope <MB> Soak gate: max RSS slope in MB/iteration (default 0.5)
+//     --repeat-warmup <N> Soak: leading iterations excluded from the slope (default 1)
+//     --max-heap-slope <MB> Soak: also gate the in-use heap slope (glibc; default off)
 
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
@@ -26,6 +30,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 
+#include "qa_settle.hpp"
 #include "qa_stats.hpp"
 #include "render/backend.hpp"
 #include "render/vulkan/vk_backend.hpp"
@@ -98,6 +103,20 @@ static size_t get_rss_bytes()
     return static_cast<size_t>(pages) * 4096;
 #else
     return 0;
+#endif
+}
+
+// In-use heap bytes (glibc arena + mmap chunks); -1 when unavailable.  Unlike
+// RSS it is not inflated by freed-but-retained pages, so it separates live
+// allocations from allocator retention.
+static int64_t get_heap_in_use_bytes()
+{
+#if defined(__linux__) && defined(__GLIBC__) \
+    && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
+    const struct mallinfo2 mi = mallinfo2();
+    return static_cast<int64_t>(mi.uordblks + mi.hblkhd);
+#else
+    return -1;
 #endif
 }
 
@@ -343,13 +362,16 @@ struct QAOptions
     uint64_t    seed         = 0;
     float       duration_sec = 120.0f;
     std::string scenario_name;
-    uint64_t    fuzz_frames    = 3000;
-    std::string output_dir     = "/tmp/spectra_qa";
-    bool        no_fuzz        = false;
-    bool        no_scenarios   = false;
-    bool        list_scenarios = false;
-    bool        design_review  = false;
-    uint32_t    repeat         = 1;   // run each scenario N times (memory trend)
+    uint64_t    fuzz_frames       = 3000;
+    std::string output_dir        = "/tmp/spectra_qa";
+    bool        no_fuzz           = false;
+    bool        no_scenarios      = false;
+    bool        list_scenarios    = false;
+    bool        design_review     = false;
+    uint32_t    repeat            = 1;      // run each scenario N times (memory trend)
+    uint32_t    repeat_warmup     = 1;      // soak: iterations excluded from the RSS slope
+    double      max_rss_slope_mb  = 0.5;    // soak gate: MB per measured iteration
+    double      max_heap_slope_mb = -1.0;   // soak heap gate (MB/iter); < 0 = off
 };
 
 static QAOptions parse_args(int argc, char** argv)
@@ -380,6 +402,12 @@ static QAOptions parse_args(int argc, char** argv)
             opts.design_review = true;
         else if (arg == "--repeat" && i + 1 < argc)
             opts.repeat = std::max(1u, static_cast<uint32_t>(std::stoul(argv[++i])));
+        else if (arg == "--repeat-warmup" && i + 1 < argc)
+            opts.repeat_warmup = static_cast<uint32_t>(std::stoul(argv[++i]));
+        else if (arg == "--max-rss-slope" && i + 1 < argc)
+            opts.max_rss_slope_mb = std::stod(argv[++i]);
+        else if (arg == "--max-heap-slope" && i + 1 < argc)
+            opts.max_heap_slope_mb = std::stod(argv[++i]);
         else if (arg == "--help" || arg == "-h")
         {
             fprintf(stderr,
@@ -393,8 +421,14 @@ static QAOptions parse_args(int argc, char** argv)
                     "  --no-scenarios      Skip scenarios phase\n"
                     "  --list-scenarios    List scenarios and exit\n"
                     "  --design-review     Capture UI screenshots for design analysis\n"
-                    "  --repeat <N>        Run each scenario N times; with N>=3 RSS retention\n"
-                    "                      is judged for sustained growth after warm-up\n");
+                    "  --repeat <N>        Run each scenario N times in one process; RSS is\n"
+                    "                      sampled after each iteration and the least-squares\n"
+                    "                      slope after warm-up fails the run when it exceeds\n"
+                    "                      --max-rss-slope (needs >= 3 measured iterations)\n"
+                    "  --max-rss-slope <MB> Max RSS slope, MB/iteration (default 0.5)\n"
+                    "  --repeat-warmup <N> Leading iterations excluded from the slope (default 1)\n"
+                    "  --max-heap-slope <MB> Also fail when the in-use heap (glibc mallinfo2)\n"
+                    "                      grows faster than this, MB/iteration (default off)\n");
             exit(0);
         }
     }
@@ -421,6 +455,23 @@ struct ScenarioMemoryMetric
     bool                          gpu_after_valid  = false;
     VulkanBackend::GpuMemoryStats gpu_before{};
     VulkanBackend::GpuMemoryStats gpu_after{};
+};
+
+// --repeat soak result of one scenario: RSS / heap after every iteration and
+// the least-squares RSS slope over the iterations after warm-up.
+struct ScenarioRssTrend
+{
+    std::string          name;
+    uint32_t             iterations        = 0;
+    uint32_t             warmup_iterations = 0;
+    int64_t              rss_baseline      = 0;
+    std::vector<int64_t> rss_after;    // bytes, one per iteration
+    std::vector<int64_t> heap_after;   // glibc in-use heap bytes (empty when unavailable)
+    qa::SlopeVerdict     rss;
+    double               heap_slope_mb_per_iter = 0.0;
+    double               max_slope_mb_per_iter  = 0.0;
+    qa::SlopeVerdict     heap;                                // judged only with --max-heap-slope
+    double               max_heap_slope_mb_per_iter = -1.0;   // < 0: heap not gated
 };
 
 // ─── Design-review semantic assertions ──────────────────────────────────────
@@ -524,6 +575,215 @@ static std::string imgui_drawn_window_names(ImGuiContext* ctx)
             out += ", ";
         out += w->Name;
     }
+    return out;
+}
+
+// ── Rendered text contrast (S4-C01) ─────────────────────────────────────
+// A run of text glyphs drawn last frame: consecutive font-atlas quads of one
+// colour on one line in one window's draw list.  Glyph boxes are in
+// framebuffer pixels, clipped to the draw command's clip rect.
+struct ImguiTextRun
+{
+    std::string         window;
+    const ImGuiWindow*  win    = nullptr;
+    ImU32               col    = 0;
+    int                 glyphs = 0;
+    float               x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    std::vector<ImVec4> boxes;
+    // Covered by a window drawn above it (popup, tooltip, another panel) or
+    // dimmed by a modal: what is on screen there is not this run's text.
+    bool occluded = false;
+};
+
+static std::vector<ImguiTextRun> imgui_text_runs(ImGuiContext* ctx)
+{
+    std::vector<ImguiTextRun> runs;
+    if (!ctx || !ctx->IO.Fonts)
+        return runs;
+    const ImTextureID font_tex = ctx->IO.Fonts->TexRef.GetTexID();
+    const ImVec2      white    = ctx->DrawListSharedData.TexUvWhitePixel;
+    const ImVec2      scale    = ctx->IO.DisplayFramebufferScale;
+    for (ImGuiWindow* w : ctx->Windows)
+    {
+        if (!w || !w->Active || w->Hidden || !w->Name || !w->DrawList)
+            continue;
+        const ImDrawList& dl = *w->DrawList;
+        for (const ImDrawCmd& cmd : dl.CmdBuffer)
+        {
+            if (cmd.UserCallback || cmd.ElemCount < 6 || cmd.GetTexID() != font_tex)
+                continue;
+            ImguiTextRun run;
+            auto         flush = [&]()
+            {
+                if (run.glyphs > 0)
+                    runs.push_back(std::move(run));
+                run = ImguiTextRun{};
+            };
+            // Glyphs are emitted by PrimRectUV: indices a,a+1,a+2, a,a+2,a+3
+            // over an axis-aligned quad.  Walk triangle by triangle.
+            for (unsigned k = 0; k + 6 <= cmd.ElemCount; k += 3)
+            {
+                const ImDrawIdx* idx = dl.IdxBuffer.Data + cmd.IdxOffset + k;
+                const unsigned   a   = idx[0];
+                if (idx[1] != a + 1 || idx[2] != a + 2 || idx[3] != a || idx[4] != a + 2
+                    || idx[5] != a + 3)
+                    continue;
+                const ImDrawVert* v    = dl.VtxBuffer.Data + cmd.VtxOffset + a;
+                const bool        quad = v[0].pos.y == v[1].pos.y && v[1].pos.x == v[2].pos.x
+                                  && v[2].pos.y == v[3].pos.y && v[3].pos.x == v[0].pos.x
+                                  && v[0].pos.x < v[1].pos.x && v[0].pos.y < v[2].pos.y;
+                const bool textured =
+                    !(v[0].uv.x == white.x && v[0].uv.y == white.y) && v[0].uv.x != v[1].uv.x;
+                if (!quad || !textured || v[0].col != v[2].col)
+                    continue;
+                ImVec4 box(std::max(v[0].pos.x, cmd.ClipRect.x) * scale.x,
+                           std::max(v[0].pos.y, cmd.ClipRect.y) * scale.y,
+                           std::min(v[2].pos.x, cmd.ClipRect.z) * scale.x,
+                           std::min(v[2].pos.y, cmd.ClipRect.w) * scale.y);
+                k += 3;   // the quad's second triangle
+                if (box.z <= box.x || box.w <= box.y)
+                    continue;
+                const float h        = box.w - box.y;
+                const bool  same_run = run.glyphs > 0 && run.col == v[0].col
+                                      && std::abs(box.w - run.y1) < 0.6f * h + 2.0f
+                                      && box.x - run.x1 < 1.5f * h;
+                if (!same_run)
+                    flush();
+                run.window = w->Name;
+                run.win    = w;
+                run.col    = v[0].col;
+                run.glyphs++;
+                run.boxes.push_back(box);
+                run.x0 = std::min(run.x0, box.x);
+                run.y0 = std::min(run.y0, box.y);
+                run.x1 = std::max(run.x1, box.z);
+                run.y1 = std::max(run.y1, box.w);
+            }
+            flush();
+        }
+    }
+
+    // Z-order: ctx->Windows is back to front; child windows draw with their root.
+    auto order = [&](const ImGuiWindow* w)
+    {
+        for (int i = 0; i < ctx->Windows.Size; ++i)
+            if (ctx->Windows[i] == w)
+                return i;
+        return -1;
+    };
+    for (ImguiTextRun& run : runs)
+    {
+        const ImGuiWindow* root = run.win ? run.win->RootWindow : nullptr;
+        const int          z    = order(root);
+        for (int i = z + 1; root && i < ctx->Windows.Size && !run.occluded; ++i)
+        {
+            const ImGuiWindow* o = ctx->Windows[i];
+            if (!o || !o->Active || o->Hidden || o->RootWindow != o || o == root)
+                continue;
+            // Docked chrome (rail, bars, panels, overlay hosts) tiles the
+            // screen without overlapping text; popups, tooltips, modals and
+            // floating titled windows are drawn over whatever is below.
+            constexpr ImGuiWindowFlags floating = ImGuiWindowFlags_Popup | ImGuiWindowFlags_Tooltip
+                                                  | ImGuiWindowFlags_Modal
+                                                  | ImGuiWindowFlags_ChildMenu;
+            if (!(o->Flags & floating) && (o->Flags & ImGuiWindowFlags_NoTitleBar))
+                continue;
+            if (o->Flags & ImGuiWindowFlags_Modal)
+            {
+                run.occluded = true;
+                break;
+            }
+            const ImRect r = o->Rect();
+            run.occluded   = r.Min.x * scale.x < run.x1 && r.Max.x * scale.x > run.x0
+                           && r.Min.y * scale.y < run.y1 && r.Max.y * scale.y > run.y0;
+        }
+    }
+    return runs;
+}
+
+// Peak-ink WCAG contrast of a text run as captured in `px` (RGBA8, w x h):
+// the most contrasting pixel inside the glyph boxes against the median colour
+// of a 2px ring just outside the run's bounding box (the surface the text sits
+// on, including any glass / blur / dimming composited under it).
+struct TextRunContrast
+{
+    float     ratio     = 1.0f;
+    float     intended  = 1.0f;   // vertex colour composited over the measured surface
+    ui::Color surface   = {};
+    ui::Color ink       = {};
+    int       ring_px   = 0;
+    float     ring_flat = 0.0f;   // fraction of ring pixels within 1.15:1 of the median
+};
+
+static TextRunContrast measure_text_run(const ImguiTextRun& run,
+                                        const uint8_t*      px,
+                                        uint32_t            w,
+                                        uint32_t            h,
+                                        bool                linear_vertex_colors)
+{
+    TextRunContrast out;
+    const int       W  = static_cast<int>(w);
+    const int       H  = static_cast<int>(h);
+    auto            at = [&](int x, int y)
+    {
+        const uint8_t* p = px + (static_cast<size_t>(y) * w + x) * 4;
+        return ui::Color(p[0] / 255.0f, p[1] / 255.0f, p[2] / 255.0f, 1.0f);
+    };
+    const int              X0 = static_cast<int>(std::floor(run.x0));
+    const int              Y0 = static_cast<int>(std::floor(run.y0));
+    const int              X1 = static_cast<int>(std::ceil(run.x1));
+    const int              Y1 = static_cast<int>(std::ceil(run.y1));
+    std::vector<float>     rs, gs, bs;
+    std::vector<ui::Color> ring;
+    for (int y = Y0 - 3; y < Y1 + 3; ++y)
+        for (int x = X0 - 3; x < X1 + 3; ++x)
+        {
+            const bool inside = x >= X0 - 1 && x < X1 + 1 && y >= Y0 - 1 && y < Y1 + 1;
+            if (inside || x < 0 || y < 0 || x >= W || y >= H)
+                continue;
+            const ui::Color c = at(x, y);
+            ring.push_back(c);
+            rs.push_back(c.r);
+            gs.push_back(c.g);
+            bs.push_back(c.b);
+        }
+    out.ring_px = static_cast<int>(ring.size());
+    if (ring.empty())
+        return out;
+    auto median = [](std::vector<float>& v)
+    {
+        std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+        return v[v.size() / 2];
+    };
+    out.surface = ui::Color(median(rs), median(gs), median(bs), 1.0f);
+    int flat    = 0;
+    for (const ui::Color& c : ring)
+        flat += c.contrast_ratio(out.surface) < 1.15f ? 1 : 0;
+    out.ring_flat = static_cast<float>(flat) / static_cast<float>(ring.size());
+
+    for (const ImVec4& b : run.boxes)
+    {
+        const int bx0 = std::max(0, static_cast<int>(b.x));
+        const int by0 = std::max(0, static_cast<int>(b.y));
+        const int bx1 = std::min(W, static_cast<int>(std::ceil(b.z)));
+        const int by1 = std::min(H, static_cast<int>(std::ceil(b.w)));
+        for (int y = by0; y < by1; ++y)
+            for (int x = bx0; x < bx1; ++x)
+            {
+                const ui::Color c  = at(x, y);
+                const float     cr = c.contrast_ratio(out.surface);
+                if (cr > out.ratio)
+                {
+                    out.ratio = cr;
+                    out.ink   = c;
+                }
+            }
+    }
+    const ImVec4 v = ImGui::ColorConvertU32ToFloat4(run.col);
+    ui::Color    vc(v.x, v.y, v.z, v.w);
+    if (linear_vertex_colors)
+        vc = vc.to_srgb();
+    out.intended = vc.contrast_ratio_over(out.surface);
     return out;
 }
 #endif
@@ -701,6 +961,45 @@ class QAAgent
                 break;
             }
         }
+    }
+
+    // Pump frames until `settled()` holds for a few consecutive frames,
+    // bounded by a frame budget AND a wall-time budget (qa_settle.hpp).  Use
+    // it, not a fixed pump_frames(N), before asserting on anything that
+    // animates by elapsed time or completes asynchronously (layout slides,
+    // nav rail width, theme transitions, overlay fades, swapchain extent,
+    // window position).  A timeout is logged and fails the next named capture.
+    bool wait_until_settled(const std::string&           what,
+                            const std::function<bool()>& settled,
+                            const qa::SettleBudget&      budget = {})
+    {
+        const qa::SettleResult r = qa::wait_until_stable(
+            [&]
+            {
+                if (has_critical_issue() || wall_clock_exceeded())
+                    return false;
+                pump_frames(1);
+                return true;
+            },
+            settled,
+            [&] { return static_cast<double>(wall_clock_seconds()); },
+            budget);
+        if (r.settled)
+        {
+            fprintf(stderr,
+                    "[QA] Settled: %s (%lu frames / %.3f s)\n",
+                    what.c_str(),
+                    static_cast<unsigned long>(r.frames),
+                    r.seconds);
+            return true;
+        }
+        const std::string msg =
+            what + " did not settle ("
+            + (r.aborted ? std::string("run stopped") : std::string("timed out")) + " after "
+            + std::to_string(r.frames) + " frames / " + std::to_string(r.seconds) + " s)";
+        fprintf(stderr, "[QA] Settle wait failed: %s\n", msg.c_str());
+        pending_settle_failures_.push_back(msg);
+        return false;
     }
 
     void add_issue(IssueSeverity      sev,
@@ -978,8 +1277,6 @@ class QAAgent
         static constexpr uint64_t SCENARIO_GPU_WARNING_BYTES = 5ull * 1024ull * 1024ull;
         // Single-run retention above this always warns (no warm-up is this big).
         static constexpr size_t SCENARIO_RSS_HARD_LIMIT_BYTES = 128ull * 1024ull * 1024ull;
-        // --repeat: mean growth per repetition after warm-up that counts as a leak.
-        static constexpr size_t SCENARIO_RSS_PER_REP_BYTES = 2ull * 1024ull * 1024ull;
 
         // BUG-8: Per-scenario RSS thresholds for scenarios that legitimately
         // allocate huge transient CPU buffers. These plateau at allocator
@@ -1007,6 +1304,7 @@ class QAAgent
             // growth once all repetitions ran (see qa_stats.hpp).
             const int64_t        rss_baseline = static_cast<int64_t>(settled_rss_bytes());
             std::vector<int64_t> rss_after_reps;
+            std::vector<int64_t> heap_after_reps;
             bool                 stop_all = false;
             for (uint32_t rep = 0; rep < opts_.repeat && !stop_all; ++rep)
             {
@@ -1046,10 +1344,19 @@ class QAAgent
                     add_issue(IssueSeverity::Error, "scenario", scenario.name + " FAILED");
                 }
 
+                // Soak: return to the same single-window / single-figure state
+                // after every iteration so the samples compare like with like
+                // (scenarios leave their figures open, which would otherwise
+                // read as per-iteration growth).
+                if (opts_.repeat > 1)
+                    reset_to_single_window_lightweight_state();
+
                 size_t rss_after = settled_rss_bytes();
                 if (rss_after > peak_rss_)
                     peak_rss_ = rss_after;
                 rss_after_reps.push_back(static_cast<int64_t>(rss_after));
+                if (const int64_t heap = get_heap_in_use_bytes(); heap >= 0)
+                    heap_after_reps.push_back(heap);
 
                 VulkanBackend::GpuMemoryStats gpu_after{};
                 bool                          gpu_after_valid = snapshot_gpu_memory(gpu_after);
@@ -1086,9 +1393,9 @@ class QAAgent
 
                 // A single run's retention mixes one-time warm-up (allocator arenas,
                 // driver pipeline/JIT caches, glyph caches) with leaks, so it is
-                // only INFO; --repeat >= 3 judges sustained growth instead.  A huge
+                // only INFO; --repeat judges the per-iteration slope instead.  A huge
                 // single-run retention still warns.
-                if (opts_.repeat < 3
+                if (opts_.repeat == 1
                     && rss_after > rss_before + scenario_rss_threshold(scenario.name))
                 {
                     const size_t threshold_mb =
@@ -1100,7 +1407,8 @@ class QAAgent
                                   + " RSS after teardown (" + std::to_string(to_mb(rss_before))
                                   + "->" + std::to_string(to_mb(rss_after)) + "MB, threshold +"
                                   + std::to_string(threshold_mb)
-                                  + "MB; single run includes warm-up, use --repeat 3+ to judge)",
+                                  + "MB; single run includes warm-up, use --repeat 4+ to judge the "
+                                    "slope)",
                               false);
                 }
 
@@ -1127,29 +1435,11 @@ class QAAgent
                     stop_all = true;
             }   // repetitions
 
-            if (opts_.repeat >= 3 && rss_after_reps.size() >= 3)
-            {
-                const auto v =
-                    qa::judge_retention(rss_baseline,
-                                        rss_after_reps,
-                                        static_cast<int64_t>(SCENARIO_RSS_PER_REP_BYTES));
-                std::string trend;
-                for (size_t i = 0; i < rss_after_reps.size(); ++i)
-                    trend += (i ? "," : "") + std::to_string(to_mb(rss_after_reps[i]));
-                const std::string msg =
-                    "Scenario '" + scenario.name + "' RSS after each of "
-                    + std::to_string(rss_after_reps.size()) + " repetitions: "
-                    + std::to_string(to_mb(rss_baseline)) + "->[" + trend + "]MB; warm-up "
-                    + format_mb_delta(v.warmup_bytes) + ", then " + format_kb_delta(v.per_rep_bytes)
-                    + "/rep (second half " + format_kb_delta(v.late_per_rep_bytes) + "/rep)";
-                fprintf(stderr, "[QA]   %s\n", msg.c_str());
-                add_issue(v.sustained_growth ? IssueSeverity::Warning : IssueSeverity::Info,
-                          "scenario_memory",
-                          msg
-                              + (v.sustained_growth ? " — sustained growth (possible leak)"
-                                                    : " — plateaus (warm-up/allocator retention)"),
-                          false);
-            }
+            if (opts_.repeat > 1)
+                judge_scenario_rss_trend(scenario.name,
+                                         rss_baseline,
+                                         rss_after_reps,
+                                         heap_after_reps);
 
             if (stop_all)
             {
@@ -1167,6 +1457,84 @@ class QAAgent
         malloc_trim(0);
 #endif
         return get_rss_bytes();
+    }
+
+    // --repeat soak gate: least-squares RSS slope over the iterations after
+    // warm-up.  Exceeding --max-rss-slope is an ERROR (non-zero exit); fewer
+    // than 3 measured iterations are reported but not judged.
+    void judge_scenario_rss_trend(const std::string&          name,
+                                  int64_t                     rss_baseline,
+                                  const std::vector<int64_t>& rss_after,
+                                  const std::vector<int64_t>& heap_after)
+    {
+        static constexpr double MB = 1024.0 * 1024.0;
+
+        ScenarioRssTrend t;
+        t.name                  = name;
+        t.iterations            = static_cast<uint32_t>(rss_after.size());
+        t.warmup_iterations     = opts_.repeat_warmup;
+        t.rss_baseline          = rss_baseline;
+        t.rss_after             = rss_after;
+        t.heap_after            = heap_after;
+        t.max_slope_mb_per_iter = opts_.max_rss_slope_mb;
+        t.rss                   = qa::judge_rss_slope(rss_baseline,
+                                    rss_after,
+                                    t.warmup_iterations,
+                                    t.max_slope_mb_per_iter);
+        if (heap_after.size() > t.warmup_iterations)
+        {
+            std::vector<double> y;
+            for (size_t i = t.warmup_iterations; i < heap_after.size(); ++i)
+                y.push_back(static_cast<double>(heap_after[i]) / MB);
+            // Theil-Sen: one transient heap spike must not fail the tight gate.
+            t.heap_slope_mb_per_iter = qa::theil_sen_slope(y);
+            if (opts_.max_heap_slope_mb >= 0.0)
+            {
+                t.max_heap_slope_mb_per_iter = opts_.max_heap_slope_mb;
+                t.heap.measured              = y.size();
+                t.heap.slope_mb_per_iter     = t.heap_slope_mb_per_iter;
+                t.heap.judged                = y.size() >= 3;
+                t.heap.exceeds =
+                    t.heap.judged && t.heap_slope_mb_per_iter > opts_.max_heap_slope_mb;
+            }
+        }
+
+        std::string trend;
+        for (size_t i = 0; i < rss_after.size(); ++i)
+            trend += (i ? "," : "") + std::to_string(to_mb(static_cast<uint64_t>(rss_after[i])));
+        char slope_buf[224];
+        snprintf(slope_buf,
+                 sizeof(slope_buf),
+                 "warm-up %+.1fMB, RSS slope %+.3f MB/iter over %zu measured (max %.3f), "
+                 "heap slope (Theil-Sen) %+.3f MB/iter",
+                 t.rss.warmup_mb,
+                 t.rss.slope_mb_per_iter,
+                 t.rss.measured,
+                 t.max_slope_mb_per_iter,
+                 t.heap_slope_mb_per_iter);
+        std::string msg = "Scenario '" + name + "' soak x" + std::to_string(t.iterations)
+                          + " (warm-up " + std::to_string(t.warmup_iterations) + "): RSS "
+                          + std::to_string(to_mb(static_cast<uint64_t>(rss_baseline))) + "->["
+                          + trend + "]MB; " + slope_buf;
+        if (t.max_heap_slope_mb_per_iter >= 0.0)
+        {
+            char heap_buf[64];
+            snprintf(heap_buf, sizeof(heap_buf), " (heap max %.3f)", t.max_heap_slope_mb_per_iter);
+            msg += heap_buf;
+        }
+        IssueSeverity sev = IssueSeverity::Info;
+        if (!t.rss.judged)
+            msg += " — not judged (needs >= 3 measured iterations)";
+        else if (t.rss.exceeds || t.heap.exceeds)
+        {
+            msg += t.rss.exceeds ? " — RSS keeps growing (leak)" : " — heap keeps growing (leak)";
+            sev = IssueSeverity::Error;
+        }
+        else
+            msg += " — within slope gate";
+        fprintf(stderr, "[QA]   %s\n", msg.c_str());
+        add_issue(sev, "scenario_memory_slope", msg, false);
+        scenario_trends_.push_back(std::move(t));
     }
 
     void check_validation_messages(const std::string& context)
@@ -2952,6 +3320,10 @@ class QAAgent
 
         auto finish = [&](DesignCheck& check, const std::string& path)
         {
+            // A state that never settled is not the state the capture names.
+            for (const auto& f : pending_settle_failures_)
+                check.expect(false, f);
+            pending_settle_failures_.clear();
             record.path     = path;
             record.frame    = total_frames_;
             record.checks   = check.passed.size() + check.failed.size();
@@ -3019,8 +3391,17 @@ class QAAgent
 
         // Semantic assertions against the frame that was just captured.
         DesignCheck check;
+        design_px_     = pixels.data();
+        design_w_      = w;
+        design_h_      = h;
+        design_window_ = target_window;
         if (verify)
             verify(check);
+#ifdef SPECTRA_USE_IMGUI
+        log_text_contrast(name);
+#endif
+        design_px_     = nullptr;
+        design_window_ = nullptr;
         if (check.passed.empty() && check.failed.empty())
             check.expect(false, "capture declares at least one semantic assertion");
 
@@ -3155,13 +3536,24 @@ class QAAgent
                           && pi.figure_index != INVALID_FIGURE_ID;
             c.expect(visible, "every pane has a figure and a visible (>50px) area");
 
-            // Legend windows ("##legend_<figure ptr>_<axes>") belong only to
-            // figures visible in a pane, never to ones behind another tab.
+            // Legend windows (pooled "##legend_<slot>", see LegendInteraction::
+            // window_name) belong only to figures visible in a pane, never to
+            // ones behind another tab.
             std::set<std::string> visible_keys;
             for (const auto& pi : infos)
-                if (Figure* pf = app_->figure_registry().get(pi.figure_index))
-                    visible_keys.insert(
-                        std::format("##legend_{:x}_", reinterpret_cast<uintptr_t>(pf)));
+                if (Figure* pf = app_->figure_registry().get(pi.figure_index);
+                    pf && ui->data_interaction)
+                {
+                    const size_t n_axes = pf->axes().size() + pf->all_axes().size();
+                    for (size_t ai = 0; ai < n_axes; ++ai)
+                    {
+                        std::string wn = ui->data_interaction->legend().window_name(
+                            reinterpret_cast<uintptr_t>(pf),
+                            ai);
+                        if (!wn.empty())
+                            visible_keys.insert(std::move(wn));
+                    }
+                }
             std::string   ghosts;
             ImGuiContext* ctx = design_imgui();
             for (ImGuiWindow* w : ctx ? ctx->Windows : ImVector<ImGuiWindow*>{})
@@ -3171,10 +3563,9 @@ class QAAgent
                 std::string_view name(w->Name);
                 if (name.rfind("##legend_", 0) != 0 || name.rfind("##legend_toggle", 0) == 0)
                     continue;
-                bool ok = false;
-                for (const auto& k : visible_keys)
-                    ok = ok || name.rfind(k, 0) == 0;
-                if (!ok)
+                if (name.rfind("##legend_full", 0) == 0 || name.rfind("##legend_more", 0) == 0)
+                    continue;
+                if (visible_keys.count(std::string(name)) == 0)
                     ghosts += std::string(name) + " ";
             }
             c.expect(ghosts.empty(),
@@ -3192,6 +3583,144 @@ class QAAgent
                  "theme transition finished");
     }
 
+    // ── Rendered text contrast (S4-C01) ──────────────────────────────────
+    // Text runs of the captured frame (see named_screenshot) with their
+    // peak-ink contrast measured on the captured pixels.
+    struct MeasuredTextRun
+    {
+        ImguiTextRun    run;
+        TextRunContrast m;
+    };
+
+    std::vector<MeasuredTextRun> design_text_runs(std::string_view window_needle = {})
+    {
+        std::vector<MeasuredTextRun> out;
+        if (!design_px_)
+            return out;
+        WindowUIContext* ui = design_window_ ? design_window_->ui_ctx.get() : app_->ui_context();
+        const bool       linear = ui && ui->theme_mgr && ui->theme_mgr->current().linearize_colors;
+        for (ImguiTextRun& run : imgui_text_runs(design_imgui(design_window_)))
+        {
+            if (!window_needle.empty() && run.window.find(window_needle) == std::string::npos)
+                continue;
+            TextRunContrast m = measure_text_run(run, design_px_, design_w_, design_h_, linear);
+            out.push_back({std::move(run), m});
+        }
+        return out;
+    }
+
+    // Every word-length text run (3+ glyphs) drawn in a window whose name
+    // contains `window_needle` reaches `min_ratio` on the captured frame.
+    // Only runs on a reliably known surface count: the ring around the run
+    // must be mostly one colour (not straddling a border, an icon or another
+    // widget) and not covered by a window above it.  `disabled` selects text
+    // faded by BeginDisabled() (true) or all other text (false), and
+    // `neutral_only` keeps only runs in neutral (text-token) ink, skipping
+    // accent / status colours used as text.  At least `min_runs` must be
+    // measured, so a moved or missing window cannot pass vacuously.
+    void expect_text_contrast(DesignCheck&     c,
+                              std::string_view window_needle,
+                              float            min_ratio,
+                              size_t           min_runs,
+                              bool             disabled     = false,
+                              bool             neutral_only = false)
+    {
+        size_t      measured = 0;
+        float       worst    = 1e9f;
+        std::string worst_desc;
+        for (const MeasuredTextRun& r : design_text_runs(window_needle))
+        {
+            if (r.run.occluded || r.run.glyphs < 3 || r.m.ring_flat < 0.6f || r.m.ring_px < 20)
+                continue;
+            // Disabled controls: text faded by BeginDisabled() (alpha scaled
+            // by style.DisabledAlpha).  ImGuiCol_TextDisabled is the theme's
+            // text_tertiary, which the app also uses for live labels and
+            // hints, so it is held to the normal text target.
+            const bool is_disabled = ((r.run.col >> IM_COL32_A_SHIFT) & 0xFF) < 0xB0;
+            if (is_disabled != disabled)
+                continue;
+            // Neutral ink = the theme's text tokens; accent / status colours
+            // used as text are chromatic.
+            const int r8 = r.run.col & 0xFF, g8 = (r.run.col >> 8) & 0xFF,
+                      b8 = (r.run.col >> 16) & 0xFF;
+            if (neutral_only && std::max({r8, g8, b8}) - std::min({r8, g8, b8}) > 30)
+                continue;
+            ++measured;
+            if (r.m.ratio < worst)
+            {
+                worst      = r.m.ratio;
+                worst_desc = std::format("{} at ({:.0f},{:.0f}) {} glyphs, ink #{:02X}{:02X}{:02X} "
+                                         "on #{:02X}{:02X}{:02X}",
+                                         r.run.window,
+                                         r.run.x0,
+                                         r.run.y0,
+                                         r.run.glyphs,
+                                         static_cast<int>(std::lround(r.m.ink.r * 255)),
+                                         static_cast<int>(std::lround(r.m.ink.g * 255)),
+                                         static_cast<int>(std::lround(r.m.ink.b * 255)),
+                                         static_cast<int>(std::lround(r.m.surface.r * 255)),
+                                         static_cast<int>(std::lround(r.m.surface.g * 255)),
+                                         static_cast<int>(std::lround(r.m.surface.b * 255)));
+            }
+        }
+        const std::string what = std::string(disabled ? "disabled " : "")
+                                 + (neutral_only ? "neutral " : "") + "text in '"
+                                 + std::string(window_needle) + "'";
+        c.expect(measured >= min_runs,
+                 std::format("{}: {} runs measured (need {})", what, measured, min_runs));
+        if (measured > 0)
+            c.expect(worst >= min_ratio,
+                     std::format("{} reaches {:.1f}:1 on the captured frame (worst {:.2f}:1, {})",
+                                 what,
+                                 min_ratio,
+                                 worst,
+                                 worst_desc));
+    }
+
+    // Appends every measured text run of the capture to design/text_contrast.csv
+    // (diagnostics; assertions are made per state by expect_text_contrast).
+    void log_text_contrast(const std::string& shot)
+    {
+        const std::string path = opts_.output_dir + "/design/text_contrast.csv";
+        std::filesystem::create_directories(opts_.output_dir + "/design");
+        const bool    fresh = !text_contrast_log_started_;
+        std::ofstream out(path, fresh ? std::ios::trunc : std::ios::app);
+        if (!out)
+            return;
+        if (fresh)
+            out << "shot,window,x,y,w,h,glyphs,vertex_rgba,surface,ink,ratio,intended,ring_flat,"
+                   "occluded\n";
+        text_contrast_log_started_ = true;
+        auto hex                   = [](const ui::Color& c)
+        {
+            return std::format("#{:02X}{:02X}{:02X}",
+                               static_cast<int>(std::lround(c.r * 255)),
+                               static_cast<int>(std::lround(c.g * 255)),
+                               static_cast<int>(std::lround(c.b * 255)));
+        };
+        for (const MeasuredTextRun& r : design_text_runs())
+        {
+            std::string window = r.run.window;
+            std::replace(window.begin(), window.end(), ',', ';');
+            out << std::format(
+                "{},{},{:.0f},{:.0f},{:.0f},{:.0f},{},{:08X},{},{},{:.2f},{:.2f},{:.2f},{}\n",
+                shot,
+                window,
+                r.run.x0,
+                r.run.y0,
+                r.run.x1 - r.run.x0,
+                r.run.y1 - r.run.y0,
+                r.run.glyphs,
+                r.run.col,
+                hex(r.m.surface),
+                hex(r.m.ink),
+                r.m.ratio,
+                r.m.intended,
+                r.m.ring_flat,
+                r.run.occluded ? 1 : 0);
+        }
+    }
+
     void expect_swapchain(DesignCheck& c, WindowContext* wctx, uint32_t w, uint32_t h)
     {
         c.expect(wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h,
@@ -3200,6 +3729,33 @@ class QAAgent
                                    + std::to_string(wctx->swapchain.extent.height)
                              : std::string("none"))
                      + ")");
+    }
+
+    // ── Settle predicates (for wait_until_settled) ──────────────────────
+    // Inspector slide and nav-rail width have reached their (window-fitted)
+    // targets, by the layout manager's own definition.
+    bool layout_settled()
+    {
+        auto* lm = design_layout();
+        return !lm || !lm->is_animating();
+    }
+
+    bool theme_settled()
+    {
+        auto* ui = app_->ui_context();
+        return !ui || !ui->theme_mgr || !ui->theme_mgr->is_transitioning();
+    }
+
+    bool ui_settled() { return layout_settled() && theme_settled(); }
+
+    static bool swapchain_is(const WindowContext* wctx, uint32_t w, uint32_t h)
+    {
+        return wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h;
+    }
+
+    void wait_ui_settled(const std::string& what)
+    {
+        wait_until_settled(what + ": layout + theme animations", [&] { return ui_settled(); });
     }
 
     void expect_no_transient_ui(DesignCheck& c)
@@ -3346,31 +3902,100 @@ class QAAgent
         return r;
     }
 
-    // Visible x/y spans shrank to at most `max_ratio` of the pre-zoom spans.
-    void expect_zoomed(DesignCheck& c, const ViewRange& before, double max_ratio)
-    {
-        const ViewRange now = active_view_range();
-        const double    bx  = before.x1 - before.x0;
-        const double    by  = before.y1 - before.y0;
-        c.expect(bx > 0.0 && (now.x1 - now.x0) < bx * max_ratio,
-                 "x span zoomed in (" + std::to_string(now.x1 - now.x0) + " vs "
-                     + std::to_string(bx) + ")");
-        c.expect(by > 0.0 && (now.y1 - now.y0) < by * max_ratio,
-                 "y span zoomed in (" + std::to_string(now.y1 - now.y0) + " vs "
-                     + std::to_string(by) + ")");
-    }
-
     // Pump until hover overlays (crosshair fade-in) settle, bounded.
     void settle_overlays()
     {
         auto* ui = app_->ui_context();
-        for (int i = 0; i < 90; ++i)
+        wait_until_settled("crosshair fade-in",
+                           [&]
+                           {
+                               return ui && ui->data_interaction
+                                      && ui->data_interaction->crosshair_active()
+                                      && ui->data_interaction->crosshair_opacity() >= 1.0f;
+                           });
+    }
+
+    // Make `ax` the input target the way a user does before a keyboard view
+    // command (view.zoom_in, ...): hover the real pointer over its plot area,
+    // so InputHandler's hit test selects it.  Returns the command target.
+    AxesBase* target_axes_by_hover(Axes& ax)
+    {
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return nullptr;
+        const Rect vp = ax.viewport();
+        if (vp.w > 0.0f && vp.h > 0.0f)
         {
-            pump_frames(1);
-            if (ui && ui->data_interaction && ui->data_interaction->crosshair_active()
-                && ui->data_interaction->crosshair_opacity() >= 1.0f)
-                break;
+    #ifdef SPECTRA_USE_GLFW
+            // Off the exact centre so the hover lands between data points.
+            move_pointer(std::floor(vp.x + vp.w * 0.37f) + 0.5,
+                         std::floor(vp.y + vp.h * 0.71f) + 0.5);
+    #endif
         }
+        return ui->input_handler.active_axes_base();
+    }
+
+    struct AxesSpans
+    {
+        double x = 0.0, y = 0.0;
+    };
+    static AxesSpans axes_spans(const Axes& ax)
+    {
+        return {ax.x_limits().max - ax.x_limits().min, ax.y_limits().max - ax.y_limits().min};
+    }
+
+    // Target `ax` by hover, then zoom in `steps` times through the command
+    // registry.  `before` receives the spans of that same axes pre-zoom.
+    bool zoom_in_on(Axes& ax, int steps, AxesSpans& before)
+    {
+        auto* ui = app_->ui_context();
+        if (!ui)
+            return false;
+        const bool targeted = target_axes_by_hover(ax) == &ax;
+        before              = axes_spans(ax);
+        for (int i = 0; i < steps; ++i)
+            ui->cmd_registry.execute("view.zoom_in");
+        return targeted;
+    }
+
+    // The zoom command targeted `ax` (still the input target at capture) and
+    // its spans shrank by view.zoom_in's factor 0.75 per step.
+    void expect_zoomed_on(DesignCheck&     c,
+                          const Axes&      ax,
+                          bool             targeted,
+                          const AxesSpans& before,
+                          int              steps)
+    {
+        auto* ui = app_->ui_context();
+        c.expect(targeted, "zoom command target set to the measured axes by hovering it");
+        c.expect(ui && ui->input_handler.active_axes() == &ax,
+                 "command target is the measured axes at capture");
+        c.expect(design_active_figure() && !design_active_figure()->axes().empty()
+                     && design_active_figure()->axes()[0].get() == &ax,
+                 "measured axes is the active figure's plot");
+        const double    expected = std::pow(0.75, steps);
+        const AxesSpans now      = axes_spans(ax);
+        fprintf(stderr,
+                "[QA/Design] zoom: target_is_measured_axes=%d spans x %.6f -> %.6f (ratio %.6f) "
+                "y %.6f -> %.6f (ratio %.6f), expected ratio %.6f\n",
+                ui && ui->input_handler.active_axes() == &ax ? 1 : 0,
+                before.x,
+                now.x,
+                before.x > 0.0 ? now.x / before.x : -1.0,
+                before.y,
+                now.y,
+                before.y > 0.0 ? now.y / before.y : -1.0,
+                expected);
+        c.near(before.x > 0.0 ? now.x / before.x : -1.0,
+               expected,
+               1e-3,
+               "x span ratio after " + std::to_string(steps) + " zoom steps ("
+                   + std::to_string(now.x) + " vs " + std::to_string(before.x) + ")");
+        c.near(before.y > 0.0 ? now.y / before.y : -1.0,
+               expected,
+               1e-3,
+               "y span ratio after " + std::to_string(steps) + " zoom steps ("
+                   + std::to_string(now.y) + " vs " + std::to_string(before.y) + ")");
     }
 
     // Crosshair enabled, pointer readout at (x, y) inside the plot and the
@@ -3563,9 +4188,15 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("panel.toggle_inspector");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("07 inspector open");
                 named_screenshot("07_inspector_panel_open",
-                                 [&](DesignCheck& c) { expect_inspector_open(c, true); });
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_inspector_open(c, true);
+                                     // Glass panel over the canvas.
+                                     expect_text_contrast(c, "##inspector", 4.5f, 3);
+                                 });
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
             }
@@ -3586,6 +4217,8 @@ class QAAgent
                         c.expect(imgui_window_drawn(design_imgui(), "##command_palette"),
                                  "palette window drawn");
                         c.expect(ui->cmd_palette.result_count() > 0, "palette lists commands");
+                        // Glass palette over the blurred, dimmed backdrop.
+                        expect_text_contrast(c, "##command_palette", 4.5f, 3);
                     });
                 ui->cmd_registry.execute("app.cancel");
                 pump_frames(5);
@@ -3628,8 +4261,16 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("theme.dark");
-                pump_frames(10);
-                named_screenshot("11_theme_dark", [&](DesignCheck& c) { expect_theme(c, "dark"); });
+                pump_frames(2);
+                wait_ui_settled("11 dark theme");
+                named_screenshot("11_theme_dark",
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_theme(c, "dark");
+                                     // Glass nav rail labels and command bar.
+                                     expect_text_contrast(c, "##navrail", 4.5f, 5);
+                                     expect_text_contrast(c, "##commandbar", 4.5f, 3);
+                                 });
             }
         }
 
@@ -3639,9 +4280,18 @@ class QAAgent
             if (ui)
             {
                 ui->cmd_registry.execute("theme.light");
-                pump_frames(30);   // D25 fix: allow theme transition to fully complete
+                pump_frames(2);
+                wait_ui_settled("12 light theme");   // theme transition is dt-based
                 named_screenshot("12_theme_light",
-                                 [&](DesignCheck& c) { expect_theme(c, "light"); });
+                                 [&](DesignCheck& c)
+                                 {
+                                     expect_theme(c, "light");
+                                     expect_text_contrast(c, "##commandbar", 4.5f, 3);
+                                     // Small rail labels (incl. the active
+                                     // accent label) and status readouts.
+                                     expect_text_contrast(c, "##navrail", 4.5f, 10);
+                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 4);
+                                 });
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
                 pump_frames(30);
@@ -3721,6 +4371,8 @@ class QAAgent
                                  {
                                      c.expect(hovered, "pointer moved over the plot");
                                      expect_crosshair_at(c, hx, hy);
+                                     // Glass hover tooltip over the plot.
+                                     expect_text_contrast(c, "##overlay_host", 4.5f, 2);
                                  });
                 ui->data_interaction->set_crosshair(false);
                 if (active_fig)
@@ -3735,13 +4387,25 @@ class QAAgent
             auto* ui = app_->ui_context();
             if (ui)
             {
-                const ViewRange pre_zoom = active_view_range();
-                for (int i = 0; i < 5; ++i)
-                    ui->cmd_registry.execute("view.zoom_in");
+                // view.zoom_in acts on the input target (the hovered axes);
+                // the pointer restored after scene 15 may have cleared it.
+                // Target the axes that is measured, as a user would.
+                Figure*   f        = design_active_figure();
+                Axes*     zoom_ax  = (f && !f->axes().empty()) ? f->axes_mut()[0].get() : nullptr;
+                AxesSpans pre_zoom = {};
+                bool      targeted = false;
+                if (zoom_ax)
+                    targeted = zoom_in_on(*zoom_ax, 5, pre_zoom);
                 pump_frames(10);
                 named_screenshot("16_zoomed_in",
-                                 [&](DesignCheck& c) { expect_zoomed(c, pre_zoom, 0.8); });
+                                 [&](DesignCheck& c)
+                                 {
+                                     c.expect(zoom_ax != nullptr, "active figure has 2D axes");
+                                     if (zoom_ax)
+                                         expect_zoomed_on(c, *zoom_ax, targeted, pre_zoom, 5);
+                                 });
                 ui->cmd_registry.execute("view.home");
+                restore_pointer();
                 pump_frames(5);
             }
         }
@@ -3777,6 +4441,7 @@ class QAAgent
                         c.expect(ui->imgui_ui->is_timeline_visible(), "timeline visible");
                         c.expect(imgui_window_drawn(design_imgui(), "##timeline_panel"),
                                  "timeline window drawn");
+                        expect_text_contrast(c, "##timeline_panel", 4.5f, 3);
                     });
                 ui->cmd_registry.execute("panel.toggle_timeline");
                 pump_frames(5);
@@ -4047,7 +4712,8 @@ class QAAgent
                 pump_frames(5);
                 // Cycle to series selection
                 ui->cmd_registry.execute("series.cycle_selection");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("27 inspector open");
                 named_screenshot(
                     "27_inspector_series_stats",
                     [&](DesignCheck& c)
@@ -4073,7 +4739,8 @@ class QAAgent
                 // previous capture's series selection).
                 ui->imgui_ui->set_inspector_section_axes();
                 ui->cmd_registry.execute("panel.toggle_inspector");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("28 inspector open");
                 named_screenshot(
                     "28_inspector_axes_properties",
                     [&](DesignCheck& c)
@@ -4335,13 +5002,13 @@ class QAAgent
             if (ui)
             {
                 const ViewRange pre_zoom = active_view_range();
-                for (int i = 0; i < 5; ++i)
-                    ui->cmd_registry.execute("view.zoom_in");
+                AxesSpans       spans    = {};
+                const bool      targeted = zoom_in_on(ax, 5, spans);
                 pump_frames(10);
                 named_screenshot("35_zoom_data_center_verify",
                                  [&](DesignCheck& c)
                                  {
-                                     expect_zoomed(c, pre_zoom, 0.8);
+                                     expect_zoomed_on(c, ax, targeted, spans, 5);
                                      Figure* f = design_active_figure();
                                      if (f && !f->axes().empty())
                                      {
@@ -4358,6 +5025,7 @@ class QAAgent
                                      }
                                  });
                 ui->cmd_registry.execute("view.home");
+                restore_pointer();
                 pump_frames(5);
             }
         }
@@ -4395,6 +5063,8 @@ class QAAgent
                                      + "')");
                         c.expect(imgui_drawn_popups(design_imgui(), "##commandbar") >= 1,
                                  "menu popup drawn");
+                        // Glass menu popup: labels and shortcut hints.
+                        expect_text_contrast(c, "##Popup", 4.5f, 5);
                     });
             }
         }
@@ -4458,7 +5128,8 @@ class QAAgent
                 pump_frames(5);
                 // Cycle selection to show series properties
                 ui->cmd_registry.execute("series.cycle_selection");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("38 inspector open");
                 named_screenshot("38_inspector_with_knobs",
                                  [&](DesignCheck& c)
                                  {
@@ -4487,7 +5158,8 @@ class QAAgent
                 // Force animation to snap by calling update with dt=0
                 // (smooth_toward snaps when dt<=0)
                 ui->imgui_ui->get_layout_manager().update(1280.0f, 720.0f, 0.0f);
-                pump_frames(5);
+                pump_frames(2);
+                wait_ui_settled("39 nav rail expanded");
                 named_screenshot(
                     "39_nav_rail_visible",
                     [&](DesignCheck& c)
@@ -4555,7 +5227,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 640, 480);
-                    pump_frames(20);   // Allow swapchain recreation
+                    pump_frames(2);
+                    wait_until_settled("41 640x480 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 640, 480) && ui_settled(); });
                     named_screenshot("41_window_resized_640x480",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 640, 480); });
                 }
@@ -4572,7 +5247,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 1920, 600);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("42 1920x600 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 1920, 600) && ui_settled(); });
                     named_screenshot("42_window_resized_1920x600",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 1920, 600); });
                 }
@@ -4589,7 +5267,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 600, 1080);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("43 600x1080 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 600, 1080) && ui_settled(); });
                     named_screenshot("43_window_resized_600x1080",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 600, 1080); });
 
@@ -4610,7 +5291,10 @@ class QAAgent
                 if (glfw_win)
                 {
                     glfwSetWindowSize(glfw_win, 320, 240);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("44 320x240 swapchain recreation",
+                                       [&]
+                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
                     named_screenshot("44_window_resized_tiny_320x240",
                                      [&](DesignCheck& c) { expect_swapchain(c, wctx, 320, 240); });
 
@@ -4659,7 +5343,9 @@ class QAAgent
                     // Detach second figure into a new window
                     auto* new_wctx =
                         wm->detach_figure(ids[1], 800, 600, "Detached Figure", 100, 100);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("45 detached window swapchain",
+                                       [&] { return swapchain_is(new_wctx, 800, 600); });
 
                     // D41 fix: use window-targeted captures. step() iterates
                     // all windows, so set_active_window before pump_frames
@@ -4727,7 +5413,14 @@ class QAAgent
                 {
                     // Move window around
                     glfwSetWindowPos(glfw_win, 50, 50);
-                    pump_frames(5);
+                    pump_frames(1);
+                    wait_until_settled("46 window move",
+                                       [&]
+                                       {
+                                           int px = -1, py = -1;
+                                           glfwGetWindowPos(glfw_win, &px, &py);
+                                           return px == 50 && py == 50;
+                                       });
                     named_screenshot("46_window_moved_top_left",
                                      [&](DesignCheck& c)
                                      {
@@ -4753,7 +5446,8 @@ class QAAgent
                 ui->cmd_registry.execute("panel.toggle_inspector");
                 pump_frames(5);
                 ui->cmd_registry.execute("panel.toggle_timeline");
-                pump_frames(10);
+                pump_frames(2);
+                wait_ui_settled("47 inspector open");
                 named_screenshot(
                     "47_split_inspector_timeline_open",
                     [&](DesignCheck& c)
@@ -4803,7 +5497,22 @@ class QAAgent
                         if (glfw_primary)
                             glfwSetWindowPos(glfw_primary, 50, 100);
                     }
-                    pump_frames(10);
+                    pump_frames(1);
+                    wait_until_settled(
+                        "48 window positions + secondary swapchain",
+                        [&]
+                        {
+                            if (wm->windows().empty() || !win2)
+                                return false;
+                            int px = -1, py = -1, sx = -1, sy = -1;
+                            glfwGetWindowPos(
+                                static_cast<GLFWwindow*>(wm->windows()[0]->glfw_window),
+                                &px,
+                                &py);
+                            glfwGetWindowPos(static_cast<GLFWwindow*>(win2->glfw_window), &sx, &sy);
+                            return px == 50 && py == 100 && sx == 700 && sy == 100
+                                   && swapchain_is(win2, 640, 480);
+                        });
                     named_screenshot(
                         "48_two_windows_side_by_side",
                         [&](DesignCheck& c)
@@ -4866,7 +5575,8 @@ class QAAgent
 
                 // Now toggle fullscreen — hides inspector + keeps nav collapsed
                 ui->cmd_registry.execute("view.fullscreen");
-                pump_frames(20);   // Allow layout animation to settle
+                pump_frames(2);
+                wait_ui_settled("49 fullscreen layout");
                 named_screenshot("49_fullscreen_mode",
                                  [&](DesignCheck& c)
                                  {
@@ -4903,7 +5613,10 @@ class QAAgent
                 ui->imgui_ui->set_timeline_visible(false);
                 ui->imgui_ui->set_curve_editor_visible(false);
 
-                pump_frames(20);   // Allow all animations to fully settle
+                // LayoutManager::smooth_toward is dt-based: wait for the
+                // settled geometry, not a frame count.
+                pump_frames(2);
+                wait_ui_settled("50 all panels closed");
                 named_screenshot(
                     "50_minimal_chrome_all_panels_closed",
                     [&](DesignCheck& c)
@@ -5104,6 +5817,8 @@ class QAAgent
                                  "selection moved 15 rows (index "
                                      + std::to_string(ui->cmd_palette.selected_index()) + ")");
                         c.expect(ui->cmd_palette.scroll_offset() > 0.0f, "result list scrolled");
+                        // Includes the row under the selection highlight.
+                        expect_text_contrast(c, "##command_palette", 4.5f, 5);
                     });
 
                 // Close palette
@@ -5135,7 +5850,17 @@ class QAAgent
                 const float saved_scale = ui->theme_mgr ? ui->theme_mgr->ui_scale() : 1.0f;
                 if (ui->theme_mgr)
                     ui->theme_mgr->set_ui_scale(1.25f);
-                pump_frames(3);   // Let layout settle at new scale
+                pump_frames(2);
+                wait_until_settled(
+                    "55 UI scale 1.25 in effect",
+                    [&]
+                    {
+                        ImGuiContext* ctx = design_imgui();
+                        ImGuiWindow*  bar = imgui_find_window(ctx, "##commandbar");
+                        return ctx && std::abs(ctx->Style.FontScaleMain - 1.25f) <= 0.001f && bar
+                               && std::abs(bar->FontRefSize - base_font_px * 1.25f) <= 0.5f
+                               && ui_settled();
+                    });
 
                 named_screenshot("55_nav_rail_dpi_scale_125pct",
                                  [&](DesignCheck& c)
@@ -5186,7 +5911,10 @@ class QAAgent
 
                     // Shrink to 320×240
                     glfwSetWindowSize(glfw_win, 320, 240);
-                    pump_frames(20);
+                    pump_frames(2);
+                    wait_until_settled("56 tiny window swapchain",
+                                       [&]
+                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
                     named_screenshot(
                         "56_tiny_window_all_panels_open",
                         [&](DesignCheck& c)
@@ -5209,7 +5937,7 @@ class QAAgent
             }
         }
 
-        // ── 57–63. Settings panel (G-6: Appearance / Shortcuts / UI Defaults) ──
+        // ── 57–62. Settings panel (G-6: Appearance / Shortcuts / UI Defaults) ──
         {
             auto* ui = app_->ui_context();
             if (ui)
@@ -5230,7 +5958,8 @@ class QAAgent
                     if (ui->theme_mgr)
                     {
                         ui->theme_mgr->set_theme(theme);
-                        pump_frames(20);
+                        pump_frames(2);
+                        wait_ui_settled(std::string(shot) + " theme");
                     }
                     ui->settings_panel.select_tab(tab);
                     ui->cmd_registry.execute("panel.open_settings");
@@ -5246,6 +5975,8 @@ class QAAgent
                                      "settings tab " + std::to_string(tab) + " shown (actual "
                                          + std::to_string(ui->settings_panel.active_tab()) + ")");
                             expect_theme(c, theme);
+                            // Glass modal over the dimmed app.
+                            expect_text_contrast(c, "Settings##spectra", 4.5f, 5);
                         });
                     close_settings();
                 };
@@ -5265,13 +5996,88 @@ class QAAgent
             }
         }
 
+        // ── 63. Theme transition midpoint (S4-C01) ──
+        // A frame halfway through the animated Dark -> Light transition, where
+        // every surface and text token is interpolated.  The transition is
+        // made long and advanced to its midpoint directly so the captured
+        // frame does not depend on frame timing.
+        {
+            auto* ui = app_->ui_context();
+            if (ui && ui->theme_mgr)
+            {
+                ui->theme_mgr->set_theme("dark");
+                pump_frames(10);
+                constexpr float duration = 1000.0f;
+                ui->theme_mgr->transition_to("light", duration);
+                ui->theme_mgr->update(0.5f * duration);
+                pump_frames(3);
+                named_screenshot(
+                    "63_theme_transition_midpoint",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->theme_mgr->is_transitioning(),
+                                 "dark -> light transition in progress");
+                        // Text, including accent-coloured labels (active
+                        // rail tool, mode chip), stays readable on the
+                        // half-way surfaces (3:1 floor for this transient
+                        // frame; see DECISIONS-fbcontrast.md).
+                        for (const char* w :
+                             {"##navrail", "##commandbar", "##pane_tab", "##AppShellStatusBar"})
+                            expect_text_contrast(c, w, 3.0f, 3);
+                    });
+                ui->theme_mgr->update(duration);   // finish: switches to Light
+                ui->theme_mgr->set_theme("dark");
+                pump_frames(10);
+            }
+        }
+
+        // ── 64. Disabled controls (S4-C01) ──
+        // The custom transform dialog opens with an empty formula, so its
+        // "Save Preset" and "Apply" buttons are drawn disabled (ImGui
+        // BeginDisabled fades them by style.DisabledAlpha).
+        {
+            auto* ui = app_->ui_context();
+            if (ui && ui->imgui_ui)
+            {
+                ui->imgui_ui->open_transform_dialog();
+                pump_frames(10);
+                // The action row sits at the end of the scrolling body.
+                if (ImGuiContext* ctx = design_imgui())
+                {
+                    ImGuiContext* prev = ImGui::GetCurrentContext();
+                    ImGui::SetCurrentContext(ctx);
+                    for (ImGuiWindow* w : ctx->Windows)
+                        if (w && w->Name
+                            && std::string_view(w->Name).starts_with("##custom_xform/##xform_body"))
+                            ImGui::SetScrollY(w, w->ScrollMax.y);
+                    ImGui::SetCurrentContext(prev);
+                }
+                pump_frames(5);
+                named_screenshot(
+                    "64_transform_dialog_disabled_actions",
+                    [&](DesignCheck& c)
+                    {
+                        c.expect(ui->imgui_ui->is_transform_dialog_open()
+                                     && imgui_window_drawn(design_imgui(), "##custom_xform"),
+                                 "transform dialog drawn");
+                        expect_text_contrast(c, "##custom_xform", 4.5f, 3);
+                        // "Save Preset" / "Apply" (BeginDisabled).
+                        // Disabled controls are exempt from WCAG
+                        // 1.4.3; they must still read as text.
+                        expect_text_contrast(c, "##custom_xform", 3.0f, 2, true);
+                    });
+                ui->imgui_ui->close_transform_dialog();
+                pump_frames(5);
+            }
+        }
+
         // ── Summary ─────────────────────────────────────────────────────
         fprintf(stderr,
                 "[QA/Design] Captured %zu design screenshots in %s/design/\n",
                 design_screenshots_.size(),
                 opts_.output_dir.c_str());
 
-        static constexpr size_t EXPECTED_DESIGN_SHOTS = 63;
+        static constexpr size_t EXPECTED_DESIGN_SHOTS = 65;
         if (design_screenshots_.size() != EXPECTED_DESIGN_SHOTS)
         {
             add_issue(IssueSeverity::Error,
@@ -5959,6 +6765,98 @@ class QAAgent
         return count;
     }
 
+    // Soak (--repeat) results: text section.
+    void write_scenario_trends_text(std::ostream& out) const
+    {
+        if (scenario_trends_.empty())
+            return;
+        char line[256];
+        out << "Soak RSS Slope (--repeat):\n";
+        snprintf(line,
+                 sizeof(line),
+                 "  Gate: least-squares RSS slope after %u warm-up iteration(s) <= %.3f MB/iter "
+                 "(>= 3 measured iterations)\n",
+                 opts_.repeat_warmup,
+                 opts_.max_rss_slope_mb);
+        out << line;
+        if (opts_.max_heap_slope_mb >= 0.0)
+        {
+            snprintf(line,
+                     sizeof(line),
+                     "  Gate: in-use heap Theil-Sen slope <= %.3f MB/iter\n",
+                     opts_.max_heap_slope_mb);
+            out << line;
+        }
+        for (const auto& t : scenario_trends_)
+        {
+            snprintf(line,
+                     sizeof(line),
+                     "  %s: x%u, warm-up %+.1fMB, RSS slope %+.3f MB/iter (%zu measured), heap "
+                     "slope %+.3f MB/iter, status=%s\n",
+                     t.name.c_str(),
+                     t.iterations,
+                     t.rss.warmup_mb,
+                     t.rss.slope_mb_per_iter,
+                     t.rss.measured,
+                     t.heap_slope_mb_per_iter,
+                     !t.rss.judged ? "NOT_JUDGED"
+                                   : ((t.rss.exceeds || t.heap.exceeds) ? "FAIL" : "PASS"));
+            out << line;
+            out << "    RSS MB after each iteration: "
+                << to_mb(static_cast<uint64_t>(t.rss_baseline)) << " -> [";
+            for (size_t i = 0; i < t.rss_after.size(); ++i)
+                out << (i ? "," : "") << to_mb(static_cast<uint64_t>(t.rss_after[i]));
+            out << "]\n";
+        }
+        out << "\n";
+    }
+
+    // Soak (--repeat) results: "scenario_rss_trends" JSON array (with trailing comma).
+    void write_scenario_trends_json(std::ostream& out) const
+    {
+        static constexpr double MB = 1024.0 * 1024.0;
+        auto                    mb = [](int64_t bytes)
+        {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.2f", static_cast<double>(bytes) / MB);
+            return std::string(buf);
+        };
+        auto num = [](double v)
+        {
+            char buf[32];
+            snprintf(buf, sizeof(buf), "%.4f", v);
+            return std::string(buf);
+        };
+        out << "  \"scenario_rss_trends\": [\n";
+        for (size_t i = 0; i < scenario_trends_.size(); ++i)
+        {
+            const auto& t = scenario_trends_[i];
+            out << "    {\"name\": \"" << json_escape(t.name)
+                << "\", \"iterations\": " << t.iterations
+                << ", \"warmup_iterations\": " << t.warmup_iterations
+                << ", \"measured_iterations\": " << t.rss.measured
+                << ", \"rss_baseline_mb\": " << mb(t.rss_baseline) << ", \"rss_after_mb\": [";
+            for (size_t k = 0; k < t.rss_after.size(); ++k)
+                out << (k ? ", " : "") << mb(t.rss_after[k]);
+            out << "], \"heap_after_mb\": [";
+            for (size_t k = 0; k < t.heap_after.size(); ++k)
+                out << (k ? ", " : "") << mb(t.heap_after[k]);
+            out << "], \"warmup_mb\": " << num(t.rss.warmup_mb)
+                << ", \"rss_slope_mb_per_iter\": " << num(t.rss.slope_mb_per_iter)
+                << ", \"heap_slope_mb_per_iter\": " << num(t.heap_slope_mb_per_iter)
+                << ", \"max_slope_mb_per_iter\": " << num(t.max_slope_mb_per_iter)
+                << ", \"max_heap_slope_mb_per_iter\": "
+                << (t.max_heap_slope_mb_per_iter >= 0.0 ? num(t.max_heap_slope_mb_per_iter)
+                                                        : std::string("null"))
+                << ", \"rss_passed\": " << (t.rss.exceeds ? "false" : "true")
+                << ", \"heap_passed\": " << (t.heap.exceeds ? "false" : "true")
+                << ", \"judged\": " << (t.rss.judged ? "true" : "false")
+                << ", \"passed\": " << ((t.rss.exceeds || t.heap.exceeds) ? "false" : "true") << "}"
+                << (i + 1 < scenario_trends_.size() ? "," : "") << "\n";
+        }
+        out << "  ],\n";
+    }
+
     void write_report()
     {
         float          duration          = wall_clock_seconds();
@@ -6046,6 +6944,8 @@ class QAAgent
                 }
                 out << "\n";
             }
+
+            write_scenario_trends_text(out);
 
             if (!design_assertions_.empty())
             {
@@ -6232,6 +7132,7 @@ class QAAgent
                 out << "\n";
             }
             out << "  ],\n";
+            write_scenario_trends_json(out);
             out << "  \"issues\": [\n";
             for (size_t i = 0; i < issues_.size(); ++i)
             {
@@ -6314,6 +7215,7 @@ class QAAgent
     std::vector<QAIssue>              issues_;
     std::vector<Scenario>             scenarios_;
     std::vector<ScenarioMemoryMetric> scenario_memory_;
+    std::vector<ScenarioRssTrend>     scenario_trends_;
 
     // P0 fix: screenshot rate limiting per category
     std::unordered_map<std::string, uint64_t> last_screenshot_frame_;
@@ -6322,10 +7224,19 @@ class QAAgent
     // Design review
     std::vector<std::pair<std::string, std::string>> design_screenshots_;
     std::vector<DesignAssertionRecord>               design_assertions_;
-    bool                                             saved_pointer_valid_ = false;
-    double                                           saved_pointer_x_     = 0.0;
-    double                                           saved_pointer_y_     = 0.0;
-    std::unordered_map<uint64_t, std::string>        screenshot_hash_to_name_;
+    // The frame named_screenshot() just captured, for pixel-level assertions
+    // made by its verifier (valid only while the verifier runs).
+    const uint8_t* design_px_                 = nullptr;
+    uint32_t       design_w_                  = 0;
+    uint32_t       design_h_                  = 0;
+    WindowContext* design_window_             = nullptr;
+    bool           text_contrast_log_started_ = false;
+    bool           saved_pointer_valid_       = false;
+    double         saved_pointer_x_           = 0.0;
+    double         saved_pointer_y_           = 0.0;
+    // Bounded settle waits that timed out; each fails the next named capture.
+    std::vector<std::string>                  pending_settle_failures_;
+    std::unordered_map<uint64_t, std::string> screenshot_hash_to_name_;
 };
 
 // ─── Signal handler ──────────────────────────────────────────────────────────

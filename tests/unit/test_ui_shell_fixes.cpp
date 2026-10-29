@@ -304,21 +304,23 @@ void unset_env_var(const char* name)
     #endif
 }
 
-struct ScopedHome
+// Points SPECTRA_CONFIG_DIR at a private directory so Workspace::default_path()
+// never touches the real user config.
+struct ScopedConfigDir
 {
-    explicit ScopedHome(const std::filesystem::path& dir)
+    explicit ScopedConfigDir(const std::filesystem::path& dir)
     {
-        if (const char* h = std::getenv("HOME"))
-            old_ = h;
+        if (const char* v = std::getenv("SPECTRA_CONFIG_DIR"))
+            old_ = v;
         std::filesystem::create_directories(dir);
-        set_env_var("HOME", dir.string());
+        set_env_var("SPECTRA_CONFIG_DIR", dir.string());
     }
-    ~ScopedHome()
+    ~ScopedConfigDir()
     {
         if (old_.empty())
-            unset_env_var("HOME");
+            unset_env_var("SPECTRA_CONFIG_DIR");
         else
-            set_env_var("HOME", old_);
+            set_env_var("SPECTRA_CONFIG_DIR", old_);
     }
     std::string old_;
 };
@@ -382,10 +384,10 @@ TEST(WorkspaceBuildFigure, RecreatesSizeAndSubplotLayout)
 
 TEST_F(UiShellFixture, LoadWorkspaceWithNoFigureCreatesFigures)
 {
-    const auto home = std::filesystem::temp_directory_path() / "spectra_ui_shell_ws_home";
-    ScopedHome scoped(home);
-    ImGuiScope imgui;   // theme application touches ImGui style
-    const auto data = two_figure_workspace();
+    const auto      dir = std::filesystem::temp_directory_path() / "spectra_ui_shell_ws_config";
+    ScopedConfigDir scoped(dir);
+    ImGuiScope      imgui;   // theme application touches ImGui style
+    const auto      data = two_figure_workspace();
     ASSERT_TRUE(Workspace::save(Workspace::default_path(), data));
 
     auto& ui = build(false);
@@ -408,7 +410,7 @@ TEST_F(UiShellFixture, LoadWorkspaceWithNoFigureCreatesFigures)
     ASSERT_EQ(second->all_axes().size(), 1u);
     EXPECT_NE(dynamic_cast<Axes3D*>(second->all_axes()[0].get()), nullptr);
 
-    std::filesystem::remove_all(home);
+    std::filesystem::remove_all(dir);
 }
 
 // ─── Data tooltip hides while a popup is open ────────────────────────────────

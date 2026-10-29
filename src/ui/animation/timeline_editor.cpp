@@ -1144,7 +1144,7 @@ void TimelineEditor::draw(float width, float height)
                              col(colors.bg_tertiary, 0.85f));
     draw_list->AddText(ImVec2(origin.x + label_pad_x,
                               ruler_y + (ruler_height - ImGui::GetTextLineHeight()) * 0.5f),
-                       col(colors.text_tertiary, 0.75f),
+                       col(colors.text_tertiary, 1.0f),
                        "TRACKS");
     draw_list->AddLine(ImVec2(origin.x, ruler_y + ruler_height),
                        ImVec2(right_x, ruler_y + ruler_height),

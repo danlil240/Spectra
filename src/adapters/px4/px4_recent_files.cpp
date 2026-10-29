@@ -10,9 +10,7 @@
 #include <iterator>
 #include <system_error>
 
-#ifdef SPECTRA_USE_IMGUI
-    #include "ui/settings/settings_store.hpp"
-#endif
+#include "core/config_paths.hpp"
 
 namespace spectra::adapters::px4
 {
@@ -22,17 +20,11 @@ namespace
 
 std::string config_dir()
 {
-#ifdef SPECTRA_USE_IMGUI
     // Same directory as the main app's settings.json.
-    return std::filesystem::path(spectra::ui::settings::SettingsStore::default_path())
-        .parent_path()
-        .string();
-#else
-    const char* home = std::getenv("HOME");
-    if (!home || home[0] == '\0')
-        home = ".";
-    return std::string(home) + "/.config/spectra";
-#endif
+    const std::filesystem::path dir = spectra::user_config_dir();
+    if (dir.empty())
+        return (std::filesystem::path(".") / ".config" / "spectra").string();
+    return dir.string();
 }
 
 void append_escaped(std::string& out, const std::string& s)

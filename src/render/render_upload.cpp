@@ -606,15 +606,18 @@ void Renderer::upload_series_data(Series&   series,
     if (custom && series_type_registry_)
     {
         auto entry = series_type_registry_->find_shared(custom->type_name());
-        // State released on unregister is rebuilt once a type of this name is
-        // registered again; until then keep the re-upload request pending.
-        if (entry)
-            gpu.plugin_state_released = false;
+        // No type of this name is registered (yet): a series drawn before its
+        // plug-in is loaded (or after it was unloaded) keeps its upload pending
+        // until one is, instead of being marked clean and never uploaded.
+        // State released on unregister is rebuilt the same way.
+        if (!entry)
+            return;
+        gpu.plugin_state_released = false;
         // The owning plugin is disabled: keep the series dirty so its data is
         // uploaded once the plugin is enabled again.
-        if (entry && !entry->enabled.load(std::memory_order_relaxed))
+        if (!entry->enabled.load(std::memory_order_relaxed))
             return;
-        if (entry && entry->upload_fn && !entry->faulted)
+        if (entry->upload_fn && !entry->faulted)
         {
             auto result = plugin_guard_invoke(entry->type_name.c_str(),
                                               [&]() {
@@ -630,7 +633,7 @@ void Renderer::upload_series_data(Series&   series,
         }
         // Data bounds from the plugin, so host features that need the data
         // extent (view.zoom_in/out centring) cover plugin series too.
-        if (entry && entry->bounds_fn && !entry->faulted)
+        if (entry->bounds_fn && !entry->faulted)
         {
             float      b[4]   = {0.0f, 1.0f, 0.0f, 1.0f};
             int        rc     = -1;

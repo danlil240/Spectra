@@ -1,4 +1,5 @@
 #include "workspace.hpp"
+#include "core/config_paths.hpp"
 #include "core/json_key.hpp"
 
 #include <algorithm>
@@ -1420,14 +1421,12 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
 
 std::string Workspace::default_path()
 {
-    const char* home = std::getenv("HOME");
-    if (!home)
-        home = std::getenv("USERPROFILE");
-    if (!home)
+    const std::filesystem::path dir = user_config_dir();
+    if (dir.empty())
         return "workspace.spectra";
 
-    std::filesystem::path dir = std::filesystem::path(home) / ".config" / "spectra";
-    std::filesystem::create_directories(dir);
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
     return (dir / "workspace.spectra").string();
 }
 

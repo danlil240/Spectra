@@ -259,6 +259,11 @@ class ULogReader
     // True if a log file is currently open and parsed.
     bool is_open() const noexcept;
 
+    // Incremented whenever the loaded content is replaced (close() / open()),
+    // so caches derived from it (e.g. a sorted parameter order) can tell a
+    // re-opened file from the one they were built for, even at the same path.
+    uint64_t generation() const noexcept { return generation_; }
+
     // ------------------------------------------------------------------
     // Metadata
     // ------------------------------------------------------------------
@@ -362,6 +367,7 @@ class ULogReader
     std::vector<ULogLogMessage>  log_messages_;
 
     bool        open_{false};
+    uint64_t    generation_{0};
     std::string last_error_;
 };
 

@@ -92,3 +92,100 @@ TEST(QaSpikes, SmallOrRelativeFastFramesAreNotSpikes)
     EXPECT_TRUE(d.is_spike(100, 80.0f, 25.0f));
     EXPECT_EQ(d.warmup_spikes(), 0u);
 }
+
+TEST(QaSlope, LeastSquaresFitIsExactOnALine)
+{
+    const auto fit = least_squares_fit({10.0, 12.0, 14.0, 16.0, 18.0});
+    EXPECT_EQ(fit.samples, 5u);
+    EXPECT_DOUBLE_EQ(fit.slope, 2.0);
+    EXPECT_DOUBLE_EQ(fit.intercept, 10.0);
+}
+
+TEST(QaSlope, LeastSquaresFitDegenerateInputs)
+{
+    EXPECT_DOUBLE_EQ(least_squares_fit({}).slope, 0.0);
+    EXPECT_DOUBLE_EQ(least_squares_fit({5.0}).slope, 0.0);
+    EXPECT_DOUBLE_EQ(least_squares_fit({5.0}).intercept, 5.0);
+    EXPECT_DOUBLE_EQ(least_squares_fit({3.0, 3.0, 3.0}).slope, 0.0);
+}
+
+TEST(QaSlope, LeastSquaresIsRobustToOneOutlier)
+{
+    // Endpoint difference would say 4MB/iter; the fit sees a mostly flat line.
+    const auto fit = least_squares_fit({100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 104.0});
+    EXPECT_LT(fit.slope, 1.0);
+    EXPECT_GT(fit.slope, 0.0);
+}
+
+TEST(QaSlope, WarmupIsExcludedFromTheSlope)
+{
+    // Measured series_mixing shape: +27MB warm-up, then flat.
+    const auto v = judge_rss_slope(155 * MB,
+                                   {182 * MB, 182 * MB, 182 * MB, 182 * MB, 182 * MB, 182 * MB},
+                                   1,
+                                   0.5);
+    EXPECT_TRUE(v.judged);
+    EXPECT_FALSE(v.exceeds);
+    EXPECT_EQ(v.measured, 5u);
+    EXPECT_DOUBLE_EQ(v.slope_mb_per_iter, 0.0);
+    EXPECT_DOUBLE_EQ(v.warmup_mb, 27.0);
+}
+
+TEST(QaSlope, SteadyGrowthFailsTheGate)
+{
+    // Measured stress_docking shape before the fix: ~1MB per iteration.
+    const auto v =
+        judge_rss_slope(159 * MB, {191 * MB, 192 * MB, 193 * MB, 194 * MB, 195 * MB}, 1, 0.5);
+    EXPECT_TRUE(v.judged);
+    EXPECT_TRUE(v.exceeds);
+    EXPECT_DOUBLE_EQ(v.slope_mb_per_iter, 1.0);
+}
+
+TEST(QaSlope, ThresholdIsConfigurable)
+{
+    const std::vector<int64_t> rss = {191 * MB, 192 * MB, 193 * MB, 194 * MB, 195 * MB};
+    EXPECT_FALSE(judge_rss_slope(159 * MB, rss, 1, 1.5).exceeds);
+    EXPECT_TRUE(judge_rss_slope(159 * MB, rss, 1, 0.25).exceeds);
+}
+
+TEST(QaSlope, TooFewMeasuredIterationsAreNotJudged)
+{
+    // Three iterations, one warm-up: two measured samples < 3.
+    const auto v = judge_rss_slope(100 * MB, {120 * MB, 130 * MB, 140 * MB}, 1, 0.5);
+    EXPECT_FALSE(v.judged);
+    EXPECT_FALSE(v.exceeds);
+    EXPECT_EQ(v.measured, 2u);
+    EXPECT_DOUBLE_EQ(v.slope_mb_per_iter, 10.0);
+
+    EXPECT_FALSE(judge_rss_slope(100 * MB, {120 * MB}, 1, 0.5).judged);
+    EXPECT_FALSE(judge_rss_slope(100 * MB, {}, 1, 0.5).judged);
+}
+
+TEST(QaSlope, WarmupIterationsAreConfigurable)
+{
+    // Two warm-up iterations hide a two-step warm-up from the gate.
+    const std::vector<int64_t> rss = {120 * MB, 140 * MB, 142 * MB, 142 * MB, 142 * MB};
+    EXPECT_TRUE(judge_rss_slope(100 * MB, rss, 1, 0.5).exceeds);
+    const auto v = judge_rss_slope(100 * MB, rss, 2, 0.5);
+    EXPECT_TRUE(v.judged);
+    EXPECT_FALSE(v.exceeds);
+    EXPECT_DOUBLE_EQ(v.warmup_mb, 42.0);
+}
+
+TEST(QaSlope, TheilSenIgnoresASingleSpike)
+{
+    // Measured heap shape: flat with one transient +1.5MB sample at the end,
+    // which would move a least-squares fit by ~0.16MB/iter.
+    const std::vector<double> y = {85.6, 85.6, 85.6, 85.6, 85.6, 85.6, 87.1};
+    EXPECT_GT(least_squares_fit(y).slope, 0.15);
+    EXPECT_DOUBLE_EQ(theil_sen_slope(y), 0.0);
+}
+
+TEST(QaSlope, TheilSenFollowsSteadyGrowth)
+{
+    EXPECT_NEAR(theil_sen_slope({1.0, 1.2, 1.4, 1.6, 1.8}), 0.2, 1e-12);
+    EXPECT_NEAR(theil_sen_slope({1.0, 1.2, 9.0, 1.6, 1.8}), 0.2, 1e-12);
+    EXPECT_DOUBLE_EQ(theil_sen_slope({}), 0.0);
+    EXPECT_DOUBLE_EQ(theil_sen_slope({3.0}), 0.0);
+    EXPECT_DOUBLE_EQ(theil_sen_slope({1.0, 3.0}), 2.0);
+}

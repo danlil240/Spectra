@@ -557,6 +557,35 @@ ipc::DiffOp FigureModel::set_series_data(uint64_t                  figure_id,
     return op;
 }
 
+ipc::DiffOp FigureModel::set_series_origin(uint64_t figure_id,
+                                           uint32_t series_index,
+                                           double   x_origin,
+                                           double   y_origin,
+                                           bool*    ok_out)
+{
+    std::lock_guard lock(mu_);
+    ipc::DiffOp     op;
+    op.type         = ipc::DiffOp::Type::SET_SERIES_DATA;
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+    auto       it   = figures_.find(figure_id);
+    const bool ok   = it != figures_.end() && series_index < it->second.series.size()
+                    && stride_for_series_type(it->second.series[series_index].type) == 2;
+    if (ok_out)
+        *ok_out = ok;
+    if (!ok)
+        return op;
+    auto& series    = it->second.series[series_index];
+    series.x_origin = x_origin;
+    series.y_origin = y_origin;
+    bump_revision();
+    op.axes_index = series.axes_index;
+    op.data       = series.data;
+    op.f1         = x_origin;
+    op.f2         = y_origin;
+    return op;
+}
+
 ipc::DiffOp FigureModel::append_series_data(uint64_t                  figure_id,
                                             uint32_t                  series_index,
                                             const std::vector<float>& data,

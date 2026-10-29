@@ -8,6 +8,7 @@
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
     #include <span>
+    #include <string>
     #include <unordered_map>
     #include <vector>
 
@@ -63,6 +64,19 @@ class LegendInteraction
               uintptr_t           figure_id,
               const FigureStyle*  figure_style = nullptr);
 
+    // Drop all per-(figure, axes) state of a destroyed figure (drag offsets,
+    // Best-corner hysteresis, overflow cells) and return its legend ImGui
+    // window names to the pool for reuse.
+    void forget_figure(uintptr_t figure_id);
+
+    // Number of distinct legend ImGui windows ever named (pool size); bounded
+    // by the number of legends visible at once, not by figures ever created.
+    size_t legend_window_pool_size() const { return next_window_slot_; }
+
+    // ImGui window name of the legend of (figure, axes) ("##legend_<slot>"),
+    // or "" when that legend has not been drawn since the figure was forgotten.
+    std::string window_name(uintptr_t figure_id, size_t axes_index) const;
+
     // ─── Queries ────────────────────────────────────────────────────────
 
     // Get the effective opacity for a series (for use by the renderer).
@@ -92,16 +106,19 @@ class LegendInteraction
     // State of the "+N more" cell drawn by the last draw() of a legend, for
     // hit-testing and tests.  Hovering the cell lists the hidden entries (with
     // colour keys); clicking it opens the full legend popup, whose rows toggle
-    // series visibility like the legend's own rows.
+    // series visibility like the legend's own rows.  The mouse wheel over
+    // the legend scrolls the run of entries the box shows (`first`).
     struct OverflowCell
     {
-        Rect cell;                 // screen pixels
-        int  shown      = 0;       // entries drawn in the legend box
-        int  hidden     = 0;       // entries summarised by the cell
-        bool hovered    = false;   // tooltip shown this frame
-        bool popup_open = false;   // full legend popup shown this frame
-        int  popup_rows = 0;       // rows submitted to the popup list
-        Rect popup_list;           // screen rect of the popup's (scrolling) list
+        Rect        cell;                 // screen pixels
+        int         shown  = 0;           // entries drawn in the legend box
+        int         hidden = 0;           // entries summarised by the cell
+        int         first  = 0;           // first entry drawn (mouse-wheel scroll offset)
+        std::string tooltip_first;        // first hidden label listed by the hover tooltip
+        bool        hovered    = false;   // tooltip shown this frame
+        bool        popup_open = false;   // full legend popup shown this frame
+        int         popup_rows = 0;       // rows submitted to the popup list
+        Rect        popup_list;           // screen rect of the popup's (scrolling) list
     };
     // nullptr when that legend has no "+N more" cell.
     const OverflowCell* overflow_cell(uintptr_t figure_id, size_t axes_index) const
@@ -151,6 +168,7 @@ class LegendInteraction
     // The "+N more" cell at @p pos, its hover tooltip and the full legend
     // popup it opens.  Returns true if it consumed a click.
     bool draw_overflow_cell(std::span<Series* const> entries,
+                            int                      first,
                             int                      shown,
                             const ImVec2&            pos,
                             float                    width,
@@ -172,6 +190,24 @@ class LegendInteraction
 
     // "+N more" cell per (figure, axes), as drawn by the last draw().
     std::unordered_map<OffsetKey, OverflowCell> overflow_cells_;
+
+    // Mouse-wheel scroll offset (in entries) of a summarised legend, per
+    // (figure, axes); see legend_layout::scroll_offset.
+    std::unordered_map<OffsetKey, float> scroll_offsets_;
+    // Legend ImGui window name slot per (figure, axes).  ImGui never frees a
+    // window, so naming windows by figure address leaked one per figure ever
+    // shown; slots of forgotten figures are reused instead.
+    struct WindowSlot
+    {
+        uintptr_t figure_id = 0;
+        size_t    slot      = 0;
+    };
+    std::unordered_map<OffsetKey, WindowSlot> window_slots_;
+    std::vector<size_t>                       free_window_slots_;
+    size_t                                    next_window_slot_ = 0;
+    // Returns the window slot of (figure, axes); `fresh` is set when the slot
+    // was just (re)assigned, so stale ImGui window state must be reset.
+    size_t window_slot(uintptr_t figure_id, size_t axes_index, bool& fresh);
 
     // Drag state
     bool   dragging_        = false;

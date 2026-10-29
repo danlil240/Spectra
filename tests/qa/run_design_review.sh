@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the QA agent's design review under CI-like conditions and fail when any
-# of its 63 captures does not show the state it is named after.
+# of its 65 captures does not show the state it is named after.
 #
 # Every capture carries semantic assertions (menu popup open, crosshair at the
 # hovered point, panels closed, UI scale in effect, Settings modal + tab, ...)
@@ -9,10 +9,14 @@
 #
 # Conditions: a private Xvfb display (always, when xvfb-run exists, so window
 # positions/sizes are not changed by a desktop window manager), software Vulkan
-# (lavapipe) unless an ICD is already pinned, and a throw-away HOME /
-# XDG_RUNTIME_DIR so saved user settings (UI scale, theme) cannot leak in.
+# (lavapipe) unless an ICD is already pinned, and a throw-away
+# SPECTRA_CONFIG_DIR / XDG_CONFIG_HOME / XDG_STATE_HOME / XDG_RUNTIME_DIR so
+# saved user settings (UI scale, theme), autosave and logs cannot leak in or
+# out.  HOME is inherited unchanged.
 #
 # Usage: run_design_review.sh <spectra_qa_agent> [output-dir]
+# Env:   SPECTRA_QA_SEED (default 42), SPECTRA_QA_SCREEN (Xvfb screen, default
+#        1920x1200x24; the pointer starts at its centre) for independent repeats.
 # Exit:  the agent's exit code; 77 (ctest SKIP) when no X server is available.
 set -u
 
@@ -21,14 +25,15 @@ out=${2:-}
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/home" "$tmp/xdg"
+mkdir -p "$tmp/config" "$tmp/xdg-config" "$tmp/state" "$tmp/xdg"
 chmod 700 "$tmp/xdg"
 [ -n "$out" ] || out="$tmp/out"
 rm -rf "$out"
 mkdir -p "$out"
 
-export HOME="$tmp/home"
-export XDG_CONFIG_HOME="$tmp/home/.config"
+export SPECTRA_CONFIG_DIR="$tmp/config"
+export XDG_CONFIG_HOME="$tmp/xdg-config"
+export XDG_STATE_HOME="$tmp/state"
 export XDG_RUNTIME_DIR="$tmp/xdg"
 
 if [ -z "${VK_ICD_FILENAMES:-}" ] && [ -z "${VK_DRIVER_FILES:-}" ]; then
@@ -42,10 +47,12 @@ if [ -z "${VK_ICD_FILENAMES:-}" ] && [ -z "${VK_DRIVER_FILES:-}" ]; then
     done
 fi
 
-args=(--design-review --no-fuzz --no-scenarios --seed 42 --duration 900 --output-dir "$out")
+seed=${SPECTRA_QA_SEED:-42}
+screen=${SPECTRA_QA_SCREEN:-1920x1200x24}
+args=(--design-review --no-fuzz --no-scenarios --seed "$seed" --duration 900 --output-dir "$out")
 
 if command -v xvfb-run >/dev/null 2>&1; then
-    xvfb-run -a -s '-screen 0 1920x1200x24' "$agent" "${args[@]}"
+    xvfb-run -a -s "-screen 0 $screen" "$agent" "${args[@]}"
     rc=$?
 elif [ -n "${DISPLAY:-}" ]; then
     "$agent" "${args[@]}"

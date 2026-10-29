@@ -10,6 +10,7 @@
 // (MOCK_LEAKY_TAG "B", MOCK_LEAKY_SHIFT 10): a second, independent third-party
 // plugin whose names do not collide, for test_plugin_concurrent.
 
+#include <atomic>
 #include <cstddef>
 
 #include "ui/workspace/plugin_api.hpp"
@@ -29,11 +30,15 @@ namespace
 
 SpectraOverlayRegistry g_overlay_registry = nullptr;
 
-int  g_overlay_draws   = 0;
-int  g_command_runs    = 0;
-int  g_export_calls    = 0;
-int  g_transform_calls = 0;
-bool g_source_running  = false;
+// Atomic: the host may run a plugin's callbacks on several threads at once
+// (retained DataTransform copies are applied under a shared lock, e.g. by the
+// UI and a worker in test_plugin_concurrent), so plugin state they touch must
+// be thread-safe like in any real plugin.
+std::atomic<int>  g_overlay_draws{0};
+std::atomic<int>  g_command_runs{0};
+std::atomic<int>  g_export_calls{0};
+std::atomic<int>  g_transform_calls{0};
+std::atomic<bool> g_source_running{false};
 
 void ping_command(void* /*user_data*/)
 {

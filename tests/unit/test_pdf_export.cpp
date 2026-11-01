@@ -369,8 +369,12 @@ TEST(PdfExport, WriteToFile)
     auto           fig  = make_line_figure();
     const fs::path path = fs::temp_directory_path() / "spectra_test_pdf_export.pdf";
     ASSERT_TRUE(PdfExporter::write_pdf(path.string(), fig));
-    std::ifstream     in(path, std::ios::binary);
-    const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string bytes;
+    {
+        // Closed before remove(): Windows cannot delete a file that is still open.
+        std::ifstream in(path, std::ios::binary);
+        bytes.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
     EXPECT_EQ(bytes, PdfExporter::to_string(fig));
     fs::remove(path);
     EXPECT_FALSE(PdfExporter::write_pdf("/nonexistent-dir/x.pdf", fig));
@@ -551,10 +555,13 @@ TEST(PdfExport, OnePagePerFigure)
     const Figure*  figs[] = {&a, &b, &c};
     const fs::path path   = fs::temp_directory_path() / "spectra_test_pdf_pages.pdf";
     ASSERT_TRUE(PdfExporter::write_pdf(path.string(), figs));
-    std::ifstream in(path, std::ios::binary);
-    const MiniPdf pdf(
-        std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
+    std::string bytes;
+    {
+        std::ifstream in(path, std::ios::binary);
+        bytes.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
     fs::remove(path);
+    const MiniPdf pdf(std::move(bytes));
     ASSERT_TRUE(pdf.ok()) << pdf.error();
     EXPECT_EQ(pdf.find("/Type /Page ").size(), 3u);
     EXPECT_EQ(pdf.find("/Type /Pages /Kids").size(), 1u);

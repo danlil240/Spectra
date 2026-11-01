@@ -147,7 +147,8 @@ spectra::FigureId add_figure(spectra::FigureRegistry& registry, const char* titl
 
 std::string slurp(const fs::path& p)
 {
-    std::ifstream      in(p);
+    // Binary: compressed PDF streams can hold 0x1A, which ends a text-mode read on Windows.
+    std::ifstream      in(p, std::ios::binary);
     std::ostringstream ss;
     ss << in.rdbuf();
     return ss.str();

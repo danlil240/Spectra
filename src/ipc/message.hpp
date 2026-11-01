@@ -68,8 +68,9 @@ enum class MessageType : uint16_t
     REQ_UPDATE_BATCH    = 0x050A,   // Multiple property changes in one message
 
     // Python → Backend: queries
-    REQ_GET_SNAPSHOT = 0x0510,
-    REQ_LIST_FIGURES = 0x0511,
+    REQ_GET_SNAPSHOT  = 0x0510,
+    REQ_LIST_FIGURES  = 0x0511,
+    REQ_EXPORT_FIGURE = 0x0512,   // render a figure to a PNG/SVG file (RESP_OK / RESP_ERR)
 
     // Python → Backend: animation
     REQ_ANIM_START = 0x0520,
@@ -273,7 +274,7 @@ struct SnapshotAxisState
 struct SnapshotSeriesState
 {
     std::string name;
-    std::string type;   // "line", "scatter", "line3d", "scatter3d", "surface", "mesh"
+    std::string type;   // series type name, see ReqAddSeriesPayload::series_type
     float       color_r = 1.0f, color_g = 1.0f, color_b = 1.0f, color_a = 1.0f;
     float       line_width  = 2.0f;
     float       marker_size = 6.0f;
@@ -451,11 +452,15 @@ struct ReqCreateAxesPayload
 };
 
 // Python → Backend: add a series to a figure.
+// series_type: "line", "scatter", "line3d", "scatter3d", "surface", "mesh", or
+// one of the 2D statistical types "bar", "histogram", "band", "stem", "box",
+// "violin", whose REQ_SET_DATA carries the payload documented in
+// ui/app/figure_snapshot.hpp.
 struct ReqAddSeriesPayload
 {
     uint64_t    figure_id  = 0;
     uint32_t    axes_index = 0;
-    std::string series_type;   // "line", "scatter", "surface", "mesh"
+    std::string series_type;
     std::string label;
 };
 
@@ -533,6 +538,20 @@ struct ReqReconnectPayload
 {
     SessionId   session_id = INVALID_SESSION;
     std::string session_token;
+};
+
+// Python → Backend: write a figure to an image file, rendered offscreen by the
+// backend (no window needed).  The backend replies RESP_OK once the file is
+// written, or RESP_ERR (400 bad request, 404 unknown figure, 500 write/render
+// failure, 503 no render backend).
+struct ReqExportFigurePayload
+{
+    uint64_t    figure_id = 0;
+    std::string path;         // destination file; written atomically (temp file + rename)
+    std::string format;       // "png" or "svg"; empty = from the path's extension (default png)
+    uint32_t    width  = 0;   // PNG size in pixels; 0 = the figure's size
+    uint32_t    height = 0;
+    std::string theme;   // e.g. "light"; empty = the user's saved theme
 };
 
 // Python → Backend: start live streaming / animation at target FPS.

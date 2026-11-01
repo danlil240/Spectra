@@ -65,6 +65,7 @@ std::vector<uint8_t> encode_fb_req_set_data(const ReqSetDataPayload& p);
 std::vector<uint8_t> encode_fb_req_update_property(const ReqUpdatePropertyPayload& p);
 std::vector<uint8_t> encode_fb_req_show(const ReqShowPayload& p);
 std::vector<uint8_t> encode_fb_req_close_figure(const ReqCloseFigurePayload& p);
+std::vector<uint8_t> encode_fb_req_export_figure(const ReqExportFigurePayload& p);
 std::vector<uint8_t> encode_fb_req_append_data(const ReqAppendDataPayload& p);
 std::vector<uint8_t> encode_fb_req_update_batch(const ReqUpdateBatchPayload& p);
 std::vector<uint8_t> encode_fb_req_reconnect(const ReqReconnectPayload& p);
@@ -108,11 +109,12 @@ std::optional<ReqRemoveSeriesPayload>   decode_fb_req_remove_series(std::span<co
 std::optional<ReqSetDataPayload>        decode_fb_req_set_data(std::span<const uint8_t> data);
 std::optional<ReqUpdatePropertyPayload> decode_fb_req_update_property(
     std::span<const uint8_t> data);
-std::optional<ReqShowPayload>        decode_fb_req_show(std::span<const uint8_t> data);
-std::optional<ReqCloseFigurePayload> decode_fb_req_close_figure(std::span<const uint8_t> data);
-std::optional<ReqAppendDataPayload>  decode_fb_req_append_data(std::span<const uint8_t> data);
-std::optional<ReqUpdateBatchPayload> decode_fb_req_update_batch(std::span<const uint8_t> data);
-std::optional<ReqReconnectPayload>   decode_fb_req_reconnect(std::span<const uint8_t> data);
+std::optional<ReqShowPayload>         decode_fb_req_show(std::span<const uint8_t> data);
+std::optional<ReqCloseFigurePayload>  decode_fb_req_close_figure(std::span<const uint8_t> data);
+std::optional<ReqExportFigurePayload> decode_fb_req_export_figure(std::span<const uint8_t> data);
+std::optional<ReqAppendDataPayload>   decode_fb_req_append_data(std::span<const uint8_t> data);
+std::optional<ReqUpdateBatchPayload>  decode_fb_req_update_batch(std::span<const uint8_t> data);
+std::optional<ReqReconnectPayload>    decode_fb_req_reconnect(std::span<const uint8_t> data);
 
 std::optional<RespFigureCreatedPayload> decode_fb_resp_figure_created(
     std::span<const uint8_t> data);

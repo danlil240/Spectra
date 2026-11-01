@@ -175,6 +175,8 @@ set(SPECTRA_UNIT_TESTS
     test_palette_visibility
     test_window_agent_state
     test_multiproc_snapshot
+    test_python_mpl_api
+    test_figure_export_gpu
     test_format_letter_colors
     test_color_source_persistence
     test_settings_store
@@ -474,6 +476,7 @@ set(SPECTRA_GPU_TESTS
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
     test_window_export_extent
+    test_figure_export_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -493,6 +496,10 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             set_tests_properties(unit_${_test} PROPERTIES
                 LABELS "gpu"
                 RESOURCE_LOCK gpu)
+        endif()
+        # The backend's REQ_EXPORT_FIGURE renderer lives with spectra-backend, not the library.
+        if(_test MATCHES "^test_(python_mpl_api|figure_export_gpu)$")
+            target_sources(unit_${_test} PRIVATE ${CMAKE_SOURCE_DIR}/src/daemon/figure_export.cpp)
         endif()
         # Link Eigen3 for Eigen-specific tests
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)

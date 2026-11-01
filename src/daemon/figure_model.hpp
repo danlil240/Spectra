@@ -72,6 +72,21 @@ class FigureModel
     // Set axis title. Returns a DiffOp.
     ipc::DiffOp set_axis_title(uint64_t figure_id, uint32_t axes_index, const std::string& title);
 
+    // Change the scale / date-time mode of a 2D axes.  Each argument is the new
+    // value or KEEP_AXIS_FORMAT (-1) to leave it as is; scales use the
+    // spectra::ScaleType wire values (0 linear, 1 log10, 2 log2, 3 sqrt).
+    // Returns false (no change, no revision bump) when the figure or axes does
+    // not exist, the axes is 3D or a value is out of range; on success *op_out
+    // holds the SET_AXIS_SCALE diff carrying the axes' full format state.
+    static constexpr int KEEP_AXIS_FORMAT = -1;
+    bool                 set_axis_format(uint64_t     figure_id,
+                                         uint32_t     axes_index,
+                                         int          x_scale,
+                                         int          y_scale,
+                                         int          x_datetime,
+                                         int          y_datetime,
+                                         ipc::DiffOp* op_out);
+
     // --- Text annotations (2D axes) ---
     // Each returns false (no change, no revision bump) when the figure, axes or
     // annotation index does not exist; on success *op_out holds the diff.
@@ -201,6 +216,9 @@ class FigureModel
     ipc::Revision revision() const;
 
     // --- Queries ---
+
+    // Type name of a series ("line", "bar", ...), or "" when it does not exist.
+    std::string series_type(uint64_t figure_id, uint32_t series_index) const;
 
     size_t                figure_count() const;
     std::vector<uint64_t> all_figure_ids() const;

@@ -100,6 +100,8 @@ def _snapshot(session):
                     "xlabel": s(ax.XLabel()),
                     "ylabel": s(ax.YLabel()),
                     "title": s(ax.Title()),
+                    "scale": (ax.XScale(), ax.YScale()),
+                    "datetime": (ax.XDatetime(), ax.YDatetime()),
                 }
             )
         series = []
@@ -117,6 +119,7 @@ def _snapshot(session):
                     "color": (se.ColorR(), se.ColorG(), se.ColorB(), se.ColorA()),
                     "line_width": se.LineWidth(),
                     "visible": se.Visible(),
+                    "categories": [s(se.Categories(j)) for j in range(se.CategoriesLength())],
                 }
             )
         figures[f.FigureId()] = {
@@ -269,3 +272,104 @@ def test_subplots_and_series_removal(session):
         bottom.remove_series(5)
     top.remove_series(0)
     assert [s["name"] for s in _snapshot(session)[fig.id]["series"]] == ["bottom-b"]
+
+
+# ─── Native statistical series, axis scales and export ───────────────────────
+
+
+def test_native_stats_series_round_trip(session):
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    ax.bar(["a", "b", "c"], [3.0, 7.0, 5.0], width=0.5, label="bars")
+    ax.histogram([1.0, 2.0, 2.5, 9.0], bins=4, density=True, label="hist")
+    ax.band([0.0, 1.0], [-1.0, -2.0], [1.0, 2.0], fill_opacity=0.5, label="band")
+    ax.stem([0.0, 1.0, 2.0], [4.0, 5.0, 6.0], baseline=1.0, label="stem")
+
+    bar, hist, band, stem = _snapshot(session)[fig.id]["series"]
+    assert [x["type"] for x in (bar, hist, band, stem)] == ["bar", "histogram", "band", "stem"]
+    assert bar["name"] == "bars"
+    # [width, baseline, orientation, gradient, n, positions..., heights...]
+    assert _close(bar["data"], [0.5, 0.0, 0.0, 0.0, 3.0, 0.0, 1.0, 2.0, 3.0, 7.0, 5.0])
+    assert bar["categories"] == ["a", "b", "c"]
+    assert _close(hist["data"], [4.0, 0.0, 1.0, 0.0, 4.0, 1.0, 2.0, 2.5, 9.0])
+    assert _close(band["data"], [0.5, 1.0, 1.0, 0.0, 2.0, 0.0, 1.0, -1.0, -2.0, 1.0, 2.0])
+    assert _close(stem["data"], [1.0, 1.5, 1.0, 0.0, 3.0, 0.0, 1.0, 2.0, 4.0, 5.0, 6.0])
+
+
+def test_append_to_stats_series_is_rejected(session):
+    from spectra import BackendError
+
+    fig = session.figure()
+    s = fig.subplot(1, 1, 1).bar([1.0], [2.0])
+    with pytest.raises(TypeError):
+        s.append([2.0], [3.0])
+    # A raw append from another client is refused by the backend too.
+    from spectra import _codec as codec
+
+    with pytest.raises(BackendError):
+        session._request(P.REQ_APPEND_DATA, codec.encode_req_append_data(
+            figure_id=fig.id, series_index=s.index, data=[1.0, 2.0]))
+    assert len(_snapshot(session)[fig.id]["series"][0]["data"]) == 7  # payload untouched
+
+
+def test_axis_scale_and_datetime_round_trip(session):
+    from spectra import BackendError
+
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    ax.line([1.0, 10.0], [1.0, 100.0])
+    ax.set_yscale("log")
+    ax.set_xscale("sqrt")
+    ax.set_xaxis_datetime(True)
+    a = _snapshot(session)[fig.id]["axes"][0]
+    assert a["scale"] == (3, 1)
+    assert a["datetime"] == (True, False)
+    ax.set_xscale("linear")
+    ax.set_xaxis_datetime(False)
+    a = _snapshot(session)[fig.id]["axes"][0]
+    assert a["scale"] == (0, 1)
+    assert a["datetime"] == (False, False)
+    with pytest.raises(ValueError):
+        ax.set_yscale("symlog")
+    ax3 = fig.subplot3d(1, 1, 1)
+    with pytest.raises(BackendError):
+        ax3.set_xscale("log")
+
+
+def test_savefig_writes_png_and_svg(session, tmp_path):
+    from spectra import BackendError
+
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    ax.bar([0.0, 1.0, 2.0], [3.0, 1.0, 2.0])
+    ax.set_xlim(-1.0, 3.0)
+    ax.set_ylim(0.0, 4.0)
+    try:
+        png = fig.savefig(str(tmp_path / "out.png"), width=400, height=300)
+    except BackendError as e:
+        if e.code == 503:
+            pytest.skip(f"no Vulkan device in the backend: {e}")
+        raise
+    with open(png, "rb") as f:
+        head = f.read(24)
+    assert head[:8] == b"\x89PNG\r\n\x1a\n"
+    assert int.from_bytes(head[16:20], "big") == 400
+    assert int.from_bytes(head[20:24], "big") == 300
+
+    svg = fig.savefig(tmp_path / "out.svg")
+    with open(svg, encoding="utf-8") as f:
+        assert "<svg" in f.read()
+
+    # Relative paths resolve against the client's working directory.
+    cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        rel = fig.savefig("rel.png")
+    finally:
+        os.chdir(cwd)
+    assert rel == str(tmp_path / "rel.png") and os.path.getsize(rel) > 0
+
+    with pytest.raises(BackendError) as err:
+        fig.savefig(tmp_path / "missing" / "x.png")
+    assert err.value.code == 400
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["out.png", "out.svg", "rel.png"]

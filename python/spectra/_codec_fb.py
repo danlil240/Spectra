@@ -56,6 +56,7 @@ from ._fb_generated.spectra.ipc.fb import ReqShowPayload as FBReqShow
 from ._fb_generated.spectra.ipc.fb import ReqDestroyFigurePayload as FBReqDestroyFig
 from ._fb_generated.spectra.ipc.fb import ReqRemoveSeriesPayload as FBReqRemSeries
 from ._fb_generated.spectra.ipc.fb import ReqCloseFigurePayload as FBReqCloseFig
+from ._fb_generated.spectra.ipc.fb import ReqExportFigurePayload as FBReqExportFig
 from ._fb_generated.spectra.ipc.fb import ReqReconnectPayload as FBReqReconnect
 from ._fb_generated.spectra.ipc.fb import ReqDeclareTopicPayload as FBReqDeclareTopic
 from ._fb_generated.spectra.ipc.fb import ReqPublishTopicSamplesPayload as FBReqPublishTopic
@@ -275,6 +276,46 @@ def encode_fb_req_show(figure_id: int, window_id: int = 0) -> bytes:
     root = builder.EndObject()
     builder.Finish(root)
     return _finalize(builder)
+
+
+def encode_fb_req_export_figure(
+    figure_id: int,
+    path: str,
+    fmt: str = "",
+    width: int = 0,
+    height: int = 0,
+    theme: str = "",
+) -> bytes:
+    builder = flatbuffers.Builder(128 + len(path.encode("utf-8")))
+    path_off = builder.CreateString(path)
+    fmt_off = builder.CreateString(fmt)
+    theme_off = builder.CreateString(theme)
+    FBReqExportFig.Start(builder)
+    FBReqExportFig.AddFigureId(builder, figure_id)
+    FBReqExportFig.AddPath(builder, path_off)
+    FBReqExportFig.AddFormat(builder, fmt_off)
+    FBReqExportFig.AddWidth(builder, width)
+    FBReqExportFig.AddHeight(builder, height)
+    FBReqExportFig.AddTheme(builder, theme_off)
+    root = builder.EndObject()
+    builder.Finish(root)
+    return _finalize(builder)
+
+
+def decode_fb_req_export_figure(data: bytes) -> dict:
+    t = FBReqExportFig.ReqExportFigurePayload.GetRootAs(bytearray(_strip(data)), 0)
+
+    def _s(v):
+        return v.decode("utf-8") if v else ""
+
+    return {
+        "figure_id": t.FigureId(),
+        "path": _s(t.Path()),
+        "format": _s(t.Format()),
+        "width": t.Width(),
+        "height": t.Height(),
+        "theme": _s(t.Theme()),
+    }
 
 
 def encode_fb_req_destroy_figure(figure_id: int) -> bytes:

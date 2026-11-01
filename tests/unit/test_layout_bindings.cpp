@@ -13,7 +13,12 @@
 #include <spectra/series.hpp>
 #include <sstream>
 #include <string>
-#include <unistd.h>
+#ifdef _WIN32
+    #include <process.h>
+    #define getpid _getpid
+#else
+    #include <unistd.h>
+#endif
 
 #include "daemon/topic_registry.hpp"
 #include "math/data_transform.hpp"
@@ -37,10 +42,27 @@ std::string read_file(const fs::path& p)
     return ss.str();
 }
 
+void set_env(const char* name, const char* value)
+{
+#ifdef _WIN32
+    _putenv_s(name, value);
+#else
+    ::setenv(name, value, 1);
+#endif
+}
+
+void unset_env(const char* name)
+{
+#ifdef _WIN32
+    _putenv_s(name, "");
+#else
+    ::unsetenv(name);
+#endif
+}
+
 fs::path temp_path(const std::string& name)
 {
-    return fs::temp_directory_path()
-           / ("spectra_layout_" + std::to_string(::getpid()) + "_" + name);
+    return fs::temp_directory_path() / ("spectra_layout_" + std::to_string(getpid()) + "_" + name);
 }
 
 class FakeTopics : public TopicBindingProvider
@@ -672,7 +694,7 @@ TEST(LayoutSession, SavedLabelsAndCsvReplacement)
 {
     const fs::path cfg = temp_path("cfg");
     fs::create_directories(cfg);
-    ::setenv("SPECTRA_CONFIG_DIR", cfg.string().c_str(), 1);
+    set_env("SPECTRA_CONFIG_DIR", cfg.string().c_str());
 
     auto fig  = make_dashboard();
     auto data = capture_layout(*fig);
@@ -734,7 +756,7 @@ TEST(LayoutSession, SavedLabelsAndCsvReplacement)
     session.prune();
     EXPECT_TRUE(session.slots().empty());
 
-    ::unsetenv("SPECTRA_CONFIG_DIR");
+    unset_env("SPECTRA_CONFIG_DIR");
     fs::remove_all(cfg);
 }
 

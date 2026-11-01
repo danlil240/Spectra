@@ -91,6 +91,27 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                         active_figure->save_svg(*path);
                     }});
 
+    cmds.push_back({"file.export_pdf",
+                    "Export PDF",
+                    "",
+                    "File",
+                    static_cast<uint16_t>(ui::Icon::Export),
+                    [&]()
+                    {
+                        if (!active_figure)
+                            return;
+                        const char* patterns[] = {"*.pdf"};
+                        auto        path       = spectra::ask_export_path("Export PDF",
+                                                             "spectra_export.pdf",
+                                                             1,
+                                                             patterns,
+                                                             "PDF Document",
+                                                             ui_ctx.last_export_dir);
+                        if (!path)
+                            return;
+                        active_figure->save_pdf(*path);
+                    }});
+
     cmds.push_back({"file.copy_to_clipboard",
                     "Copy Figure to Clipboard",
                     "Ctrl+Shift+C",

@@ -1257,6 +1257,7 @@ void App::shutdown_runtime()
         }
 
         write_pending_svg(f, theme_mgr_.get(), &svg_host);
+        write_pending_pdf(f, theme_mgr_.get(), &svg_host);
     }
 
     // Unload plugins while everything they registered into is still alive:

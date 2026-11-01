@@ -68,6 +68,16 @@ SpectraViewChangedCb = ctypes.CFUNCTYPE(
 )
 
 
+def _in_jupyter_kernel() -> bool:
+    """True inside a Jupyter kernel (where widgets can render), not plain IPython."""
+    try:
+        from IPython import get_ipython
+    except ImportError:
+        return False
+    ip = get_ipython()
+    return ip is not None and getattr(ip, "kernel", None) is not None
+
+
 def _find_library() -> str:
     """Locate libspectra_embed.so, searching common paths."""
     # 1. Explicit env var
@@ -75,15 +85,13 @@ def _find_library() -> str:
     if env_path and os.path.isfile(env_path):
         return env_path
 
-    # 2. Next to this file (installed package)
+    # 2. Inside the installed package: spectra/_lib/ (wheels), or next to this file
     pkg_dir = Path(__file__).resolve().parent
-    for candidate in [
-        pkg_dir / "libspectra_embed.so",
-        pkg_dir / "spectra_embed.dll",
-        pkg_dir / "libspectra_embed.dylib",
-    ]:
-        if candidate.is_file():
-            return str(candidate)
+    for directory in (pkg_dir / "_lib", pkg_dir):
+        for name in ("libspectra_embed.so", "spectra_embed.dll", "libspectra_embed.dylib"):
+            candidate = directory / name
+            if candidate.is_file():
+                return str(candidate)
 
     # 3. Build directory (development)
     # Walk up from python/spectra/ to project root, then check build/
@@ -1247,11 +1255,13 @@ class EmbedAxes:
 class EmbedFigure:
     """Proxy for a figure in an embedded plot."""
 
-    __slots__ = ("_handle", "_lib")
+    __slots__ = ("_handle", "_lib", "surface")
 
-    def __init__(self, handle: ctypes.c_void_p) -> None:
+    def __init__(self, handle: ctypes.c_void_p, surface: "Optional[EmbedSurface]" = None) -> None:
         self._handle = handle
         self._lib = _load_lib()
+        # The surface that owns this figure (used by spectra.notebook.show()).
+        self.surface = surface
 
     def subplot(self, rows: int = 1, cols: int = 1, index: int = 1) -> EmbedAxes:
         h = self._lib.spectra_figure_subplot(self._handle, rows, cols, index)
@@ -1341,6 +1351,7 @@ class EmbedSurface:
         self._series_cb = None
         self._hover_cb = None
         self._view_cb = None
+        self._widget = None
 
     def __del__(self) -> None:
         if hasattr(self, "_handle") and self._handle:
@@ -1377,7 +1388,7 @@ class EmbedSurface:
         h = self._lib.spectra_embed_figure(self._handle)
         if not h:
             raise RuntimeError("Failed to create figure")
-        return EmbedFigure(h)
+        return EmbedFigure(h, self)
 
     def resize(self, width: int, height: int) -> bool:
         """Resize the offscreen framebuffer."""
@@ -1444,6 +1455,46 @@ class EmbedSurface:
             return buf.getvalue()
         except Exception:
             return None
+
+    def widget(self, **kwargs):
+        """Return a live, pannable, zoomable Jupyter widget for this surface.
+
+        Needs the ``notebook`` extra (``pip install "spectra-plot[notebook]"``).
+        Keyword arguments go to :class:`spectra.notebook.Canvas`; with none, the
+        same widget is returned on every call.
+        """
+        from .notebook import Canvas
+
+        cached = getattr(self, "_widget", None)
+        if not kwargs and cached is not None and cached.comm is not None:
+            return cached
+        w = Canvas(self, **kwargs)
+        if not kwargs:
+            self._widget = w
+        return w
+
+    def _ipython_display_(self) -> None:
+        """Show a live widget in a Jupyter kernel when anywidget is installed.
+
+        Falls back to a static PNG elsewhere (terminal IPython, or without the
+        ``notebook`` extra). The widget's output also carries a PNG, so
+        nbconvert and GitHub still show the plot.
+        """
+        from IPython.display import display
+
+        if _in_jupyter_kernel():
+            from . import notebook
+
+            if notebook.available():
+                display(self.widget())
+                return
+        import base64
+
+        bundle = {"text/plain": repr(self)}
+        png = self._repr_png_()
+        if png is not None:
+            bundle["image/png"] = base64.b64encode(png).decode("ascii")
+        display(bundle, raw=True)
 
     # ── Input forwarding ─────────────────────────────────────────────────
 

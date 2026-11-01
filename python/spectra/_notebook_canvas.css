@@ -1,0 +1,37 @@
+/* Styles for spectra.notebook.Canvas (anywidget). */
+.spectra-canvas {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  outline: none;
+  touch-action: none;
+  user-select: none;
+}
+.spectra-canvas img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  -webkit-user-drag: none;
+}
+.spectra-canvas-reset {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.18);
+  color: inherit;
+  font-size: 15px;
+  line-height: 24px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.spectra-canvas:hover .spectra-canvas-reset,
+.spectra-canvas:focus-within .spectra-canvas-reset {
+  opacity: 1;
+}

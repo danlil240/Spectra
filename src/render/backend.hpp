@@ -111,6 +111,9 @@ enum class PipelineType
     PointCloud_Transparent,
     // 3D textured quad (camera image billboard in scene)
     Image3D,
+    // 2D image quad in data space (ImageSeries): value texture (set 1) +
+    // colormap lookup table (set 2), no vertex input
+    Image2D,
 };
 
 struct BufferHandle
@@ -211,6 +214,17 @@ class Backend
                                          const uint8_t* rgba_data) = 0;
     virtual void          destroy_texture(TextureHandle handle)    = 0;
 
+    // Single-channel 32-bit float texture (one value per texel, no mipmaps),
+    // read with texelFetch by the Image2D pipeline.  Destroyed with
+    // destroy_texture().  Backends without float textures return an invalid
+    // handle, as does any backend for a size above its 2D texture limit.
+    virtual TextureHandle create_data_texture(uint32_t /*width*/,
+                                              uint32_t /*height*/,
+                                              const float* /*values*/)
+    {
+        return TextureHandle{};
+    }
+
     // Frame rendering
     virtual bool begin_frame(FrameProfiler* profiler = nullptr) = 0;
     virtual void end_frame(FrameProfiler* profiler = nullptr)   = 0;
@@ -224,9 +238,11 @@ class Backend
     virtual void end_render_pass()                                           = 0;
 
     // Drawing
-    virtual void bind_pipeline(PipelineHandle handle)                               = 0;
-    virtual void bind_buffer(BufferHandle handle, uint32_t binding)                 = 0;
-    virtual void bind_index_buffer(BufferHandle handle)                             = 0;
+    virtual void bind_pipeline(PipelineHandle handle)               = 0;
+    virtual void bind_buffer(BufferHandle handle, uint32_t binding) = 0;
+    virtual void bind_index_buffer(BufferHandle handle)             = 0;
+    // Binds a texture's descriptor set as set 1 + binding (the Image2D
+    // pipeline reads its colormap lookup table from binding 1 = set 2).
     virtual void bind_texture(TextureHandle handle, uint32_t binding)               = 0;
     virtual void push_constants(const SeriesPushConstants& pc)                      = 0;
     virtual void set_viewport(float x, float y, float width, float height)          = 0;

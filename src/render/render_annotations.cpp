@@ -738,7 +738,7 @@ void Renderer::build_colorbar(AxesBase& axes)
         const float         y1 = bar.y + bar.h - band_h * static_cast<float>(i);
         const float         y0 = (i == bands - 1) ? bar.y : y1 - band_h;
         SeriesPushConstants pc{};
-        set_color(pc, colorbar_layout::sample(source->cmap, source->mapping, t));
+        set_color(pc, colorbar_layout::sample_source(*source, t));
         const uint32_t first = b.vertex_count();
         b.quad(bar.x, y0, bar.x + bar.w, y1);
         annotation_draws_.push_back({AnnotationDraw::Kind::Triangles, first, 6, pc});

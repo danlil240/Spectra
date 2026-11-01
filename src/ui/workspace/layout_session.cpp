@@ -16,6 +16,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "imgui.h"
+    #include "ui/theme/theme_imgui.hpp"
 #endif
 
 namespace spectra
@@ -196,16 +197,16 @@ void LayoutSession::draw()
             ImGui::TableSetColumnIndex(0);
             ImGui::PushID(static_cast<int>(i));
             const char* status = "Bound";
-            ImVec4      color(0.45f, 0.80f, 0.45f, 1.0f);
+            ImVec4      color  = ui::to_imvec4(ui::theme().success);
             if (slot.result.status == BindingStatus::Waiting)
             {
                 status = "Waiting";
-                color  = ImVec4(0.90f, 0.75f, 0.30f, 1.0f);
+                color  = ui::to_imvec4(ui::theme().warning);
             }
             else if (slot.result.status == BindingStatus::Unresolved)
             {
                 status = "Unresolved";
-                color  = ImVec4(0.95f, 0.40f, 0.40f, 1.0f);
+                color  = ui::to_imvec4(ui::theme().error);
             }
             ImGui::TextColored(color, "%s", status);
             ImGui::TableSetColumnIndex(1);

@@ -370,6 +370,7 @@ class Renderer
     PipelineHandle grid_pipeline_;
     PipelineHandle overlay_pipeline_;   // Triangle-list topology for filled shapes (2D arrowheads)
     PipelineHandle stat_fill_pipeline_;   // Triangle-list, vec2+alpha, per-vertex gradient fills
+    PipelineHandle image2d_pipeline_;     // 2D image quad (ImageSeries), values + LUT textures
     PipelineHandle arrow3d_pipeline_;     // Triangle-list, vec3, depth test ON (3D arrowheads)
 
     // 3D pipelines
@@ -487,6 +488,8 @@ class Renderer
         Shape2D,
         Shape3D,
         ChunkedLine2D,   // ChunkedLineSeries — demand-loaded, LoD-aware
+        Image2D,         // ImageSeries — value texture + colormap LUT (Image2D pipeline)
+        Contour2D,       // ContourSeries — iso-lines through the line pipeline
         Custom,          // Plugin-defined custom series type
     };
 
@@ -518,6 +521,12 @@ class Renderer
         ScaleType upload_yscale = ScaleType::Linear;
         // Upload skip optimisation (WS-5.2)
         uint64_t data_generation = 0;   // Monotonic counter; incremented when data changes
+        // ImageSeries: value (or RGBA) texture and colormap lookup table.
+        // Replaced via destroy_texture (deferred by the backend) and freed by
+        // destroy_series_buffers on the render thread.
+        TextureHandle image_texture;
+        TextureHandle lut_texture;
+        uint64_t      lut_generation = 0;
         // Plugin custom series type fields
         std::string custom_type_name;   // Links to SeriesTypeRegistry entry
         // Opaque per-series state owned by the plugin.  The plugin allocates it
@@ -592,6 +601,10 @@ class Renderer
                                         const Camera&        cam,
                                         float                series_alpha,
                                         float                style_opacity);
+
+    // (Re)create the value texture / colormap LUT of an image whose grid or
+    // colormap changed since the last upload.  Render thread only.
+    void upload_image_textures(const ImageSeries& image, SeriesGpuData& gpu);
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);

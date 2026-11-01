@@ -17,6 +17,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 #include <string>
@@ -362,6 +363,45 @@ TEST(PdfExport, EmptyFigureIsAValidPage)
     ASSERT_TRUE(pdf.ok()) << pdf.error();
     EXPECT_EQ(pdf.find("/Type /Page ").size(), 1u);
     EXPECT_TRUE(pdf.find("/FontFile2").empty());   // no text, no font
+}
+
+TEST(PdfExport, ImageSeriesBecomesImageXObject)
+{
+    Figure             fig({.width = 400, .height = 300});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> v  = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, std::nanf("")};   // 3 x 2
+    auto&              im = ax.imshow(v, 3, 2);
+    fig.compute_layout();
+    const MiniPdf pdf(keep_evidence("pdf_image.pdf", PdfExporter::to_string(fig)));
+    ASSERT_TRUE(pdf.ok()) << pdf.error();
+
+    // One pixel per cell, unsmoothed; the NaN cell is transparent, so a soft mask.
+    const PdfObject* rgb = nullptr;
+    for (const PdfObject* o : pdf.find("/ColorSpace /DeviceRGB"))
+        if (o->dict.find("/Subtype /Image") != std::string::npos)
+            rgb = o;
+    ASSERT_NE(rgb, nullptr);
+    EXPECT_NE(rgb->dict.find("/Width 3 /Height 2"), std::string::npos);
+    EXPECT_NE(rgb->dict.find("/Interpolate false"), std::string::npos);
+    ASSERT_EQ(rgb->data.size(), 3u * 2u * 3u);
+    const PdfObject* mask = pdf.object(MiniPdf::ref_of(rgb->dict, "/SMask"));
+    ASSERT_NE(mask, nullptr);
+    ASSERT_EQ(mask->data.size(), 6u);
+    EXPECT_EQ(static_cast<uint8_t>(mask->data[0]), 255);
+    EXPECT_EQ(static_cast<uint8_t>(mask->data[5]), 0);   // NaN
+
+    // Origin Upper: image row 0 is grid row 0.
+    const Color want = im.color_for_value(v[1]);
+    EXPECT_NEAR(static_cast<uint8_t>(rgb->data[3]) / 255.0f, want.r, 1.0f / 255.0f);
+    EXPECT_NEAR(static_cast<uint8_t>(rgb->data[4]) / 255.0f, want.g, 1.0f / 255.0f);
+    EXPECT_NEAR(static_cast<uint8_t>(rgb->data[5]) / 255.0f, want.b, 1.0f / 255.0f);
+
+    // Drawn through the page resources.
+    const auto page = pdf.find("/Type /Page ");
+    ASSERT_EQ(page.size(), 1u);
+    const PdfObject* content = pdf.object(MiniPdf::ref_of(page[0]->dict, "/Contents"));
+    ASSERT_NE(content, nullptr);
+    EXPECT_NE(content->data.find(" cm /Im"), std::string::npos);
 }
 
 TEST(PdfExport, WriteToFile)

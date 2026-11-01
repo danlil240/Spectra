@@ -66,6 +66,9 @@ class VulkanBackend : public Backend
                                  uint32_t       height,
                                  const uint8_t* rgba_data) override;
     void          destroy_texture(TextureHandle handle) override;
+    TextureHandle create_data_texture(uint32_t     width,
+                                      uint32_t     height,
+                                      const float* values) override;
 
     // Expose Vulkan handles for a texture (used by ImGui texture registration)
     bool texture_vulkan_handles(TextureHandle handle,
@@ -282,6 +285,10 @@ class VulkanBackend : public Backend
     VkDescriptorSetLayout texture_desc_layout_  = VK_NULL_HANDLE;
     VkPipelineLayout      pipeline_layout_      = VK_NULL_HANDLE;
     VkPipelineLayout      text_pipeline_layout_ = VK_NULL_HANDLE;
+    // Image2D layout: set 0 = frame UBO, set 1 = values, set 2 = colormap LUT
+    VkPipelineLayout image_pipeline_layout_ = VK_NULL_HANDLE;
+    // Pipeline layout a pipeline of this type is created with.
+    VkPipelineLayout layout_for_type(PipelineType type) const;
 
     // Resource tracking
     uint64_t next_buffer_id_   = 1;

@@ -175,7 +175,21 @@ class VectorWriter
     rect(int indent, double x, double y, double w, double h, double rx, const VectorStyle& s) = 0;
     // An instance of a define_marker() symbol at (x, y).
     virtual void use_marker(int indent, int marker, double x, double y, const VectorStyle& s) = 0;
-    virtual void text(const VectorText& t)                                                    = 0;
+    // An RGBA8 raster (top row first, straight alpha) of px_w x px_h pixels
+    // stretched over the rectangle (x, y, w, h).  `pixelated` scales it without
+    // smoothing (one block per pixel); `opacity` multiplies its alpha.
+    virtual void image(int                      indent,
+                       double                   x,
+                       double                   y,
+                       double                   w,
+                       double                   h,
+                       std::span<const uint8_t> rgba,
+                       uint32_t                 px_w,
+                       uint32_t                 px_h,
+                       bool                     pixelated,
+                       float                    opacity,
+                       std::string_view         cls) = 0;
+    virtual void text(const VectorText& t)   = 0;
     // A plugin series that could not be exported (SVG: an XML comment in its place).
     virtual void note_skipped_series(std::string_view type_name,
                                      std::string_view label,

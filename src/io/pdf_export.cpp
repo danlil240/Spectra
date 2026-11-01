@@ -681,6 +681,56 @@ class PdfPageWriter final : public VectorWriter
         out_ += " cm /" + marker_form(marker, mk->second, sa, fa) + " Do Q\n";
     }
 
+    void image(int,
+               double                   x,
+               double                   y,
+               double                   w,
+               double                   h,
+               std::span<const uint8_t> rgba,
+               uint32_t                 px_w,
+               uint32_t                 px_h,
+               bool                     pixelated,
+               float                    opacity,
+               std::string_view) override
+    {
+        const size_t n = static_cast<size_t>(px_w) * px_h;
+        if (n == 0 || rgba.size() < n * 4 || !(w > 0.0) || !(h > 0.0))
+            return;
+        std::string rgb(n * 3, '\0');
+        std::string alpha(n, '\0');
+        bool        opaque = true;
+        for (size_t i = 0; i < n; ++i)
+        {
+            rgb[i * 3 + 0] = static_cast<char>(rgba[i * 4 + 0]);
+            rgb[i * 3 + 1] = static_cast<char>(rgba[i * 4 + 1]);
+            rgb[i * 3 + 2] = static_cast<char>(rgba[i * 4 + 2]);
+            alpha[i]       = static_cast<char>(rgba[i * 4 + 3]);
+            opaque         = opaque && rgba[i * 4 + 3] == 255;
+        }
+        const std::string size = " /Width " + std::to_string(px_w) + " /Height "
+                                 + std::to_string(px_h) + " /BitsPerComponent 8";
+        const char* interp = pixelated ? " /Interpolate false" : " /Interpolate true";
+        std::string dict   = " /Type /XObject /Subtype /Image" + size + " /ColorSpace /DeviceRGB";
+        dict += interp;
+        if (!opaque)
+            dict += " /SMask "
+                    + ref(objs_.add(stream_object(" /Type /XObject /Subtype /Image" + size
+                                                      + " /ColorSpace /DeviceGray" + interp,
+                                                  alpha)));
+        const std::string name = res_.add_xobject("Im", objs_.add(stream_object(dict, rgb)));
+
+        // Image space's unit square, row 0 at the top: [w 0 0 -h x y+h] in Y-down pixels.
+        push_state();
+        set_alpha(state_.stroke_alpha, per_mille(clamp01(opacity)));
+        put_pdf_num(out_, w, 3);
+        out_ += " 0 0 ";
+        put_pdf_num(out_, -h, 3);
+        out_ += ' ';
+        put_xy(out_, x, y + h);
+        out_ += " cm /" + name + " Do\n";
+        pop_state();
+    }
+
     void text(const VectorText& t) override
     {
         if (t.text.empty() || !(t.font_px > 0.0f))

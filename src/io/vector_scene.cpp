@@ -17,6 +17,7 @@
 #include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <map>
 #include <memory>
 #include <set>
@@ -30,6 +31,7 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
@@ -42,6 +44,7 @@
 #include "core/annotation_layout.hpp"
 #include "core/axes3d.hpp"
 #include "core/axis_scale.hpp"
+#include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
@@ -991,6 +994,12 @@ const T* fresh_geometry(const T* s, std::unique_ptr<T>& holder, bool always = fa
 }
 
 void emit_custom_series_2d(SceneContext& c, const CustomSeries& cs, const DataToSvg& m);
+void emit_image_series(SceneContext& c, const ImageSeries& img, const DataToSvg& m, float alpha);
+void emit_contour_series(SceneContext&        c,
+                         const ContourSeries& ct,
+                         const DataToSvg&     m,
+                         const Color&         col,
+                         float                alpha);
 
 void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
 {
@@ -1161,6 +1170,14 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
         std::unique_ptr<ShapeSeries> sh_copy;
         const ShapeSeries*           sh = fresh_geometry(sh_src, sh_copy, true);
         fill_and_outline(sh->fill_verts(), sh->x_data(), sh->y_data(), 0.50f, 1.5f, "shape");
+    }
+    else if (auto* img = dynamic_cast<const ImageSeries*>(&s))
+    {
+        emit_image_series(c, *img, m, s.opacity());
+    }
+    else if (auto* ct = dynamic_cast<const ContourSeries*>(&s))
+    {
+        emit_contour_series(c, *ct, m, col, alpha);
     }
 }
 
@@ -1355,6 +1372,208 @@ void emit_text(VectorWriter&    w,
         t.rot_y   = extra.rot_y;
     }
     w.text(t);
+}
+
+// ─── Image and contour series ───────────────────────────────────────────────
+
+// RGBA8 pixels (top row first) of @p img drawn into a w x h rectangle whose
+// left/top edges are the image's x0/y1 corners (flip_x / flip_y when the
+// extent is reversed on screen).  CPU mirror of src/gpu/shaders/image2d.frag.
+std::vector<uint8_t> rasterize_image(const ImageSeries& img,
+                                     uint32_t           w,
+                                     uint32_t           h,
+                                     bool               flip_x,
+                                     bool               flip_y)
+{
+    std::vector<uint8_t> out(static_cast<size_t>(w) * h * 4, 0);
+    const auto           cols = static_cast<int64_t>(img.cols());
+    const auto           rows = static_cast<int64_t>(img.rows());
+    const auto           data = img.data();
+    const bool           rgba = img.is_rgba();
+    const auto           lut =
+        rgba ? std::vector<uint8_t>{} : image_colormap::build_lut(img.colormap(), img.levels());
+    const size_t lut_n  = lut.size() / 4;
+    const bool   banded = !img.levels().empty();
+    const bool   nodes  = img.node_aligned();
+    const bool   bilin  = img.interpolation() == ImageInterpolation::Bilinear;
+    const float  vmin   = img.vmin();
+    const float  vmax   = img.vmax();
+    auto         sample = [&](int64_t cx, int64_t cy, int ch) -> double
+    {
+        const auto idx = static_cast<size_t>(cy * cols + cx);
+        return rgba ? data[idx * 4 + static_cast<size_t>(ch)] : data[idx];
+    };
+    auto to8 = [](float f)
+    { return static_cast<uint8_t>(std::lround(std::clamp(f, 0.0f, 1.0f) * 255.0f)); };
+    for (uint32_t j = 0; j < h; ++j)
+    {
+        for (uint32_t i = 0; i < w; ++i)
+        {
+            double u = (static_cast<double>(i) + 0.5) / w;
+            double v = 1.0 - (static_cast<double>(j) + 0.5) / h;   // 0 at y0
+            if (flip_x)
+                u = 1.0 - u;
+            if (flip_y)
+                v = 1.0 - v;
+            if (img.origin() == ImageOrigin::Upper)
+                v = 1.0 - v;
+            const double px  = nodes ? u * static_cast<double>(cols - 1) : u * cols - 0.5;
+            const double py  = nodes ? v * static_cast<double>(rows - 1) : v * rows - 0.5;
+            const double pcx = std::clamp(px, 0.0, static_cast<double>(cols - 1));
+            const double pcy = std::clamp(py, 0.0, static_cast<double>(rows - 1));
+            const auto   nx =
+                std::clamp(static_cast<int64_t>(std::floor(pcx + 0.5)), int64_t{0}, cols - 1);
+            const auto ny =
+                std::clamp(static_cast<int64_t>(std::floor(pcy + 0.5)), int64_t{0}, rows - 1);
+            float s[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            for (int ch = 0; ch < (rgba ? 4 : 1); ++ch)
+            {
+                double val = sample(nx, ny, ch);
+                if (bilin)
+                {
+                    const auto   x0 = static_cast<int64_t>(std::floor(pcx));
+                    const auto   y0 = static_cast<int64_t>(std::floor(pcy));
+                    const auto   x1 = std::min(x0 + 1, cols - 1);
+                    const auto   y1 = std::min(y0 + 1, rows - 1);
+                    const double fx = pcx - static_cast<double>(x0);
+                    const double fy = pcy - static_cast<double>(y0);
+                    const double a =
+                        sample(x0, y0, ch) + (sample(x1, y0, ch) - sample(x0, y0, ch)) * fx;
+                    const double b =
+                        sample(x0, y1, ch) + (sample(x1, y1, ch) - sample(x0, y1, ch)) * fx;
+                    const double bl = a + (b - a) * fy;
+                    if (std::isfinite(bl))
+                        val = bl;   // a NaN neighbour falls back to the nearest sample
+                }
+                s[ch] = static_cast<float>(val);
+            }
+            Color col;
+            if (rgba)
+            {
+                col = {s[0], s[1], s[2], s[3]};
+            }
+            else
+            {
+                if (!std::isfinite(s[0]))
+                    continue;
+                const float t = image_colormap::normalized(s[0], vmin, vmax);
+                if (banded
+                    && (t < -image_colormap::BAND_EPS || t > 1.0f + image_colormap::BAND_EPS))
+                    continue;
+                col = image_colormap::lut_color(lut, image_colormap::lut_index(t, lut_n));
+            }
+            uint8_t* o = &out[(static_cast<size_t>(j) * w + i) * 4];
+            o[0]       = to8(col.r);
+            o[1]       = to8(col.g);
+            o[2]       = to8(col.b);
+            o[3]       = to8(col.a);
+        }
+    }
+    return out;
+}
+
+// An ImageSeries as an embedded PNG <image>, plus heatmap value labels.
+void emit_image_series(SceneContext& c, const ImageSeries& img, const DataToSvg& m, float alpha)
+{
+    if (img.empty())
+        return;
+    const double sx0 = m.map_x(img.x0());
+    const double sx1 = m.map_x(img.x1());
+    const double sy0 = m.map_y(img.y0());
+    const double sy1 = m.map_y(img.y1());
+    if (!std::isfinite(sx0) || !std::isfinite(sx1) || !std::isfinite(sy0) || !std::isfinite(sy1))
+        return;
+    const double left = std::min(sx0, sx1);
+    const double top  = std::min(sy0, sy1);
+    const double sw   = std::abs(sx1 - sx0);
+    const double sh   = std::abs(sy1 - sy0);
+    if (!(sw > 0.0) || !(sh > 0.0))
+        return;
+
+    // Flat cells: one PNG pixel per cell, scaled up without smoothing.
+    // Interpolated or node-aligned grids: rasterised at about screen
+    // resolution (capped) so the export matches the GPU sampling.
+    const bool cell_pixels =
+        img.interpolation() == ImageInterpolation::Nearest && !img.node_aligned();
+    constexpr double MAX_RASTER = 2048.0;
+    const auto       w      = static_cast<uint32_t>(cell_pixels ? static_cast<double>(img.cols())
+                                                     : std::clamp(std::ceil(sw), 1.0, MAX_RASTER));
+    const auto       h      = static_cast<uint32_t>(cell_pixels ? static_cast<double>(img.rows())
+                                                     : std::clamp(std::ceil(sh), 1.0, MAX_RASTER));
+    const auto       pixels = rasterize_image(img, w, h, (sx1 < sx0), (sy1 > sy0));
+    c.w.image(6, left, top, sw, sh, pixels, w, h, cell_pixels, alpha, "image");
+
+    // Heatmap cell values (render_geometry.cpp: same size gates and contrast rule).
+    if (!img.show_values() || !img.has_colormap() || img.cols() * img.rows() > 40000)
+        return;
+    const double cell_w = sw / static_cast<double>(img.cols());
+    const double cell_h = sh / static_cast<double>(img.rows());
+    if (!(cell_w >= 12.0) || !(cell_h >= TICK_FONT_PX + 2.0))
+        return;
+    const auto lut  = image_colormap::build_lut(img.colormap(), img.levels());
+    const auto vals = img.data();
+    for (size_t r = 0; r < img.rows(); ++r)
+    {
+        for (size_t col = 0; col < img.cols(); ++col)
+        {
+            const float v = vals[r * img.cols() + col];
+            if (!std::isfinite(v))
+                continue;
+            double cx = 0.0;
+            double cy = 0.0;
+            img.cell_center(col, r, cx, cy);
+            const double px = m.map_x(cx);
+            const double py = m.map_y(cy);
+            if (px < m.vp_x || px > m.vp_x + m.vp_w || py < m.vp_y || py > m.vp_y + m.vp_h)
+                continue;
+            const std::string text = std::format("{:.{}f}", v, img.value_decimals());
+            if (measure_text_width(text, TICK_FONT_PX) > cell_w - 2.0)
+                continue;
+            const float t = image_colormap::normalized(v, img.vmin(), img.vmax());
+            const Color cc =
+                image_colormap::lut_color(lut, image_colormap::lut_index(t, lut.size() / 4));
+            const float lum = 0.2126f * cc.r + 0.7152f * cc.g + 0.0722f * cc.b;
+            const Color tc =
+                lum > 0.5f ? Color{0.102f, 0.102f, 0.102f, 1.0f} : Color{1.0f, 1.0f, 1.0f, 1.0f};
+            emit_text(c.w, text, px, py, TICK_FONT_PX, tc, "middle", VAlign::Middle);
+        }
+    }
+}
+
+// ContourSeries: one path per level in its colormap colour (or all levels in
+// the series colour).
+void emit_contour_series(SceneContext&        c,
+                         const ContourSeries& ct,
+                         const DataToSvg&     m,
+                         const Color&         col,
+                         float                alpha)
+{
+    const auto& style = ct.plot_style();
+    if (!style.has_line() || ct.point_count() < 2)
+        return;
+    if (!ct.uses_colormap())
+    {
+        emit_stroke_path(c,
+                         polyline_path(ct.x_data(), ct.y_data(), m, 0.0, 0.0),
+                         "contour",
+                         col,
+                         alpha,
+                         ct.width(),
+                         style.line_style);
+        return;
+    }
+    for (const auto& r : ct.level_ranges())
+    {
+        const auto x = ct.x_data().subspan(r.first_point, r.point_count);
+        const auto y = ct.y_data().subspan(r.first_point, r.point_count);
+        emit_stroke_path(c,
+                         polyline_path(x, y, m, 0.0, 0.0),
+                         "contour",
+                         ct.level_color(r.level),
+                         alpha,
+                         ct.width(),
+                         style.line_style);
+    }
 }
 
 // Emits a fitted plot label; a shortened one keeps its full text as a hover tooltip.

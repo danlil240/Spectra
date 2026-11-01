@@ -292,6 +292,33 @@ class SvgWriter final : public VectorWriter
         finish_element(s);
     }
 
+    void image(int                      ind,
+               double                   x,
+               double                   y,
+               double                   w,
+               double                   h,
+               std::span<const uint8_t> rgba,
+               uint32_t                 px_w,
+               uint32_t                 px_h,
+               bool                     pixelated,
+               float                    opacity,
+               std::string_view         cls) override
+    {
+        if (rgba.size() < static_cast<size_t>(px_w) * px_h * 4)
+            return;
+        const auto png = ImageExporter::write_png_to_memory(rgba.data(), px_w, px_h);
+        if (png.empty())
+            return;
+        indent(ind);
+        body_ += "<image";
+        class_attr(cls);
+        body_ += " x=\"" + num(x) + "\" y=\"" + num(y) + "\" width=\"" + num(w) + "\" height=\""
+                 + num(h) + "\" preserveAspectRatio=\"none\"" + opacity_attr("opacity", opacity);
+        if (pixelated)
+            body_ += " style=\"image-rendering:pixelated\"";
+        body_ += " xlink:href=\"data:image/png;base64," + base64_encode(png) + "\"/>\n";
+    }
+
     void text(const VectorText& t) override
     {
         indent(t.indent);

@@ -22,7 +22,32 @@ TopicRegistry::DeclareResult TopicRegistry::declare(const std::string& name,
                                                     uint64_t           owner_client_id)
 {
     std::lock_guard<std::mutex> lk(mutex_);
+    return declare_locked(name, kind, unit, ring_capacity, owner_client_id);
+}
 
+TopicRegistry::EnsureResult TopicRegistry::ensure_declared(const std::string& name,
+                                                           ipc::TopicKind     kind,
+                                                           const std::string& unit,
+                                                           uint32_t           ring_capacity,
+                                                           uint64_t           owner_client_id)
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    auto                        it = topics_.find(name);
+    if (it != topics_.end() && it->second.publisher_online
+        && it->second.owner_client_id == owner_client_id && it->second.kind == kind)
+    {
+        return EnsureResult::AlreadyDeclared;
+    }
+    auto r = declare_locked(name, kind, unit, ring_capacity, owner_client_id);
+    return r == DeclareResult::Conflict ? EnsureResult::Conflict : EnsureResult::Declared;
+}
+
+TopicRegistry::DeclareResult TopicRegistry::declare_locked(const std::string& name,
+                                                           ipc::TopicKind     kind,
+                                                           const std::string& unit,
+                                                           uint32_t           ring_capacity,
+                                                           uint64_t           owner_client_id)
+{
     auto it = topics_.find(name);
     if (it == topics_.end())
     {
@@ -62,7 +87,8 @@ TopicRegistry::DeclareResult TopicRegistry::declare(const std::string& name,
 bool TopicRegistry::publish(const std::string&              name,
                             const std::vector<double>&      samples,
                             ipc::TopicKind*                 kind_out,
-                            std::vector<TopicSubscription>* subs_out)
+                            std::vector<TopicSubscription>* subs_out,
+                            uint64_t                        publish_ns)
 {
     std::lock_guard<std::mutex> lk(mutex_);
     auto                        it = topics_.find(name);
@@ -74,10 +100,10 @@ bool TopicRegistry::publish(const std::string&              name,
     if (samples.size() % stride != 0)
         return false;
 
-    uint64_t now = now_ns();
+    uint64_t now = publish_ns != 0 ? publish_ns : now_ns();
 
     // Hz estimator: EWMA over inter-arrival times (per call, not per sample).
-    if (t.last_publish_ns != 0)
+    if (t.last_publish_ns != 0 && now > t.last_publish_ns)
     {
         auto dt = static_cast<double>(now - t.last_publish_ns);
         if (t.ewma_dt_ns == 0.0)
@@ -85,7 +111,7 @@ bool TopicRegistry::publish(const std::string&              name,
         else
             t.ewma_dt_ns = 0.9 * t.ewma_dt_ns + 0.1 * dt;
     }
-    t.last_publish_ns = now;
+    t.last_publish_ns = std::max(t.last_publish_ns, now);
 
     // Append to ring (bounded).
     t.ring.insert(t.ring.end(), samples.begin(), samples.end());

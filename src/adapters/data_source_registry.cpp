@@ -128,8 +128,20 @@ DataSourceAdapter* DataSourceRegistry::find(const std::string& name) const
 
 std::vector<DataPoint> DataSourceRegistry::poll_all()
 {
-    std::lock_guard        lock(mutex_);
     std::vector<DataPoint> result;
+    for (auto& batch : poll_all_by_source())
+    {
+        result.insert(result.end(),
+                      std::make_move_iterator(batch.points.begin()),
+                      std::make_move_iterator(batch.points.end()));
+    }
+    return result;
+}
+
+std::vector<DataSourceRegistry::SourceBatch> DataSourceRegistry::poll_all_by_source()
+{
+    std::lock_guard          lock(mutex_);
+    std::vector<SourceBatch> result;
     for (auto& e : sources_)
     {
         if (e.faulted || !e.enabled)
@@ -148,12 +160,57 @@ std::vector<DataPoint> DataSourceRegistry::poll_all()
                 e.faulted = true;
                 continue;
             }
-            result.insert(result.end(),
-                          std::make_move_iterator(pts.begin()),
-                          std::make_move_iterator(pts.end()));
+            if (!pts.empty())
+                result.push_back(SourceBatch{e.name, std::move(pts)});
         }
     }
     return result;
+}
+
+std::vector<DataSourceRegistry::SourceStatus> DataSourceRegistry::status() const
+{
+    std::lock_guard           lock(mutex_);
+    std::vector<SourceStatus> out;
+    out.reserve(sources_.size());
+    for (const auto& e : sources_)
+    {
+        if (!e.enabled)
+            continue;
+        SourceStatus st;
+        st.name    = e.name;
+        st.faulted = e.faulted;
+        st.running = !e.faulted && e.adapter && e.adapter->is_running();
+        out.push_back(std::move(st));
+    }
+    return out;
+}
+
+bool DataSourceRegistry::set_running(const std::string& name, bool run)
+{
+    std::lock_guard lock(mutex_);
+    for (auto& e : sources_)
+    {
+        if (e.name != name || !e.enabled || e.faulted || !e.adapter)
+            continue;
+        auto guard_result = plugin_guard_invoke(e.name.c_str(),
+                                                [&]()
+                                                {
+                                                    if (run)
+                                                        e.adapter->start();
+                                                    else
+                                                        e.adapter->stop();
+                                                });
+        if (guard_result != PluginCallResult::Success)
+        {
+            SPECTRA_LOG_ERROR("plugin",
+                              "Data source '{}' faulted during {} — disabling",
+                              e.name,
+                              run ? "start" : "stop");
+            e.faulted = true;
+        }
+        return true;
+    }
+    return false;
 }
 
 }   // namespace spectra

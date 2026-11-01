@@ -593,6 +593,9 @@ struct ImguiTextRun
     // Covered by a window drawn above it (popup, tooltip, another panel) or
     // dimmed by a modal: what is on screen there is not this run's text.
     bool occluded = false;
+    // A glyph cut to under half its height by the clip rect (a row scrolled
+    // partly out of a list): only its edge pixels are on screen.
+    bool clipped = false;
 };
 
 static std::vector<ImguiTextRun> imgui_text_runs(ImGuiContext* ctx)
@@ -643,6 +646,7 @@ static std::vector<ImguiTextRun> imgui_text_runs(ImGuiContext* ctx)
                 k += 3;   // the quad's second triangle
                 if (box.z <= box.x || box.w <= box.y)
                     continue;
+                const bool  cut      = box.w - box.y < 0.5f * (v[2].pos.y - v[0].pos.y) * scale.y;
                 const float h        = box.w - box.y;
                 const bool  same_run = run.glyphs > 0 && run.col == v[0].col
                                       && std::abs(box.w - run.y1) < 0.6f * h + 2.0f
@@ -652,6 +656,7 @@ static std::vector<ImguiTextRun> imgui_text_runs(ImGuiContext* ctx)
                 run.window = w->Name;
                 run.win    = w;
                 run.col    = v[0].col;
+                run.clipped |= cut;
                 run.glyphs++;
                 run.boxes.push_back(box);
                 run.x0 = std::min(run.x0, box.x);
@@ -3630,7 +3635,8 @@ class QAAgent
         std::string worst_desc;
         for (const MeasuredTextRun& r : design_text_runs(window_needle))
         {
-            if (r.run.occluded || r.run.glyphs < 3 || r.m.ring_flat < 0.6f || r.m.ring_px < 20)
+            if (r.run.occluded || r.run.clipped || r.run.glyphs < 3 || r.m.ring_flat < 0.6f
+                || r.m.ring_px < 20)
                 continue;
             // Disabled controls: text faded by BeginDisabled() (alpha scaled
             // by style.DisabledAlpha).  ImGuiCol_TextDisabled is the theme's

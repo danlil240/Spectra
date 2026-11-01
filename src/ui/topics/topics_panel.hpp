@@ -51,12 +51,23 @@ struct SubscribeRequest
     uint32_t    series_index = 0xFFFFFFFFu;   // auto-create
 };
 
+// A plugin / host data source listed in the panel's "Data sources" section.
+// Its points are published as topics "<name>/<series label>" while running.
+struct DataSourceRow
+{
+    std::string name;
+    bool        running = false;
+    bool        faulted = false;
+};
+
 class TopicsPanel
 {
    public:
     using ListRequestFn      = std::function<void()>;
     using SubscribeRequestFn = std::function<void(const SubscribeRequest&)>;
     using DestroyFn          = std::function<void()>;
+    using DataSourceListFn   = std::function<std::vector<DataSourceRow>()>;
+    using DataSourceToggleFn = std::function<void(const std::string& name, bool start)>;
 
     TopicsPanel() = default;
     ~TopicsPanel();
@@ -67,6 +78,20 @@ class TopicsPanel
 
     void set_list_request_callback(ListRequestFn cb) { list_cb_ = std::move(cb); }
     void set_subscribe_request_callback(SubscribeRequestFn cb) { subscribe_cb_ = std::move(cb); }
+
+    // Data sources (in-process apps): `list` is called while drawing to fill
+    // the "Data sources" section, `toggle` when the user presses Start/Stop.
+    // Both run on the drawing (UI) thread.  Pass empty functions to unwire.
+    void set_data_source_callbacks(DataSourceListFn list, DataSourceToggleFn toggle)
+    {
+        data_source_list_cb_   = std::move(list);
+        data_source_toggle_cb_ = std::move(toggle);
+    }
+    bool has_data_source_callbacks() const { return static_cast<bool>(data_source_list_cb_); }
+
+    // Start / stop a data source as the Start/Stop button does.  Returns
+    // false if no toggle callback is wired.
+    bool submit_data_source_toggle(const std::string& name, bool start);
 
     // Invoked once from the destructor, on the thread that destroys the panel.
     // Lets a transport that keeps a reference to this panel (e.g. the inproc
@@ -117,6 +142,10 @@ class TopicsPanel
     ListRequestFn      list_cb_;
     SubscribeRequestFn subscribe_cb_;
     DestroyFn          destroy_cb_;
+    DataSourceListFn   data_source_list_cb_;
+    DataSourceToggleFn data_source_toggle_cb_;
+
+    void draw_data_sources();
 };
 
 }   // namespace spectra::ui::topics

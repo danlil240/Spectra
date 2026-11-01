@@ -272,6 +272,8 @@ set(SPECTRA_UNIT_TESTS
     test_export_csv_plugin
     test_plugin_export_command
     test_plugin_data_source
+    test_data_source_topics
+    test_topic_bridges
     test_plugin_integration
     test_plugin_unload_cleanup
     test_plugin_concurrent

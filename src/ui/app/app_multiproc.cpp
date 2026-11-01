@@ -28,6 +28,7 @@
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/app/figure_snapshot.hpp"
+#include "ui/app/window_png_export.hpp"
 #include "ui/overlay/knob_manager.hpp"
 #include "ui/theme/svg_style.hpp"
 
@@ -247,6 +248,9 @@ void App::run_multiproc()
                                                 : SvgStyle{}))
                     SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", fig->export_req_.svg_path);
             }
+
+            if (!fig->export_req_.pdf_path.empty())
+                write_pending_pdf(*fig, theme_mgr_.get());
         }
 
         if (backend_)

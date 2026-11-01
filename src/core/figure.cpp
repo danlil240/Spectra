@@ -215,6 +215,21 @@ bool Figure::save_svg(const std::string& path, const ExportOptions& options)
     return true;
 }
 
+bool Figure::save_pdf(const std::string& path)
+{
+    return save_pdf(path, ExportOptions{});
+}
+
+bool Figure::save_pdf(const std::string& path, const ExportOptions& options)
+{
+    if (!export_path_is_writable(path, "PDF"))
+        return false;
+    export_req_.pdf_path  = path;
+    export_req_.pdf_theme = options.theme;
+    compute_layout();
+    return true;
+}
+
 void Figure::copy_to_clipboard()
 {
     export_req_.copy_to_clipboard = true;

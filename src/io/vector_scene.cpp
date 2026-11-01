@@ -35,7 +35,6 @@
 #include <spectra/series_stats.hpp>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -88,20 +87,42 @@ bool for_each_path_command(std::string_view d, PathSink& sink)
         while (i < d.size() && (d[i] == ' ' || d[i] == ',' || d[i] == '\t' || d[i] == '\n'))
             ++i;
     };
+    // Decimal number [sign] digits [. digits] [e [sign] digits], parsed by hand:
+    // locale-independent, and Apple libc++ has no floating-point from_chars.
     auto read_num = [&](double& v) -> bool
     {
         skip_ws();
-        if (i >= d.size())
+        auto   digit = [&](size_t k) { return k < d.size() && d[k] >= '0' && d[k] <= '9'; };
+        double sign  = 1.0;
+        if (i < d.size() && (d[i] == '+' || d[i] == '-'))
+            sign = d[i++] == '-' ? -1.0 : 1.0;
+        double mant   = 0.0;
+        int    scale  = 0;   // decimal exponent applied to mant
+        bool   digits = false;
+        for (; digit(i); ++i, digits = true)
+            mant = mant * 10.0 + (d[i] - '0');
+        if (i < d.size() && d[i] == '.')
+            for (++i; digit(i); ++i, digits = true, --scale)
+                mant = mant * 10.0 + (d[i] - '0');
+        if (!digits)
             return false;
-        const char* first = d.data() + i;
-        const char* last  = d.data() + d.size();
-        if (*first == '+')
-            ++first;
-        const auto r = std::from_chars(first, last, v);
-        if (r.ec != std::errc())
-            return false;
-        i = static_cast<size_t>(r.ptr - d.data());
-        return true;
+        if (i < d.size() && (d[i] == 'e' || d[i] == 'E'))
+        {
+            size_t k     = i + 1;
+            int    esign = 1;
+            if (k < d.size() && (d[k] == '+' || d[k] == '-'))
+                esign = d[k++] == '-' ? -1 : 1;
+            if (digit(k))
+            {
+                int e = 0;
+                for (; digit(k); ++k)
+                    e = std::min(e * 10 + (d[k] - '0'), 9999);
+                scale += esign * e;
+                i = k;
+            }
+        }
+        v = sign * (scale < 0 ? mant / std::pow(10.0, -scale) : mant * std::pow(10.0, scale));
+        return std::isfinite(v);
     };
 
     double cx = 0, cy = 0;   // current point

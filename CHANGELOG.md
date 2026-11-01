@@ -21,6 +21,7 @@ Release-readiness work for the first public preview.
   outside-right legend position (`LegendPosition::OutsideRight`).
 - `append(double, double)` and `erase_before/after(double)` for full-precision streaming.
 - `save_png`/`save_svg` overloads taking `ExportOptions{width, height, theme}`.
+- Vector PDF export (`save_pdf`, `PdfExporter`, File > Export PDF): the SVG drawing as PDF 1.4 with an embedded Inter subset (selectable text), one page per figure.
 - 3D axes page in the inspector; UI scale setting (75–200%); PX4 Open Recent; File > Exit.
 - Text annotations in the multi-process window, Python, workspace files and the C FFI.
 - fontconfig font fallback, glyphs above U+FFFF in the UI, monochrome emoji.

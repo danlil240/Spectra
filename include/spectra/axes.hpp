@@ -249,6 +249,26 @@ class Axes : public AxesBase
     /// Shape annotation series (rectangles, circles, arrows, polygons, etc.)
     ShapeSeries& shapes();
 
+    // Grid-valued series (configure them through <spectra/series_image.hpp>).
+    // The axes fit tightly to their extent, and AxesBase::show_colorbar(true)
+    // adds a colorbar for their colormap.
+    /// @brief Show a scalar grid (row-major, @p cols x @p rows) as a colormapped
+    /// image; row 0 is drawn at the top, cell (c, r) is centred on x = c.
+    ImageSeries& imshow(std::span<const float> values, size_t cols, size_t rows);
+    /// @brief Heatmap: imshow() with each cell's value printed in it.  Non-empty
+    /// @p col_names / @p row_names label the columns / rows on the axes.
+    ImageSeries& heatmap(std::span<const float>   values,
+                         size_t                   cols,
+                         size_t                   rows,
+                         std::vector<std::string> col_names = {},
+                         std::vector<std::string> row_names = {});
+    /// @brief Contour lines of z (row-major, row 0 at the bottom, node (c, r)
+    /// at x = c, y = r) at about @p levels nice levels.
+    ContourSeries& contour(std::span<const float> z, size_t cols, size_t rows, int levels = 8);
+    /// @brief Filled contours of z (same layout as contour()): bands between
+    /// about @p levels nice levels covering the data range.
+    ImageSeries& contourf(std::span<const float> z, size_t cols, size_t rows, int levels = 8);
+
     // Text annotations (drawn on top of the series, clipped to the plot area)
     /// @brief Place @p text with its anchor at data coordinates (x, y).
     /// Defaults: left-aligned, text sitting just above the anchor, theme text colour.

@@ -158,6 +158,7 @@ set(SPECTRA_UNIT_TESTS
     test_region_select
     test_legend_interaction
     test_legend_colorbar
+    test_image_series
     test_legend_bounds
     test_legend_font_size
     test_figure_manager
@@ -593,7 +594,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|image_series)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -883,6 +884,26 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
         set_tests_properties(golden_image_tests_3d PROPERTIES
             LABELS "golden;gpu"
             RESOURCE_LOCK gpu)
+    endif()
+
+    # Image / heatmap / contour golden tests, once per theme (one App per binary)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_image.cpp)
+        foreach(_golden_theme light dark)
+            set(_golden_target golden_image_tests_image_${_golden_theme})
+            add_executable(${_golden_target} golden/golden_test_image.cpp)
+            target_link_libraries(${_golden_target} PRIVATE spectra GTest::gtest)
+            target_compile_features(${_golden_target} PRIVATE cxx_std_20)
+            target_compile_definitions(${_golden_target} PRIVATE
+                SPECTRA_GOLDEN_THEME="${_golden_theme}")
+            target_include_directories(${_golden_target} PRIVATE
+                ${CMAKE_SOURCE_DIR}/src
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden
+            )
+            add_test(NAME ${_golden_target} COMMAND ${_golden_target})
+            set_tests_properties(${_golden_target} PROPERTIES
+                LABELS "golden;gpu"
+                RESOURCE_LOCK gpu)
+        endforeach()
     endif()
 endif()
 

@@ -15,6 +15,7 @@ Release-readiness work for the first public preview.
 
 ### Added
 - Shareable layout files: File > Save Layout / Open Layout / Recent Layouts and `spectra --layout FILE` save a dashboard with data-binding URIs (`topic://`, `csv://`, reserved `ulog://`) instead of data, and re-resolve them on open (pending topic subscriptions, CSV lookup, Data Bindings window to pick replacements).
+- Image, heatmap and contour plots for 2D axes: `imshow`, `heatmap`, `contour` and `contourf` (GPU colormap lookup, nearest or bilinear sampling, cell value labels, colorbars and SVG export).
 - Interactive Jupyter widget: `EmbedSurface` shows as a live, pannable, zoomable canvas in JupyterLab, Notebook 7, VS Code and Colab (`spectra.notebook`, `pip install "spectra-plot[notebook]"`); Linux wheels now bundle `libspectra_embed`.
 - `SPECTRA_CONFIG_DIR` overrides the per-user config directory, and `XDG_CONFIG_HOME` is honoured on Linux/macOS, for settings, keybindings, workspaces, autosave, plugins and the default theme.
 - Truncated dense legends scroll with the mouse wheel in interactive windows.

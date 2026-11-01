@@ -3,21 +3,65 @@
 
 #include "renderer.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <limits>
 #include <spectra/chunked_series.hpp>
 #include <spectra/custom_series.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
 
 #include "core/axis_scale.hpp"
+#include "core/image_colormap.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
 {
+
+void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gpu)
+{
+    if (image.empty())
+        return;
+    const auto w = static_cast<uint32_t>(image.cols());
+    const auto h = static_cast<uint32_t>(image.rows());
+
+    // Value (or colour) texture: re-uploaded only when the grid changes.
+    if (!gpu.image_texture || gpu.data_generation != image.data_generation())
+    {
+        if (gpu.image_texture)
+            backend_.destroy_texture(gpu.image_texture);   // deferred by the backend
+        if (image.is_rgba())
+        {
+            const auto           px = image.data();
+            std::vector<uint8_t> rgba8(px.size());
+            for (size_t i = 0; i < px.size(); ++i)
+                rgba8[i] =
+                    static_cast<uint8_t>(std::lround(std::clamp(px[i], 0.0f, 1.0f) * 255.0f));
+            gpu.image_texture = backend_.create_texture(w, h, rgba8.data());
+        }
+        else
+        {
+            gpu.image_texture = backend_.create_data_texture(w, h, image.data().data());
+        }
+        gpu.data_generation = image.data_generation();
+    }
+
+    // Colormap lookup table: re-uploaded only when the colormap or levels change.
+    if (!image.is_rgba() && (!gpu.lut_texture || gpu.lut_generation != image.lut_generation()))
+    {
+        if (gpu.lut_texture)
+            backend_.destroy_texture(gpu.lut_texture);
+        const auto lut = image_colormap::build_lut(image.colormap(), image.levels());
+        gpu.lut_texture =
+            backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
+        gpu.lut_generation = image.lut_generation();
+    }
+}
 
 void Renderer::upload_series_data(Series& series)
 {
@@ -60,6 +104,10 @@ void Renderer::upload_series_data(Series&   series,
     auto* shape   = dynamic_cast<ShapeSeries*>(&series);
     auto* shape3d = dynamic_cast<ShapeSeries3D*>(&series);
 
+    // Try grid-valued series
+    auto* image   = dynamic_cast<ImageSeries*>(&series);
+    auto* contour = dynamic_cast<ContourSeries*>(&series);
+
     // Try custom plugin series
     auto* custom = dynamic_cast<CustomSeries*>(&series);
 
@@ -94,6 +142,10 @@ void Renderer::upload_series_data(Series&   series,
         detected = SeriesType::Shape2D;
     else if (shape3d)
         detected = SeriesType::Shape3D;
+    else if (image)
+        detected = SeriesType::Image2D;
+    else if (contour)
+        detected = SeriesType::Contour2D;
     else if (custom)
         detected = SeriesType::Custom;
 
@@ -119,7 +171,17 @@ void Renderer::upload_series_data(Series&   series,
     }
 
     // Handle 2D line/scatter and statistical/shape series (vec2 interleaved)
-    if (line || scatter || boxplot || violin || histogram || bar || band || stem || shape)
+    if (image)
+    {
+        upload_image_textures(*image, gpu);
+        gpu.upload_xscale = xscale;
+        gpu.upload_yscale = yscale;
+        series.clear_dirty();
+        return;
+    }
+
+    if (line || scatter || boxplot || violin || histogram || bar || band || stem || shape
+        || contour)
     {
         const float* x_data = nullptr;
         const float* y_data = nullptr;
@@ -186,9 +248,25 @@ void Renderer::upload_series_data(Series&   series,
             y_data = shape->y_data().data();
             count  = shape->point_count();
         }
+        else if (contour)
+        {
+            // Geometry is rebuilt by every ContourSeries setter.
+            x_data = contour->x_data().data();
+            y_data = contour->y_data().data();
+            count  = contour->point_count();
+        }
 
         if (count == 0)
+        {
+            if (contour)
+            {
+                // No iso-lines (e.g. levels outside the data): stop drawing
+                // the previous upload.
+                gpu.uploaded_count = 0;
+                series.clear_dirty();
+            }
             return;
+        }
 
         const bool use_scatter_colormap =
             scatter && scatter->has_colormap() && scatter_colormap_pipeline_;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <mutex>
 #include <string>
@@ -57,8 +58,12 @@ class McpServer
     std::atomic<bool> running_{false};
     std::thread       listener_thread_;
 
-    std::mutex       clients_mutex_;
-    std::vector<int> client_fds_;
+    // Client handlers run on detached threads that use `this`; stop() waits on
+    // clients_cv_ until active_clients_ (handlers not yet finished) drops to 0.
+    std::mutex              clients_mutex_;
+    std::condition_variable clients_cv_;
+    std::vector<int>        client_fds_;
+    size_t                  active_clients_ = 0;
 };
 
 }   // namespace spectra

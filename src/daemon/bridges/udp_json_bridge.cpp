@@ -132,14 +132,14 @@ bool UdpJsonBridge::start(TopicSink& sink, uint64_t owner_id, std::string* error
     if (::inet_pton(AF_INET, host.c_str(), &addr) != 1)
         return set_error("invalid UDP bind address '" + config_.bind_address + "'");
 
-#ifdef SOCK_CLOEXEC
+    #ifdef SOCK_CLOEXEC
     int fd = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
-#else
+    #else
     // macOS / BSD: no SOCK_CLOEXEC flag on socket(); set FD_CLOEXEC afterwards.
     int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (fd >= 0)
         ::fcntl(fd, F_SETFD, FD_CLOEXEC);
-#endif
+    #endif
     if (fd < 0)
         return set_error(std::string("socket(): ") + std::strerror(errno));
 

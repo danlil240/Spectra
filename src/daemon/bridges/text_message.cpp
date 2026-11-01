@@ -1,8 +1,9 @@
 #include "text_message.hpp"
 
-#include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 namespace spectra::daemon
 {
@@ -31,9 +32,19 @@ bool parse_number(std::string_view s, double& out)
         s.remove_prefix(1);
     if (s.empty())
         return false;
-    double v   = 0.0;
-    auto   res = std::from_chars(s.data(), s.data() + s.size(), v);
-    if (res.ec != std::errc{} || res.ptr != s.data() + s.size() || !std::isfinite(v))
+    // strtod rather than <charconv>: Apple libc++ has no floating-point from_chars.
+    // strtod also takes leading spaces and hex floats, which from_chars would reject.
+    char buf[64];
+    if (s.size() >= sizeof(buf) || is_ws(s.front()))
+        return false;
+    for (char c : s)
+        if (c == 'x' || c == 'X')
+            return false;
+    std::memcpy(buf, s.data(), s.size());
+    buf[s.size()] = '\0';
+    char*        end = nullptr;
+    const double v   = std::strtod(buf, &end);
+    if (end != buf + s.size() || !std::isfinite(v))
         return false;
     out = v;
     return true;

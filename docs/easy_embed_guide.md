@@ -208,6 +208,48 @@ Examples:
 "k-."    # Black dash-dot line
 ```
 
+## Jupyter notebooks
+
+In a Jupyter kernel an `EmbedSurface` shows as a live canvas instead of a static PNG:
+scroll to zoom, drag to pan, right-drag to zoom one axis, double-click or press `R` to
+reset. The widget is built on [anywidget](https://anywidget.dev), so it works in
+JupyterLab, Notebook 7, VS Code and Colab.
+
+```bash
+pip install "spectra-plot[notebook]"   # anywidget + Pillow
+```
+
+```python
+from spectra._embed import EmbedSurface
+import spectra.notebook as snb
+
+surface = EmbedSurface(900, 420)
+ax = surface.figure().subplot(1, 1, 1)
+series = ax.line(x, y, label="signal")
+surface                                  # last expression: live canvas
+
+canvas = snb.show(surface, height=300)   # or explicitly, returns the widget
+series.set_y(new_y)
+canvas.refresh()                         # push a frame after changing data from Python
+```
+
+How it behaves:
+
+- The kernel renders only when an event changed something, at most 30 frames per
+  second (`max_fps=`). Intermediate frames are dropped, and the browser sends its next
+  batch of events only after the kernel has handled the previous one, so a slow kernel
+  never builds up a queue.
+- Frames are JPEG while you interact and a lossless PNG once input stops.
+- The canvas follows the output width; `height=` sets its CSS height. It renders at
+  CSS resolution; `hidpi=True` renders at the browser's `devicePixelRatio`, but plot
+  text does not scale with the DPI yet, so labels look small on 2x screens.
+- Saved outputs also carry a PNG, so the plot still shows on GitHub and in nbconvert
+  exports. Without anywidget, surfaces fall back to that PNG.
+- Linux wheels bundle `libspectra_embed.so` (in `spectra/_lib/`). On macOS, build it
+  with `-DSPECTRA_BUILD_EMBED_SHARED=ON` and set `SPECTRA_EMBED_LIB`.
+
+See [`python/examples/notebook_widget.ipynb`](../python/examples/notebook_widget.ipynb).
+
 ## Examples
 
 ### Web Service Endpoint (Python)

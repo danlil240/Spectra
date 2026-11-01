@@ -14,6 +14,7 @@ summarise the main changes rather than listing every commit.
 Release-readiness work for the first public preview.
 
 ### Added
+- Interactive Jupyter widget: `EmbedSurface` shows as a live, pannable, zoomable canvas in JupyterLab, Notebook 7, VS Code and Colab (`spectra.notebook`, `pip install "spectra-plot[notebook]"`); Linux wheels now bundle `libspectra_embed`.
 - `SPECTRA_CONFIG_DIR` overrides the per-user config directory, and `XDG_CONFIG_HOME` is honoured on Linux/macOS, for settings, keybindings, workspaces, autosave, plugins and the default theme.
 - Truncated dense legends scroll with the mouse wheel in interactive windows.
 - QA: framebuffer contrast tests for plots (4 themes, 1x/2x, simulated colour-vision deficiency) and text-contrast checks in the design review; `--repeat` soak mode with an RSS/heap slope gate (`qa_soak` ctest).

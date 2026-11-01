@@ -12,6 +12,7 @@
 #include "platform/clipboard_image.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
+#include "io/pdf_export_internal.hpp"
 #include "io/svg_export_internal.hpp"
 #include "ui/theme/svg_style.hpp"
 #include "ui/theme/theme.hpp"
@@ -241,15 +242,17 @@ WindowContext* find_window_for_figure(WindowManager* window_mgr, uint64_t fig_id
 }
 #endif
 
-bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHost* svg_host)
+namespace
 {
-    if (f.export_req_.svg_path.empty())
-        return true;
-    const std::string path  = std::move(f.export_req_.svg_path);
-    const std::string theme = std::move(f.export_req_.svg_theme);
-    f.export_req_.svg_path.clear();
-    f.export_req_.svg_theme.clear();
 
+// Runs `write(style)` for a vector export of `f` drawn with `theme` (empty: the
+// active one): the figure is laid out and coloured as the GPU path would draw it.
+template <typename Write>
+bool write_vector_export(Figure&            f,
+                         ui::ThemeManager*  theme_mgr,
+                         const std::string& theme,
+                         Write&&            write)
+{
     ui::ScopedExportTheme export_theme(theme_mgr, theme);
     f.compute_layout();
     // Same plot surface as the GPU path: the figure's background override (if
@@ -265,12 +268,58 @@ bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHo
     const SvgStyle style = theme_mgr
                                ? ui::svg_style_from_theme(theme_mgr->plot_surface_colors(f.style()))
                                : SvgStyle{};
+    return write(style);
+}
+
+}   // namespace
+
+bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHost* svg_host)
+{
+    if (f.export_req_.svg_path.empty())
+        return true;
+    const std::string path  = std::move(f.export_req_.svg_path);
+    const std::string theme = std::move(f.export_req_.svg_theme);
+    f.export_req_.svg_path.clear();
+    f.export_req_.svg_theme.clear();
+
     // Plugin series are drawn by their type's vector export callback when the
     // caller supplies one (in-proc App); otherwise they become XML comments.
-    const bool ok = svg_host ? svg_export_write(path, f, style, *svg_host)
-                             : SvgExporter::write_svg(path, f, style);
+    const bool ok = write_vector_export(f,
+                                        theme_mgr,
+                                        theme,
+                                        [&](const SvgStyle& style)
+                                        {
+                                            return svg_host
+                                                       ? svg_export_write(path, f, style, *svg_host)
+                                                       : SvgExporter::write_svg(path, f, style);
+                                        });
     if (!ok)
         SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", path);
+    return ok;
+}
+
+bool write_pending_pdf(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHost* svg_host)
+{
+    if (f.export_req_.pdf_path.empty())
+        return true;
+    const std::string path  = std::move(f.export_req_.pdf_path);
+    const std::string theme = std::move(f.export_req_.pdf_theme);
+    f.export_req_.pdf_path.clear();
+    f.export_req_.pdf_theme.clear();
+
+    const bool ok =
+        write_vector_export(f,
+                            theme_mgr,
+                            theme,
+                            [&](const SvgStyle& style)
+                            {
+                                const PdfPage page{&f, style};
+                                return pdf_export_write(path,
+                                                        std::span<const PdfPage>(&page, 1),
+                                                        svg_host ? *svg_host : SvgExportHost{});
+                            });
+    if (!ok)
+        SPECTRA_LOG_ERROR("app", "Failed to write PDF: {}", path);
     return ok;
 }
 
@@ -298,11 +347,16 @@ bool service_window_exports(WindowPngExport&     png_export,
         scheduled = png_export.schedule(*active, vk, target_wctx);
     }
 
-    // SVG is a CPU export of the figure model: write it now, not at shutdown.
+    // SVG / PDF are CPU exports of the figure model: write them now, not at shutdown.
     for (auto id : registry.all_ids())
     {
-        if (Figure* fig = registry.get(id); fig && !fig->export_req_.svg_path.empty())
+        Figure* fig = registry.get(id);
+        if (!fig)
+            continue;
+        if (!fig->export_req_.svg_path.empty())
             write_pending_svg(*fig, theme_mgr, svg_host);
+        if (!fig->export_req_.pdf_path.empty())
+            write_pending_pdf(*fig, theme_mgr, svg_host);
     }
     return scheduled;
 }

@@ -1017,6 +1017,18 @@ inline bool save_svg(const std::string& path, const ExportOptions& options)
     return detail::easy_state().ensure_figure().save_svg(path, options);
 }
 
+/// Save current figure as a vector PDF.  Returns false if the request was rejected.
+inline bool save_pdf(const std::string& path)
+{
+    return detail::easy_state().ensure_figure().save_pdf(path);
+}
+
+/// Save current figure as PDF with per-export options, e.g. {.theme = "light"}.
+inline bool save_pdf(const std::string& path, const ExportOptions& options)
+{
+    return detail::easy_state().ensure_figure().save_pdf(path, options);
+}
+
 /// Copy current figure to the system clipboard as a PNG image.
 inline void copy_to_clipboard()
 {

@@ -10,6 +10,10 @@ namespace spectra
 class FigureRegistry;
 class SessionRuntime;
 class ExportFormatRegistry;
+namespace logs
+{
+class LogReaderRegistry;
+}
 class OverlayRegistry;
 class PluginManager;
 class SeriesClipboard;
@@ -50,8 +54,10 @@ struct WindowUIContextBuildOptions
 
     PluginManager*        plugin_manager         = nullptr;
     ExportFormatRegistry* export_format_registry = nullptr;
-    OverlayRegistry*      overlay_registry       = nullptr;
-    SeriesClipboard*      series_clipboard       = nullptr;
+    // Readers for the log browser (nullptr: the panel's built-in set).
+    const logs::LogReaderRegistry* log_reader_registry = nullptr;
+    OverlayRegistry*               overlay_registry    = nullptr;
+    SeriesClipboard*               series_clipboard    = nullptr;
 
     ui::settings::SettingsStore* settings_store = nullptr;
 

@@ -38,6 +38,7 @@ struct SDL_Window;
 struct ImFont;
 struct ImFontAtlas;
 struct ImGuiContext;
+struct ImGuiPayload;
 struct ImVec2;
 
 namespace spectra::ui
@@ -54,6 +55,10 @@ class StatusBar;
 namespace topics
 {
 class TopicsPanel;
+}
+namespace logs
+{
+class LogBrowserPanel;
 }
 namespace settings
 {
@@ -343,6 +348,14 @@ class ImGuiIntegration
     void                     set_topics_panel(ui::topics::TopicsPanel* p) { topics_panel_ = p; }
     ui::topics::TopicsPanel* topics_panel() const { return topics_panel_; }
 
+    // Log browser panel (ULog / MCAP files) — owned externally (WindowUIContext).
+    void set_log_browser_panel(ui::logs::LogBrowserPanel* p) { log_browser_panel_ = p; }
+    ui::logs::LogBrowserPanel* log_browser_panel() const { return log_browser_panel_; }
+
+    // Native "Open Log" dialog (File > Open Log...); opens the chosen file in
+    // the log browser.  No-op without a log browser or native dialogs.
+    void open_log_with_dialog();
+
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
@@ -627,6 +640,19 @@ class ImGuiIntegration
     void draw_plot_overlays(Figure& figure);
     void draw_topic_drop_target(Figure& figure);
     void draw_topic_drop_target_welcome();
+    void draw_log_field_drop_target(Figure& figure);
+    void draw_log_field_drop_target_welcome();
+    // Invisible canvas-wide drop overlay shared by the topic and log-field
+    // drop targets: highlights the axes under the mouse while a `payload_type`
+    // payload is dragged and calls `on_drop(payload, axes_index)` on release
+    // (axes_index is -1 when the mouse is not over an axes).
+    void draw_canvas_drop_overlay(Figure&                                              figure,
+                                  const char*                                          payload_type,
+                                  const char*                                          window_id,
+                                  const std::function<void(const ImGuiPayload*, int)>& on_drop);
+    // Viewport-wide drop zone used on the empty-app welcome screen.
+    void draw_welcome_drop_overlay(const char*                                     payload_type,
+                                   const std::function<void(const ImGuiPayload*)>& on_drop);
     void draw_toolbar_button(const char*                  icon,
                              const std::function<void()>& callback,
                              const char*                  tooltip,
@@ -772,6 +798,9 @@ class ImGuiIntegration
 
     // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md) — not owned.
     ui::topics::TopicsPanel* topics_panel_ = nullptr;
+
+    // Log browser panel — not owned.
+    ui::logs::LogBrowserPanel* log_browser_panel_ = nullptr;
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;

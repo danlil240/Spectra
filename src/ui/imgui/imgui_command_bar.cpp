@@ -7,6 +7,7 @@
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
+    #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
     #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
@@ -225,6 +226,8 @@ ui::shell::MenuBar& ImGuiIntegration::fallback_menu_bar()
             return show_plugins_panel_;
         if (id == "core.topics")
             return topics_panel_ && topics_panel_->is_visible();
+        if (id == "core.logs")
+            return log_browser_panel_ && log_browser_panel_->is_visible();
         if (id == "core.settings")
             return settings_panel_ && settings_panel_->is_visible();
         return false;

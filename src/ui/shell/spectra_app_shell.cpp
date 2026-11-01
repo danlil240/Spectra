@@ -15,6 +15,7 @@
     #include "ui/overlay/knob_manager.hpp"
     #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/panel.hpp"
+    #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
@@ -460,6 +461,8 @@ void SpectraAppShell::sync_panel_state_from_imgui()
         p->set_visible(imgui_->show_plugins_panel_);
     if (auto* p = panels_.find("core.topics"))
         p->set_visible(imgui_->topics_panel_ && imgui_->topics_panel_->is_visible());
+    if (auto* p = panels_.find("core.logs"))
+        p->set_visible(imgui_->log_browser_panel_ && imgui_->log_browser_panel_->is_visible());
 }
 
 void SpectraAppShell::sync_panel_state_to_imgui()
@@ -483,6 +486,11 @@ void SpectraAppShell::sync_panel_state_to_imgui()
     {
         if (imgui_->topics_panel_)
             imgui_->topics_panel_->set_visible(p->visible());
+    }
+    if (const Panel* p = panels_.find("core.logs"))
+    {
+        if (imgui_->log_browser_panel_)
+            imgui_->log_browser_panel_->set_visible(p->visible());
     }
 }
 
@@ -586,6 +594,18 @@ void SpectraAppShell::on_register_panels()
                 imgui_->topics_panel_->draw();
         });
 
+    add("core.logs",
+        "Log Browser",
+        "Panels",
+        Icon::FolderOpen,
+        DockSlot::Floating,
+        false,
+        [this](bool* /*p_open*/)
+        {
+            if (imgui_->log_browser_panel_)
+                imgui_->log_browser_panel_->draw();
+        });
+
     add("core.settings",
         "Settings",
         "Panels",
@@ -687,6 +707,7 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
 
     auto& file = bar.menu("File");
     file.add(command("New Figure", "figure.new"));
+    file.add(command("Open Log...", "file.open_log"));
     file.add_separator();
     file.add(command("Export PNG", "file.export_png"));
     file.add(command("Export SVG", "file.export_svg"));
@@ -790,6 +811,7 @@ const std::vector<SpectraAppShell::CorePanelEntry>& SpectraAppShell::core_panels
         {"core.curve_editor", "Curve Editor", Icon::ChartLine},
         {"core.plugins", "Plugins", Icon::Wrench},
         {"core.topics", "Topics", Icon::Broadcast},
+        {"core.logs", "Log Browser", Icon::FolderOpen},
         {"core.settings", "Settings", Icon::Settings},
     };
     return panels;

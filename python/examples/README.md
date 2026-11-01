@@ -46,3 +46,4 @@ is not already running. A Vulkan driver and a display are needed for windowed ex
 | [`qt_minimal.py`](qt_minimal.py) | Minimal Qt embed, side by side with the matplotlib equivalent. | PyQt5/6 or PySide2/6 |
 | [`qt_backend_demo.py`](qt_backend_demo.py) | matplotlib-style `FigureCanvasSpectra` + navigation toolbar. | PyQt5/6 or PySide2/6 |
 | [`qt_dynamic_demo.py`](qt_dynamic_demo.py) | Static and timer-driven dynamic canvases, like matplotlib's Qt example. | PyQt5/6 or PySide2/6 |
+| [`notebook_widget.ipynb`](notebook_widget.ipynb) | Live, pannable, zoomable plots in Jupyter (`spectra.notebook`). | `spectra-plot[notebook]`, `libspectra_embed` |

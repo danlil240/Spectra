@@ -1,7 +1,9 @@
 #include <atomic>
 #include <csignal>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -13,6 +15,8 @@
 #include "../ipc/message.hpp"
 #include "../ipc/transport.hpp"
 #include "agent_message_handler.hpp"
+#include "bridges/topic_ingest.hpp"
+#include "bridges/udp_json_bridge.hpp"
 #include "daemon_server.hpp"
 #include "heartbeat_monitor.hpp"
 #include "python_message_handler.hpp"
@@ -85,6 +89,12 @@ int main(int argc, char* argv[])
                       << "Options:\n"
                       << "  --socket <path>  Unix socket path to listen on\n"
                       << "  --idle-exit      Exit when no UI/source/publisher clients remain\n"
+                      << "  --udp-bridge [HOST:]PORT\n"
+                      << "                   Publish UDP JSON/CSV datagrams as topics\n"
+                      << "                   (default host 127.0.0.1; env SPECTRA_UDP_BRIDGE)\n"
+                      << "  --udp-bridge-prefix NAME\n"
+                      << "                   Topic name prefix for the UDP bridge (default udp;\n"
+                      << "                   env SPECTRA_UDP_BRIDGE_PREFIX)\n"
                       << "  --version, -v    Print version and exit\n"
                       << "  --help, -h       Show this help\n";
             return 0;
@@ -98,6 +108,13 @@ int main(int argc, char* argv[])
     // Parse optional --socket <path> argument
     std::string socket_path;
     bool        idle_exit = false;
+    // UDP bridge: env first, command line overrides.
+    std::string udp_bridge_spec;
+    std::string udp_bridge_prefix;
+    if (const char* env = std::getenv("SPECTRA_UDP_BRIDGE"); env && env[0] != '\0')
+        udp_bridge_spec = env;
+    if (const char* env = std::getenv("SPECTRA_UDP_BRIDGE_PREFIX"); env && env[0] != '\0')
+        udp_bridge_prefix = env;
     for (int i = 1; i < argc; ++i)
     {
         std::string arg = argv[i];
@@ -108,6 +125,14 @@ int main(int argc, char* argv[])
         else if (arg == "--idle-exit")
         {
             idle_exit = true;
+        }
+        else if (arg == "--udp-bridge" && i + 1 < argc)
+        {
+            udp_bridge_spec = argv[++i];
+        }
+        else if (arg == "--udp-bridge-prefix" && i + 1 < argc)
+        {
+            udp_bridge_prefix = argv[++i];
         }
     }
     if (socket_path.empty())
@@ -146,6 +171,41 @@ int main(int argc, char* argv[])
         ctx{graph, fig_model, proc_mgr, clients, g_running, topics, idle_exit, &set_data_chunks};
 
     bool had_agents = false;
+
+    // --- Topic bridges (UDP JSON/CSV) ---
+    // Bridge threads only push into ingest_queue; this loop drains it, so the
+    // FigureModel and client connections stay single-threaded.
+    TopicIngestQueue               ingest_queue;
+    std::unique_ptr<UdpJsonBridge> udp_bridge;
+    const uint64_t                 udp_bridge_owner = BRIDGE_OWNER_ID_BASE + 1;
+    if (!udp_bridge_spec.empty())
+    {
+        UdpBridgeConfig cfg;
+        std::string     err;
+        if (!udp_bridge_prefix.empty())
+            cfg.prefix = udp_bridge_prefix;
+        if (!parse_udp_bridge_spec(udp_bridge_spec, cfg, &err))
+        {
+            std::cerr << "[spectra-backend] UDP bridge disabled: " << err << "\n";
+        }
+        else
+        {
+            udp_bridge = std::make_unique<UdpJsonBridge>(cfg);
+            if (udp_bridge->start(ingest_queue, udp_bridge_owner, &err))
+            {
+                std::cerr << "[spectra-backend] UDP bridge listening: " << udp_bridge->describe()
+                          << "\n";
+                if (!is_loopback_address(cfg.bind_address))
+                    std::cerr << "[spectra-backend] WARNING: UDP bridge is reachable from the "
+                                 "network and unauthenticated\n";
+            }
+            else
+            {
+                std::cerr << "[spectra-backend] UDP bridge failed to start: " << err << "\n";
+                udp_bridge.reset();
+            }
+        }
+    }
 
     std::cerr << "[spectra-backend] Listening for connections...\n";
 
@@ -376,6 +436,9 @@ int main(int argc, char* argv[])
             }
         }
 
+        // --- Bridge samples queued since the last iteration ---
+        drain_topic_ingest(ctx, ingest_queue);
+
         // --- Heartbeat monitor: stale agents + process reaping ---
         heartbeat.tick(ctx);
 
@@ -407,6 +470,9 @@ int main(int argc, char* argv[])
     }
 
     // Cleanup
+    if (udp_bridge)
+        udp_bridge->stop();
+
     for (auto& c : clients)
     {
         if (c.conn)

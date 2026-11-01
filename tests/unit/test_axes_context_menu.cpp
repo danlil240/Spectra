@@ -23,6 +23,7 @@ void register_menu_commands(CommandRegistry& reg)
     add("file.copy_to_clipboard", "Copy Figure to Clipboard", "Ctrl+Shift+C");
     add("file.export_png", "Export PNG", "Ctrl+S");
     add("file.export_svg", "Export SVG", "Ctrl+Shift+S");
+    add("file.export_pdf", "Export PDF", "");
     add("series.copy", "Copy Series", "Ctrl+C");
     add("series.cut", "Cut Series", "Ctrl+X");
     add("series.delete", "Delete Series", "Delete");
@@ -87,7 +88,8 @@ TEST(AxesContextMenu, SingleAxesNoSelectionHasUsefulActions)
                            "view.toggle_legend",
                            "file.copy_to_clipboard",
                            "file.export_png",
-                           "file.export_svg"})
+                           "file.export_svg",
+                           "file.export_pdf"})
     {
         EXPECT_NE(find_command(items, id), nullptr) << id;
     }
@@ -199,6 +201,7 @@ TEST(AxesContextMenu, Axes3DMenu)
     // 2D-only items
     EXPECT_EQ(find_command(items, "view.toggle_legend"), nullptr);
     EXPECT_EQ(find_command(items, "file.export_svg"), nullptr);
+    EXPECT_EQ(find_command(items, "file.export_pdf"), nullptr);
     // The inspector has a 3D axes page, so 3D axes offer it too (issue #105).
     EXPECT_NE(find_kind(items, AxesMenuItemKind::AxesProperties), nullptr);
 }

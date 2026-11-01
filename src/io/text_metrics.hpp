@@ -36,6 +36,23 @@ bool inter_covers(std::string_view text);
 // is unavailable or cannot be subset.
 std::vector<uint8_t> inter_font_subset(std::span<const uint32_t> codepoints);
 
+// Glyph id the embedded Inter maps `cp` to; 0 (.notdef) when Inter lacks it or
+// is unavailable.  inter_font_subset() keeps glyph ids, so they index its output too.
+uint16_t inter_glyph_index(uint32_t cp);
+
+// Advance width of Inter glyph `glyph` in em (0 when unavailable).
+float inter_glyph_advance_em(uint16_t glyph);
+
+// Font-wide Inter metrics in em (all zero when unavailable).
+struct InterFontMetrics
+{
+    bool  ok      = false;
+    float ascent  = 0.0f;   // hhea ascender (positive)
+    float descent = 0.0f;   // hhea descender (negative)
+    float bbox[4] = {};     // xMin, yMin, xMax, yMax
+};
+InterFontMetrics inter_font_metrics();
+
 // Codepoints of UTF-8 `text`, in order (malformed bytes decode as themselves).
 std::vector<uint32_t> utf8_codepoints(std::string_view text);
 

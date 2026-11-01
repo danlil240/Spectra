@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 #include <spectra/color.hpp>
 #include <string>
 #include <vector>
@@ -8,7 +9,7 @@
 namespace spectra
 {
 
-// Forward declarations for SVG export
+// Forward declarations for SVG / PDF export
 class Figure;
 
 class ImageExporter
@@ -65,6 +66,23 @@ class SvgExporter
     static bool write_svg(const std::string& path, const Figure& figure, const SvgStyle& style);
 
     // Write SVG to a string instead of a file.
+    static std::string to_string(const Figure& figure);
+    static std::string to_string(const Figure& figure, const SvgStyle& style);
+};
+
+// Vector PDF (1.4) export: the same drawing as SvgExporter (chrome colours from an
+// SvgStyle; fit_text_length / embed_font do not apply), one page per figure at
+// 96 dpi (1 px = 0.75 pt), text set in an embedded Inter subset so it stays
+// selectable and searchable.  As for SVG, the caller computes each figure's layout.
+class PdfExporter
+{
+   public:
+    static bool write_pdf(const std::string& path, const Figure& figure);
+    static bool write_pdf(const std::string& path, const Figure& figure, const SvgStyle& style);
+    // One page per figure (in order), each with its default style.
+    static bool write_pdf(const std::string& path, std::span<const Figure* const> figures);
+
+    // The PDF document as bytes.
     static std::string to_string(const Figure& figure);
     static std::string to_string(const Figure& figure, const SvgStyle& style);
 };

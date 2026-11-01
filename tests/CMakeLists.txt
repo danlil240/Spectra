@@ -135,6 +135,7 @@ set(SPECTRA_UNIT_TESTS
     test_series_visibility
     test_ui_icons
     test_svg_export
+    test_pdf_export
     test_annotations
     test_resize_layout
     test_layout_manager
@@ -605,7 +606,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|image_series)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

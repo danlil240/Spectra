@@ -10,6 +10,7 @@
 #ifndef _WIN32
     #include <arpa/inet.h>
     #include <cerrno>
+    #include <fcntl.h>
     #include <netinet/in.h>
     #include <poll.h>
     #include <sys/socket.h>
@@ -131,7 +132,14 @@ bool UdpJsonBridge::start(TopicSink& sink, uint64_t owner_id, std::string* error
     if (::inet_pton(AF_INET, host.c_str(), &addr) != 1)
         return set_error("invalid UDP bind address '" + config_.bind_address + "'");
 
+#ifdef SOCK_CLOEXEC
     int fd = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
+#else
+    // macOS / BSD: no SOCK_CLOEXEC flag on socket(); set FD_CLOEXEC afterwards.
+    int fd = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd >= 0)
+        ::fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
     if (fd < 0)
         return set_error(std::string("socket(): ") + std::strerror(errno));
 

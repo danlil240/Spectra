@@ -36,6 +36,8 @@
     #include <unordered_map>
     #include <vector>
 
+    #include "../daemon/bridges/topic_bridge.hpp"
+    #include "../daemon/bridges/topic_ingest.hpp"
     #include "../daemon/topic_registry.hpp"
     #include "../ipc/message.hpp"
     #include "../ipc/transport.hpp"
@@ -49,7 +51,11 @@ class AxesBase;
 class FigureRegistry;
 class Series;
 
-class InprocTopicServer : public TopicBindingProvider
+// Also a daemon::TopicSink: topic bridges (UDP JSON, ...) and plugin data
+// sources push decoded messages straight into its registry; push() is
+// thread-safe and, like the socket worker, only queues series updates for
+// drain_pending().
+class InprocTopicServer final : public daemon::TopicSink, public TopicBindingProvider
 {
    public:
     // Called whenever the topic list changes (declare / disconnect / subscribe).
@@ -95,6 +101,14 @@ class InprocTopicServer : public TopicBindingProvider
     // Number of interleaved (x, y) points waiting for drain_pending().
     size_t pending_point_count() const;
 
+    // TopicSink: declare unseen topics owned by batch.owner_id and publish
+    // every field.  Thread-safe; does not need start().
+    bool push(daemon::TopicIngestBatch&& batch) override;
+
+    // Mark every topic owned by an in-process producer offline (bridge or
+    // data source stopped).
+    void mark_owner_offline(uint64_t owner_id);
+
     // Get a snapshot of current topics (for the panel's list_request callback).
     std::vector<ipc::TopicInfoEntry> topic_snapshot() const;
 
@@ -102,6 +116,10 @@ class InprocTopicServer : public TopicBindingProvider
     void run_loop();
     void handle_message(int fd, ipc::Connection& conn, uint64_t client_id, const ipc::Message& msg);
     void on_client_disconnected(uint64_t client_id);
+    void queue_pending(const std::string&                            name,
+                       ipc::TopicKind                                kind,
+                       const std::vector<double>&                    samples,
+                       const std::vector<daemon::TopicSubscription>& subs);
     void notify_topic_changed();
     void unwire_panel();
     void subscribe_from_panel(const ui::topics::SubscribeRequest& req);

@@ -281,33 +281,7 @@ void InprocTopicServer::handle_message(int /*fd*/,
 
             // Queue for the main thread.  The worker must not touch Figure /
             // Axes / Series: they are owned and mutated by the main thread.
-            if (!subs_out.empty() && !req->samples.empty())
-            {
-                const size_t       stride = daemon::TopicRegistry::stride_for(kind);
-                const size_t       n      = req->samples.size() / stride;
-                std::vector<float> xy;
-                xy.reserve(n * 2);
-                for (size_t k = 0; k < n; ++k)
-                {
-                    xy.push_back(static_cast<float>(req->samples[k * stride]));
-                    xy.push_back(static_cast<float>(req->samples[k * stride + 1]));
-                }
-
-                std::lock_guard lock(pending_mu_);
-                for (const auto& sub : subs_out)
-                {
-                    if (pending_points_ + n > MAX_PENDING_POINTS)
-                    {
-                        SPECTRA_LOG_WARN("topics",
-                                         "Dropping {} samples for '{}': drain queue full",
-                                         n,
-                                         req->name);
-                        break;
-                    }
-                    pending_points_ += n;
-                    pending_.push_back({sub, xy});
-                }
-            }
+            queue_pending(req->name, kind, req->samples, subs_out);
 
             send_ok(conn, msg.header.request_id);
             break;
@@ -321,6 +295,55 @@ void InprocTopicServer::handle_message(int /*fd*/,
         default:
             break;
     }
+}
+
+void InprocTopicServer::queue_pending(const std::string&                            name,
+                                      ipc::TopicKind                                kind,
+                                      const std::vector<double>&                    samples,
+                                      const std::vector<daemon::TopicSubscription>& subs)
+{
+    if (subs.empty() || samples.empty())
+        return;
+    const size_t       stride = daemon::TopicRegistry::stride_for(kind);
+    const size_t       n      = samples.size() / stride;
+    std::vector<float> xy;
+    xy.reserve(n * 2);
+    for (size_t k = 0; k < n; ++k)
+    {
+        xy.push_back(static_cast<float>(samples[k * stride]));
+        xy.push_back(static_cast<float>(samples[k * stride + 1]));
+    }
+
+    std::lock_guard lock(pending_mu_);
+    for (const auto& sub : subs)
+    {
+        if (pending_points_ + n > MAX_PENDING_POINTS)
+        {
+            SPECTRA_LOG_WARN("topics", "Dropping {} samples for '{}': drain queue full", n, name);
+            break;
+        }
+        pending_points_ += n;
+        pending_.push_back({sub, xy});
+    }
+}
+
+bool InprocTopicServer::push(daemon::TopicIngestBatch&& batch)
+{
+    daemon::IngestResult result;
+    {
+        std::lock_guard lock(reg_mu_);
+        daemon::apply_ingest_batch(registry_, batch, result);
+    }
+    for (const auto& t : result.fanout)
+        queue_pending(t.name, t.kind, t.samples, t.subs);
+    if (result.topic_list_changed)
+        notify_topic_changed();
+    return true;
+}
+
+void InprocTopicServer::mark_owner_offline(uint64_t owner_id)
+{
+    on_client_disconnected(owner_id);
 }
 
 void InprocTopicServer::on_client_disconnected(uint64_t client_id)

@@ -15,6 +15,7 @@
 
 #include "anim/frame_scheduler.hpp"
 #include "adapters/data_source_registry.hpp"
+#include "adapters/data_source_topics.hpp"
 #include "io/export_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/renderer.hpp"
@@ -68,6 +69,7 @@
 
 #ifndef _WIN32
     #include "../../app/inproc_topic_server.hpp"
+    #include "daemon/bridges/udp_json_bridge.hpp"
 #endif
 
 #include "perf_metrics.hpp"
@@ -275,6 +277,9 @@ struct App::AppRuntime
 
 #ifndef _WIN32
     std::unique_ptr<InprocTopicServer> topic_server;
+    // Optional UDP JSON/CSV bridge publishing into topic_server
+    // (SPECTRA_UDP_BRIDGE).  Stopped before topic_server.
+    std::unique_ptr<daemon::UdpJsonBridge> udp_bridge;
     // Window whose TopicsPanel is wired to topic_server (only one at a time).
     // When that window closes, the panel is rewired to a surviving window.
     bool     topics_panel_wired     = false;
@@ -369,15 +374,62 @@ static void release_plugin_ui_host(PluginManager&    plugin_manager,
 }
 #endif
 
+#ifndef _WIN32
+// Let the Topics panel list plugin data sources and start / stop them.  The
+// registry lives on AppRuntime, which outlives every window's panel.
+static void wire_data_source_controls(ui::topics::TopicsPanel& panel,
+                                      DataSourceRegistry&      data_sources)
+{
+    panel.set_data_source_callbacks(
+        [&data_sources]()
+        {
+            std::vector<ui::topics::DataSourceRow> rows;
+            for (auto& st : data_sources.status())
+                rows.push_back(
+                    ui::topics::DataSourceRow{std::move(st.name), st.running, st.faulted});
+            return rows;
+        },
+        [&data_sources](const std::string& name, bool start)
+        { data_sources.set_running(name, start); });
+}
+
+// Start the in-process UDP bridge when SPECTRA_UDP_BRIDGE is set.
+static std::unique_ptr<daemon::UdpJsonBridge> start_udp_bridge_from_env(InprocTopicServer& sink)
+{
+    const char* spec = std::getenv("SPECTRA_UDP_BRIDGE");
+    if (!spec || spec[0] == '\0')
+        return nullptr;
+
+    daemon::UdpBridgeConfig cfg;
+    std::string             err;
+    if (const char* prefix = std::getenv("SPECTRA_UDP_BRIDGE_PREFIX"); prefix && prefix[0] != '\0')
+        cfg.prefix = prefix;
+    if (!daemon::parse_udp_bridge_spec(spec, cfg, &err))
+    {
+        SPECTRA_LOG_WARN("topics", "UDP bridge disabled: {}", err);
+        return nullptr;
+    }
+    auto bridge = std::make_unique<daemon::UdpJsonBridge>(cfg);
+    if (!bridge->start(sink, daemon::BRIDGE_OWNER_ID_BASE + 1, &err))
+    {
+        SPECTRA_LOG_WARN("topics", "UDP bridge failed to start: {}", err);
+        return nullptr;
+    }
+    SPECTRA_LOG_INFO("topics", "UDP bridge listening: {}", bridge->describe());
+    return bridge;
+}
+#endif
+
 #if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
 // Keep exactly one open window's TopicsPanel wired to the topic server.  The
 // panel unwires itself when its window is destroyed; this wires the panel of
 // the first surviving regular window instead.  Main thread only.
-static void rewire_topics_panel_if_needed(InprocTopicServer& server,
-                                          WindowManager&     window_mgr,
-                                          FigureRegistry&    registry,
-                                          bool&              wired,
-                                          uint32_t&          wired_window_id)
+static void rewire_topics_panel_if_needed(InprocTopicServer&  server,
+                                          WindowManager&      window_mgr,
+                                          FigureRegistry&     registry,
+                                          DataSourceRegistry& data_sources,
+                                          bool&               wired,
+                                          uint32_t&           wired_window_id)
 {
     #ifdef SPECTRA_USE_IMGUI
     // Every window resolves layout topic bindings through the server (cheap
@@ -406,6 +458,7 @@ static void rewire_topics_panel_if_needed(InprocTopicServer& server,
         return;
 
     server.wire_topics_panel(candidate->ui_ctx->topics_panel, &registry);
+    wire_data_source_controls(candidate->ui_ctx->topics_panel, data_sources);
     wired           = true;
     wired_window_id = candidate->id;
 }
@@ -917,6 +970,7 @@ void App::init_runtime()
             rewire_topics_panel_if_needed(*rt.topic_server,
                                           *rt.window_mgr,
                                           registry_,
+                                          rt.data_source_registry,
                                           rt.topics_panel_wired,
                                           rt.topics_panel_window_id);
             wired_via_window_mgr = true;
@@ -928,7 +982,9 @@ void App::init_runtime()
     #ifdef SPECTRA_USE_IMGUI
             rt.ui_ctx_ptr->layout_session.set_topic_provider(rt.topic_server.get());
     #endif
+            wire_data_source_controls(rt.ui_ctx_ptr->topics_panel, rt.data_source_registry);
         }
+        rt.udp_bridge = start_udp_bridge_from_env(*rt.topic_server);
     }
 #endif
 
@@ -966,7 +1022,12 @@ App::StepResult App::step()
     // run on this (main) thread before tick() commits pending series data so
     // the samples show up in this frame.
     if (rt.topic_server)
+    {
+        // Plugin data sources publish as topics "<source>/<series label>";
+        // their samples are queued like any publisher's and drained below.
+        pump_data_sources_to_topics(rt.data_source_registry, *rt.topic_server);
         rt.topic_server->drain_pending();
+    }
 #endif
 
     // A PNG capture with its own theme: the frame it reads back is drawn with
@@ -1001,6 +1062,7 @@ App::StepResult App::step()
         rewire_topics_panel_if_needed(*rt.topic_server,
                                       *rt.window_mgr,
                                       registry_,
+                                      rt.data_source_registry,
                                       rt.topics_panel_wired,
                                       rt.topics_panel_window_id);
 #endif
@@ -1129,6 +1191,11 @@ void App::shutdown_runtime()
 #ifndef _WIN32
     // Stop before MCP/automation: the topic worker may call UI callbacks that
     // reference TopicsPanel, which is destroyed when the user closes the window.
+    if (rt.udp_bridge)
+    {
+        rt.udp_bridge->stop();
+        rt.udp_bridge.reset();
+    }
     if (rt.topic_server)
     {
         rt.topic_server->stop();

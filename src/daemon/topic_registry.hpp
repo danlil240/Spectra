@@ -67,10 +67,30 @@ class TopicRegistry
     // Returns false if the topic is unknown, or if samples.size() is not a
     // multiple of the topic's stride (the samples are then dropped so the
     // interleaved ring never becomes misaligned).
+    // 'publish_ns' is the steady_clock arrival time used by the Hz estimator;
+    // 0 means now.  Callers that publish from a queue pass the time the
+    // message arrived so draining a backlog does not read as a rate spike.
     bool publish(const std::string&              name,
                  const std::vector<double>&      samples,
                  ipc::TopicKind*                 kind_out,
-                 std::vector<TopicSubscription>* subs_out);
+                 std::vector<TopicSubscription>* subs_out,
+                 uint64_t                        publish_ns = 0);
+
+    enum class EnsureResult
+    {
+        AlreadyDeclared,   // owner already holds the topic online; nothing changed
+        Declared,          // created, or reclaimed while offline (topic list changed)
+        Conflict,          // owned by a different live publisher
+    };
+
+    // Declare-on-first-sight for in-process producers (bridges, plugin data
+    // sources): a no-op when `owner_client_id` already owns `name` online with
+    // the same kind, otherwise behaves like declare().
+    EnsureResult ensure_declared(const std::string& name,
+                                 ipc::TopicKind     kind,
+                                 const std::string& unit,
+                                 uint32_t           ring_capacity,
+                                 uint64_t           owner_client_id);
 
     // Forget all topics owned by this client (mark offline). Pending
     // subscribers remain so the topic re-attaches on next declare().
@@ -118,6 +138,12 @@ class TopicRegistry
     }
 
    private:
+    DeclareResult declare_locked(const std::string& name,
+                                 ipc::TopicKind     kind,
+                                 const std::string& unit,
+                                 uint32_t           ring_capacity,
+                                 uint64_t           owner_client_id);
+
     struct Topic
     {
         ipc::TopicKind kind = ipc::TopicKind::Scalar2D;

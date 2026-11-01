@@ -249,13 +249,23 @@ bool RecentLayouts::save() const
     return true;
 }
 
+namespace
+{
+// Absolute, lexically normal form, so "./x.json" and "x.json" are one entry
+// (and on Windows "/x" matches the stored "D:\\x").
+std::string normalize_recent_path(const std::string& file)
+{
+    std::error_code ec;
+    auto            abs = std::filesystem::absolute(file, ec);
+    return ec ? file : abs.lexically_normal().string();
+}
+}   // namespace
+
 void RecentLayouts::push(const std::string& file)
 {
     if (file.empty())
         return;
-    std::error_code ec;
-    auto            abs  = std::filesystem::absolute(file, ec);
-    std::string     norm = ec ? file : abs.lexically_normal().string();
+    const std::string norm = normalize_recent_path(file);
     entries_.erase(std::remove(entries_.begin(), entries_.end(), norm), entries_.end());
     entries_.insert(entries_.begin(), norm);
     if (entries_.size() > max_entries_)
@@ -265,7 +275,11 @@ void RecentLayouts::push(const std::string& file)
 
 void RecentLayouts::remove(const std::string& file)
 {
-    entries_.erase(std::remove(entries_.begin(), entries_.end(), file), entries_.end());
+    const std::string norm = normalize_recent_path(file);
+    entries_.erase(std::remove_if(entries_.begin(),
+                                  entries_.end(),
+                                  [&](const std::string& e) { return e == file || e == norm; }),
+                   entries_.end());
     save();
 }
 

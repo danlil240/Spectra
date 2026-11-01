@@ -762,18 +762,20 @@ TEST(LayoutSession, SavedLabelsAndCsvReplacement)
 
 TEST(LayoutRecent, KeepsMostRecentFirstAndCaps)
 {
+    // Entries are stored absolute ("/d" becomes "D:\\d" on Windows).
+    auto          norm = [](const char* p) { return fs::absolute(p).lexically_normal().string(); };
     RecentLayouts r({}, 3);
     r.push("/a");
     r.push("/b");
     r.push("/c");
     r.push("/d");
     ASSERT_EQ(r.entries().size(), 3u);
-    EXPECT_EQ(r.entries()[0], "/d");
+    EXPECT_EQ(r.entries()[0], norm("/d"));
     r.push("/c");
-    EXPECT_EQ(r.entries()[0], "/c");
+    EXPECT_EQ(r.entries()[0], norm("/c"));
     EXPECT_EQ(r.entries().size(), 3u);
     r.remove("/c");
-    EXPECT_EQ(r.entries()[0], "/d");
+    EXPECT_EQ(r.entries()[0], norm("/d"));
     r.clear();
     EXPECT_TRUE(r.empty());
 }

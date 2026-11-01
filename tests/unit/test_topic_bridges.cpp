@@ -165,7 +165,11 @@ TEST(TopicJsonFlatten, TopLevelArrayAndEmptyContainers)
 TEST(TopicJsonFlatten, EscapedKeysAreDecoded)
 {
     std::vector<FlatField> f;
-    ASSERT_TRUE(flatten_json(R"({"a\"b": 1, "é": 2, "": 3, "x\/y": 4})", f));
+    // Built outside the macro: MSVC mis-stringifies raw strings containing \" inside
+    // ASSERT_*, and the UTF-8 key is spelled as bytes so the source code page does not matter.
+    const std::string json =
+        std::string(R"({"a\"b": 1, ")") + "\xC3\xA9" + R"(": 2, "": 3, "x\/y": 4})";
+    ASSERT_TRUE(flatten_json(json, f));
     ASSERT_EQ(f.size(), 4u);
     EXPECT_EQ(f[0].path, "a\"b");
     EXPECT_EQ(f[1].path, "\xC3\xA9");

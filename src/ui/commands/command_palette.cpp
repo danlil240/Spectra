@@ -618,7 +618,7 @@ bool CommandPalette::draw(float window_width, float window_height)
                         IM_COL32(static_cast<int>(colors.bg_tertiary.r * 255),
                                  static_cast<int>(colors.bg_tertiary.g * 255),
                                  static_cast<int>(colors.bg_tertiary.b * 255),
-                                 180),
+                                 255),
                         ui::tokens::RADIUS_SM);
 
                     ImGui::GetWindowDrawList()->AddRect(
@@ -630,12 +630,16 @@ bool CommandPalette::draw(float window_width, float window_height)
                                  100),
                         ui::tokens::RADIUS_SM);
 
+                    // Opaque fill above, so the badge ink only has to clear WCAG AA
+                    // against bg_tertiary (with a little headroom for AA sampling).
+                    const ui::Color badge_ink =
+                        ui::ensure_contrast(colors.text_secondary, colors.bg_tertiary, 4.8f);
                     ImGui::GetWindowDrawList()->AddText(
                         ImVec2(badge_x, badge_y),
-                        IM_COL32(static_cast<int>(colors.text_secondary.r * 255),
-                                 static_cast<int>(colors.text_secondary.g * 255),
-                                 static_cast<int>(colors.text_secondary.b * 255),
-                                 220),
+                        IM_COL32(static_cast<int>(badge_ink.r * 255),
+                                 static_cast<int>(badge_ink.g * 255),
+                                 static_cast<int>(badge_ink.b * 255),
+                                 255),
                         result.command->shortcut.c_str());
                 }
 

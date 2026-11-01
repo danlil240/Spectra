@@ -87,12 +87,17 @@ bool write_pending_svg(Figure&              fig,
                        ui::ThemeManager*    theme_mgr,
                        const SvgExportHost* svg_host = nullptr);
 
+// Same for the pending PDF request (one page).
+bool write_pending_pdf(Figure&              fig,
+                       ui::ThemeManager*    theme_mgr,
+                       const SvgExportHost* svg_host = nullptr);
+
 // One frame of windowed export servicing, shared by App::step() (inproc) and
 // the multiproc window agent, called after the frame has been rendered:
 //  - writes a finished PNG / clipboard capture,
 //  - schedules a capture for the active figure's pending PNG / clipboard
 //    request (aimed at the window showing it),
-//  - writes every figure's pending SVG request right away.
+//  - writes every figure's pending SVG / PDF request right away.
 // @p active_id may be INVALID / unknown (no PNG scheduled).  Returns true when
 // a PNG capture was scheduled: the caller must make the next frame render.
 bool service_window_exports(WindowPngExport&     png_export,

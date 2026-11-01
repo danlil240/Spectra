@@ -25,3 +25,28 @@
 #elif defined(__GNUC__)
     #pragma GCC diagnostic pop
 #endif
+
+#include <cstdlib>
+
+#include "io/zlib_compress.hpp"
+
+namespace spectra
+{
+
+std::vector<uint8_t> zlib_compress(std::span<const uint8_t> data, int quality)
+{
+    if (data.size() > static_cast<size_t>(INT32_MAX))
+        return {};
+    int            out_len = 0;
+    unsigned char* out     = stbi_zlib_compress(const_cast<unsigned char*>(data.data()),
+                                            static_cast<int>(data.size()),
+                                            &out_len,
+                                            quality);
+    if (!out)
+        return {};
+    std::vector<uint8_t> result(out, out + out_len);
+    STBIW_FREE(out);
+    return result;
+}
+
+}   // namespace spectra

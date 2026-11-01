@@ -152,6 +152,7 @@ bool is_fuzz_denied_command(const std::string& id)
         "file.load_figure",
         "file.export_png",
         "file.export_svg",
+        "file.export_pdf",
         "file.copy_to_clipboard",
         "help.show",
         "accessibility.sonify_series",

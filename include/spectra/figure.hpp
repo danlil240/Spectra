@@ -112,7 +112,7 @@ class AnimationBuilder
     std::function<void(Frame&)> on_frame_;
 };
 
-/// @brief Pending export requests (PNG / SVG / video).  Populated by Figure::save_*
+/// @brief Pending export requests (PNG / SVG / PDF / video).  Populated by Figure::save_*
 /// and AnimationBuilder::record(); consumed by the runtime after rendering.
 struct FigureExportRequest
 {
@@ -123,14 +123,16 @@ struct FigureExportRequest
     bool        copy_to_clipboard = false;
     std::string svg_path;
     std::string svg_theme;   ///< empty = active app theme
+    std::string pdf_path;
+    std::string pdf_theme;   ///< empty = active app theme
     std::string video_path;
 };
 
-/// @brief Optional settings for one Figure::save_png() / save_svg() call.
+/// @brief Optional settings for one Figure::save_png() / save_svg() / save_pdf() call.
 struct ExportOptions
 {
-    uint32_t width  = 0;   ///< PNG width in pixels (0 = figure width); ignored for SVG
-    uint32_t height = 0;   ///< PNG height in pixels (0 = figure height); ignored for SVG
+    uint32_t width  = 0;   ///< PNG width in pixels (0 = figure width); ignored for SVG / PDF
+    uint32_t height = 0;   ///< PNG height in pixels (0 = figure height); ignored for SVG / PDF
     /// Theme this export is drawn with, e.g. "light" or "dark" (any registered
     /// theme name).  Empty uses the app's active theme.  Only this file is
     /// affected; an unknown name logs a warning and falls back to the active theme.
@@ -184,6 +186,10 @@ class Figure
     bool save_svg(const std::string& path);
     /// @brief Request an SVG vector export with per-export options (theme).
     bool save_svg(const std::string& path, const ExportOptions& options);
+    /// @brief Request a PDF vector export (see save_png() for the return value).
+    bool save_pdf(const std::string& path);
+    /// @brief Request a PDF vector export with per-export options (theme).
+    bool save_pdf(const std::string& path, const ExportOptions& options);
     /// @brief Copy a rendered image of the figure to the system clipboard.
     void copy_to_clipboard();
 

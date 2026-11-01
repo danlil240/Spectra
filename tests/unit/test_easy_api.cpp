@@ -378,6 +378,15 @@ TEST_F(EasyAPITest, SaveSvgSetsPath)
     EXPECT_NO_THROW(spectra::save_svg("/tmp/test_easy_api.svg"));
 }
 
+TEST_F(EasyAPITest, SavePdfSetsPath)
+{
+    std::vector<float> x = {0, 1}, y = {0, 1};
+    spectra::plot(x, y);
+    EXPECT_TRUE(spectra::save_pdf("/tmp/test_easy_api.pdf"));
+    EXPECT_EQ(spectra::detail::easy_state().ensure_figure().export_req_.pdf_path,
+              "/tmp/test_easy_api.pdf");
+}
+
 // ─── On Update ──────────────────────────────────────────────────────────────
 
 TEST_F(EasyAPITest, OnUpdateRegistersCallback)

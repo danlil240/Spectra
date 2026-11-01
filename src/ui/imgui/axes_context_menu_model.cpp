@@ -133,7 +133,10 @@ std::vector<AxesMenuItem> build_axes_context_menu(const AxesContextMenuState& st
     m.command("file.copy_to_clipboard", "Copy Image");
     m.command("file.export_png", "Export PNG...");
     if (!state.is_3d)
+    {
         m.command("file.export_svg", "Export SVG...");
+        m.command("file.export_pdf", "Export PDF...");
+    }
     m.separator();
 
     // ── Properties ───────────────────────────────────────────────────────

@@ -250,6 +250,9 @@ bool VulkanBackend::init(bool headless)
         // Text pipeline layout: set 0 = frame UBO, set 1 = texture sampler
         text_pipeline_layout_ =
             vk::create_pipeline_layout(ctx_.device, {frame_desc_layout_, texture_desc_layout_});
+        image_pipeline_layout_ = vk::create_pipeline_layout(
+            ctx_.device,
+            {frame_desc_layout_, texture_desc_layout_, texture_desc_layout_});
 
         return true;
     }
@@ -315,6 +318,9 @@ void VulkanBackend::shutdown()
     // Destroy layouts
     if (text_pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, text_pipeline_layout_, nullptr);
+    if (image_pipeline_layout_ != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(ctx_.device, image_pipeline_layout_, nullptr);
+    image_pipeline_layout_ = VK_NULL_HANDLE;
     if (pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, pipeline_layout_, nullptr);
     if (texture_desc_layout_ != VK_NULL_HANDLE)
@@ -690,11 +696,23 @@ PipelineHandle VulkanBackend::create_pipeline(PipelineType type)
     }
 
     pipelines_[h.id]        = create_pipeline_for_type(type, rp);
-    pipeline_layouts_[h.id] = (type == PipelineType::Text || type == PipelineType::TextDepth
-                               || type == PipelineType::Image3D)
-                                  ? text_pipeline_layout_
-                                  : pipeline_layout_;
+    pipeline_layouts_[h.id] = layout_for_type(type);
     return h;
+}
+
+VkPipelineLayout VulkanBackend::layout_for_type(PipelineType type) const
+{
+    switch (type)
+    {
+        case PipelineType::Text:
+        case PipelineType::TextDepth:
+        case PipelineType::Image3D:
+            return text_pipeline_layout_;
+        case PipelineType::Image2D:
+            return image_pipeline_layout_;
+        default:
+            return pipeline_layout_;
+    }
 }
 
 PipelineHandle VulkanBackend::create_custom_pipeline(const CustomPipelineDesc& desc)
@@ -978,6 +996,16 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             break;
         case PipelineType::Heatmap:
             return VK_NULL_HANDLE;   // Not yet implemented
+        // ── Image2D pipeline (2D image quad in data space, ImageSeries) ──
+        case PipelineType::Image2D:
+            cfg.pipeline_layout = image_pipeline_layout_;
+            cfg.vert_spirv      = shaders::image2d_vert;
+            cfg.vert_spirv_size = shaders::image2d_vert_size;
+            cfg.frag_spirv      = shaders::image2d_frag;
+            cfg.frag_spirv_size = shaders::image2d_frag_size;
+            cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+            // No vertex input: the quad corners come from push constants.
+            break;
         case PipelineType::Overlay:
             cfg.vert_spirv      = shaders::grid_vert;
             cfg.vert_spirv_size = shaders::grid_vert_size;
@@ -1154,12 +1182,8 @@ void VulkanBackend::ensure_pipelines()
             auto it = pipeline_types_.find(id);
             if (it != pipeline_types_.end())
             {
-                pipeline = create_pipeline_for_type(it->second, rp);
-                pipeline_layouts_[id] =
-                    (it->second == PipelineType::Text || it->second == PipelineType::TextDepth
-                     || it->second == PipelineType::Image3D)
-                        ? text_pipeline_layout_
-                        : pipeline_layout_;
+                pipeline              = create_pipeline_for_type(it->second, rp);
+                pipeline_layouts_[id] = layout_for_type(it->second);
             }
         }
     }

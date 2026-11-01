@@ -213,6 +213,10 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
     for (auto& b : gpu.sorted_index_buffer)
         if (b)
             backend_.destroy_buffer(b);
+    if (gpu.image_texture)
+        backend_.destroy_texture(gpu.image_texture);
+    if (gpu.lut_texture)
+        backend_.destroy_texture(gpu.lut_texture);
 
     // Clean up plugin GPU state for custom series types.
     if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
@@ -542,6 +546,7 @@ bool Renderer::init()
     grid_pipeline_             = backend_.create_pipeline(PipelineType::Grid);
     overlay_pipeline_          = backend_.create_pipeline(PipelineType::Overlay);
     stat_fill_pipeline_        = backend_.create_pipeline(PipelineType::StatFill);
+    image2d_pipeline_          = backend_.create_pipeline(PipelineType::Image2D);
 
     // Create 3D pipelines
     line3d_pipeline_         = backend_.create_pipeline(PipelineType::Line3D);

@@ -105,7 +105,7 @@ class MiniPdf
         for (int i = 0; i < count; ++i, pos += 20)
         {
             const std::string entry = bytes_.substr(pos, 20);
-            if (entry.size() != 20 || entry[18] != ' ' && entry[18] != '\r')
+            if (entry.size() != 20 || (entry[18] != ' ' && entry[18] != '\r'))
                 return fail("xref entry is not 20 bytes");
             if (i == 0)
             {

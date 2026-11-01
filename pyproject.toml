@@ -40,9 +40,11 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# numpy: zero-copy array input; Pillow: EmbedSurface.render_image(); Qt: backends.backend_qtagg
+# numpy: zero-copy array input; Pillow: EmbedSurface.render_pil(); Qt: backends.backend_qtagg
 numpy = ["numpy>=1.20"]
 embed = ["Pillow>=10.0"]
+# Interactive Jupyter canvas (spectra.notebook, EmbedSurface.widget())
+notebook = ["anywidget>=0.9", "Pillow>=10.0"]
 qt = ["PyQt6>=6.4"]
 dev = ["pytest>=7.0", "numpy>=1.20", "tomli>=1.1; python_version < '3.11'"]
 
@@ -61,8 +63,9 @@ cmake.args = [
 # Python sources: python/spectra -> <site-packages>/spectra
 wheel.packages = ["python/spectra"]
 # Only install the CMake "python_wheel" component (spectra-backend and
-# spectra-window into spectra/_bin/). Headers, static libs, CMake config,
-# man pages, desktop files etc. belong to the system/dev install, not the wheel.
+# spectra-window into spectra/_bin/, libspectra_embed into spectra/_lib/ on
+# Linux). Headers, static libs, CMake config, man pages, desktop files etc.
+# belong to the system/dev install, not the wheel.
 install.components = ["python_wheel"]
 # Developer leftovers that must never end up in a wheel.
 wheel.exclude = ["**/__pycache__", "**/*.pyc", "spectra/_bin/.gitignore"]
@@ -74,6 +77,15 @@ sdist.exclude = [
     "build*",
     "dist",
 ]
+
+# Linux wheels also ship libspectra_embed.so (spectra/_lib/) for the in-process
+# EmbedSurface API and the Jupyter widget. macOS wheels do not yet: the embed
+# library has never been built or tested on macOS in CI. Windows wheels are not
+# built at all (see .github/workflows/release.yml).
+[[tool.scikit-build.overrides]]
+if.platform-system = "linux"
+inherit.cmake.args = "append"
+cmake.args = ["-DSPECTRA_BUILD_EMBED_SHARED=ON"]
 
 [tool.scikit-build.metadata.version]
 provider = "scikit_build_core.metadata.regex"

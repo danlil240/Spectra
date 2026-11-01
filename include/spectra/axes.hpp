@@ -1,7 +1,9 @@
 #pragma once
 
 #include <functional>
+#include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <spectra/annotation.hpp>
@@ -360,6 +362,21 @@ class Axes : public AxesBase
     // Limits before log-axis clamping (see x_limits()).
     AxisLimits x_limits_unclamped() const;
     AxisLimits y_limits_unclamped() const;
+
+    // Data extent of all autoscaled series, cached between limit queries:
+    // x_limits()/y_limits() run many times per frame and a full scan of a
+    // million-point series costs tens of milliseconds.  Keyed on each series'
+    // identity, change_generation() and autoscale exclusion.
+    struct DataExtentCache
+    {
+        std::vector<std::uint64_t> key;
+        double                     x[3]  = {0.0, 0.0, 0.0};   // min, max, min_pos
+        double                     y[3]  = {0.0, 0.0, 0.0};
+        bool                       valid = false;
+    };
+    const DataExtentCache&  data_extent_cached() const;   // caller holds extent_mutex_
+    mutable std::mutex      extent_mutex_;
+    mutable DataExtentCache extent_cache_;
 
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <span>
@@ -53,6 +54,45 @@ struct Rect
     float y = 0.0f;
     float w = 0.0f;
     float h = 0.0f;
+};
+
+/// Series "needs GPU upload" flag that also records a new generation each time
+/// it is raised.  The renderer clears the flag after each upload; the
+/// generation stays, so caches derived from series data (e.g. the axes'
+/// autoscale extent) can tell that anything changed since they were filled.
+class SeriesDirtyFlag
+{
+   public:
+    SeriesDirtyFlag(bool v = true) : flag_(v), generation_(next_generation()) {}
+    SeriesDirtyFlag(const SeriesDirtyFlag&)            = delete;
+    SeriesDirtyFlag& operator=(const SeriesDirtyFlag&) = delete;
+
+    SeriesDirtyFlag& operator=(bool v)
+    {
+        store(v);
+        return *this;
+    }
+    operator bool() const { return load(); }
+
+    bool load(std::memory_order order = std::memory_order_seq_cst) const
+    {
+        return flag_.load(order);
+    }
+    void store(bool v, std::memory_order order = std::memory_order_seq_cst)
+    {
+        if (v)
+            generation_.store(next_generation(), std::memory_order_relaxed);
+        flag_.store(v, order);
+    }
+    std::uint64_t generation() const { return generation_.load(std::memory_order_relaxed); }
+
+   private:
+    // Process-wide counter: a generation is never reused, even by a new
+    // series that lands at the address of a removed one.
+    static std::uint64_t next_generation();
+
+    std::atomic<bool>          flag_;
+    std::atomic<std::uint64_t> generation_;
 };
 
 /// @brief Base class of everything that can be drawn in an axes.
@@ -174,8 +214,11 @@ class Series
 
     /// @brief True when the series changed since the last GPU upload.
     bool is_dirty() const { return dirty_; }
-    void clear_dirty() { dirty_ = false; }
-    void mark_dirty();
+    /// Changes every time the series is marked dirty (data, offsets or
+    /// style) and survives clear_dirty().  For caches keyed on series content.
+    std::uint64_t change_generation() const { return dirty_.generation(); }
+    void          clear_dirty() { dirty_ = false; }
+    void          mark_dirty();
 
     // ── Thread-safe data access (opt-in) ──
     /// When enabled, set_x/set_y/append/erase_before route through a pending
@@ -307,20 +350,20 @@ class Series
     virtual size_t erase_before_f64(double x_threshold);
     virtual size_t erase_after_f64(double x_threshold);
 
-    std::string       label_;
-    Color             color_            = colors::blue;
-    int               auto_color_index_ = -1;     ///< palette slot, -1 = explicit colour
-    char              color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
-    PlotStyle         style_;                     ///< line/marker style, sizes, opacity
-    bool              visible_                 = true;
-    double            x_offset_                = 0.0;
-    double            y_offset_                = 0.0;
-    bool              excluded_from_autoscale_ = false;
-    bool              show_in_legend_          = true;
-    bool              is_reference_line_       = false;
-    std::atomic<bool> dirty_{true};
-    EventSystem*      event_system_ = nullptr;
-    AxesBase*         owning_axes_  = nullptr;
+    std::string     label_;
+    Color           color_            = colors::blue;
+    int             auto_color_index_ = -1;     ///< palette slot, -1 = explicit colour
+    char            color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
+    PlotStyle       style_;                     ///< line/marker style, sizes, opacity
+    bool            visible_                 = true;
+    double          x_offset_                = 0.0;
+    double          y_offset_                = 0.0;
+    bool            excluded_from_autoscale_ = false;
+    bool            show_in_legend_          = true;
+    bool            is_reference_line_       = false;
+    SeriesDirtyFlag dirty_{true};
+    EventSystem*    event_system_ = nullptr;
+    AxesBase*       owning_axes_  = nullptr;
 
     /// Thread-safe data buffering (opt-in).
     bool                                                         thread_safe_ = false;

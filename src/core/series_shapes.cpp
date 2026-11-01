@@ -952,7 +952,10 @@ bool ShapeSeries::set_pixel_scale(float data_per_px_x, float data_per_px_y)
         shapes_.end(),
         [](const ShapeDef& d) { return d.type == ShapeDef::Type::Arrow && !d.arrow_head_custom; });
     if (affected)
+    {
+        dirty_          = true;   // new arrowhead geometry: re-upload, refresh axes extent
         geometry_stale_ = true;
+    }
     return affected;
 }
 

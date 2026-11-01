@@ -15,6 +15,7 @@ Release-readiness work for the first public preview.
 
 ### Added
 - Log browser: open PX4 ULog (`.ulg`) and MCAP (`.mcap`, JSON and ROS 2 CDR messages, no ROS install needed) files in the main `spectra` app by drag-and-drop or File > Open Log..., search their fields in a tree and drag a field onto a plot (double-precision timestamps). New `LogReader`/`LogReaderRegistry` in `src/io/logs/`; the ULog parser moved there from the PX4 adapter. `SPECTRA_USE_MCAP` (default ON) fetches foxglove/mcap.
+- Interactive Jupyter widget: `EmbedSurface` shows as a live, pannable, zoomable canvas in JupyterLab, Notebook 7, VS Code and Colab (`spectra.notebook`, `pip install "spectra-plot[notebook]"`); Linux wheels now bundle `libspectra_embed`.
 - `SPECTRA_CONFIG_DIR` overrides the per-user config directory, and `XDG_CONFIG_HOME` is honoured on Linux/macOS, for settings, keybindings, workspaces, autosave, plugins and the default theme.
 - Truncated dense legends scroll with the mouse wheel in interactive windows.
 - QA: framebuffer contrast tests for plots (4 themes, 1x/2x, simulated colour-vision deficiency) and text-contrast checks in the design review; `--repeat` soak mode with an RSS/heap slope gate (`qa_soak` ctest).

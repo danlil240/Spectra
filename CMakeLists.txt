@@ -1157,6 +1157,15 @@ if(SPECTRA_PYTHON_WHEEL)
             )
         endif()
     endforeach()
+    # In-process embed library for spectra._embed / spectra.notebook (ctypes).
+    # pyproject.toml turns SPECTRA_BUILD_EMBED_SHARED on for Linux wheels only.
+    if(TARGET spectra_embed)
+        # COMPONENT binds per artifact kind, so repeat it for each.
+        install(TARGETS spectra_embed
+            LIBRARY DESTINATION spectra/_lib COMPONENT python_wheel
+            RUNTIME DESTINATION spectra/_lib COMPONENT python_wheel
+        )
+    endif()
     # Redistribution notices for the bundled binaries (ImGui, GLFW, FlatBuffers, fonts).
     install(FILES LICENSE THIRD_PARTY_NOTICES.md
         DESTINATION spectra/licenses

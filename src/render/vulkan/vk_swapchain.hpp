@@ -100,6 +100,7 @@ struct OffscreenContext
     VkDeviceMemory readback_memory     = VK_NULL_HANDLE;
     VkDeviceSize   readback_capacity   = 0;
     void*          readback_mapped_ptr = nullptr;
+    bool           readback_coherent   = true;   // false → invalidate before reading
 };
 
 OffscreenContext create_offscreen_framebuffer(

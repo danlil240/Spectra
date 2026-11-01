@@ -51,6 +51,7 @@ Release-readiness work for the first public preview.
 - Maintainer-only documentation moved to `docs/dev/`.
 
 ### Fixed
+- Embed / Python / Qt rendering: unchanged series are no longer re-uploaded every frame (render cost no longer grows with point count when data is static), offscreen pixel readback uses host-cached memory (much faster on NVIDIA/AMD), and the Windows `spectra_embed.dll` now exports its C API so `spectra.embed` can load it.
 - Use-after-free when playing the demo animation after closing its figure; an ImGui window leaked per figure or split pane ever shown.
 - PX4 viewer ignored dropped `.ulg` files; Parameters sort went stale after re-opening a changed log.
 - Dropping several CSV files opened only the last; unparsable CSV failed silently.

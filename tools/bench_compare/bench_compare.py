@@ -124,6 +124,7 @@ class SpectraBackend:
         surface = self.EmbedSurface(w, h)
         ax = surface.figure().subplot(1, 1, 1)
         series = ax.line(x, y)
+        series.set_line_width(1.0)  # match the 1 px lines of the other two
         ax.set_grid(True)
         ax.auto_fit()
         surface.render()

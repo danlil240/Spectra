@@ -403,17 +403,10 @@ struct EmbedSurface::Impl
         // Phase 3: fire hover / view-changed callbacks for the active figure.
         dispatch_interaction_events(active_fig);
 
-        // Upload any dirty series data
-        for (auto& ax : active_fig->all_axes_mut())
-        {
-            if (!ax)
-                continue;
-            for (auto& s : ax->series_mut())
-            {
-                if (s)
-                    renderer->upload_series_data(*s);
-            }
-        }
+        // Series data is uploaded by render_figure_content(), only when a
+        // series is dirty or its camera-relative origin drifted (same as the
+        // app).  Re-uploading every series here cost O(N) per frame even for
+        // unchanged data.
 
         if (!backend->begin_frame())
         {

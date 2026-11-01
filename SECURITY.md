@@ -90,6 +90,23 @@ curl -s -X POST http://127.0.0.1:8765/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
+## UDP topic bridge
+
+`spectra-backend --udp-bridge [HOST:]PORT` (or `SPECTRA_UDP_BRIDGE`, which in-process apps
+also read) turns UDP datagrams into topics; see [docs/topics.md](docs/topics.md#bridges-udp-json--csv).
+
+- **Off by default.** Nothing listens unless the flag or the environment variable is set.
+- **Loopback by default.** A bare port binds `127.0.0.1`. Binding another address, such
+  as `0.0.0.0`, must be written out explicitly, and Spectra logs a warning when it does.
+- **No authentication.** Any process or host that can reach the port can create topics and
+  publish samples, which changes what plots show. Bind a non-loopback address only on a
+  network you trust, or put a firewall in front of the port.
+- **Bounded.** Datagrams are at most 64 KiB, JSON nesting is limited to 32 levels and 1024
+  fields per message, a bridge creates at most 1024 distinct topics, and its hand-off queue
+  to the event loop is bounded, so a flood is dropped instead of exhausting memory.
+- The bridge only creates and publishes topics. It cannot subscribe, read data back, run
+  commands or touch files.
+
 ### Screenshot output paths
 
 `capture_screenshot` and `capture_window` write only inside the capture directory:

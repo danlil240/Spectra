@@ -253,6 +253,10 @@ file(GLOB SPECTRA_DAEMON_SOURCES
     src/daemon/process_manager.cpp
     src/daemon/figure_model.cpp
     src/daemon/topic_registry.cpp
+    src/daemon/bridges/field_path.cpp
+    src/daemon/bridges/text_message.cpp
+    src/daemon/bridges/topic_ingest.cpp
+    src/daemon/bridges/udp_json_bridge.cpp
 )
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
@@ -320,6 +324,7 @@ foreach(_ui_src
     src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
     src/adapters/data_source_registry.cpp
+    src/adapters/data_source_topics.cpp
     src/embed/embed_surface.cpp
     src/embed/spectra_embed_c.cpp
     src/ui/automation/automation_server.cpp

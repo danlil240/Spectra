@@ -14,6 +14,8 @@ summarise the main changes rather than listing every commit.
 Release-readiness work for the first public preview.
 
 ### Added
+
+- Topic bridges: `spectra-backend --udp-bridge [HOST:]PORT` (or `SPECTRA_UDP_BRIDGE`) publishes UDP JSON / CSV datagrams as topics, one topic per numeric field (`udp/imu/accel/x`); plugin data sources are published as topics `<source>/<label>` and can be started and stopped from the Topics panel.
 - Python: `sp.errorbar(x, y, yerr=, xerr=, fmt=, capsize=)` with scalar, per-point or (lower, upper) errors.
 - Python: `sp.plot(df)` draws one line per numeric DataFrame column against its index; a pandas Series plots against its index with its `name` as the label. Datetime/timedelta data (NumPy, pandas, `datetime`) converts to epoch seconds, and any `__array__` object (xarray, CPU tensors) is accepted.
 - Image, heatmap and contour plots for 2D axes: `imshow`, `heatmap`, `contour` and `contourf` (GPU colormap lookup, nearest or bilinear sampling, cell value labels, colorbars and SVG export).

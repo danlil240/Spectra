@@ -540,11 +540,12 @@ bool CommandPalette::draw(float window_width, float window_height)
                     current_category = group_label(result);
                     if (font_heading_)
                         ImGui::PushFont(font_heading_);
+                    // text_tertiary sits right at 4.5:1 on bg_elevated in the dark
+                    // themes; lift it so the group labels clear WCAG AA with headroom.
+                    const ui::Color header_ink =
+                        ui::ensure_contrast(colors.text_tertiary, colors.bg_elevated, 4.8f);
                     ImGui::PushStyleColor(ImGuiCol_Text,
-                                          ImVec4(colors.text_tertiary.r,
-                                                 colors.text_tertiary.g,
-                                                 colors.text_tertiary.b,
-                                                 1.0f));
+                                          ImVec4(header_ink.r, header_ink.g, header_ink.b, 1.0f));
                     ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_1));
                     ImGui::TextUnformatted(current_category.data(),
                                            current_category.data() + current_category.size());
@@ -618,7 +619,7 @@ bool CommandPalette::draw(float window_width, float window_height)
                         IM_COL32(static_cast<int>(colors.bg_tertiary.r * 255),
                                  static_cast<int>(colors.bg_tertiary.g * 255),
                                  static_cast<int>(colors.bg_tertiary.b * 255),
-                                 180),
+                                 255),
                         ui::tokens::RADIUS_SM);
 
                     ImGui::GetWindowDrawList()->AddRect(
@@ -630,12 +631,16 @@ bool CommandPalette::draw(float window_width, float window_height)
                                  100),
                         ui::tokens::RADIUS_SM);
 
+                    // Opaque fill above, so the badge ink only has to clear WCAG AA
+                    // against bg_tertiary (with a little headroom for AA sampling).
+                    const ui::Color badge_ink =
+                        ui::ensure_contrast(colors.text_secondary, colors.bg_tertiary, 4.8f);
                     ImGui::GetWindowDrawList()->AddText(
                         ImVec2(badge_x, badge_y),
-                        IM_COL32(static_cast<int>(colors.text_secondary.r * 255),
-                                 static_cast<int>(colors.text_secondary.g * 255),
-                                 static_cast<int>(colors.text_secondary.b * 255),
-                                 220),
+                        IM_COL32(static_cast<int>(badge_ink.r * 255),
+                                 static_cast<int>(badge_ink.g * 255),
+                                 static_cast<int>(badge_ink.b * 255),
+                                 255),
                         result.command->shortcut.c_str());
                 }
 

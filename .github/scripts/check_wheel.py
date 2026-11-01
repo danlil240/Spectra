@@ -1,7 +1,8 @@
 """Smoke test run by cibuildwheel (CIBW_TEST_COMMAND) against an installed wheel.
 
 Wheel test environments have no GPU, so this only checks that the package
-imports, reports the expected version, and ships the native multiproc binaries.
+imports, reports the expected version, and ships the native multiproc binaries
+(plus libspectra_embed on Linux).
 
 usage: python check_wheel.py <path/to/version.txt>
 """
@@ -37,6 +38,15 @@ def main() -> int:
             errors.append(f"bundled binary is not executable: {path}")
         else:
             print(f"found {path} ({os.path.getsize(path)} bytes)")
+
+    # Linux wheels also bundle the in-process embed library (spectra._embed,
+    # spectra.notebook); see [[tool.scikit-build.overrides]] in pyproject.toml.
+    if sys.platform.startswith("linux"):
+        lib = os.path.join(pkg_dir, "_lib", "libspectra_embed.so")
+        if not os.path.isfile(lib):
+            errors.append(f"missing bundled embed library: {lib}")
+        else:
+            print(f"found {lib} ({os.path.getsize(lib)} bytes)")
 
     for err in errors:
         print(f"ERROR: {err}", file=sys.stderr)

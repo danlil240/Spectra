@@ -36,6 +36,29 @@ uint64_t steady_now_ns()
                                      .count());
 }
 
+// Dotted-quad IPv4 literal ("127.0.0.1"). Portable, so the spec is validated the
+// same way on every platform, including Windows where the bridge cannot start.
+bool is_ipv4_literal(std::string_view s)
+{
+    int parts = 0;
+    while (true)
+    {
+        unsigned    octet = 0;
+        const char* end   = s.data() + s.size();
+        auto        res   = std::from_chars(s.data(), end, octet);
+        const auto  len   = static_cast<size_t>(res.ptr - s.data());
+        if (res.ec != std::errc{} || len == 0 || len > 3 || octet > 255)
+            return false;
+        ++parts;
+        s.remove_prefix(len);
+        if (s.empty())
+            return parts == 4;
+        if (s.front() != '.' || parts == 4)
+            return false;
+        s.remove_prefix(1);
+    }
+}
+
 }   // namespace
 
 bool parse_udp_bridge_spec(std::string_view spec, UdpBridgeConfig& cfg, std::string* error)
@@ -67,12 +90,9 @@ bool parse_udp_bridge_spec(std::string_view spec, UdpBridgeConfig& cfg, std::str
 
     if (!host.empty())
     {
-#ifndef _WIN32
-        in_addr addr{};
-        if (host != "localhost" && ::inet_pton(AF_INET, std::string(host).c_str(), &addr) != 1)
+        if (host != "localhost" && !is_ipv4_literal(host))
             return set_error("UDP bridge host must be an IPv4 address: '" + std::string(host)
                              + "'");
-#endif
         cfg.bind_address = std::string(host);
     }
     cfg.port = static_cast<uint16_t>(port);

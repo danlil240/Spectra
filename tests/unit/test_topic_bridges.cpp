@@ -411,7 +411,18 @@ TEST(UdpBridgeSpec, ParsesHostAndPort)
     ASSERT_TRUE(parse_udp_bridge_spec("localhost:0", cfg, nullptr));
     EXPECT_TRUE(is_loopback_address(cfg.bind_address));
 
-    for (const char* bad : {"", "abc", "70000", ":9870", "host.example:9870", "1.2.3.4:", "-1"})
+    for (const char* bad : {"",
+                            "abc",
+                            "70000",
+                            ":9870",
+                            "host.example:9870",
+                            "1.2.3.4:",
+                            "-1",
+                            "1.2.3:80",
+                            "1.2.3.4.5:80",
+                            "256.0.0.1:80",
+                            "1..2.3:80",
+                            "+1.2.3.4:80"})
     {
         UdpBridgeConfig c;
         std::string     err;

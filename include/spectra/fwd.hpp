@@ -34,6 +34,8 @@ class HistogramSeries;
 class BarSeries;
 class StemSeries;
 class ShapeSeries;
+class ImageSeries;
+class ContourSeries;
 class ShapeSeries3D;
 
 class Renderer;

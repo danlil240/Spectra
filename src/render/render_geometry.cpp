@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
@@ -13,10 +14,12 @@
 #include <spectra/figure.hpp>
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 
 #include "core/axes3d.hpp"
 #include "core/axis_scale.hpp"
+#include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
 #include "text_fit.hpp"
 #include "core/annotation_layout.hpp"
@@ -369,6 +372,70 @@ void Renderer::render_plot_text(Figure& figure)
                 truncated_text_regions_.push_back(
                     {Rect{cx - ext.width * 0.5f, py, ext.width, ext.height}, axes.get_title()});
             }
+        }
+
+        // ── Heatmap cell values (ImageSeries::show_values), clipped to the plot area ──
+        if (vp.w > 0.0f && vp.h > 0.0f)
+        {
+            bool clipped = false;
+            for (const auto& sp : axes.series())
+            {
+                const auto* img = dynamic_cast<const ImageSeries*>(sp.get());
+                if (!img || !img->visible() || !img->show_values() || !img->has_colormap())
+                    continue;
+                constexpr size_t MAX_LABELLED_CELLS = 40000;
+                if (img->cols() * img->rows() > MAX_LABELLED_CELLS)
+                    continue;
+                const float cell_w = std::abs(data_to_px_x(img->x1()) - data_to_px_x(img->x0()))
+                                     / static_cast<float>(img->cols());
+                const float cell_h = std::abs(data_to_px_y(img->y1()) - data_to_px_y(img->y0()))
+                                     / static_cast<float>(img->rows());
+                const float row_h = text_renderer_.measure_text("0", FontSize::Tick).height;
+                if (!(cell_w >= 12.0f) || !(cell_h >= row_h + 2.0f))
+                    continue;   // cells too small to hold a label
+                if (!clipped)
+                {
+                    text_renderer_.set_clip_rect(vp.x, vp.y, vp.x + vp.w, vp.y + vp.h);
+                    clipped = true;
+                }
+                const auto lut  = image_colormap::build_lut(img->colormap(), img->levels());
+                const auto vals = img->data();
+                for (size_t r = 0; r < img->rows(); ++r)
+                {
+                    for (size_t c = 0; c < img->cols(); ++c)
+                    {
+                        const float v = vals[r * img->cols() + c];
+                        if (!std::isfinite(v))
+                            continue;
+                        double cx = 0.0;
+                        double cy = 0.0;
+                        img->cell_center(c, r, cx, cy);
+                        const float px = data_to_px_x(cx);
+                        const float py = data_to_px_y(cy);
+                        if (!(px >= vp.x && px <= vp.x + vp.w && py >= vp.y && py <= vp.y + vp.h))
+                            continue;
+                        const std::string text = std::format("{:.{}f}", v, img->value_decimals());
+                        if (text_renderer_.measure_text(text, FontSize::Tick).width > cell_w - 2.0f)
+                            continue;
+                        // Dark text on light cells, light text on dark cells.
+                        const float t = image_colormap::normalized(v, img->vmin(), img->vmax());
+                        const Color cc =
+                            image_colormap::lut_color(lut,
+                                                      image_colormap::lut_index(t, lut.size() / 4));
+                        const float    lum   = 0.2126f * cc.r + 0.7152f * cc.g + 0.0722f * cc.b;
+                        const uint32_t trgba = lum > 0.5f ? 0xFF1A1A1Au : 0xFFFFFFFFu;
+                        text_renderer_.draw_text(text,
+                                                 px,
+                                                 py,
+                                                 FontSize::Tick,
+                                                 trgba,
+                                                 TextAlign::Center,
+                                                 TextVAlign::Middle);
+                    }
+                }
+            }
+            if (clipped)
+                text_renderer_.clear_clip_rect();
         }
 
         // ── ShapeSeries text annotations (data-space text labels) ──

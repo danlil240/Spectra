@@ -540,11 +540,12 @@ bool CommandPalette::draw(float window_width, float window_height)
                     current_category = group_label(result);
                     if (font_heading_)
                         ImGui::PushFont(font_heading_);
+                    // text_tertiary sits right at 4.5:1 on bg_elevated in the dark
+                    // themes; lift it so the group labels clear WCAG AA with headroom.
+                    const ui::Color header_ink =
+                        ui::ensure_contrast(colors.text_tertiary, colors.bg_elevated, 4.8f);
                     ImGui::PushStyleColor(ImGuiCol_Text,
-                                          ImVec4(colors.text_tertiary.r,
-                                                 colors.text_tertiary.g,
-                                                 colors.text_tertiary.b,
-                                                 1.0f));
+                                          ImVec4(header_ink.r, header_ink.g, header_ink.b, 1.0f));
                     ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_1));
                     ImGui::TextUnformatted(current_category.data(),
                                            current_category.data() + current_category.size());

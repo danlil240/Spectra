@@ -41,7 +41,7 @@ bool parse_number(std::string_view s, double& out)
         if (c == 'x' || c == 'X')
             return false;
     std::memcpy(buf, s.data(), s.size());
-    buf[s.size()] = '\0';
+    buf[s.size()]    = '\0';
     char*        end = nullptr;
     const double v   = std::strtod(buf, &end);
     if (end != buf + s.size() || !std::isfinite(v))

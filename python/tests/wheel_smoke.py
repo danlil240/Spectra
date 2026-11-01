@@ -10,7 +10,8 @@ It checks that:
   * the package imports (runtime deps such as flatbuffers are installed),
   * the bundled spectra-backend and spectra-window are present and executable,
   * the launcher resolves the bundled backend (no download fallback),
-  * a figure can be created, plotted and shown through the bundled daemon.
+  * a figure can be created, plotted and shown through the bundled daemon,
+  * on Linux, the bundled libspectra_embed renders a frame in-process.
 """
 import os
 import sys
@@ -72,6 +73,25 @@ def main() -> int:
         print(f"window agent running: {agent}")
     time.sleep(1.0)
     s.close()
+
+    # Linux wheels bundle libspectra_embed: render in-process from the package copy.
+    if sys.platform.startswith("linux"):
+        from spectra import _embed
+
+        os.environ.pop("SPECTRA_EMBED_LIB", None)
+        lib = _embed._find_library()
+        if os.path.dirname(lib) != os.path.join(pkg_dir, "_lib"):
+            print(f"FAIL: embed library resolved to {lib!r}, not the bundled copy")
+            return 1
+        surface = _embed.EmbedSurface(64, 48)
+        ax = surface.figure().subplot(1, 1, 1)
+        ax.line([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+        pixels = surface.render()
+        surface.close()
+        if len(pixels) != 64 * 48 * 4:
+            print(f"FAIL: embed render returned {len(pixels)} bytes")
+            return 1
+        print(f"bundled embed library renders: {lib}")
     print("SMOKE OK")
     return 0
 

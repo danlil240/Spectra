@@ -14,6 +14,7 @@
 #include "io/logs/ulog_log_reader.hpp"
 #include "ulog_builder.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>

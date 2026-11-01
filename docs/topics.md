@@ -102,6 +102,115 @@ and [`python/examples/topic_subscriber.py`](../python/examples/topic_subscriber.
 
 ---
 
+## Bridges: UDP JSON / CSV
+
+Publishers that cannot link the Spectra client or reach the local Unix socket
+(microcontrollers, another machine, Node, a shell script) can send plain UDP
+datagrams. A **topic bridge** inside `spectra-backend` decodes each datagram
+and publishes it into the same topic store as `REQ_PUBLISH_TOPIC_SAMPLES`, so
+the topics show up in the Topics panel, keep recording with no window open,
+and are plotted by dragging them onto an axes.
+
+Start the backend with the bridge enabled:
+
+```bash
+spectra-backend --udp-bridge 9870                 # listens on 127.0.0.1:9870
+spectra-backend --udp-bridge 0.0.0.0:9870         # other hosts too (see Security)
+SPECTRA_UDP_BRIDGE=9870 spectra                   # env var; also read by in-process apps
+```
+
+| Option | Env var | Default | Meaning |
+|--------|---------|---------|---------|
+| `--udp-bridge [HOST:]PORT` | `SPECTRA_UDP_BRIDGE` | off | Enable the bridge. `HOST` is an IPv4 address; default `127.0.0.1`. |
+| `--udp-bridge-prefix NAME` | `SPECTRA_UDP_BRIDGE_PREFIX` | `udp` | Prefix of every topic the bridge creates. |
+
+The command line overrides the environment. In-process apps (`App::run()`
+without a daemon) read the same environment variables and publish into their
+built-in topic server.
+
+### Message formats
+
+**One message → many topics.** Every numeric leaf of a message becomes its
+own `Scalar2D` topic named `<prefix>/<field path>`, declared on first sight.
+All fields of one message share one timestamp (the sample's x): the message's
+top-level `t` or `timestamp` field when present, otherwise the receive time in
+seconds since the bridge started.
+
+| Datagram | Topics (prefix `udp`) |
+|----------|------------------------|
+| `{"t": 1.5, "imu": {"accel": {"x": 0.1, "y": 9.8}}}` | `udp/imu/accel/x`, `udp/imu/accel/y` at x = 1.5 |
+| `{"joints": [0.1, 0.2], "armed": true}` | `udp/joints/0`, `udp/joints/1`, `udp/armed` (= 1) |
+| `ax=0.1,ay=9.8,t=1.5` | `udp/ax`, `udp/ay` at x = 1.5 |
+| `0.1,9.8` | `udp/0`, `udp/1` at receive time |
+
+- A datagram starting with `{` or `[` holds one or more JSON values
+  (pretty-printed or newline-delimited). Anything else holds one CSV line per
+  line, either `name=value` pairs or plain comma-separated values.
+- Numbers and booleans (`1` / `0`) become samples; strings, `null`, NaN and
+  infinities are ignored.
+- A topic already owned by a live socket publisher is not taken over; the
+  bridge's samples for that name are dropped.
+- Limits: 64 KiB per datagram, nesting depth 32, 1024 fields per message,
+  1024 distinct topics per bridge, topic names up to 200 bytes.
+
+### Sending from a script
+
+```python
+import json, math, socket, time
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+for i in range(1000):
+    t = i * 0.01
+    sock.sendto(json.dumps({"t": t, "imu": {"ax": math.sin(t), "ay": math.cos(t)}}).encode(), ("127.0.0.1", 9870))
+    time.sleep(0.01)
+```
+
+or from a shell:
+
+```bash
+echo '{"temp": 21.5, "rpm": 1200}' | nc -u -w0 127.0.0.1 9870
+echo 'temp=21.6,rpm=1210'          | nc -u -w0 127.0.0.1 9870
+```
+
+### Security
+
+The bridge has no authentication: anyone who can send a datagram to the port
+can create and publish topics. It is off by default, binds to `127.0.0.1`
+unless you pass another address explicitly, and logs a warning when it listens
+on a non-loopback address. See [`SECURITY.md`](../SECURITY.md#udp-topic-bridge).
+
+### Architecture
+
+```
+UDP socket ──▶ UdpJsonBridge thread ──▶ TopicIngestQueue (mutex) ──▶ daemon event loop
+               decode JSON/CSV            bounded                     TopicRegistry::ensure_declared/publish
+               field-path fan-out                                     fan out to subscribed series (STATE_DIFF)
+```
+
+Bridges implement `TopicBridge` ([`src/daemon/bridges/topic_bridge.hpp`](../src/daemon/bridges/topic_bridge.hpp))
+and only push `TopicIngestBatch`es to a `TopicSink`. The daemon's sink is a
+queue drained by its event loop, which alone touches the figure model and
+client connections. Each bridge owns its topics under a reserved client id,
+so bridge topics never collide with socket publishers.
+
+---
+
+## Plugin data sources as topics
+
+Data sources registered by plugins (`spectra_register_data_source`, see the
+[plugin developer guide](plugin_developer_guide.md#data-source-plugins-v13))
+are published as topics too. In an in-process app the host polls every running
+source once per frame and publishes each `DataPoint` as a `Scalar2D` sample
+`(timestamp, value)` on topic `<source name>/<series label>`, for example
+`Sine Generator/sine`. The Topics panel lists the registered sources in a
+**Data sources** section with Start / Stop buttons; a running source's topics
+appear in the topic list and are plotted by dragging them onto an axes, like
+any other topic.
+
+Plugins load in the in-process runtime only, so this path does not involve
+`spectra-backend`.
+
+---
+
 ## UI: Topics panel
 
 Toggle with **Ctrl+Shift+T** or *View → Topics*. The panel lists every topic
@@ -194,8 +303,11 @@ Publisher reconnects, declares again
 
 ## Limitations (current)
 
-- 2D / 3D scalar topics only. No vector, string, or compound message types.
-- Network transport unsupported — local Unix socket only.
+- 2D / 3D scalar topics only. No vector, string, or compound message types
+  (bridges flatten compound messages into one scalar topic per field).
+- Network ingest is UDP only (the UDP JSON / CSV bridge). WebSocket, MQTT,
+  ZeroMQ and serial bridges are planned. The bridge's start / stop state is
+  not shown in the Topics panel yet.
 - In-process runtime mode (`SPECTRA_RUNTIME_MODE=inproc`) does not yet
   expose `Publisher`; multi-process mode required.
 - Workspace v3 does not yet persist subscriptions across save/load
@@ -209,7 +321,9 @@ Publisher reconnects, declares again
 ## Testing
 
 - Unit tests: `tests/unit/test_topic_registry.cpp`,
-  `tests/unit/test_topic_codec.cpp`.
+  `tests/unit/test_topic_codec.cpp`, `tests/unit/test_topic_bridges.cpp`
+  (JSON / CSV decoding, field paths, UDP loopback),
+  `tests/unit/test_data_source_topics.cpp` (plugin sources → topics → series).
 - Manual smoke test (multi-process):
   ```bash
   # terminal 1

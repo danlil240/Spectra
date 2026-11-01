@@ -54,6 +54,32 @@ class DataSourceRegistry
     // Poll all enabled, running sources and collect their data points.
     std::vector<DataPoint> poll_all();
 
+    // Points polled from one source.
+    struct SourceBatch
+    {
+        std::string            source;
+        std::vector<DataPoint> points;
+    };
+
+    // Like poll_all(), but keeps each source's points apart (sources that
+    // returned nothing are omitted).
+    std::vector<SourceBatch> poll_all_by_source();
+
+    struct SourceStatus
+    {
+        std::string name;
+        bool        running = false;
+        bool        faulted = false;
+    };
+
+    // Enabled sources with their running / faulted state, in registration order.
+    std::vector<SourceStatus> status() const;
+
+    // Start (run = true) or stop an enabled, non-faulted source.  Returns
+    // false when no such source exists.  A plugin that throws is marked
+    // faulted, as in poll_all().
+    bool set_running(const std::string& name, bool run);
+
    private:
     struct Entry
     {

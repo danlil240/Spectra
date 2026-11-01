@@ -15,6 +15,8 @@ Release-readiness work for the first public preview.
 
 ### Added
 - Log browser: open PX4 ULog (`.ulg`) and MCAP (`.mcap`, JSON and ROS 2 CDR messages, no ROS install needed) files in the main `spectra` app by drag-and-drop or File > Open Log..., search their fields in a tree and drag a field onto a plot (double-precision timestamps). New `LogReader`/`LogReaderRegistry` in `src/io/logs/`; the ULog parser moved there from the PX4 adapter. `SPECTRA_USE_MCAP` (default ON) fetches foxglove/mcap.
+- Python: `sp.errorbar(x, y, yerr=, xerr=, fmt=, capsize=)` with scalar, per-point or (lower, upper) errors.
+- Python: `sp.plot(df)` draws one line per numeric DataFrame column against its index; a pandas Series plots against its index with its `name` as the label. Datetime/timedelta data (NumPy, pandas, `datetime`) converts to epoch seconds, and any `__array__` object (xarray, CPU tensors) is accepted.
 - Image, heatmap and contour plots for 2D axes: `imshow`, `heatmap`, `contour` and `contourf` (GPU colormap lookup, nearest or bilinear sampling, cell value labels, colorbars and SVG export).
 - Interactive Jupyter widget: `EmbedSurface` shows as a live, pannable, zoomable canvas in JupyterLab, Notebook 7, VS Code and Colab (`spectra.notebook`, `pip install "spectra-plot[notebook]"`); Linux wheels now bundle `libspectra_embed`.
 - `SPECTRA_CONFIG_DIR` overrides the per-user config directory, and `XDG_CONFIG_HOME` is honoured on Linux/macOS, for settings, keybindings, workspaces, autosave, plugins and the default theme.

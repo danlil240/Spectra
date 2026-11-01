@@ -690,6 +690,7 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     file.add_separator();
     file.add(command("Export PNG", "file.export_png"));
     file.add(command("Export SVG", "file.export_svg"));
+    file.add(command("Export PDF", "file.export_pdf"));
     file.add(command("Copy as Image", "file.copy_to_clipboard"));
     file.add(command("Save Workspace", "file.save_workspace"));
     file.add(command("Load Workspace", "file.load_workspace"));

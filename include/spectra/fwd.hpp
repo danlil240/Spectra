@@ -102,6 +102,7 @@ class EmbedSurface;
 
 class ImageExporter;
 class SvgExporter;
+class PdfExporter;
 class VideoExporter;
 
 struct Color;

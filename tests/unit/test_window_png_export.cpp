@@ -147,7 +147,8 @@ spectra::FigureId add_figure(spectra::FigureRegistry& registry, const char* titl
 
 std::string slurp(const fs::path& p)
 {
-    std::ifstream      in(p);
+    // Binary: compressed PDF streams can hold 0x1A, which ends a text-mode read on Windows.
+    std::ifstream      in(p, std::ios::binary);
     std::ostringstream ss;
     ss << in.rdbuf();
     return ss.str();
@@ -192,6 +193,22 @@ TEST_F(ServiceWindowExports, WritesEverySvgRequestImmediately)
     fs::remove(dir_ / "a.svg");
     spectra::service_window_exports(png, registry, a, nullptr, nullptr, nullptr);
     EXPECT_FALSE(fs::exists(dir_ / "a.svg"));
+}
+
+TEST_F(ServiceWindowExports, WritesPdfRequestsImmediately)
+{
+    spectra::FigureRegistry registry;
+    const auto              a = add_figure(registry, "pdf figure");
+    ASSERT_TRUE(registry.get(a)->save_pdf((dir_ / "a.pdf").string()));
+
+    spectra::WindowPngExport png;
+    EXPECT_FALSE(spectra::service_window_exports(png, registry, a, nullptr, nullptr, nullptr));
+
+    ASSERT_TRUE(fs::exists(dir_ / "a.pdf"));
+    const std::string pdf = slurp(dir_ / "a.pdf");
+    EXPECT_EQ(pdf.rfind("%PDF-1.4", 0), 0u);
+    EXPECT_NE(pdf.find("%%EOF"), std::string::npos);
+    EXPECT_TRUE(registry.get(a)->export_req_.pdf_path.empty());
 }
 
 TEST_F(ServiceWindowExports, PngRequestOfActiveFigureOnlyIsConsumed)

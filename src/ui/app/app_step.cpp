@@ -33,6 +33,7 @@
 #include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
 #include "window_png_export.hpp"
+#include "ui/workspace/data_binding.hpp"
 #include "ui/workspace/plugin_api.hpp"
 #include "ui/settings/settings_store.hpp"
 
@@ -378,6 +379,16 @@ static void rewire_topics_panel_if_needed(InprocTopicServer& server,
                                           bool&              wired,
                                           uint32_t&          wired_window_id)
 {
+    #ifdef SPECTRA_USE_IMGUI
+    // Every window resolves layout topic bindings through the server (cheap
+    // pointer store; covers windows opened since the last step).
+    for (auto* wctx : window_mgr.windows())
+    {
+        if (wctx && wctx->ui_ctx)
+            wctx->ui_ctx->layout_session.set_topic_provider(&server);
+    }
+    #endif
+
     WindowContext* candidate = nullptr;
     for (auto* wctx : window_mgr.windows())
     {
@@ -739,16 +750,21 @@ void App::init_runtime()
         wire_window_ui_runtime(wire_opts);
     }
 
+    // `spectra --layout file.spectra`: opened on the first frame, once the
+    // topic server is up so topic bindings can subscribe.
+    if (!config_.open_layout.empty() && rt.ui_ctx_ptr)
+        rt.ui_ctx_ptr->layout_session.request_open(config_.open_layout);
+
     if (!config_.headless && rt.ui_ctx_ptr && rt.ui_ctx_ptr->imgui_ui)
     {
         auto& fig_mgr  = *rt.ui_ctx_ptr->fig_mgr;
         auto& imgui_ui = rt.ui_ctx_ptr->imgui_ui;
         imgui_ui->set_csv_plot_callback(
-            [&fig_mgr, this](const std::string& /*path*/,
+            [&fig_mgr, this](const std::string&        path,
                              const std::vector<float>& x,
                              const std::vector<float>& y,
-                             const std::string& /* x_label */,
-                             const std::string& y_label,
+                             const std::string&        x_label,
+                             const std::string&        y_label,
                              const std::vector<float>* /*z*/,
                              const std::string* /*z_label*/,
                              double x_offset)
@@ -766,6 +782,12 @@ void App::init_runtime()
                 auto& ax   = fig->subplot(1, 1, 1);
                 auto& line = ax.line(x, y);
                 line.label(y_label);
+                // Saved by File > Save Layout: the file by name, so a
+                // teammate's copy elsewhere still matches.
+                line.set_data_binding(
+                    csv_binding_uri(std::filesystem::path(path).filename().string(),
+                                    x_label,
+                                    y_label));
                 // Preserve absolute x values (e.g. epoch timestamps): the
                 // axis shows x_offset + x[i] at full double precision.
                 line.x_offset(x_offset);
@@ -901,7 +923,12 @@ void App::init_runtime()
         }
     #endif
         if (!wired_via_window_mgr && rt.ui_ctx_ptr)
+        {
             rt.topic_server->wire_topics_panel(rt.ui_ctx_ptr->topics_panel, &registry_);
+    #ifdef SPECTRA_USE_IMGUI
+            rt.ui_ctx_ptr->layout_session.set_topic_provider(rt.topic_server.get());
+    #endif
+        }
     }
 #endif
 
@@ -1105,6 +1132,21 @@ void App::shutdown_runtime()
     if (rt.topic_server)
     {
         rt.topic_server->stop();
+    #ifdef SPECTRA_USE_IMGUI
+        // Layout sessions must not keep the server as their topic provider.
+        if (rt.ui_ctx_ptr)
+            rt.ui_ctx_ptr->layout_session.set_topic_provider(nullptr);
+        #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        if (rt.window_mgr)
+        {
+            for (auto* wctx : rt.window_mgr->windows())
+            {
+                if (wctx && wctx->ui_ctx)
+                    wctx->ui_ctx->layout_session.set_topic_provider(nullptr);
+            }
+        }
+        #endif
+    #endif
         rt.topic_server.reset();
     }
 #endif

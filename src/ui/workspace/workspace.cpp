@@ -96,6 +96,11 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
     std::ostringstream os;
     os << "{\n";
     os << "  \"version\": " << data.version << ",\n";
+    if (data.layout_only)
+    {
+        os << "  \"layout_only\": true,\n";
+        os << "  \"layout_version\": " << WorkspaceData::LAYOUT_VERSION << ",\n";
+    }
     os << R"(  "theme_name": ")" << escape_json(data.theme_name) << "\",\n";
     os << "  \"active_figure_index\": " << data.active_figure_index << ",\n";
 
@@ -206,6 +211,10 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"ambient\": " << s.ambient << ",\n";
             os << "          \"specular\": " << s.specular << ",\n";
             os << "          \"shininess\": " << s.shininess << ",\n";
+            if (s.axes_index >= 0)
+                os << "          \"axes_index\": " << s.axes_index << ",\n";
+            if (!s.binding.empty())
+                os << R"(          "binding": ")" << escape_json_text(s.binding) << "\",\n";
             if (!s.categories.empty())
             {
                 os << "          \"categories\": [";
@@ -380,6 +389,12 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
 
     // v4: Mode transition state
     os << R"(  "mode_transition_state": ")" << escape_json(data.mode_transition_state) << "\",\n";
+
+    // Layouts: dock / split-pane arrangement, with figure positions as ids
+    // (optional key; brace-escaped so the minimal reader's object scanning
+    // never sees its JSON structure).  Workspaces do not store it.
+    if (data.layout_only && !data.dock_state.empty())
+        os << R"(  "dock_state": ")" << escape_json_text(data.dock_state) << "\",\n";
 
     // Last export directory
     os << R"(  "last_export_dir": ")" << escape_json(data.last_export_dir) << "\"\n";
@@ -639,6 +654,10 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
     data.version = static_cast<uint32_t>(read_number_value(json, "version", 1));
     if (data.version > WorkspaceData::FORMAT_VERSION)
         return false;
+    // Layout extension (optional keys, written right after "version").
+    data.layout_only = read_bool_value(json, "layout_only", false);
+    data.layout_version =
+        data.layout_only ? static_cast<uint32_t>(read_number_value(json, "layout_version", 1)) : 0;
 
     data.theme_name = read_string_value(json, "theme_name");
     if (data.theme_name.empty())
@@ -719,6 +738,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             s.visible      = read_bool_value(ser_json, "visible", true);
             s.point_count  = static_cast<size_t>(read_number_value(ser_json, "point_count", 0));
             s.categories   = parse_json_string_array(ser_json, "categories");
+            s.axes_index   = static_cast<int>(read_number_value(ser_json, "axes_index", -1));
+            s.binding      = read_string_value(ser_json, "binding");
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
             // v3 fields
@@ -970,6 +991,10 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         data.mode_transition_state = read_string_value(json, "mode_transition_state");
     }
 
+    // Dock arrangement (layouts only)
+    if (data.layout_only)
+        data.dock_state = read_string_value(json, "dock_state");
+
     // Last export directory (versionless — graceful default for old files)
     data.last_export_dir = read_string_value(json, "last_export_dir");
 
@@ -1145,7 +1170,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
         }
 
         // Capture series: iterate the same axes list used above
-        auto capture_series_from = [&](const AxesBase* ax_base)
+        auto capture_series_from = [&](const AxesBase* ax_base, size_t axes_idx)
         {
             if (!ax_base)
                 return;
@@ -1174,12 +1199,17 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                         ss.color_source = "rgb";
                         break;
                 }
-                ss.opacity = s->opacity();
+                ss.opacity      = s->opacity();
+                ss.axes_index   = static_cast<int>(axes_idx);
+                ss.binding      = s->data_binding();
+                ss.line_style   = static_cast<int>(s->line_style());
+                ss.marker_style = static_cast<int>(s->marker_style());
 
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
                 {
                     ss.type        = "line";
                     ss.line_width  = ls->width();
+                    ss.marker_size = ls->marker_size();
                     ss.point_count = ls->x_data().size();
                 }
                 else if (auto* sc = dynamic_cast<ScatterSeries*>(s.get()))
@@ -1230,13 +1260,13 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
 
         if (has_all_axes)
         {
-            for (const auto& ax_base : fig->all_axes())
-                capture_series_from(ax_base.get());
+            for (size_t ai = 0; ai < fig->all_axes().size(); ++ai)
+                capture_series_from(fig->all_axes()[ai].get(), ai);
         }
         else
         {
-            for (const auto& ax : fig->axes())
-                capture_series_from(ax.get());
+            for (size_t ai = 0; ai < fig->axes().size(); ++ai)
+                capture_series_from(fig->axes()[ai].get(), ai);
         }
 
         data.figures.push_back(std::move(fs));
@@ -1268,6 +1298,99 @@ std::unique_ptr<Figure> Workspace::build_figure(const WorkspaceData::FigureState
             fig->subplot3d(rows, cols, index);
         else
             fig->subplot(rows, cols, index);
+    }
+    return fig;
+}
+
+void Workspace::make_layout(WorkspaceData& data)
+{
+    data.layout_only    = true;
+    data.layout_version = WorkspaceData::LAYOUT_VERSION;
+    for (auto& fig : data.figures)
+    {
+        fig.is_modified = false;
+        for (auto& s : fig.series)
+            s.point_count = 0;   // no data in a layout
+    }
+    // Data tips point at samples of this session's data.
+    data.interaction.markers.clear();
+    data.undo_count = 0;
+    data.redo_count = 0;
+    // Per-user preferences, not part of the dashboard.
+    data.shortcut_overrides.clear();
+    data.plugin_state.clear();
+    data.last_export_dir.clear();
+}
+
+std::unique_ptr<Figure> Workspace::build_layout_figure(const WorkspaceData::FigureState& state)
+{
+    auto fig = build_figure(state);
+
+    for (size_t ai = 0; ai < state.axes.size(); ++ai)
+    {
+        const auto& as = state.axes[ai];
+        if (as.is_3d)
+            continue;
+        if (Axes* ax = fig->get_axes(ai))
+        {
+            ax->xlabel(as.x_label);
+            ax->ylabel(as.y_label);
+            ax->title(as.title);
+        }
+    }
+
+    for (const auto& ss : state.series)
+    {
+        // Files without axes indices put everything on the first axes.
+        const size_t ai = ss.axes_index >= 0 ? static_cast<size_t>(ss.axes_index) : 0;
+        if (ai < state.axes.size() && state.axes[ai].is_3d)
+            continue;
+        Axes* ax = fig->get_axes(ai);
+        if (!ax)
+            continue;
+
+        Series* s = nullptr;
+        if (ss.type == "line")
+        {
+            auto& line = ax->line();
+            line.width(ss.line_width);
+            line.marker_size(ss.marker_size);
+            s = &line;
+        }
+        else if (ss.type == "scatter")
+        {
+            auto& sc = ax->scatter();
+            sc.size(ss.marker_size);
+            s = &sc;
+        }
+        else
+        {
+            continue;
+        }
+
+        s->label(ss.name);
+        s->visible(ss.visible);
+        s->opacity(ss.opacity);
+        if (ss.line_style >= 0 && ss.line_style <= static_cast<int>(LineStyle::DashDotDot))
+            s->line_style(static_cast<LineStyle>(ss.line_style));
+        if (ss.marker_style >= 0
+            && ss.marker_style <= static_cast<int>(MarkerStyle::FilledTriangleUp))
+            s->marker_style(static_cast<MarkerStyle>(ss.marker_style));
+        const Color rgb{ss.color_r, ss.color_g, ss.color_b, ss.color_a};
+        if (ss.color_source.empty())
+        {
+            s->color(rgb);
+        }
+        else
+        {
+            SeriesColorSource src;
+            if (ss.color_source == "auto")
+                src = {SeriesColorSource::Kind::Palette, ss.color_index};
+            else if (ss.color_source == "letter" && ss.color_letter.size() == 1)
+                src = {SeriesColorSource::Kind::Letter, static_cast<int32_t>(ss.color_letter[0])};
+            apply_color_source(*s, src, rgb);
+        }
+        s->set_data_binding(ss.binding);
     }
     return fig;
 }
@@ -1370,6 +1493,10 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             for (size_t ai = 0; ai < fs.axes.size() && ai < fig->axes().size(); ++ai)
                 apply_to_axes_base(fig->axes()[ai].get(), ai);
         }
+
+        // Layout series were created and styled by build_layout_figure().
+        if (data.layout_only)
+            continue;
 
         // Apply series visibility
         size_t si               = 0;

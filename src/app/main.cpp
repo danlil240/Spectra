@@ -224,8 +224,28 @@ int main(int argc, char* argv[])
 {
     spectra::init_native_dialog_policy(argc, argv);
 
+    std::string layout_path;
     for (int i = 1; i < argc; ++i)
     {
+        if (std::strcmp(argv[i], "--layout") == 0 || std::strncmp(argv[i], "--layout=", 9) == 0)
+        {
+            if (argv[i][8] == '=')
+                layout_path = argv[i] + 9;
+            else if (i + 1 < argc)
+                layout_path = argv[++i];
+            if (layout_path.empty())
+            {
+                std::cerr << "spectra: --layout needs a file name\n";
+                return 2;
+            }
+            std::error_code ec;
+            if (!std::filesystem::is_regular_file(layout_path, ec))
+            {
+                std::cerr << "spectra: layout file not found: " << layout_path << "\n";
+                return 1;
+            }
+            continue;
+        }
         if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-v") == 0)
         {
 #ifdef SPECTRA_VERSION_STRING
@@ -242,6 +262,8 @@ int main(int argc, char* argv[])
                       << "GPU-accelerated scientific plotting application.\n"
                       << "\n"
                       << "Options:\n"
+                      << "  --layout FILE    Open a layout file (File > Save Layout) and\n"
+                      << "                   re-resolve its data bindings (topics, CSV files).\n"
                       << "  --no-native-dialogs\n"
                       << "                   Suppress native OS file dialogs (automation / fuzz).\n"
                       << "  --version, -v    Print version and exit\n"
@@ -260,10 +282,16 @@ int main(int argc, char* argv[])
     // to it transparently so its topics are immediately visible.
     spectra::setup_dual_logging(spectra::default_console_log_level(spectra::LogLevel::Info),
                                 spectra::default_file_log_level());
-    maybe_attach_to_running_daemon();
+    // A layout is opened by this process (spectra-window cannot take one yet),
+    // so stay in-process when one is given.
+    if (layout_path.empty())
+        maybe_attach_to_running_daemon();
+    else
+        SPECTRA_LOG_INFO("app", "Opening layout {} (in-process)", layout_path);
 
     spectra::AppConfig app_cfg;
     app_cfg.install_signal_handlers = true;   // Ctrl+C / SIGTERM → graceful shutdown
+    app_cfg.open_layout             = layout_path;
     spectra::App app(app_cfg);
     if (!app.ok())
         return 1;

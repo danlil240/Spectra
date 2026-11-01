@@ -201,6 +201,7 @@ set(SPECTRA_UNIT_TESTS
     test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
+    test_layout_bindings
     test_phase3_integration
     test_math3d
     test_3d_pipelines

@@ -239,6 +239,7 @@ void ImGuiIntegration::draw_fallback_menus()
 {
     ui::shell::MenuBar& bar = fallback_menu_bar();
     ui::shell::SpectraAppShell::sync_plugin_export_menu(bar, this);
+    ui::shell::SpectraAppShell::sync_recent_layouts_menu(bar, this);
     bar.draw_inline(
         [this, &bar](const char* label, const std::vector<ui::shell::MenuAction>& items) {
             draw_menubar_menu(label,

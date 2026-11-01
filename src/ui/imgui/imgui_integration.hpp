@@ -65,6 +65,7 @@ namespace spectra
 {
 
 class AnimationCurveEditor;
+class LayoutSession;
 class AxisLinkManager;
 class BoxZoomOverlay;
 class CommandPalette;
@@ -341,6 +342,8 @@ class ImGuiIntegration
     // calls draw() on it during the UI pass.  May be nullptr when no
     // transport is wired (e.g. in-process mode for now).
     void                     set_topics_panel(ui::topics::TopicsPanel* p) { topics_panel_ = p; }
+    void                     set_layout_session(LayoutSession* s) { layout_session_ = s; }
+    LayoutSession*           layout_session() const { return layout_session_; }
     ui::topics::TopicsPanel* topics_panel() const { return topics_panel_; }
 
     // Settings panel — owned externally (WindowUIContext).
@@ -771,7 +774,8 @@ class ImGuiIntegration
     std::string              plugin_panel_status_;
 
     // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md) — not owned.
-    ui::topics::TopicsPanel* topics_panel_ = nullptr;
+    ui::topics::TopicsPanel* topics_panel_   = nullptr;
+    LayoutSession*           layout_session_ = nullptr;
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;

@@ -153,6 +153,8 @@ bool is_fuzz_denied_command(const std::string& id)
         "file.export_png",
         "file.export_svg",
         "file.copy_to_clipboard",
+        "file.save_layout",   // native file dialogs
+        "file.open_layout",
         "help.show",
         "accessibility.sonify_series",
         "data.export_html_table",

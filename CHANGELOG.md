@@ -14,6 +14,7 @@ summarise the main changes rather than listing every commit.
 Release-readiness work for the first public preview.
 
 ### Added
+- Shareable layout files: File > Save Layout / Open Layout / Recent Layouts and `spectra --layout FILE` save a dashboard with data-binding URIs (`topic://`, `csv://`, reserved `ulog://`) instead of data, and re-resolve them on open (pending topic subscriptions, CSV lookup, Data Bindings window to pick replacements).
 - `SPECTRA_CONFIG_DIR` overrides the per-user config directory, and `XDG_CONFIG_HOME` is honoured on Linux/macOS, for settings, keybindings, workspaces, autosave, plugins and the default theme.
 - Truncated dense legends scroll with the mouse wheel in interactive windows.
 - QA: framebuffer contrast tests for plots (4 themes, 1x/2x, simulated colour-vision deficiency) and text-contrast checks in the design review; `--repeat` soak mode with an RSS/heap slope gate (`qa_soak` ctest).

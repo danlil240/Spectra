@@ -35,6 +35,7 @@
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "../workspace/layout_session.hpp"
     #include "../settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/commands/welcome_actions.hpp"
@@ -891,6 +892,14 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_csv_dialog();
     }
 
+    // Requested layout opens (startup --layout, File > Recent Layouts) and
+    // the Data Bindings window.
+    if (layout_session_)
+    {
+        layout_session_->poll();
+        layout_session_->draw();
+    }
+
     // Draw custom transform dialog if open
     if (custom_transform_dialog_.is_open())
     {
@@ -1093,6 +1102,13 @@ void ImGuiIntegration::build_empty_ui()
     // Draw CSV dialog if open (user may have opened it from the menu)
     if (csv_dialog_open_)
         draw_csv_dialog();
+
+    // A layout may be opened from the welcome screen too (startup --layout).
+    if (layout_session_)
+    {
+        layout_session_->poll();
+        layout_session_->draw();
+    }
 
     // Plugins panel can be opened while no figure exists.
     if (show_plugins_panel_)

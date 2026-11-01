@@ -61,17 +61,95 @@ from ._protocol import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 ArrayLike = Union[List[float], Tuple[float, ...], Sequence[float], Any]
 
 
+def _is_dataframe(data: Any) -> bool:
+    """True for pandas/polars-style 2-D tables (have columns and an index or schema)."""
+    return hasattr(data, "columns") and (hasattr(data, "index") or hasattr(data, "schema")) \
+        and hasattr(data, "__getitem__") and not isinstance(data, (list, tuple, dict))
+
+
+def _numpy_to_list(np: Any, arr: Any) -> List[float]:
+    """Flatten a NumPy array to floats; datetimes become Unix epoch seconds."""
+    kind = arr.dtype.kind
+    if kind == "M":  # datetime64 -> epoch seconds (NaT -> NaN)
+        ns = arr.astype("datetime64[ns]")
+        out = ns.astype(np.int64).astype(np.float64) / 1e9
+        out[np.isnat(ns)] = np.nan
+        return out.ravel().tolist()
+    if kind == "m":  # timedelta64 -> seconds
+        td = arr.astype("timedelta64[ns]")
+        out = td.astype(np.int64).astype(np.float64) / 1e9
+        out[np.isnat(td)] = np.nan
+        return out.ravel().tolist()
+    if kind == "O":
+        # Object arrays (e.g. pandas nullable ints with pd.NA, Timestamps).
+        return [_scalar_to_float(v) for v in arr.ravel().tolist()]
+    return arr.ravel().astype(np.float64).tolist()
+
+
+def _scalar_to_float(v: Any) -> float:
+    if v is None:
+        return float("nan")
+    ts = getattr(v, "timestamp", None)
+    if callable(ts):  # datetime / pandas.Timestamp
+        try:
+            return float(ts())
+        except (ValueError, OverflowError):  # NaT
+            return float("nan")
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        if str(v) in ("<NA>", "NaT", "nan"):
+            return float("nan")
+        raise
+
+
 def _to_list(data: ArrayLike) -> List[float]:
-    """Convert any array-like to list of floats."""
+    """Convert any array-like to list of floats.
+
+    Accepts lists, tuples, generators, NumPy arrays, pandas Series/Index,
+    polars Series and anything implementing ``__array__`` (xarray, CPU
+    tensors).  Datetime values become Unix epoch seconds.
+    """
     if isinstance(data, list):
-        return [float(v) for v in data]
+        try:
+            return [float(v) for v in data]
+        except (TypeError, ValueError):
+            return [_scalar_to_float(v) for v in data]
+    if _is_dataframe(data):
+        raise TypeError(
+            "pass one column (df['name']) or call sp.plot(df) to plot every column"
+        )
     try:
         import numpy as np
-        if isinstance(data, np.ndarray):
-            return data.ravel().astype(np.float64).tolist()
     except ImportError:
+        np = None
+    if np is not None:
+        if isinstance(data, np.ndarray):
+            return _numpy_to_list(np, data)
+        to_numpy = getattr(data, "to_numpy", None)
+        if callable(to_numpy):  # pandas Series/Index, polars Series
+            try:
+                return _numpy_to_list(np, np.asarray(to_numpy()))
+            except (TypeError, ValueError):
+                pass
+        if hasattr(data, "__array__"):
+            return _numpy_to_list(np, np.asarray(data))
+    values = list(data)
+    try:
+        return [float(v) for v in values]
+    except (TypeError, ValueError):
+        return [_scalar_to_float(v) for v in values]
+
+
+def _index_to_list(index: Any, n: int) -> List[float]:
+    """x values from a pandas index: numeric or datetime as-is, else 0..n-1."""
+    try:
+        x = _to_list(index)
+        if len(x) == n:
+            return x
+    except (TypeError, ValueError):
         pass
-    return [float(v) for v in data]
+    return [float(i) for i in range(n)]
 
 
 def _parse_color(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, float, float, float]]:
@@ -173,6 +251,7 @@ class _EasyState:
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
+        self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
         self._pending_knobs: List[dict] = []
         self._interactive_bindings: List = []
@@ -271,6 +350,7 @@ class _EasyState:
         self._current_axes3d = None
         self._figures.clear()
         self._axes_bounds.clear()
+        self._errorbar_counts.clear()
         self._subplot_cache.clear()
         self._shutting_down = False
 
@@ -406,13 +486,58 @@ def plot(
 
     Returns the Series object for further customization.
     """
+    if len(args) == 1 and _is_dataframe(args[0]):
+        return _plot_dataframe(args[0], color=color, width=width, label=label, **kwargs)
     x, y = _parse_xy_args(args)
+    if not label and len(args) == 1:
+        label = _series_name(args[0])
     ax = _state._ensure_axes()
     series = ax.line(x, y, label=label)
     _apply_series_style(series, color=color, width=width, **kwargs)
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
     return series
+
+
+def _series_name(data: Any) -> str:
+    """The ``name`` of a pandas/polars Series, used as the default legend label."""
+    if isinstance(data, (list, tuple)) or not hasattr(data, "to_numpy"):
+        return ""
+    name = getattr(data, "name", None)
+    return "" if name is None else str(name)
+
+
+def _dataframe_columns(df: Any) -> List[Any]:
+    cols = list(df.columns)
+    numeric = []
+    for c in cols:
+        try:
+            _to_list(df[c])
+        except (TypeError, ValueError):
+            continue  # skip text / category columns
+        numeric.append(c)
+    return numeric
+
+
+def _plot_dataframe(df: Any, color=None, width=None, label: str = "", **kwargs):
+    """One line per numeric column against the index (pandas) or row number."""
+    cols = _dataframe_columns(df)
+    if not cols:
+        raise ValueError("DataFrame has no numeric columns to plot")
+    n = len(df)
+    index = getattr(df, "index", None)
+    x = _index_to_list(index, n) if index is not None else [float(i) for i in range(n)]
+    ax = _state._ensure_axes()
+    series_list = []
+    for c in cols:
+        y = _to_list(df[c])
+        lbl = f"{label}{c}" if label else str(c)
+        s = ax.line(x, y, label=lbl)
+        _apply_series_style(s, color=color, width=width, **kwargs)
+        _auto_fit_axes(ax, x, y)
+        series_list.append(s)
+    _state._show_if_pending()
+    return series_list
 
 
 def scatter(
@@ -466,6 +591,120 @@ def stem(
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
     return line
+
+
+_ERRORBAR_COLOR_CYCLE = ("b", "r", "g", "m", "c", "y")
+
+
+def _expand_err(err: Any, n: int, name: str) -> Tuple[List[float], List[float]]:
+    """Normalise an error spec to (lower, upper) lists of length n.
+
+    Accepts a scalar, a length-n array (symmetric) or a 2 x n pair
+    ``(lower, upper)`` like matplotlib.
+    """
+    if isinstance(err, (int, float)):
+        v = abs(float(err))
+        return [v] * n, [v] * n
+    shape = getattr(err, "shape", None)
+    if shape is not None and len(shape) == 2:
+        if shape[0] != 2:
+            raise ValueError(f"{name} must have shape (n,) or (2, n), got {tuple(shape)}")
+        lower, upper = _to_list(err[0]), _to_list(err[1])
+    elif isinstance(err, (list, tuple)) and len(err) == 2 \
+            and all(hasattr(e, "__len__") for e in err):
+        lower, upper = _to_list(err[0]), _to_list(err[1])
+    else:
+        lower = _to_list(err)
+        upper = lower
+    if len(lower) != n or len(upper) != n:
+        raise ValueError(f"{name} has {len(lower)} values but the data has {n}")
+    return [abs(v) for v in lower], [abs(v) for v in upper]
+
+
+def errorbar(
+    x: ArrayLike,
+    y: ArrayLike,
+    yerr: Any = None,
+    xerr: Any = None,
+    fmt: str = "-",
+    color: Union[str, Tuple, List, None] = None,
+    capsize: float = 0.0,
+    label: str = "",
+    width: Optional[float] = None,
+    size: Optional[float] = None,
+):
+    """Line or markers with error bars, like ``matplotlib.pyplot.errorbar``.
+
+    ``yerr`` / ``xerr`` may be a scalar, an array (symmetric) or a pair
+    ``(lower, upper)``.  ``fmt`` is ``"-"`` (line, default), ``"o"`` or
+    ``"."`` (markers) or ``"none"`` (error bars only).  ``capsize`` is the
+    full cap width in data units (0 = no caps, the matplotlib default).
+
+    Usage::
+
+        sp.errorbar(x, y, yerr=0.1)
+        sp.errorbar(x, y, yerr=(lo, hi), fmt="o", capsize=0.2)
+
+    Returns ``(data_series, bar_series)``; ``data_series`` is ``None`` when
+    ``fmt="none"``.
+    """
+    xv = _to_list(x)
+    yv = _to_list(y)
+    if len(xv) != len(yv):
+        raise ValueError(f"x has {len(xv)} values but y has {len(yv)}")
+    if fmt not in ("-", "o", ".", "none", ""):
+        raise ValueError("fmt must be '-', 'o', '.' or 'none'")
+    n = len(xv)
+    nan = float("nan")
+    bx: List[float] = []
+    by: List[float] = []
+    half_cap = abs(float(capsize)) / 2.0
+    if yerr is not None:
+        lo, hi = _expand_err(yerr, n, "yerr")
+        for xi, yi, l, h in zip(xv, yv, lo, hi):
+            bx.extend([xi, xi, nan])
+            by.extend([yi - l, yi + h, nan])
+            if half_cap > 0:
+                for yc in (yi - l, yi + h):
+                    bx.extend([xi - half_cap, xi + half_cap, nan])
+                    by.extend([yc, yc, nan])
+    if xerr is not None:
+        lo, hi = _expand_err(xerr, n, "xerr")
+        for xi, yi, l, h in zip(xv, yv, lo, hi):
+            bx.extend([xi - l, xi + h, nan])
+            by.extend([yi, yi, nan])
+            if half_cap > 0:
+                for xc in (xi - l, xi + h):
+                    bx.extend([xc, xc, nan])
+                    by.extend([yi - half_cap, yi + half_cap, nan])
+
+    ax = _state._ensure_axes()
+    if color is None:
+        # Bars and data share one colour; the IPC API cannot copy a palette
+        # slot between series, so pick a theme-aware letter per call.
+        key = (getattr(ax, "_figure_id", 0), getattr(ax, "_index", 0))
+        count = _state._errorbar_counts.get(key, 0)
+        _state._errorbar_counts[key] = count + 1
+        color = _ERRORBAR_COLOR_CYCLE[count % len(_ERRORBAR_COLOR_CYCLE)]
+
+    data_series = None
+    if fmt == "-":
+        data_series = ax.line(xv, yv, label=label)
+        _apply_series_style(data_series, color=color, width=width)
+    elif fmt in ("o", "."):
+        data_series = ax.scatter(xv, yv, label=label)
+        marker = size if size is not None else (6.0 if fmt == "o" else 3.0)
+        _apply_series_style(data_series, color=color, size=marker)
+
+    bar_series = None
+    if bx:
+        bar_series = ax.line(bx, by, label="" if data_series is not None else label)
+        _apply_color(bar_series, color)
+        if width is not None:
+            bar_series.set_line_width(float(width))
+    _auto_fit_axes(ax, xv + bx, yv + by)
+    _state._show_if_pending()
+    return data_series, bar_series
 
 
 def hist(
@@ -1616,7 +1855,11 @@ def _parse_xy_args(args) -> Tuple[List[float], List[float]]:
         return [], []
     elif len(args) == 1:
         y = _to_list(args[0])
-        x = [float(i) for i in range(len(y))]
+        index = getattr(args[0], "index", None)
+        if index is not None and not callable(index) and hasattr(args[0], "to_numpy"):
+            x = _index_to_list(index, len(y))  # pandas Series: plot against its index
+        else:
+            x = [float(i) for i in range(len(y))]
         return x, y
     else:
         x = _to_list(args[0])

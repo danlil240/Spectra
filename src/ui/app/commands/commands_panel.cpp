@@ -93,6 +93,20 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                             ui_ctx.topics_panel.set_visible(!ui_ctx.topics_panel.is_visible());
                     }});
 
+    cmds.push_back({"panel.toggle_logs",
+                    "Toggle Log Browser",
+                    "",
+                    "Panel",
+                    static_cast<uint16_t>(ui::Icon::FolderOpen),
+                    [&, toggle_shell_panel]()
+                    {
+                        if (app_shell)
+                            toggle_shell_panel("core.logs", "Show log browser", "Hide log browser");
+                        else
+                            ui_ctx.log_browser_panel.set_visible(
+                                !ui_ctx.log_browser_panel.is_visible());
+                    }});
+
     cmds.push_back({"panel.open_settings", "Settings", "", "Panel", 0, [&]() {
                         ui_ctx.settings_panel.open();
                     }});

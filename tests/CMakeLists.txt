@@ -253,6 +253,9 @@ set(SPECTRA_UNIT_TESTS
     test_font_fallback
     test_eigen_support
     test_csv_loader
+    test_ulog_reader
+    test_log_readers
+    test_log_browser_panel
     test_series_stats
     test_double_precision_data
     test_series_clipboard
@@ -493,8 +496,17 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     if(_test STREQUAL "test_multi_window")
         continue()
     endif()
+    # The log browser panel is part of the ImGui UI.
+    if(_test STREQUAL "test_log_browser_panel" AND NOT DEFINED imgui_SOURCE_DIR)
+        continue()
+    endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
         add_spectra_test(unit ${_test})
+        # MCAP fixtures are written with the vendored foxglove/mcap writer.
+        if(_test MATCHES "^test_log_(readers|browser_panel)$" AND SPECTRA_USE_MCAP)
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${SPECTRA_MCAP_INCLUDE_DIR})
+            target_compile_definitions(unit_${_test} PRIVATE ${SPECTRA_MCAP_DEFINITIONS})
+        endif()
         # Tag GPU-dependent tests so they can be excluded with -LE gpu
         if(_test IN_LIST SPECTRA_GPU_TESTS)
             set_tests_properties(unit_${_test} PROPERTIES
@@ -514,7 +526,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
@@ -2059,28 +2071,6 @@ endif()
 # PX4 / ULog adapter tests — only built when SPECTRA_USE_PX4 is ON.
 # Pure C++ — no PX4 hardware, no MAVLink network, no ImGui context needed.
 if(SPECTRA_USE_PX4)
-    # ULogReader tests — ULog binary format parser.
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ulog_reader.cpp)
-        add_executable(unit_test_ulog_reader
-            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ulog_reader.cpp
-        )
-        target_link_libraries(unit_test_ulog_reader PRIVATE
-            spectra_px4_adapter
-            GTest::gtest
-        )
-        target_compile_features(unit_test_ulog_reader PRIVATE cxx_std_20)
-        target_include_directories(unit_test_ulog_reader PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/src/adapters/px4
-            ${CMAKE_CURRENT_SOURCE_DIR}/util
-        )
-        target_compile_definitions(unit_test_ulog_reader PRIVATE
-            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-        )
-        add_test(NAME unit_test_ulog_reader COMMAND unit_test_ulog_reader)
-        set_tests_properties(unit_test_ulog_reader PROPERTIES LABELS "px4")
-    endif()
-
     # PX4 panel helpers — Parameters sorting and stable live-row widget IDs.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_panel_helpers.cpp)
         add_executable(unit_test_px4_panel_helpers

@@ -26,6 +26,10 @@ struct WindowContext;
 class VulkanBackend;
 class Renderer;
 class ExportFormatRegistry;
+namespace logs
+{
+class LogReaderRegistry;
+}
 class PluginManager;
 class SessionRuntime;
 
@@ -327,6 +331,7 @@ class WindowManager
     // Shared plugin services wired into each window UI context.
     void set_plugin_manager(PluginManager* mgr) { plugin_manager_ = mgr; }
     void set_export_format_registry(ExportFormatRegistry* reg) { export_format_registry_ = reg; }
+    void set_log_reader_registry(const logs::LogReaderRegistry* reg) { log_reader_registry_ = reg; }
     void set_session_runtime(SessionRuntime* session) { session_ = session; }
 
     // Process-scoped settings store passed through to each window UI context.
@@ -428,9 +433,10 @@ class WindowManager
     OverlayRegistry shared_overlay_registry_;
 
     // Shared plugin services (owned externally by AppRuntime)
-    PluginManager*        plugin_manager_         = nullptr;
-    ExportFormatRegistry* export_format_registry_ = nullptr;
-    SessionRuntime*       session_                = nullptr;
+    PluginManager*                 plugin_manager_         = nullptr;
+    ExportFormatRegistry*          export_format_registry_ = nullptr;
+    const logs::LogReaderRegistry* log_reader_registry_    = nullptr;
+    SessionRuntime*                session_                = nullptr;
 
     // Process-scoped settings store (owned externally by App/agent).
     ui::settings::SettingsStore* settings_store_ = nullptr;

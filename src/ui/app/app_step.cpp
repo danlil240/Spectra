@@ -17,6 +17,7 @@
 #include "adapters/data_source_registry.hpp"
 #include "adapters/data_source_topics.hpp"
 #include "io/export_registry.hpp"
+#include "io/logs/log_reader_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/renderer.hpp"
 #include "io/svg_export_internal.hpp"
@@ -231,10 +232,11 @@ struct App::AppRuntime
 
     // Host registries the plugin manager points to: declared before it so
     // they outlive it even if ~AppRuntime has to unload plugins itself.
-    ExportFormatRegistry export_format_registry;
-    DataSourceRegistry   data_source_registry;
-    SeriesTypeRegistry   series_type_registry;
-    PluginManager        plugin_manager;
+    ExportFormatRegistry    export_format_registry;
+    logs::LogReaderRegistry log_reader_registry;   // log browser readers (ULog, MCAP)
+    DataSourceRegistry      data_source_registry;
+    SeriesTypeRegistry      series_type_registry;
+    PluginManager           plugin_manager;
     // UI context whose command registry, shortcuts and undo stack the plugin
     // manager uses (headless context or a window's).  Plugins are unloaded
     // or re-hosted before it is destroyed (see App::release_plugin_ui_host).
@@ -485,6 +487,7 @@ void App::init_runtime()
 
     runtime_ = std::make_unique<AppRuntime>(init_fps, *backend_, *renderer_, registry_);
     auto& rt = *runtime_;
+    logs::register_builtin_log_readers(rt.log_reader_registry);
 
     // Headless apps ignore ~/.config/spectra/settings.json unless asked
     // (AppConfig::use_user_settings) so exports look the same on every machine;
@@ -598,6 +601,7 @@ void App::init_runtime()
                 wm_opts.settings_store         = rt.settings_store.get();
                 wm_opts.plugin_manager         = &rt.plugin_manager;
                 wm_opts.export_format_registry = &rt.export_format_registry;
+                wm_opts.log_reader_registry    = &rt.log_reader_registry;
                 rt.window_mgr                  = create_configured_window_manager(wm_opts);
                 rt.window_mgr->set_interactive_frame_handler(
                     [&rt]()
@@ -675,6 +679,7 @@ void App::init_runtime()
                 wm_opts.settings_store         = rt.settings_store.get();
                 wm_opts.plugin_manager         = &rt.plugin_manager;
                 wm_opts.export_format_registry = &rt.export_format_registry;
+                wm_opts.log_reader_registry    = &rt.log_reader_registry;
                 rt.window_mgr                  = create_configured_window_manager(wm_opts);
                 rt.window_mgr->set_interactive_frame_handler(
                     [&rt]()
@@ -825,21 +830,41 @@ void App::init_runtime()
                 ax.auto_fit();
             });
 
-        // Wire OS drag-and-drop: CSV/TSV/TXT files trigger the Load from CSV flow.
-        auto* imgui_ui_ptr = imgui_ui.get();
+        // Log browser: double-click / welcome-screen drops plot into the
+        // active figure's first axes, creating a figure when there is none.
+        auto& log_panel = rt.ui_ctx_ptr->log_browser_panel;
+        log_panel.set_axes_provider(
+            [&fig_mgr, this]() -> Axes*
+            {
+                FigureId active_id = fig_mgr.active_index();
+                Figure*  fig       = registry_.get(active_id);
+                if (!fig)
+                {
+                    active_id = fig_mgr.create_figure(FigureConfig{});
+                    fig       = registry_.get(active_id);
+                    if (!fig)
+                        return nullptr;
+                }
+                if (!fig->axes().empty() && fig->axes().front())
+                    return fig->axes().front().get();
+                return &fig->subplot(1, 1, 1);
+            });
+
+        // Wire OS drag-and-drop: CSV/TSV/TXT files trigger the Load from CSV
+        // flow; log files the registry recognizes (ULog, MCAP) open in the
+        // log browser.
+        auto* imgui_ui_ptr  = imgui_ui.get();
+        auto* log_panel_ptr = &log_panel;
         if (rt.window_mgr)
         {
             rt.window_mgr->set_file_drop_handler(
-                [imgui_ui_ptr](uint32_t /*window_id*/, const std::string& path)
+                [imgui_ui_ptr, log_panel_ptr](uint32_t /*window_id*/, const std::string& path)
                 {
-                    namespace fs = std::filesystem;
-                    auto ext     = fs::path(path).extension().string();
-                    std::transform(ext.begin(),
-                                   ext.end(),
-                                   ext.begin(),
-                                   [](unsigned char c) { return std::tolower(c); });
-                    if (ext == ".csv" || ext == ".tsv" || ext == ".txt")
+                    const std::string ext = logs::lowercase_extension(path);
+                    if (ext == "csv" || ext == "tsv" || ext == "txt")
                         imgui_ui_ptr->request_csv_load(path);
+                    else if (log_panel_ptr->can_open(path))
+                        log_panel_ptr->open_file(path);
                 });
         }
     }

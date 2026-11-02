@@ -474,6 +474,7 @@ WindowUIContextBuildOptions WindowManager::make_ui_build_options(WindowContext& 
     options.initial_figure_id       = initial_figure_id;
     options.plugin_manager          = plugin_manager_;
     options.export_format_registry  = export_format_registry_;
+    options.log_reader_registry     = log_reader_registry_;
     options.overlay_registry        = &shared_overlay_registry_;
     options.series_clipboard        = &shared_clipboard_;
     options.session                 = session_;

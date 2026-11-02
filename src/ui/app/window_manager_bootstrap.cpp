@@ -26,6 +26,8 @@ void configure_window_manager(WindowManager& wm, const WindowManagerBootstrapOpt
         wm.set_plugin_manager(options.plugin_manager);
     if (options.export_format_registry)
         wm.set_export_format_registry(options.export_format_registry);
+    if (options.log_reader_registry)
+        wm.set_log_reader_registry(options.log_reader_registry);
 
     wm.set_session_runtime(options.session);
 

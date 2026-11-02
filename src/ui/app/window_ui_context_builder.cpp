@@ -268,6 +268,10 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->layout_session.set_figure_registry(options.registry);
         ui->layout_session.topic_names_fn = [ui_raw = ui.get()]()
         { return ui_raw->topics_panel.topic_names(); };
+        ui->log_browser_panel.set_registry(options.log_reader_registry);
+        ui->log_browser_panel.set_open_dialog_callback([imgui = ui->imgui_ui.get()]()
+                                                       { imgui->open_log_with_dialog(); });
+        ui->imgui_ui->set_log_browser_panel(&ui->log_browser_panel);
         ui->app_shell = std::make_unique<ui::shell::SpectraAppShell>(ui->imgui_ui.get());
         ui->imgui_ui->set_app_shell(ui->app_shell.get());
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)

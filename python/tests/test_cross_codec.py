@@ -27,6 +27,8 @@ from spectra._codec import (
     encode_req_show,
     encode_req_destroy_figure,
     encode_req_append_data,
+    encode_req_export_figure,
+    decode_req_export_figure,
     decode_resp_figure_created,
     decode_resp_axes_created,
     decode_resp_series_added,
@@ -90,7 +92,14 @@ def write_payloads(out_dir: str) -> None:
     with open(os.path.join(out_dir, "req_append_data.bin"), "wb") as f:
         f.write(data)
 
-    print(f"Wrote 9 payload files to {out_dir}")
+    # req_export_figure.bin
+    data = encode_req_export_figure(
+        figure_id=42, path="/tmp/cross/plot.svg", fmt="svg", width=640, height=480, theme="light"
+    )
+    with open(os.path.join(out_dir, "req_export_figure.bin"), "wb") as f:
+        f.write(data)
+
+    print(f"Wrote 10 payload files to {out_dir}")
 
 
 def write_cpp_style_payloads(out_dir: str) -> None:
@@ -154,6 +163,27 @@ def write_cpp_style_payloads(out_dir: str) -> None:
 
 
 # ─── Pytest tests: verify Python can decode its own "C++-style" payloads ──────
+
+class TestExportFigurePayload:
+    """REQ_EXPORT_FIGURE is FlatBuffers-only (decoded by C++ decode_req_export_figure)."""
+
+    def test_round_trip(self):
+        data = encode_req_export_figure(
+            figure_id=7, path="/a b/ü.png", fmt="png", width=800, height=600, theme="dark"
+        )
+        assert data[0] == P.PAYLOAD_FORMAT_FLATBUFFERS
+        d = decode_req_export_figure(data)
+        assert d == {"figure_id": 7, "path": "/a b/ü.png", "format": "png",
+                     "width": 800, "height": 600, "theme": "dark"}
+
+    def test_defaults(self):
+        d = decode_req_export_figure(encode_req_export_figure(figure_id=1, path="/x.png"))
+        assert (d["format"], d["width"], d["height"], d["theme"]) == ("", 0, 0, "")
+
+    def test_message_type_in_python_request_range(self):
+        assert P.REQ_EXPORT_FIGURE == 0x0512
+        assert 0x0500 <= P.REQ_EXPORT_FIGURE <= 0x053F
+
 
 class TestCrossCodecPythonDecode:
     """Verify Python decoders handle payloads in the exact format C++ produces."""

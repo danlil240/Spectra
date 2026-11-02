@@ -391,6 +391,9 @@ int main(int argc, char* argv[])
                 case MessageType::REQ_ANIM_START:
                     result = handle_req_anim_start(ctx, *it, msg);
                     break;
+                case MessageType::REQ_EXPORT_FIGURE:
+                    result = handle_req_export_figure(ctx, *it, msg);
+                    break;
 
                 // ─── Topics (pub/sub) ───────────────────────────────────────
                 case MessageType::REQ_DECLARE_TOPIC:

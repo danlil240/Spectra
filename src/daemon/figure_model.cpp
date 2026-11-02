@@ -222,6 +222,38 @@ ipc::DiffOp FigureModel::set_axis_title(uint64_t           figure_id,
     return op;
 }
 
+bool FigureModel::set_axis_format(uint64_t     figure_id,
+                                  uint32_t     axes_index,
+                                  int          x_scale,
+                                  int          y_scale,
+                                  int          x_datetime,
+                                  int          y_datetime,
+                                  ipc::DiffOp* op_out)
+{
+    auto valid = [](int v, int max) { return v == KEEP_AXIS_FORMAT || (v >= 0 && v <= max); };
+    if (!valid(x_scale, 3) || !valid(y_scale, 3) || !valid(x_datetime, 1) || !valid(y_datetime, 1))
+        return false;
+
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size()
+        || it->second.axes[axes_index].is_3d)
+        return false;
+    auto& ax = it->second.axes[axes_index];
+    if (x_scale != KEEP_AXIS_FORMAT)
+        ax.x_scale = static_cast<uint8_t>(x_scale);
+    if (y_scale != KEEP_AXIS_FORMAT)
+        ax.y_scale = static_cast<uint8_t>(y_scale);
+    if (x_datetime != KEEP_AXIS_FORMAT)
+        ax.x_datetime = x_datetime != 0;
+    if (y_datetime != KEEP_AXIS_FORMAT)
+        ax.y_datetime = y_datetime != 0;
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_axis_scale_op(figure_id, axes_index, ax);
+    return true;
+}
+
 // --- Text annotations ---
 
 bool FigureModel::add_annotation(uint64_t                            figure_id,
@@ -963,6 +995,15 @@ bool FigureModel::has_figure(uint64_t figure_id) const
 {
     std::lock_guard lock(mu_);
     return figures_.contains(figure_id);
+}
+
+std::string FigureModel::series_type(uint64_t figure_id, uint32_t series_index) const
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || series_index >= it->second.series.size())
+        return {};
+    return it->second.series[series_index].type;
 }
 
 bool FigureModel::get_axis_limits(uint64_t figure_id,

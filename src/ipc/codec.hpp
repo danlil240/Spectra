@@ -104,6 +104,9 @@ std::optional<ReqAppendDataPayload> decode_req_append_data(std::span<const uint8
 std::vector<uint8_t>                 encode_req_close_figure(const ReqCloseFigurePayload& p);
 std::optional<ReqCloseFigurePayload> decode_req_close_figure(std::span<const uint8_t> data);
 
+std::vector<uint8_t>                  encode_req_export_figure(const ReqExportFigurePayload& p);
+std::optional<ReqExportFigurePayload> decode_req_export_figure(std::span<const uint8_t> data);
+
 std::vector<uint8_t>                 encode_req_update_batch(const ReqUpdateBatchPayload& p);
 std::optional<ReqUpdateBatchPayload> decode_req_update_batch(std::span<const uint8_t> data);
 

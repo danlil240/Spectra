@@ -978,6 +978,7 @@ if(SPECTRA_BUILD_APPS AND SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             src/daemon/session_graph.cpp
             src/daemon/process_manager.cpp
             src/daemon/figure_model.cpp
+            src/daemon/figure_export.cpp
         )
         target_link_libraries(spectra-backend PRIVATE spectra)
         target_compile_features(spectra-backend PRIVATE cxx_std_20)

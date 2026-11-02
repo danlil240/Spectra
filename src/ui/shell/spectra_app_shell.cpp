@@ -17,6 +17,9 @@
     #include "ui/shell/panel.hpp"
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
+    #include "ui/workspace/layout_session.hpp"
+
+    #include <filesystem>
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -716,6 +719,11 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     file.add(command("Save Workspace", "file.save_workspace"));
     file.add(command("Load Workspace", "file.load_workspace"));
     file.add_separator();
+    file.add(command("Save Layout...", "file.save_layout"));
+    file.add(command("Open Layout...", "file.open_layout"));
+    file.add({.label = RECENT_LAYOUTS_MENU});   // submenu: sync_recent_layouts_menu()
+    file.add(command("Data Bindings", "file.data_bindings"));
+    file.add_separator();
     file.add(command("Save Figure...", "file.save_figure"));
     file.add(command("Load Figure...", "file.load_figure"));
     file.add_separator();
@@ -861,6 +869,44 @@ void SpectraAppShell::sync_file_menu()
     if (!imgui_ || !menus_populated_)
         return;
     sync_plugin_export_menu(menu_bar_, imgui_);
+    sync_recent_layouts_menu(menu_bar_, imgui_);
+}
+
+void SpectraAppShell::sync_recent_layouts_menu(MenuBar& bar, spectra::ImGuiIntegration* imgui)
+{
+    if (!imgui || !bar.has_menu("File"))
+        return;
+    spectra::LayoutSession* session = imgui->layout_session();
+
+    std::vector<MenuAction> items;
+    if (!session || session->recent().empty())
+    {
+        items.push_back({.label = "No Recent Layouts", .enabled = []() { return false; }});
+    }
+    else
+    {
+        for (const std::string& path : session->recent().entries())
+        {
+            const std::filesystem::path p(path);
+            items.push_back({.label    = p.filename().string(),
+                             .shortcut = p.parent_path().filename().string(),
+                             .icon     = static_cast<uint16_t>(Icon::Clock),
+                             // Deferred: opening edits the recent list this menu is built from.
+                             .on_click = [session, path]() { session->request_open(path); }});
+        }
+        items.push_back({.separator = true});
+        items.push_back({.label    = "Clear Recent Layouts",
+                         .on_click = [session]() { session->recent().clear(); }});
+    }
+
+    for (auto& action : bar.menu("File").items_mut())
+    {
+        if (action.label == RECENT_LAYOUTS_MENU)
+        {
+            action.submenu = std::move(items);
+            break;
+        }
+    }
 }
 
 void SpectraAppShell::sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegration* imgui)

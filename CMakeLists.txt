@@ -318,6 +318,8 @@ foreach(_ui_src
     src/ui/native_dialog_policy.cpp
     src/ui/ui_interaction_log.cpp
     src/ui/workspace/figure_serializer.cpp
+    src/ui/workspace/data_binding.cpp
+    src/ui/workspace/binding_resolver.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp
     src/ui/overlay/custom_transform_dialog.cpp
@@ -726,6 +728,8 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/commands/undo_manager.cpp
         src/ui/workspace/workspace.cpp
         src/ui/workspace/workspace_autosave.cpp
+        src/ui/workspace/layout.cpp
+        src/ui/workspace/layout_session.cpp
         src/ui/commands/shortcut_config.cpp
         src/ui/workspace/plugin_api.cpp
         src/ui/workspace/plugin_guard.cpp

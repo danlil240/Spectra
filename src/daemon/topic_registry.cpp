@@ -1,6 +1,7 @@
 #include "topic_registry.hpp"
 
 #include <algorithm>
+#include <iterator>
 
 namespace spectra::daemon
 {
@@ -57,6 +58,12 @@ TopicRegistry::DeclareResult TopicRegistry::declare_locked(const std::string& na
         t.owner_client_id  = owner_client_id;
         t.publisher_online = true;
         t.ring_capacity    = ring_capacity == 0 ? 4096u : ring_capacity;
+        // Promote subscriptions queued before the topic existed.
+        if (auto pit = pending_subs_.find(name); pit != pending_subs_.end())
+        {
+            t.subs = std::move(pit->second);
+            pending_subs_.erase(pit);
+        }
         topics_.emplace(name, std::move(t));
         return DeclareResult::Created;
     }
@@ -163,6 +170,31 @@ bool TopicRegistry::subscribe(const std::string&       name,
     return true;
 }
 
+bool TopicRegistry::subscribe_or_defer(const std::string&       name,
+                                       const TopicSubscription& sub,
+                                       ipc::TopicKind*          kind_out,
+                                       std::vector<double>*     retained_samples_out)
+{
+    {
+        std::lock_guard<std::mutex> lk(mutex_);
+        if (topics_.find(name) == topics_.end())
+        {
+            auto& pending = pending_subs_[name];
+            if (std::find(pending.begin(), pending.end(), sub) == pending.end())
+                pending.push_back(sub);
+            return false;
+        }
+    }
+    return subscribe(name, sub, kind_out, retained_samples_out);
+}
+
+size_t TopicRegistry::pending_count(const std::string& name) const
+{
+    std::lock_guard<std::mutex> lk(mutex_);
+    auto                        it = pending_subs_.find(name);
+    return it == pending_subs_.end() ? 0 : it->second.size();
+}
+
 void TopicRegistry::unsubscribe(const TopicSubscription& sub)
 {
     std::lock_guard<std::mutex> lk(mutex_);
@@ -171,14 +203,19 @@ void TopicRegistry::unsubscribe(const TopicSubscription& sub)
         auto& subs = kv.second.subs;
         subs.erase(std::remove(subs.begin(), subs.end(), sub), subs.end());
     }
+    for (auto it = pending_subs_.begin(); it != pending_subs_.end();)
+    {
+        auto& subs = it->second;
+        subs.erase(std::remove(subs.begin(), subs.end(), sub), subs.end());
+        it = subs.empty() ? pending_subs_.erase(it) : std::next(it);
+    }
 }
 
 void TopicRegistry::on_series_removed(uint64_t figure_id, uint32_t series_index)
 {
     std::lock_guard<std::mutex> lk(mutex_);
-    for (auto& kv : topics_)
+    auto                        reindex = [&](std::vector<TopicSubscription>& subs)
     {
-        auto& subs = kv.second.subs;
         subs.erase(
             std::remove_if(subs.begin(),
                            subs.end(),
@@ -190,7 +227,11 @@ void TopicRegistry::on_series_removed(uint64_t figure_id, uint32_t series_index)
             if (s.figure_id == figure_id && s.series_index > series_index)
                 --s.series_index;
         }
-    }
+    };
+    for (auto& kv : topics_)
+        reindex(kv.second.subs);
+    for (auto& kv : pending_subs_)
+        reindex(kv.second);
 }
 
 std::vector<TopicRegistry::Info> TopicRegistry::snapshot() const

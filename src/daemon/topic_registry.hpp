@@ -103,6 +103,19 @@ class TopicRegistry
                    const TopicSubscription& sub,
                    ipc::TopicKind*          kind_out,
                    std::vector<double>*     retained_samples_out);
+    // Subscribe now if the topic exists; otherwise queue a pending
+    // subscription that is promoted when the topic is first declared (used
+    // when a layout is opened before its publishers start).  Returns true if
+    // subscribed now (kind / retained samples are then filled in as for
+    // subscribe()), false if queued.
+    bool subscribe_or_defer(const std::string&       name,
+                            const TopicSubscription& sub,
+                            ipc::TopicKind*          kind_out,
+                            std::vector<double>*     retained_samples_out);
+    // Pending (not yet promoted) subscriptions for a topic name.
+    size_t pending_count(const std::string& name) const;
+
+    // Drops the subscription, whether active or pending.
     void unsubscribe(const TopicSubscription& sub);
 
     // A series was erased from a figure, so every later series index in that
@@ -149,6 +162,8 @@ class TopicRegistry
 
     mutable std::mutex                     mutex_;
     std::unordered_map<std::string, Topic> topics_;
+    // Subscriptions queued for topics not declared yet (see subscribe_or_defer).
+    std::unordered_map<std::string, std::vector<TopicSubscription>> pending_subs_;
 };
 
 }   // namespace spectra::daemon

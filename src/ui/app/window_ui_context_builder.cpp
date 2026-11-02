@@ -264,6 +264,10 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->imgui_ui->set_export_format_registry(options.export_format_registry);
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
         ui->imgui_ui->set_topics_panel(&ui->topics_panel);
+        ui->imgui_ui->set_layout_session(&ui->layout_session);
+        ui->layout_session.set_figure_registry(options.registry);
+        ui->layout_session.topic_names_fn = [ui_raw = ui.get()]()
+        { return ui_raw->topics_panel.topic_names(); };
         ui->log_browser_panel.set_registry(options.log_reader_registry);
         ui->log_browser_panel.set_open_dialog_callback([imgui = ui->imgui_ui.get()]()
                                                        { imgui->open_log_with_dialog(); });

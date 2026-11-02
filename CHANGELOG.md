@@ -15,6 +15,7 @@ Release-readiness work for the first public preview.
 
 ### Added
 
+- Shareable layout files: File > Save Layout / Open Layout / Recent Layouts and `spectra --layout FILE` save a dashboard with data-binding URIs (`topic://`, `csv://`, reserved `ulog://`) instead of data, and re-resolve them on open (pending topic subscriptions, CSV lookup, Data Bindings window to pick replacements).
 - Log browser: open PX4 ULog (`.ulg`) and MCAP (`.mcap`, JSON and ROS 2 CDR messages, no ROS install needed) files in the main `spectra` app by drag-and-drop or File > Open Log..., search their fields in a tree and drag a field onto a plot (double-precision timestamps). New `LogReader`/`LogReaderRegistry` in `src/io/logs/`; the ULog parser moved there from the PX4 adapter. `SPECTRA_USE_MCAP` (default ON) fetches foxglove/mcap.
 - Python: `sp.bar`/`barh`, `sp.hist`, `sp.stem` and new `sp.fill_between` draw the native C++ bar, histogram, stem and band series over IPC; `sp.savefig(path, width=, height=)` / `Figure.savefig` render PNG or SVG offscreen in the backend (new `REQ_EXPORT_FIGURE`); `sp.xscale`/`yscale`, `semilogx`/`semilogy`/`loglog`, date-time x axes switched on automatically for datetime x data; and a `spectra.pyplot` matplotlib-compatibility module.
 - Topic bridges: `spectra-backend --udp-bridge [HOST:]PORT` (or `SPECTRA_UDP_BRIDGE`) publishes UDP JSON / CSV datagrams as topics, one topic per numeric field (`udp/imu/accel/x`); plugin data sources are published as topics `<source>/<label>` and can be started and stopped from the Topics panel.

@@ -73,6 +73,16 @@ bool TopicsPanel::submit_subscribe(const std::string& topic_name,
     return true;
 }
 
+std::vector<std::string> TopicsPanel::topic_names() const
+{
+    std::lock_guard<std::mutex> g(mutex_);
+    std::vector<std::string>    out;
+    out.reserve(topics_.size());
+    for (const auto& t : topics_)
+        out.push_back(t.name);
+    return out;
+}
+
 bool TopicsPanel::submit_data_source_toggle(const std::string& name, bool start)
 {
     if (!data_source_toggle_cb_ || name.empty())

@@ -23,7 +23,7 @@ Full-size version: [diagrams gallery](diagrams.html)
 | **Publisher** | A process that creates a topic via `declare()` and pushes samples via `publish()`. |
 | **Subscription** | A binding from a topic to a concrete `(figure_id, axes_index, series_index)` triple inside the daemon's figure model. Receives fan-out of every sample. |
 | **Topic kind** | `Scalar2D` (default — `(x, y)` pairs) or `Scalar3D` (`(x, y, z)` triples). |
-| **Pending subscription** | A subscription queued before the topic is declared. Promotes automatically when the matching `declare()` arrives. Used during workspace restore. |
+| **Pending subscription** | A subscription queued before the topic is declared. Promotes automatically when the matching `declare()` arrives. Used when a [layout file](layouts.md) is opened before its publishers start (in-process app). |
 
 ---
 

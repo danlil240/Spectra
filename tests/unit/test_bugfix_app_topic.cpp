@@ -281,4 +281,45 @@ TEST_F(InprocTopicServerTest, StopUnwiresLivePanel)
     panel_.reset();
 }
 
+TEST_F(InprocTopicServerTest, PanelSubscriptionRecordsTopicBinding)
+{
+    ASSERT_TRUE(pub_.declare("imu/accel_x"));
+    ASSERT_TRUE(panel_->submit_subscribe("imu/accel_x", fig_id_, 0));
+    ASSERT_EQ(ax_->series().size(), 1u);
+    EXPECT_EQ(ax_->series()[0]->data_binding(), "topic://imu/accel_x");
+}
+
+// Layout bindings: a series opened from a layout before its publisher starts
+// receives samples once the topic is declared (pending subscription).
+TEST_F(InprocTopicServerTest, LayoutBindingWaitsForTopicDeclare)
+{
+    LineSeries& ls = ax_->line();
+    EXPECT_EQ(server_.bind_topic("late", fig_id_, 0, ls), TopicBindingProvider::Result::Pending);
+    EXPECT_EQ(ax_->series().size(), 1u) << "bind_topic must reuse the series, not add one";
+
+    ASSERT_TRUE(pub_.declare("late"));
+    EXPECT_EQ(subscriber_count(server_, "late"), 1u);
+    ASSERT_TRUE(pub_.publish("late", {1.0, 10.0, 2.0, 20.0}));
+    drain_and_commit(server_, *ax_);
+    ASSERT_EQ(ls.point_count(), 2u);
+    EXPECT_FLOAT_EQ(ls.y_data()[1], 20.0f);
+}
+
+TEST_F(InprocTopicServerTest, LayoutBindingToDeclaredTopicGetsRetainedSamples)
+{
+    ASSERT_TRUE(pub_.declare("now"));
+    ASSERT_TRUE(pub_.publish("now", {1.0, 5.0}));
+    LineSeries& ls = ax_->line();
+    EXPECT_EQ(server_.bind_topic("now", fig_id_, 0, ls), TopicBindingProvider::Result::Subscribed);
+    ls.commit_pending();
+    ASSERT_EQ(ls.point_count(), 1u);
+    EXPECT_FLOAT_EQ(ls.y_data()[0], 5.0f);
+
+    // A series that is not in the figure cannot be bound.
+    LineSeries stray;
+    EXPECT_EQ(server_.bind_topic("now", fig_id_, 0, stray),
+              TopicBindingProvider::Result::Unavailable);
+    EXPECT_EQ(server_.bind_topic("now", 9999, 0, ls), TopicBindingProvider::Result::Unavailable);
+}
+
 #endif   // !_WIN32

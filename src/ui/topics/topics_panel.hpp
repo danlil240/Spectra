@@ -102,6 +102,9 @@ class TopicsPanel
     // Safe to call from any thread.
     void set_topics(std::vector<ipc::TopicInfoEntry> topics);
 
+    // Names of the topics in the latest list.  Safe to call from any thread.
+    std::vector<std::string> topic_names() const;
+
     // ─── UI state ────────────────────────────────────────────────────────
 
     bool is_visible() const { return visible_; }

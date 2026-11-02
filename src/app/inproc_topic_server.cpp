@@ -12,6 +12,7 @@
 
     #include "../ipc/codec.hpp"
     #include "../ipc/transport.hpp"
+    #include "../ui/workspace/data_binding.hpp"
     #include "spectra/axes.hpp"
     #include "spectra/figure.hpp"
     #include "spectra/figure_registry.hpp"
@@ -548,6 +549,7 @@ void InprocTopicServer::subscribe_from_panel(const ui::topics::SubscribeRequest&
     // the pending buffer until the frame-boundary commit, as before.
     LineSeries& ls = ax->line();
     ls.label(req.topic_name);
+    ls.set_data_binding(topic_binding_uri(req.topic_name));   // saved by File > Save Layout
     ls.set_thread_safe(true);
 
     // Register the subscription under a unique id (carried in series_index)
@@ -592,6 +594,70 @@ void InprocTopicServer::subscribe_from_panel(const ui::topics::SubscribeRequest&
                       req.axes_index,
                       sub_id);
     notify_topic_changed();
+}
+
+TopicBindingProvider::Result InprocTopicServer::bind_topic(const std::string& topic,
+                                                           FigureId           figure_id,
+                                                           uint32_t           axes_index,
+                                                           Series&            series)
+{
+    if (!fig_registry_ || topic.empty())
+        return Result::Unavailable;
+    Figure* fig = fig_registry_->get(figure_id);
+    if (!fig)
+        return Result::Unavailable;
+    // The axes that owns the series (identity check, as in drain_pending()).
+    AxesBase* owner = nullptr;
+    fig->for_each_axes(
+        [&](AxesBase* a)
+        {
+            if (owner || !a)
+                return;
+            for (const auto& s : a->series())
+            {
+                if (s.get() == &series)
+                {
+                    owner = a;
+                    return;
+                }
+            }
+        });
+    if (!owner)
+        return Result::Unavailable;
+
+    series.set_thread_safe(true);
+
+    const uint32_t            sub_id = next_sub_id_++;
+    daemon::TopicSubscription sub;
+    sub.figure_id            = figure_id;
+    sub.axes_index           = axes_index;
+    sub.series_index         = sub_id;
+    ipc::TopicKind      kind = ipc::TopicKind::Scalar2D;
+    std::vector<double> retained_samples;
+    bool                subscribed_now = false;
+    {
+        std::lock_guard lock(reg_mu_);
+        subscribed_now = registry_.subscribe_or_defer(topic, sub, &kind, &retained_samples);
+    }
+    bindings_[sub_id] = Binding{sub, figure_id, owner, &series};
+
+    const size_t stride = daemon::TopicRegistry::stride_for(kind);
+    for (size_t k = 0; k + 1 < retained_samples.size(); k += stride)
+        series.append(static_cast<float>(retained_samples[k]),
+                      static_cast<float>(retained_samples[k + 1]));
+
+    if (auto* ax = dynamic_cast<Axes*>(owner))
+        ax->set_topic_auto_zoom(true);   // follow live data until the user pans
+
+    SPECTRA_LOG_DEBUG("topics",
+                      "Layout binding {} -> fig={} axes={} sub_id={} ({})",
+                      topic,
+                      figure_id,
+                      axes_index,
+                      sub_id,
+                      subscribed_now ? "subscribed" : "pending");
+    notify_topic_changed();
+    return subscribed_now ? Result::Subscribed : Result::Pending;
 }
 
 size_t InprocTopicServer::pending_point_count() const

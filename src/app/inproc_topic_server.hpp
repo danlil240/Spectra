@@ -42,6 +42,7 @@
     #include "../ipc/message.hpp"
     #include "../ipc/transport.hpp"
     #include "../ui/topics/topics_panel.hpp"
+    #include "../ui/workspace/binding_resolver.hpp"
 
 namespace spectra
 {
@@ -54,7 +55,7 @@ class Series;
 // sources push decoded messages straight into its registry; push() is
 // thread-safe and, like the socket worker, only queues series updates for
 // drain_pending().
-class InprocTopicServer final : public daemon::TopicSink
+class InprocTopicServer final : public daemon::TopicSink, public TopicBindingProvider
 {
    public:
     // Called whenever the topic list changes (declare / disconnect / subscribe).
@@ -80,6 +81,15 @@ class InprocTopicServer final : public daemon::TopicSink
     // Main thread only.  The panel is unwired automatically when it is
     // destroyed, and by stop().
     void wire_topics_panel(ui::topics::TopicsPanel& panel, FigureRegistry* fig_registry);
+
+    // TopicBindingProvider: feed @p topic into an existing series (layout
+    // bindings).  Subscribes now when the topic is declared, otherwise queues
+    // a pending subscription that is promoted by the publisher's declare.
+    // Main thread only.
+    Result bind_topic(const std::string& topic,
+                      FigureId           figure_id,
+                      uint32_t           axes_index,
+                      Series&            series) override;
 
     // Deliver samples queued by the server thread to their subscribed series.
     // Must be called on the thread that owns the figures (the main / app

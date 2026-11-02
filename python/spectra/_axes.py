@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 
 from . import _protocol as P
@@ -64,6 +65,104 @@ class Axes:
     ) -> Series:
         """Add a scatter series to this axes."""
         return self._add_series("scatter", x, y, label)
+
+    # ─── Native statistical series ──────────────────────────────────────
+    # Payload layouts mirror src/ui/app/figure_snapshot.hpp.
+
+    def bar(
+        self,
+        x: Union[List[float], List[str], "object"],
+        heights: Union[List[float], "object"],
+        width: float = 0.8,
+        bottom: float = 0.0,
+        horizontal: bool = False,
+        label: str = "",
+    ) -> Series:
+        """Add a native bar series (filled bars, legend swatch).
+
+        ``x`` holds bar positions, or category names: bar ``i`` then sits at
+        x = i and the axis is labelled with the names.
+        """
+        names = _category_names(x)
+        hv = _floats(heights)
+        xv = [float(i) for i in range(len(names))] if names is not None else _floats(x)
+        if len(xv) != len(hv):
+            raise ValueError(f"x has {len(xv)} values but heights has {len(hv)}")
+        data = [float(width), float(bottom), 1.0 if horizontal else 0.0, 0.0, float(len(xv))]
+        series = self._add_stats_series("bar", data + xv + hv, label)
+        if names is not None:
+            series._set_categories(names)
+        return series
+
+    def histogram(
+        self,
+        values: Union[List[float], "object"],
+        bins: int = 30,
+        density: bool = False,
+        cumulative: bool = False,
+        label: str = "",
+    ) -> Series:
+        """Add a native histogram; the bins are computed by the renderer."""
+        vals = [v for v in _floats(values) if math.isfinite(v)]
+        nbins = max(1, int(bins))
+        data = [float(nbins), 1.0 if cumulative else 0.0, 1.0 if density else 0.0, 0.0,
+                float(len(vals))]
+        return self._add_stats_series("histogram", data + vals, label)
+
+    def band(
+        self,
+        x: Union[List[float], "object"],
+        lower: Union[List[float], "object"],
+        upper: Union[List[float], "object"],
+        fill_opacity: float = 0.25,
+        edge_width: float = 1.0,
+        show_edges: bool = True,
+        label: str = "",
+    ) -> Series:
+        """Add a filled band between ``lower`` and ``upper`` (fill_between)."""
+        xv, lo, hi = _floats(x), _floats(lower), _floats(upper)
+        if not len(xv) == len(lo) == len(hi):
+            raise ValueError(
+                f"x, lower and upper must have the same length ({len(xv)}, {len(lo)}, {len(hi)})"
+            )
+        data = [float(fill_opacity), float(edge_width), 1.0 if show_edges else 0.0, 0.0,
+                float(len(xv))]
+        return self._add_stats_series("band", data + xv + lo + hi, label)
+
+    def stem(
+        self,
+        x: Union[List[float], "object"],
+        y: Union[List[float], "object"],
+        baseline: float = 0.0,
+        stem_width: float = 1.5,
+        show_heads: bool = True,
+        label: str = "",
+    ) -> Series:
+        """Add a native stem series (stems from ``baseline`` with round heads)."""
+        xv, yv = _floats(x), _floats(y)
+        if len(xv) != len(yv):
+            raise ValueError(f"x has {len(xv)} values but y has {len(yv)}")
+        data = [float(baseline), float(stem_width), 1.0 if show_heads else 0.0, 0.0,
+                float(len(xv))]
+        return self._add_stats_series("stem", data + xv + yv, label)
+
+    def _add_stats_series(self, series_type: str, data: List[float], label: str) -> Series:
+        from ._series import Series
+
+        if self.is_3d:
+            raise ValueError(f"{series_type} series need a 2D axes")
+        payload = codec.encode_req_add_series(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            series_type=series_type,
+            label=label,
+        )
+        resp = self._session._request(P.REQ_ADD_SERIES, payload)
+        _, series_index = codec.decode_resp_series_added(resp["payload"])
+        series = Series(self._session, self._figure_id, series_index, series_type, label)
+        self._series_list.append(series)
+        series._set_payload(data)
+        return series
 
     def _add_series(
         self,
@@ -177,6 +276,43 @@ class Axes:
             axes_index=self._index,
             prop="axes_title",
             str_val=title,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_xscale(self, scale: str) -> None:
+        """Set the x axis scale: "linear", "log" (log10), "log2" or "sqrt"."""
+        self._send_scale("xscale", scale)
+
+    def set_yscale(self, scale: str) -> None:
+        """Set the y axis scale: "linear", "log" (log10), "log2" or "sqrt"."""
+        self._send_scale("yscale", scale)
+
+    def _send_scale(self, prop: str, scale: str) -> None:
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop=prop,
+            f1=float(scale_to_wire(scale)),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_xaxis_datetime(self, enabled: bool = True) -> None:
+        """Show x tick labels as dates/times (x values are Unix epoch seconds, UTC)."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="xaxis_datetime",
+            bool_val=bool(enabled),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_yaxis_datetime(self, enabled: bool = True) -> None:
+        """Show y tick labels as dates/times (y values are Unix epoch seconds, UTC)."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="yaxis_datetime",
+            bool_val=bool(enabled),
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
@@ -349,6 +485,37 @@ class Axes:
         is_3d = getattr(self, "_is_3d", False)
         return f"Axes(figure_id={self._figure_id}, index={self._index}, is_3d={is_3d})"
 
+
+
+# spectra::ScaleType wire values (src/ipc/axes_format_state.hpp).
+_SCALES = {"linear": 0, "log": 1, "log10": 1, "log2": 2, "sqrt": 3}
+
+
+def scale_to_wire(scale: str) -> int:
+    key = str(scale).lower()
+    if key not in _SCALES:
+        raise ValueError(f"unknown scale {scale!r}; expected one of {sorted(_SCALES)}")
+    return _SCALES[key]
+
+
+def _floats(data) -> List[float]:
+    """Array-like (list, tuple, NumPy, pandas, datetimes) -> list of floats."""
+    from ._easy import _to_list
+
+    return _to_list(data)
+
+
+def _category_names(x) -> Optional[List[str]]:
+    """Category names when ``x`` holds strings, else None."""
+    if isinstance(x, str):
+        return None
+    try:
+        items = list(x.tolist()) if hasattr(x, "tolist") else list(x)
+    except TypeError:
+        return None
+    if items and all(isinstance(v, str) for v in items):
+        return [str(v) for v in items]
+    return None
 
 
 # "annotation" property: series_index that appends (mirrors the daemon).

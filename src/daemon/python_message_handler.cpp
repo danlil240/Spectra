@@ -5,6 +5,8 @@
 
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/codec.hpp"
+#include "figure_export.hpp"
+#include "ui/app/figure_snapshot.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -159,6 +161,54 @@ static bool apply_property_update(FigureModel&              fig_model,
     {
         ipc::DiffOp op;
         if (!fig_model.clear_annotations(figure_id, axes_index, &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    else if (property == "xscale" || property == "yscale")
+    {
+        // f1 = spectra::ScaleType wire value (0 linear, 1 log10, 2 log2, 3 sqrt).
+        if (!(f1 >= 0.0 && f1 <= 3.0) || f1 != std::floor(f1))
+            return false;
+        const int   scale = static_cast<int>(f1);
+        const int   keep  = FigureModel::KEEP_AXIS_FORMAT;
+        ipc::DiffOp op;
+        if (!fig_model.set_axis_format(figure_id,
+                                       axes_index,
+                                       property == "xscale" ? scale : keep,
+                                       property == "yscale" ? scale : keep,
+                                       keep,
+                                       keep,
+                                       &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    else if (property == "categories")
+    {
+        // Bar category names: f1 = count, str_val = names joined by 0x1F.
+        ipc::DiffOp op;
+        op.type         = ipc::DiffOp::Type::SET_SERIES_CATEGORIES;
+        op.figure_id    = figure_id;
+        op.axes_index   = axes_index;
+        op.series_index = series_index;
+        op.f1           = f1;
+        op.str_val      = str_val;
+        if (fig_model.series_type(figure_id, series_index) != "bar" || !fig_model.apply_diff_op(op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    else if (property == "xaxis_datetime" || property == "yaxis_datetime")
+    {
+        // bool_val = date-time tick labels on (data are Unix epoch seconds).
+        const int   on   = bool_val ? 1 : 0;
+        const int   keep = FigureModel::KEEP_AXIS_FORMAT;
+        ipc::DiffOp op;
+        if (!fig_model.set_axis_format(figure_id,
+                                       axes_index,
+                                       keep,
+                                       keep,
+                                       property == "xaxis_datetime" ? on : keep,
+                                       property == "yaxis_datetime" ? on : keep,
+                                       &op))
             return false;
         diff.ops.push_back(std::move(op));
     }
@@ -400,11 +450,12 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {
-        "color",      "color_letter",   "xlim",     "ylim",       "zlim",
-        "title",      "grid",           "visible",  "line_width", "marker_size",
-        "opacity",    "xlabel",         "ylabel",   "axes_title", "label",
-        "legend",     "legend_visible", "add_knob", "annotation", "clear_annotations",
-        "data_origin"};
+        "color",       "color_letter",   "xlim",     "ylim",           "zlim",
+        "title",       "grid",           "visible",  "line_width",     "marker_size",
+        "opacity",     "xlabel",         "ylabel",   "axes_title",     "label",
+        "legend",      "legend_visible", "add_knob", "annotation",     "clear_annotations",
+        "data_origin", "xscale",         "yscale",   "xaxis_datetime", "yaxis_datetime",
+        "categories"};
     bool known = false;
     for (const auto* p : known_props)
     {
@@ -542,6 +593,18 @@ HandleResult handle_req_append_data(DaemonContext& ctx, ClientSlot& slot, const 
                       msg.header.request_id,
                       404,
                       "Figure not found");
+        return HandleResult::Continue;
+    }
+
+    // Statistical series carry a structured payload (figure_snapshot.hpp):
+    // appending floats to it would corrupt it.  Clients resend it with set_data.
+    if (is_stats_series_type(ctx.fig_model.series_type(req->figure_id, req->series_index)))
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "append_data is not supported for statistical series; use set_data");
         return HandleResult::Continue;
     }
 
@@ -835,6 +898,50 @@ HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const i
     diff.new_revision  = ctx.fig_model.revision();
     broadcast_diff_to_agents(ctx, diff);
 
+    send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
+    return HandleResult::Continue;
+}
+
+HandleResult handle_req_export_figure(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
+{
+    auto req = ipc::decode_req_export_figure(msg.payload);
+    if (!req)
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      400,
+                      "Bad REQ_EXPORT_FIGURE payload");
+        return HandleResult::Continue;
+    }
+    auto snap = ctx.fig_model.snapshot({req->figure_id});
+    if (snap.figures.empty())
+    {
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      404,
+                      "Figure not found");
+        return HandleResult::Continue;
+    }
+
+    SPECTRA_LOG_DEBUG("daemon",
+                      "Python: REQ_EXPORT_FIGURE figure={} path={}",
+                      req->figure_id,
+                      req->path);
+    // Rendering blocks this loop for the export (typically well under a
+    // second); window heartbeats tolerate that.
+    const FigureExportResult res = export_figure_snapshot(snap.figures.front(), *req);
+    if (!res.ok())
+    {
+        SPECTRA_LOG_WARN("daemon", "Export of figure {} failed: {}", req->figure_id, res.message);
+        send_resp_err(*slot.conn,
+                      ctx.graph.session_id(),
+                      msg.header.request_id,
+                      res.code,
+                      res.message);
+        return HandleResult::Continue;
+    }
     send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
     return HandleResult::Continue;
 }

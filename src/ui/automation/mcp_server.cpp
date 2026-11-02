@@ -713,12 +713,12 @@ void McpServer::stop()
     }
 
     {
-        std::lock_guard lock(clients_mutex_);
+        // Wake blocked handlers and wait for them: they close their own fds and
+        // touch this object until they finish, so it must outlive them.
+        std::unique_lock lock(clients_mutex_);
         for (int fd : client_fds_)
-        {
             ::shutdown(fd, SHUT_RDWR);
-            ::close(fd);
-        }
+        clients_cv_.wait(lock, [this] { return active_clients_ == 0; });
         client_fds_.clear();
     }
 
@@ -760,6 +760,7 @@ void McpServer::listener_thread_fn()
         {
             std::lock_guard lock(clients_mutex_);
             client_fds_.push_back(cfd);
+            ++active_clients_;
         }
         std::thread(&McpServer::handle_client, this, cfd).detach();
     }
@@ -828,20 +829,32 @@ void McpServer::handle_client(int client_fd)
         response =
             make_http_response(400, jsonrpc_error("null", -32700, "Failed to parse request"));
 
-    size_t total = 0;
+        // A server that is stopping has shut the socket down: nothing to answer.
+        // MSG_NOSIGNAL: a client that hung up must not raise SIGPIPE in the app.
+    #ifdef MSG_NOSIGNAL
+    constexpr int send_flags = MSG_NOSIGNAL;
+    #else
+    constexpr int send_flags = 0;
+    #endif
+    size_t total = running_.load(std::memory_order_relaxed) ? 0 : response.size();
     while (total < response.size())
     {
-        const ssize_t n = ::write(client_fd, response.data() + total, response.size() - total);
+        const ssize_t n =
+            ::send(client_fd, response.data() + total, response.size() - total, send_flags);
         if (n <= 0)
             break;
         total += static_cast<size_t>(n);
     }
 
-    ::close(client_fd);
     {
+        // Last use of `this`: stop() may return (and the server be destroyed) as
+        // soon as the lock is released, so notify while holding it.
         std::lock_guard lock(clients_mutex_);
         client_fds_.erase(std::remove(client_fds_.begin(), client_fds_.end(), client_fd),
                           client_fds_.end());
+        ::close(client_fd);
+        --active_clients_;
+        clients_cv_.notify_all();
     }
 #else
     (void)client_fd;

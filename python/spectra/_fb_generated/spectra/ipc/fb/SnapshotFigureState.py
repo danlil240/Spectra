@@ -130,8 +130,15 @@ class SnapshotFigureState(object):
             return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
         return 0.0
 
+    # SnapshotFigureState
+    def LegendPosition(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(24))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 5
+
 def SnapshotFigureStateStart(builder):
-    builder.StartObject(10)
+    builder.StartObject(11)
 
 def Start(builder):
     SnapshotFigureStateStart(builder)
@@ -207,6 +214,12 @@ def SnapshotFigureStateAddLiveFps(builder, liveFps):
 
 def AddLiveFps(builder, liveFps):
     SnapshotFigureStateAddLiveFps(builder, liveFps)
+
+def SnapshotFigureStateAddLegendPosition(builder, legendPosition):
+    builder.PrependUint8Slot(10, legendPosition, 5)
+
+def AddLegendPosition(builder, legendPosition):
+    SnapshotFigureStateAddLegendPosition(builder, legendPosition)
 
 def SnapshotFigureStateEnd(builder):
     return builder.EndObject()

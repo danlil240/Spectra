@@ -355,6 +355,15 @@ std::optional<ReqShowPayload> decode_req_show(std::span<const uint8_t> data)
     IPC_DECODE_FB_ONLY(req_show, data);
 }
 
+std::vector<uint8_t> encode_req_export_figure(const ReqExportFigurePayload& p)
+{
+    IPC_ENCODE_FB(req_export_figure, p);
+}
+std::optional<ReqExportFigurePayload> decode_req_export_figure(std::span<const uint8_t> data)
+{
+    IPC_DECODE_FB_ONLY(req_export_figure, data);
+}
+
 std::vector<uint8_t> encode_req_close_figure(const ReqCloseFigurePayload& p)
 {
     IPC_ENCODE_FB(req_close_figure, p);

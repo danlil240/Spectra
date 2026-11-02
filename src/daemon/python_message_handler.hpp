@@ -82,7 +82,7 @@ class SetDataChunkAssembler
 // Handles Python client requests (REQ_CREATE_FIGURE, REQ_ADD_SERIES, REQ_SET_DATA,
 // REQ_UPDATE_PROPERTY, REQ_SHOW, REQ_APPEND_DATA, REQ_REMOVE_SERIES, REQ_CLOSE_FIGURE,
 // REQ_UPDATE_BATCH, REQ_DESTROY_FIGURE, REQ_LIST_FIGURES, REQ_RECONNECT, REQ_DISCONNECT,
-// REQ_GET_SNAPSHOT, REQ_CREATE_AXES).
+// REQ_GET_SNAPSHOT, REQ_CREATE_AXES, REQ_EXPORT_FIGURE).
 
 // ─── SetDataChunkAssembler (inline: header-only so unit tests can use it) ───
 
@@ -242,5 +242,10 @@ HandleResult handle_req_disconnect(DaemonContext& ctx, ClientSlot& slot, const i
 HandleResult handle_req_get_snapshot(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
 
 HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
+
+// Render a figure offscreen to a PNG/SVG file (figure_export.hpp); replies once written.
+HandleResult handle_req_export_figure(DaemonContext&      ctx,
+                                      ClientSlot&         slot,
+                                      const ipc::Message& msg);
 
 }   // namespace spectra::daemon

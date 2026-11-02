@@ -1546,7 +1546,9 @@ WorkspaceValidationResult validate_workspace_data(WorkspaceData& data)
                                                                     "boxplot",
                                                                     "violin",
                                                                     "histogram",
-                                                                    "bar"};
+                                                                    "bar",
+                                                                    "band",
+                                                                    "stem"};
         for (auto& ser : fig.series)
         {
             bool valid_type = ser.type.empty() || kValidTypes.contains(ser.type);

@@ -51,6 +51,8 @@ from ._easy import (
     errorbar,
     hist,
     bar,
+    barh,
+    fill_between,
     boxplot,
     violin_plot,
     hline,
@@ -86,6 +88,12 @@ from ._easy import (
     close,
     close_all,
     clear,
+    savefig,
+    xscale,
+    yscale,
+    semilogx,
+    semilogy,
+    loglog,
 )
 
 # ─── Backward compatibility ───────────────────────────────────────────────────
@@ -129,6 +137,8 @@ __all__ = [
     "errorbar",
     "hist",
     "bar",
+    "barh",
+    "fill_between",
     "boxplot",
     "violin_plot",
     "hline",
@@ -164,6 +174,12 @@ __all__ = [
     "close",
     "close_all",
     "clear",
+    "savefig",
+    "xscale",
+    "yscale",
+    "semilogx",
+    "semilogy",
+    "loglog",
     # Backward compat
     "line",
     # Advanced API — full control

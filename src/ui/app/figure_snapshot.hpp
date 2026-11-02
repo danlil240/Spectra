@@ -54,7 +54,7 @@ inline const AxesBase* snapshot_axes_at(const Figure& fig, size_t slot)
 
 // ─── Statistical series payloads ────────────────────────────────────────────
 //
-// Box, violin, histogram and bar series travel as their *source* data so the
+// Box, violin, histogram, bar, band and stem series travel as their *source* data so the
 // window rebuilds the very same series object (fills, gradients, outliers and
 // legend swatches included).  `data` holds a fixed header of style parameters
 // followed by a count and the per-item payload, all as floats:
@@ -67,6 +67,8 @@ inline const AxesBase* snapshot_axes_at(const Figure& fig, size_t slot)
 //                         n_outliers, outliers[n_outliers]]
 //   "violin"    [violin_width, resolution, show_box, gradient, n_violins,
 //                per violin: x, n, values[n]]
+//   "band"      [fill_opacity, edge_width, show_edges, 0, n, x[n], lower[n], upper[n]]
+//   "stem"      [baseline, stem_width, show_heads, 0, n, x[n], y[n]]
 
 namespace snapshot_detail
 {
@@ -136,6 +138,10 @@ inline const char* snapshot_series_type(const Series& s)
         return "histogram";
     if (dynamic_cast<const BarSeries*>(&s))
         return "bar";
+    if (dynamic_cast<const BandSeries*>(&s))
+        return "band";
+    if (dynamic_cast<const StemSeries*>(&s))
+        return "stem";
     if (dynamic_cast<const LineSeries3D*>(&s))
         return "line3d";
     if (dynamic_cast<const ScatterSeries3D*>(&s))
@@ -147,7 +153,8 @@ inline const char* snapshot_series_type(const Series& s)
 
 inline bool is_stats_series_type(const std::string& t)
 {
-    return t == "box" || t == "violin" || t == "histogram" || t == "bar";
+    return t == "box" || t == "violin" || t == "histogram" || t == "bar" || t == "band"
+           || t == "stem";
 }
 
 // Fill ss.data / ss.point_count for `s`.  Returns false for an unsupported type.
@@ -264,6 +271,40 @@ inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesStat
         ss.point_count = static_cast<uint32_t>(n);
         return true;
     }
+    if (auto* band = dynamic_cast<const BandSeries*>(&s))
+    {
+        const auto   x  = band->x_values();
+        const auto   lo = band->lower_values();
+        const auto   hi = band->upper_values();
+        const size_t n  = std::min({x.size(), lo.size(), hi.size()});
+        const auto   nd = static_cast<std::ptrdiff_t>(n);
+        ss.data         = {band->fill_opacity(),
+                           band->edge_width(),
+                           flag(band->show_edges()),
+                           0.0f,
+                           static_cast<float>(n)};
+        ss.data.insert(ss.data.end(), x.begin(), x.begin() + nd);
+        ss.data.insert(ss.data.end(), lo.begin(), lo.begin() + nd);
+        ss.data.insert(ss.data.end(), hi.begin(), hi.begin() + nd);
+        ss.point_count = static_cast<uint32_t>(n);
+        return true;
+    }
+    if (auto* stem = dynamic_cast<const StemSeries*>(&s))
+    {
+        const auto&  x  = stem->stem_x();
+        const auto&  y  = stem->stem_y();
+        const size_t n  = std::min(x.size(), y.size());
+        const auto   nd = static_cast<std::ptrdiff_t>(n);
+        ss.data         = {stem->baseline(),
+                           stem->stem_width(),
+                           flag(stem->show_heads()),
+                           0.0f,
+                           static_cast<float>(n)};
+        ss.data.insert(ss.data.end(), x.begin(), x.begin() + nd);
+        ss.data.insert(ss.data.end(), y.begin(), y.begin() + nd);
+        ss.point_count = static_cast<uint32_t>(n);
+        return true;
+    }
     if (auto* l3 = dynamic_cast<const LineSeries3D*>(&s))
     {
         interleave3(l3->x_data(), l3->y_data(), l3->z_data());
@@ -344,6 +385,30 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
         const int bins = static_cast<int>(std::clamp(p[0], 1.0f, 100'000.0f));
         auto&     s    = ax.histogram(values, bins);
         s.cumulative(b1).density(b2).gradient(b3);
+        return &s;
+    }
+    if (ss.type == "band")
+    {
+        size_t                 n = 0;
+        std::span<const float> x;
+        std::span<const float> lo;
+        std::span<const float> hi;
+        if (!rd.read_count(n, 3) || !rd.read_span(n, x) || !rd.read_span(n, lo)
+            || !rd.read_span(n, hi))
+            return nullptr;
+        auto& s = ax.band(x, lo, hi);
+        s.fill_opacity(p[0]).edge_width(p[1]).show_edges(b2);
+        return &s;
+    }
+    if (ss.type == "stem")
+    {
+        size_t                 n = 0;
+        std::span<const float> x;
+        std::span<const float> y;
+        if (!rd.read_count(n, 2) || !rd.read_span(n, x) || !rd.read_span(n, y))
+            return nullptr;
+        auto& s = ax.stem(x, y);
+        s.baseline(p[0]).stem_width(std::max(p[1], 0.0f)).show_heads(b2);
         return &s;
     }
     if (ss.type == "box")

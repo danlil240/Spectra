@@ -126,8 +126,36 @@ class SnapshotAxisState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(26))
         return o == 0
 
+    # SnapshotAxisState
+    def XScale(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotAxisState
+    def YScale(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotAxisState
+    def XDatetime(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotAxisState
+    def YDatetime(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(12)
+    builder.StartObject(16)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -209,6 +237,30 @@ def SnapshotAxisStateStartAnnotationsVector(builder, numElems):
 
 def StartAnnotationsVector(builder, numElems):
     return SnapshotAxisStateStartAnnotationsVector(builder, numElems)
+
+def SnapshotAxisStateAddXScale(builder, xScale):
+    builder.PrependUint8Slot(12, xScale, 0)
+
+def AddXScale(builder, xScale):
+    SnapshotAxisStateAddXScale(builder, xScale)
+
+def SnapshotAxisStateAddYScale(builder, yScale):
+    builder.PrependUint8Slot(13, yScale, 0)
+
+def AddYScale(builder, yScale):
+    SnapshotAxisStateAddYScale(builder, yScale)
+
+def SnapshotAxisStateAddXDatetime(builder, xDatetime):
+    builder.PrependBoolSlot(14, xDatetime, 0)
+
+def AddXDatetime(builder, xDatetime):
+    SnapshotAxisStateAddXDatetime(builder, xDatetime)
+
+def SnapshotAxisStateAddYDatetime(builder, yDatetime):
+    builder.PrependBoolSlot(15, yDatetime, 0)
+
+def AddYDatetime(builder, yDatetime):
+    SnapshotAxisStateAddYDatetime(builder, yDatetime)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

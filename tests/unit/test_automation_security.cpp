@@ -7,6 +7,7 @@
 
 #include <spectra/app.hpp>
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -14,6 +15,8 @@
 #include <random>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "ui/automation/automation_security.hpp"
 #include "ui/automation/automation_server.hpp"
@@ -481,6 +484,52 @@ TEST(McpServerLive, CrossOriginSimpleRequestRefusedAndTokenFilePrivate)
     const std::string token_file = mcp.token_file();
     mcp.stop();
     EXPECT_FALSE(std::filesystem::exists(token_file));
+    std::filesystem::remove_all(tmp);
+}
+
+// Client handlers run on detached threads.  stop() (and so the destructor) must
+// wait for them: a handler blocked in read() when the server goes away used to
+// touch the destroyed server's mutex (a crash under the sanitizers).
+TEST(McpServerLive, StopWaitsForConnectedClients)
+{
+    const auto tmp = make_temp_dir("mcp_stop");
+    ScopedEnv  xdg("XDG_RUNTIME_DIR", tmp.c_str());
+    ScopedEnv  tok("SPECTRA_MCP_TOKEN", "stop-token");
+
+    AutomationServer automation;
+    std::vector<int> clients;
+    const auto       t0 = std::chrono::steady_clock::now();
+    {
+        McpServer mcp;
+        ASSERT_TRUE(mcp.start(automation, "127.0.0.1", 0));
+        for (int i = 0; i < 4; ++i)
+        {
+            int fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            ASSERT_GE(fd, 0);
+            sockaddr_in addr{};
+            addr.sin_family = AF_INET;
+            addr.sin_port   = htons(mcp.port());
+            ::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+            ASSERT_EQ(::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)), 0);
+            // Half a request: the handler stays blocked in read().
+            const std::string partial = "POST /mcp HTTP/1.1\r\n";
+            ASSERT_EQ(::write(fd, partial.data(), partial.size()),
+                      static_cast<ssize_t>(partial.size()));
+            clients.push_back(fd);
+        }
+        // Let the listener accept them all.
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    }   // ~McpServer -> stop()
+    EXPECT_LT(std::chrono::steady_clock::now() - t0, std::chrono::seconds(5));
+
+    // Each client sees its connection closed by the server.
+    for (int fd : clients)
+    {
+        char buf[64];
+        EXPECT_LE(::read(fd, buf, sizeof(buf)), 0);
+        ::close(fd);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     std::filesystem::remove_all(tmp);
 }
 #endif

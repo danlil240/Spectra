@@ -11,7 +11,9 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
-Release-readiness work for the first public preview.
+## [0.4.0] - 2026-11-06
+
+First public preview: Linux is the supported platform; macOS and Windows are experimental.
 
 ### Added
 
@@ -217,7 +219,8 @@ First tagged release.
 - Packaging: `.deb`, `.rpm`, AppImage, macOS and Windows installers, man page and shell
   completions.
 
-[Unreleased]: https://github.com/danlil240/Spectra/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/danlil240/Spectra/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/danlil240/Spectra/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/danlil240/Spectra/compare/v0.2.7...v0.3.0
 [0.2.7]: https://github.com/danlil240/Spectra/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/danlil240/Spectra/compare/v0.2.5...v0.2.6

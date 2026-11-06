@@ -714,6 +714,8 @@ static AxisLimits finalize_extent(const AxisExtent& e, bool pad, ScaleType scale
 
 static void data_extent_with_mode(const AxisExtent& x,
                                   const AxisExtent& y,
+                                  const AxisExtent& sx,
+                                  const AxisExtent& sy,
                                   AutoscaleMode     mode,
                                   ScaleType         x_scale,
                                   ScaleType         y_scale,
@@ -727,15 +729,8 @@ static void data_extent_with_mode(const AxisExtent& x,
     if (!pad)
         return;
 
-    // Sticky edges of grid-valued series: padding stops at an image edge
-    // that is also the edge of all the data.
-    AxisExtent sx;
-    AxisExtent sy;
-    for (const auto& s : series)
-    {
-        if (s && !s->excluded_from_autoscale())
-            consume_grid_extent(*s, sx, sy);
-    }
+    // Sticky edges of grid-valued series (sx/sy): padding stops at an image
+    // edge that is also the edge of all the data.
     auto stick = [](AxisLimits& lim, const AxisExtent& all, const AxisExtent& sticky, ScaleType sc)
     {
         if (sc != ScaleType::Linear || !sticky.valid() || !all.valid())
@@ -934,6 +929,13 @@ const Axes::DataExtentCache& Axes::data_extent_cached() const
     AxisExtent x;
     AxisExtent y;
     data_extent_raw(series_, x, y);
+    AxisExtent sx;
+    AxisExtent sy;
+    for (const auto& s : series_)
+    {
+        if (s && !s->excluded_from_autoscale())
+            consume_grid_extent(*s, sx, sy);
+    }
     extent_cache_.key   = std::move(key);
     extent_cache_.x[0]  = x.min;
     extent_cache_.x[1]  = x.max;
@@ -941,6 +943,12 @@ const Axes::DataExtentCache& Axes::data_extent_cached() const
     extent_cache_.y[0]  = y.min;
     extent_cache_.y[1]  = y.max;
     extent_cache_.y[2]  = y.min_pos;
+    extent_cache_.sx[0] = sx.min;
+    extent_cache_.sx[1] = sx.max;
+    extent_cache_.sx[2] = sx.min_pos;
+    extent_cache_.sy[0] = sy.min;
+    extent_cache_.sy[1] = sy.max;
+    extent_cache_.sy[2] = sy.min_pos;
     extent_cache_.valid = true;
     return extent_cache_;
 }
@@ -991,6 +999,8 @@ AxisLimits Axes::x_limits_unclamped() const
         const auto&     ext = data_extent_cached();
         data_extent_with_mode(to_extent(ext.x),
                               to_extent(ext.y),
+                              to_extent(ext.sx),
+                              to_extent(ext.sy),
                               autoscale_mode_,
                               xscale_,
                               yscale_,
@@ -1054,6 +1064,8 @@ AxisLimits Axes::y_limits_unclamped() const
         const auto&     ext = data_extent_cached();
         data_extent_with_mode(to_extent(ext.x),
                               to_extent(ext.y),
+                              to_extent(ext.sx),
+                              to_extent(ext.sy),
                               autoscale_mode_,
                               xscale_,
                               yscale_,
@@ -1144,6 +1156,8 @@ void Axes::topic_auto_zoom_tick()
         const auto&     ext = data_extent_cached();
         data_extent_with_mode(to_extent(ext.x),
                               to_extent(ext.y),
+                              to_extent(ext.sx),
+                              to_extent(ext.sy),
                               fit_mode,
                               xscale_,
                               yscale_,

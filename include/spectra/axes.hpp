@@ -392,6 +392,8 @@ class Axes : public AxesBase
         std::vector<std::uint64_t> key;
         double                     x[3]  = {0.0, 0.0, 0.0};   // min, max, min_pos
         double                     y[3]  = {0.0, 0.0, 0.0};
+        double                     sx[3] = {0.0, 0.0, 0.0};   // sticky (grid) extent
+        double                     sy[3] = {0.0, 0.0, 0.0};
         bool                       valid = false;
     };
     const DataExtentCache&  data_extent_cached() const;   // caller holds extent_mutex_

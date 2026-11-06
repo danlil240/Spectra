@@ -12,6 +12,7 @@
 #include <spectra/custom_series.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_shapes3d.hpp>
 #include <spectra/series_stats.hpp>
@@ -20,6 +21,7 @@
 #include "ui/viewmodel/series_view_model.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
+#include "core/axis_scale.hpp"
 #include "render/scatter_marker.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -84,8 +86,8 @@ void Renderer::render_series(Series&             series,
 
     auto& gpu = it->second;
     // Custom plugin series keep their buffers in plugin-owned plugin_gpu_state
-    // and never allocate the host ssbo; only built-in types need it here.
-    if (!gpu.ssbo && gpu.type != SeriesType::Custom)
+    // and images their data in textures; the other built-in types need the ssbo.
+    if (!gpu.ssbo && gpu.type != SeriesType::Custom && gpu.type != SeriesType::Image2D)
         return;
 
     SeriesPushConstants pc{};
@@ -691,6 +693,97 @@ void Renderer::render_series(Series&             series,
                         entry->faulted = true;
                     }
                 }
+            }
+            break;
+        }
+        case SeriesType::Image2D:
+        {
+            auto* img = static_cast<ImageSeries*>(&series);
+            if (img->empty() || !require_pipeline(image2d_pipeline_, "image"))
+                break;
+            const TextureHandle lut = img->is_rgba() ? gpu.image_texture : gpu.lut_texture;
+            if (!gpu.image_texture || !lut)
+                break;   // e.g. grid larger than the device texture limit
+            // Quad corners in axis space relative to the view centre (the
+            // projection is centred there, see render_axes).  On a log axis
+            // the corners are mapped; the grid is stretched linearly between.
+            const double ax0 = to_axis_space(gpu.upload_xscale, img->x0()) - view_cx;
+            const double ax1 = to_axis_space(gpu.upload_xscale, img->x1()) - view_cx;
+            const double ay0 = to_axis_space(gpu.upload_yscale, img->y0()) - view_cy;
+            const double ay1 = to_axis_space(gpu.upload_yscale, img->y1()) - view_cy;
+            if (!std::isfinite(ax0) || !std::isfinite(ax1) || !std::isfinite(ay0)
+                || !std::isfinite(ay1))
+                break;
+            SeriesPushConstants ipc{};
+            ipc.color[3]        = eff_opacity;
+            ipc.opacity         = eff_opacity;
+            ipc.dash_pattern[0] = static_cast<float>(ax0);
+            ipc.dash_pattern[1] = static_cast<float>(ax1);
+            ipc.dash_pattern[2] = static_cast<float>(ay0);
+            ipc.dash_pattern[3] = static_cast<float>(ay1);
+            ipc.dash_pattern[4] = img->vmin();
+            ipc.dash_pattern[5] = img->vmax();
+            // Flags: keep in sync with src/gpu/shaders/image2d.frag.
+            int flags = 0;
+            if (img->interpolation() == ImageInterpolation::Bilinear)
+                flags |= 1;
+            if (img->is_rgba())
+                flags |= 2;
+            if (!img->levels().empty())
+                flags |= 4;
+            if (img->node_aligned())
+                flags |= 8;
+            if (img->origin() == ImageOrigin::Upper)
+                flags |= 16;
+            ipc.dash_count = flags;
+            backend_.bind_pipeline(image2d_pipeline_);
+            backend_.push_constants(ipc);
+            backend_.bind_texture(gpu.image_texture, 0);
+            backend_.bind_texture(lut, 1);
+            backend_.draw(6);
+            break;
+        }
+        case SeriesType::Contour2D:
+        {
+            auto*        ct = static_cast<ContourSeries*>(&series);
+            const size_t n  = std::min(gpu.uploaded_count, ct->point_count());
+            if (n < 2 || !style.has_line())
+                break;
+            if (style.line_style != LineStyle::Solid)
+            {
+                DashPattern dp = get_dash_pattern(style.line_style, ct->width());
+                for (int i = 0; i < dp.count && i < 8; ++i)
+                    pc.dash_pattern[i] = dp.segments[i];
+                pc.dash_total = dp.total;
+                pc.dash_count = dp.count;
+            }
+            backend_.bind_pipeline(line_pipeline_);
+            pc.line_width  = ct->width();
+            pc.marker_type = 0;
+            backend_.bind_buffer(gpu.ssbo, 0);
+            if (!ct->uses_colormap())
+            {
+                backend_.push_constants(pc);
+                backend_.draw(static_cast<uint32_t>(n - 1) * 6);
+                break;
+            }
+            // One draw per level, each in its colormap colour.
+            const float alpha = pc.color[3];
+            for (const auto& r : ct->level_ranges())
+            {
+                if (r.first_point >= n)
+                    break;
+                const size_t count = std::min(r.point_count, n - r.first_point);
+                if (count < 2)
+                    continue;
+                const Color c = ct->level_color(r.level);
+                pc.color[0]   = c.r;
+                pc.color[1]   = c.g;
+                pc.color[2]   = c.b;
+                pc.color[3]   = c.a * alpha;
+                backend_.push_constants(pc);
+                backend_.draw(static_cast<uint32_t>(count - 1) * 6,
+                              static_cast<uint32_t>(r.first_point) * 6);
             }
             break;
         }

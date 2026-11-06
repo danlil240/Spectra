@@ -12,6 +12,7 @@
 
     #include "../ipc/codec.hpp"
     #include "../ipc/transport.hpp"
+    #include "../ui/workspace/data_binding.hpp"
     #include "spectra/axes.hpp"
     #include "spectra/figure.hpp"
     #include "spectra/figure_registry.hpp"
@@ -280,33 +281,7 @@ void InprocTopicServer::handle_message(int /*fd*/,
 
             // Queue for the main thread.  The worker must not touch Figure /
             // Axes / Series: they are owned and mutated by the main thread.
-            if (!subs_out.empty() && !req->samples.empty())
-            {
-                const size_t       stride = daemon::TopicRegistry::stride_for(kind);
-                const size_t       n      = req->samples.size() / stride;
-                std::vector<float> xy;
-                xy.reserve(n * 2);
-                for (size_t k = 0; k < n; ++k)
-                {
-                    xy.push_back(static_cast<float>(req->samples[k * stride]));
-                    xy.push_back(static_cast<float>(req->samples[k * stride + 1]));
-                }
-
-                std::lock_guard lock(pending_mu_);
-                for (const auto& sub : subs_out)
-                {
-                    if (pending_points_ + n > MAX_PENDING_POINTS)
-                    {
-                        SPECTRA_LOG_WARN("topics",
-                                         "Dropping {} samples for '{}': drain queue full",
-                                         n,
-                                         req->name);
-                        break;
-                    }
-                    pending_points_ += n;
-                    pending_.push_back({sub, xy});
-                }
-            }
+            queue_pending(req->name, kind, req->samples, subs_out);
 
             send_ok(conn, msg.header.request_id);
             break;
@@ -320,6 +295,55 @@ void InprocTopicServer::handle_message(int /*fd*/,
         default:
             break;
     }
+}
+
+void InprocTopicServer::queue_pending(const std::string&                            name,
+                                      ipc::TopicKind                                kind,
+                                      const std::vector<double>&                    samples,
+                                      const std::vector<daemon::TopicSubscription>& subs)
+{
+    if (subs.empty() || samples.empty())
+        return;
+    const size_t       stride = daemon::TopicRegistry::stride_for(kind);
+    const size_t       n      = samples.size() / stride;
+    std::vector<float> xy;
+    xy.reserve(n * 2);
+    for (size_t k = 0; k < n; ++k)
+    {
+        xy.push_back(static_cast<float>(samples[k * stride]));
+        xy.push_back(static_cast<float>(samples[k * stride + 1]));
+    }
+
+    std::lock_guard lock(pending_mu_);
+    for (const auto& sub : subs)
+    {
+        if (pending_points_ + n > MAX_PENDING_POINTS)
+        {
+            SPECTRA_LOG_WARN("topics", "Dropping {} samples for '{}': drain queue full", n, name);
+            break;
+        }
+        pending_points_ += n;
+        pending_.push_back({sub, xy});
+    }
+}
+
+bool InprocTopicServer::push(daemon::TopicIngestBatch&& batch)
+{
+    daemon::IngestResult result;
+    {
+        std::lock_guard lock(reg_mu_);
+        daemon::apply_ingest_batch(registry_, batch, result);
+    }
+    for (const auto& t : result.fanout)
+        queue_pending(t.name, t.kind, t.samples, t.subs);
+    if (result.topic_list_changed)
+        notify_topic_changed();
+    return true;
+}
+
+void InprocTopicServer::mark_owner_offline(uint64_t owner_id)
+{
+    on_client_disconnected(owner_id);
 }
 
 void InprocTopicServer::on_client_disconnected(uint64_t client_id)
@@ -525,6 +549,7 @@ void InprocTopicServer::subscribe_from_panel(const ui::topics::SubscribeRequest&
     // the pending buffer until the frame-boundary commit, as before.
     LineSeries& ls = ax->line();
     ls.label(req.topic_name);
+    ls.set_data_binding(topic_binding_uri(req.topic_name));   // saved by File > Save Layout
     ls.set_thread_safe(true);
 
     // Register the subscription under a unique id (carried in series_index)
@@ -569,6 +594,70 @@ void InprocTopicServer::subscribe_from_panel(const ui::topics::SubscribeRequest&
                       req.axes_index,
                       sub_id);
     notify_topic_changed();
+}
+
+TopicBindingProvider::Result InprocTopicServer::bind_topic(const std::string& topic,
+                                                           FigureId           figure_id,
+                                                           uint32_t           axes_index,
+                                                           Series&            series)
+{
+    if (!fig_registry_ || topic.empty())
+        return Result::Unavailable;
+    Figure* fig = fig_registry_->get(figure_id);
+    if (!fig)
+        return Result::Unavailable;
+    // The axes that owns the series (identity check, as in drain_pending()).
+    AxesBase* owner = nullptr;
+    fig->for_each_axes(
+        [&](AxesBase* a)
+        {
+            if (owner || !a)
+                return;
+            for (const auto& s : a->series())
+            {
+                if (s.get() == &series)
+                {
+                    owner = a;
+                    return;
+                }
+            }
+        });
+    if (!owner)
+        return Result::Unavailable;
+
+    series.set_thread_safe(true);
+
+    const uint32_t            sub_id = next_sub_id_++;
+    daemon::TopicSubscription sub;
+    sub.figure_id            = figure_id;
+    sub.axes_index           = axes_index;
+    sub.series_index         = sub_id;
+    ipc::TopicKind      kind = ipc::TopicKind::Scalar2D;
+    std::vector<double> retained_samples;
+    bool                subscribed_now = false;
+    {
+        std::lock_guard lock(reg_mu_);
+        subscribed_now = registry_.subscribe_or_defer(topic, sub, &kind, &retained_samples);
+    }
+    bindings_[sub_id] = Binding{sub, figure_id, owner, &series};
+
+    const size_t stride = daemon::TopicRegistry::stride_for(kind);
+    for (size_t k = 0; k + 1 < retained_samples.size(); k += stride)
+        series.append(static_cast<float>(retained_samples[k]),
+                      static_cast<float>(retained_samples[k + 1]));
+
+    if (auto* ax = dynamic_cast<Axes*>(owner))
+        ax->set_topic_auto_zoom(true);   // follow live data until the user pans
+
+    SPECTRA_LOG_DEBUG("topics",
+                      "Layout binding {} -> fig={} axes={} sub_id={} ({})",
+                      topic,
+                      figure_id,
+                      axes_index,
+                      sub_id,
+                      subscribed_now ? "subscribed" : "pending");
+    notify_topic_changed();
+    return subscribed_now ? Result::Subscribed : Result::Pending;
 }
 
 size_t InprocTopicServer::pending_point_count() const

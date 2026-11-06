@@ -96,6 +96,7 @@
 #include <spectra/frame.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_stats.hpp>
 #include <string>
 #include <string_view>
@@ -556,6 +557,49 @@ inline BandSeries& band(std::span<const float> x,
     return detail::easy_state().ensure_axes().band(x, lower, upper);
 }
 
+// ─── Grid Plots (image, heatmap, contour) ───────────────────────────────────
+
+/// Show a scalar grid (row-major, cols x rows; row 0 at the top) as a
+/// colormapped image.  See ImageSeries for colormap, range and interpolation.
+inline ImageSeries& imshow(std::span<const float> values, size_t cols, size_t rows)
+{
+    return detail::easy_state().ensure_axes().imshow(values, cols, rows);
+}
+
+/// Heatmap: imshow() with each cell's value printed in it; non-empty names
+/// label the columns / rows on the axes.
+inline ImageSeries& heatmap(std::span<const float>   values,
+                            size_t                   cols,
+                            size_t                   rows,
+                            std::vector<std::string> col_names = {},
+                            std::vector<std::string> row_names = {})
+{
+    return detail::easy_state().ensure_axes().heatmap(values,
+                                                      cols,
+                                                      rows,
+                                                      std::move(col_names),
+                                                      std::move(row_names));
+}
+
+/// Contour lines of z (row-major, cols x rows; row 0 at the bottom).
+inline ContourSeries& contour(std::span<const float> z, size_t cols, size_t rows, int levels = 8)
+{
+    return detail::easy_state().ensure_axes().contour(z, cols, rows, levels);
+}
+
+/// Filled contours of z (same layout as contour()).
+inline ImageSeries& contourf(std::span<const float> z, size_t cols, size_t rows, int levels = 8)
+{
+    return detail::easy_state().ensure_axes().contourf(z, cols, rows, levels);
+}
+
+/// Show (or hide) the colorbar of the current axes.  It appears when the axes
+/// holds a colormapped series (image, heatmap, contour, colormapped scatter).
+inline void colorbar(bool visible = true)
+{
+    detail::easy_state().ensure_axes().show_colorbar(visible);
+}
+
 // ─── Shape Annotations ──────────────────────────────────────────────────────
 
 /// Create an empty shape series. Add shapes with .rect(), .circle(), .arrow(), etc.
@@ -971,6 +1015,18 @@ inline bool save_png(const std::string& path, const ExportOptions& options)
 inline bool save_svg(const std::string& path, const ExportOptions& options)
 {
     return detail::easy_state().ensure_figure().save_svg(path, options);
+}
+
+/// Save current figure as a vector PDF.  Returns false if the request was rejected.
+inline bool save_pdf(const std::string& path)
+{
+    return detail::easy_state().ensure_figure().save_pdf(path);
+}
+
+/// Save current figure as PDF with per-export options, e.g. {.theme = "light"}.
+inline bool save_pdf(const std::string& path, const ExportOptions& options)
+{
+    return detail::easy_state().ensure_figure().save_pdf(path, options);
 }
 
 /// Copy current figure to the system clipboard as a PNG image.

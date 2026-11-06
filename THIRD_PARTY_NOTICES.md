@@ -31,6 +31,7 @@ How a component reaches you:
 | stb_image_write | 1.16 | MIT or Public Domain (Unlicense), at your choice | vendored (`third_party/stb/`) | https://github.com/nothings/stb |
 | stb_truetype | 1.26 | MIT or Public Domain (Unlicense), at your choice | vendored (`third_party/stb/`) | https://github.com/nothings/stb |
 | nlohmann/json | 3.11.3 | MIT | vendored (`third_party/nlohmann/`) | https://github.com/nlohmann/json |
+| foxglove/mcap (C++ library, header-only) | releases/cpp/v2.1.2 | MIT | fetched (`SPECTRA_USE_MCAP=ON`, default), compiled into `libspectra-core` for the MCAP log reader | https://github.com/foxglove/mcap |
 | tinyfiledialogs | 3.21.3 | zlib | vendored (`third_party/tinyfiledialogs.*`) | https://sourceforge.net/projects/tinyfiledialogs/ |
 | Inter (Regular, 4.001) | 4.001 | SIL OFL 1.1 | embedded asset (`third_party/Inter-Regular.ttf`, installed to `share/spectra/fonts/`, embedded into `libspectra`) | https://github.com/rsms/inter |
 | Inter (variable, InterVariable.ttf) | 4.x | SIL OFL 1.1 | embedded asset (`third_party/inter_font.hpp`) | https://github.com/rsms/inter |
@@ -70,6 +71,7 @@ are original Spectra artwork under Spectra's MIT License.
 | [`licenses/VulkanMemoryAllocator-LICENSE.txt`](licenses/VulkanMemoryAllocator-LICENSE.txt) | Vulkan Memory Allocator (MIT) |
 | [`licenses/stb-LICENSE.txt`](licenses/stb-LICENSE.txt) | stb (MIT / Public Domain) |
 | [`licenses/nlohmann-json-LICENSE.MIT`](licenses/nlohmann-json-LICENSE.MIT) | nlohmann/json (MIT) |
+| [`licenses/foxglove-mcap-LICENSE.txt`](licenses/foxglove-mcap-LICENSE.txt) | foxglove/mcap (MIT) |
 | [`licenses/tinyfiledialogs-LICENSE.txt`](licenses/tinyfiledialogs-LICENSE.txt) | tinyfiledialogs (zlib) |
 | [`licenses/Inter-OFL.txt`](licenses/Inter-OFL.txt) | Inter (SIL OFL 1.1) |
 | [`licenses/FontAwesome-Free-LICENSE.txt`](licenses/FontAwesome-Free-LICENSE.txt) | Font Awesome Free (OFL 1.1 fonts, CC BY 4.0 icons, MIT code) |

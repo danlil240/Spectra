@@ -11,6 +11,7 @@
 #include <spectra/plot_style.hpp>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace spectra
@@ -204,6 +205,13 @@ class Series
     }
     double y_offset() const { return y_offset_; }
 
+    /// @brief Data binding URI: where the series' data comes from, e.g.
+    /// "topic://imu/accel_x" or "csv://flight.csv?x=time#accel_x" (see
+    /// docs/layouts.md).  Empty when the data was set directly.  Saved by
+    /// File > Save Layout so the layout can be reopened against other data.
+    const std::string& data_binding() const { return data_binding_; }
+    void               set_data_binding(std::string uri) { data_binding_ = std::move(uri); }
+
     /// Control whether this series appears in the legend.
     bool show_in_legend() const { return show_in_legend_; }
     void set_show_in_legend(bool v) { show_in_legend_ = v; }
@@ -361,6 +369,7 @@ class Series
     bool            excluded_from_autoscale_ = false;
     bool            show_in_legend_          = true;
     bool            is_reference_line_       = false;
+    std::string     data_binding_;   ///< layout binding URI, "" = none
     SeriesDirtyFlag dirty_{true};
     EventSystem*    event_system_ = nullptr;
     AxesBase*       owning_axes_  = nullptr;

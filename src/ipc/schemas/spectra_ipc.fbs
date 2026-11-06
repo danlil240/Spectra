@@ -313,6 +313,15 @@ table ReqCloseFigurePayload {
     figure_id: uint64 = 0;
 }
 
+table ReqExportFigurePayload {
+    figure_id: uint64 = 0;
+    path: string;
+    format: string;   // "png" | "svg"; empty = from the path's extension
+    width: uint32 = 0;
+    height: uint32 = 0;
+    theme: string;    // empty = the user's saved theme
+}
+
 table ReqAppendDataPayload {
     figure_id: uint64 = 0;
     series_index: uint32 = 0;

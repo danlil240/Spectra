@@ -29,7 +29,9 @@
     #include "ui/figures/tab_drag_controller.hpp"
     #include "ui/animation/timeline_editor.hpp"
     #include "ui/commands/undo_manager.hpp"
+    #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
+    #include "ui/workspace/layout_session.hpp"
     #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/settings/settings_store.hpp"
@@ -95,6 +97,13 @@ struct WindowUIContext
     // Owned by the per-window UI bundle.  Wiring of IPC callbacks is done
     // externally (by the agent or app shell).
     ui::topics::TopicsPanel topics_panel;
+
+    // Opened layout files: binding providers, recent layouts, Data Bindings window.
+    LayoutSession layout_session;
+
+    // Log browser (ULog / MCAP files).  Readers come from the app's
+    // LogReaderRegistry when one is wired, else the built-in set.
+    ui::logs::LogBrowserPanel log_browser_panel;
 
     // Settings panel — owned by this context, wired to the process-scoped
     // SettingsStore during window_ui_context_builder.

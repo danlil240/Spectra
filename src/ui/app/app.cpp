@@ -98,7 +98,8 @@ void App::run()
             if (const Figure* f = registry_.get(id))
             {
                 const auto& req = f->export_req_;
-                if (!req.png_path.empty() || !req.svg_path.empty() || !req.video_path.empty())
+                if (!req.png_path.empty() || !req.svg_path.empty() || !req.pdf_path.empty()
+                    || !req.video_path.empty())
                     ++pending_exports;
             }
         }

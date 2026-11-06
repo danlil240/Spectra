@@ -4,6 +4,7 @@
 
     #include <format>
 
+    #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
     #include "ui/input/axes_selection.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
@@ -1259,14 +1260,65 @@ void ImGuiIntegration::draw_split_view_splitters()
 // ───────────────────────────────────────────────────────────────────────────
 void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
 {
-    if (!topics_panel_ || !layout_manager_ || !input_handler_)
-        return;
-    if (!topics_panel_->has_subscribe_callback() || topics_panel_->target_figure_id() == 0)
+    if (!topics_panel_ || !topics_panel_->has_subscribe_callback()
+        || topics_panel_->target_figure_id() == 0)
         return;
 
-    // Only show the drop overlay while a topic payload is being dragged.
+    draw_canvas_drop_overlay(
+        figure,
+        ui::topics::TOPIC_DRAG_TYPE,
+        "##topic_drop_overlay",
+        [this](const ImGuiPayload* p, int hover_idx)
+        {
+            if (p->DataSize != sizeof(ui::topics::TopicDragPayload))
+                return;
+            const auto*    dp = static_cast<const ui::topics::TopicDragPayload*>(p->Data);
+            std::string    name(dp->name);
+            const uint32_t axes_idx = (hover_idx >= 0) ? static_cast<uint32_t>(hover_idx) : 0u;
+            topics_panel_->submit_subscribe(name, topics_panel_->target_figure_id(), axes_idx);
+            SPECTRA_LOG_INFO("topics",
+                             "Drop subscribe topic=" + name + " axes=" + std::to_string(axes_idx));
+        });
+}
+
+// Log-field drop target: a field dragged from the Log Browser onto a 2D axes
+// is plotted there; dropped elsewhere on the canvas it goes to the first axes.
+void ImGuiIntegration::draw_log_field_drop_target(Figure& figure)
+{
+    if (!log_browser_panel_ || !log_browser_panel_->has_axes_provider())
+        return;
+
+    draw_canvas_drop_overlay(
+        figure,
+        ui::logs::LOG_FIELD_DRAG_TYPE,
+        "##log_field_drop_overlay",
+        [this, &figure](const ImGuiPayload* p, int hover_idx)
+        {
+            if (p->DataSize != sizeof(ui::logs::LogFieldDragPayload))
+                return;
+            const auto& dp  = *static_cast<const ui::logs::LogFieldDragPayload*>(p->Data);
+            Axes*       ax  = nullptr;
+            const auto& all = figure.all_axes();
+            if (hover_idx >= 0 && static_cast<size_t>(hover_idx) < all.size())
+                ax = dynamic_cast<Axes*>(all[static_cast<size_t>(hover_idx)].get());
+            if (!ax && !figure.axes().empty())
+                ax = figure.axes().front().get();
+            log_browser_panel_->plot_payload(dp, ax);
+        });
+}
+
+void ImGuiIntegration::draw_canvas_drop_overlay(
+    Figure&                                              figure,
+    const char*                                          payload_type,
+    const char*                                          window_id,
+    const std::function<void(const ImGuiPayload*, int)>& on_drop)
+{
+    if (!layout_manager_ || !input_handler_)
+        return;
+
+    // Only show the drop overlay while a matching payload is being dragged.
     const ImGuiPayload* payload = ImGui::GetDragDropPayload();
-    if (!payload || !payload->IsDataType(ui::topics::TOPIC_DRAG_TYPE))
+    if (!payload || !payload->IsDataType(payload_type))
         return;
 
     Rect bounds = layout_manager_->canvas_rect();
@@ -1322,27 +1374,13 @@ void ImGuiIntegration::draw_topic_drop_target(Figure& figure)
                              | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
                              | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground;
 
-    if (ImGui::Begin("##topic_drop_overlay", nullptr, flags))
+    if (ImGui::Begin(window_id, nullptr, flags))
     {
-        ImGui::InvisibleButton("##topic_drop_btn", ImVec2(bounds.w, bounds.h));
+        ImGui::InvisibleButton("##drop_btn", ImVec2(bounds.w, bounds.h));
         if (ImGui::BeginDragDropTarget())
         {
-            if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload(ui::topics::TOPIC_DRAG_TYPE))
-            {
-                if (p->DataSize == sizeof(ui::topics::TopicDragPayload))
-                {
-                    const auto*    dp = static_cast<const ui::topics::TopicDragPayload*>(p->Data);
-                    std::string    name(dp->name);
-                    const uint32_t axes_idx =
-                        (hover_idx >= 0) ? static_cast<uint32_t>(hover_idx) : 0u;
-                    topics_panel_->submit_subscribe(name,
-                                                    topics_panel_->target_figure_id(),
-                                                    axes_idx);
-                    SPECTRA_LOG_INFO(
-                        "topics",
-                        "Drop subscribe topic=" + name + " axes=" + std::to_string(axes_idx));
-                }
-            }
+            if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload(payload_type))
+                on_drop(p, hover_idx);
             ImGui::EndDragDropTarget();
         }
     }
@@ -1365,9 +1403,44 @@ void ImGuiIntegration::draw_topic_drop_target_welcome()
     if (!topics_panel_ || !topics_panel_->has_subscribe_callback())
         return;
 
-    // Only run while a topic payload is being dragged.
+    draw_welcome_drop_overlay(
+        ui::topics::TOPIC_DRAG_TYPE,
+        [this](const ImGuiPayload* p)
+        {
+            if (p->DataSize != sizeof(ui::topics::TopicDragPayload))
+                return;
+            const auto* dp = static_cast<const ui::topics::TopicDragPayload*>(p->Data);
+            std::string name(dp->name);
+            // figure_id=0: the daemon creates a new figure for this window
+            topics_panel_->submit_subscribe(name, 0, 0);
+            SPECTRA_LOG_INFO("topics", "Welcome drop: subscribe topic=" + name + " (new figure)");
+        });
+}
+
+// Welcome-state log-field drop target: the panel's axes provider creates a
+// figure for the field.
+void ImGuiIntegration::draw_log_field_drop_target_welcome()
+{
+    if (!log_browser_panel_ || !log_browser_panel_->has_axes_provider())
+        return;
+
+    draw_welcome_drop_overlay(ui::logs::LOG_FIELD_DRAG_TYPE,
+                              [this](const ImGuiPayload* p)
+                              {
+                                  if (p->DataSize != sizeof(ui::logs::LogFieldDragPayload))
+                                      return;
+                                  log_browser_panel_->plot_payload(
+                                      *static_cast<const ui::logs::LogFieldDragPayload*>(p->Data));
+                              });
+}
+
+void ImGuiIntegration::draw_welcome_drop_overlay(
+    const char*                                     payload_type,
+    const std::function<void(const ImGuiPayload*)>& on_drop)
+{
+    // Only run while a matching payload is being dragged.
     const ImGuiPayload* payload = ImGui::GetDragDropPayload();
-    if (!payload || !payload->IsDataType(ui::topics::TOPIC_DRAG_TYPE))
+    if (!payload || !payload->IsDataType(payload_type))
         return;
 
     ImGuiIO&    io = ImGui::GetIO();
@@ -1409,18 +1482,8 @@ void ImGuiIntegration::draw_topic_drop_target_welcome()
     {
         if (ImGui::BeginDragDropTargetViewport(ImGui::GetMainViewport(), nullptr))
         {
-            if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload(ui::topics::TOPIC_DRAG_TYPE))
-            {
-                if (p->DataSize == sizeof(ui::topics::TopicDragPayload))
-                {
-                    const auto* dp = static_cast<const ui::topics::TopicDragPayload*>(p->Data);
-                    std::string name(dp->name);
-                    // figure_id=0 → daemon auto-creates a new figure for this window
-                    topics_panel_->submit_subscribe(name, 0, 0);
-                    SPECTRA_LOG_INFO("topics",
-                                     "Welcome drop: subscribe topic=" + name + " (new figure)");
-                }
-            }
+            if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload(payload_type))
+                on_drop(p);
             ImGui::EndDragDropTarget();
         }
     }

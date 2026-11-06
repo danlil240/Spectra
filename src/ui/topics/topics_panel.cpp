@@ -73,6 +73,59 @@ bool TopicsPanel::submit_subscribe(const std::string& topic_name,
     return true;
 }
 
+std::vector<std::string> TopicsPanel::topic_names() const
+{
+    std::lock_guard<std::mutex> g(mutex_);
+    std::vector<std::string>    out;
+    out.reserve(topics_.size());
+    for (const auto& t : topics_)
+        out.push_back(t.name);
+    return out;
+}
+
+bool TopicsPanel::submit_data_source_toggle(const std::string& name, bool start)
+{
+    if (!data_source_toggle_cb_ || name.empty())
+        return false;
+    data_source_toggle_cb_(name, start);
+    return true;
+}
+
+void TopicsPanel::draw_data_sources()
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (!data_source_list_cb_)
+        return;
+    const std::vector<DataSourceRow> sources = data_source_list_cb_();
+    if (sources.empty())
+        return;
+
+    if (!ImGui::CollapsingHeader("Data sources", ImGuiTreeNodeFlags_DefaultOpen))
+        return;
+
+    for (const auto& src : sources)
+    {
+        ImGui::PushID(src.name.c_str());
+        if (src.faulted)
+        {
+            ImGui::BeginDisabled();
+            ImGui::SmallButton("Faulted");
+            ImGui::EndDisabled();
+        }
+        else if (ImGui::SmallButton(src.running ? "Stop" : "Start"))
+        {
+            submit_data_source_toggle(src.name, !src.running);
+        }
+        ImGui::SameLine();
+        ImGui::TextUnformatted(src.name.c_str());
+        if (src.running && ImGui::IsItemHovered())
+            ImGui::SetTooltip("Publishing topics %s/<series>", src.name.c_str());
+        ImGui::PopID();
+    }
+    ImGui::Separator();
+#endif
+}
+
 bool TopicsPanel::draw()
 {
 #ifndef SPECTRA_USE_IMGUI
@@ -108,6 +161,8 @@ bool TopicsPanel::draw()
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-FLT_MIN);
     ImGui::InputTextWithHint("##topic_filter", "Filter…", filter_buf_, sizeof(filter_buf_));
+
+    draw_data_sources();
 
     std::vector<ipc::TopicInfoEntry> snapshot;
     {

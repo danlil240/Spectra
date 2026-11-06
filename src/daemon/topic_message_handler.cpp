@@ -81,6 +81,50 @@ void broadcast_topic_list_changed(DaemonContext& ctx)
     }
 }
 
+void append_topic_samples_to_subscribers(DaemonContext&                        ctx,
+                                         const std::string&                    name,
+                                         const std::vector<double>&            samples,
+                                         const std::vector<TopicSubscription>& subs,
+                                         ipc::StateDiffPayload&                diff)
+{
+    if (subs.empty() || samples.empty())
+        return;
+    // Subscribed series keep a rolling window the size of the topic ring so
+    // memory and the per-publish SET_SERIES_DATA diff stay bounded.
+    const size_t max_points = ctx.topics.ring_capacity_of(name).value_or(4096u);
+    const auto   fdata      = to_float_vector(samples);
+    for (const auto& s : subs)
+    {
+        if (!ctx.fig_model.has_figure(s.figure_id))
+            continue;
+        diff.ops.push_back(
+            ctx.fig_model.append_series_data(s.figure_id, s.series_index, fdata, max_points));
+    }
+}
+
+void drain_topic_ingest(DaemonContext& ctx, TopicIngestQueue& queue)
+{
+    auto batches = queue.drain();
+    if (batches.empty())
+        return;
+
+    IngestResult result = apply_ingest_batches(ctx.topics, batches);
+    for (const auto& name : result.declared)
+        std::cerr << "[spectra-backend] Bridge topic declared: " << name << "\n";
+
+    ipc::StateDiffPayload diff;
+    diff.base_revision = ctx.fig_model.revision();
+    for (const auto& t : result.fanout)
+        append_topic_samples_to_subscribers(ctx, t.name, t.samples, t.subs, diff);
+    if (!diff.ops.empty())
+    {
+        diff.new_revision = ctx.fig_model.revision();
+        broadcast_diff_to_agents(ctx, diff);
+    }
+    if (result.topic_list_changed)
+        broadcast_topic_list_changed(ctx);
+}
+
 HandleResult handle_req_declare_topic(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
 {
     auto req = ipc::decode_req_declare_topic(msg.payload);
@@ -164,28 +208,12 @@ HandleResult handle_req_publish_topic_samples(DaemonContext&      ctx,
     // Fan out to subscribed (figure, series).
     if (!subs.empty() && !req->samples.empty())
     {
-        // Subscribed series keep a rolling window the size of the topic ring so
-        // memory and the per-publish SET_SERIES_DATA diff stay bounded.
-        const size_t       max_points = ctx.topics.ring_capacity_of(req->name).value_or(4096u);
-        std::vector<float> fdata;
-        fdata.reserve(req->samples.size());
-        for (double d : req->samples)
-            fdata.push_back(static_cast<float>(d));
-
         ipc::StateDiffPayload diff;
-        diff.ops.reserve(subs.size());
-        for (const auto& s : subs)
-        {
-            if (!ctx.fig_model.has_figure(s.figure_id))
-                continue;
-            auto op =
-                ctx.fig_model.append_series_data(s.figure_id, s.series_index, fdata, max_points);
-            diff.ops.push_back(std::move(op));
-        }
+        diff.base_revision = ctx.fig_model.revision();
+        append_topic_samples_to_subscribers(ctx, req->name, req->samples, subs, diff);
         if (!diff.ops.empty())
         {
-            diff.new_revision  = ctx.fig_model.revision();
-            diff.base_revision = diff.new_revision > 0 ? diff.new_revision - 1 : 0;
+            diff.new_revision = ctx.fig_model.revision();
             broadcast_diff_to_agents(ctx, diff);
         }
     }

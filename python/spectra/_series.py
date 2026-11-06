@@ -13,6 +13,11 @@ if TYPE_CHECKING:
     from ._session import Session
 
 
+# Series types whose data is a structured payload (not interleaved x, y): the
+# backend rebuilds the native C++ series from it (src/ui/app/figure_snapshot.hpp).
+STATS_SERIES_TYPES = frozenset({"bar", "histogram", "band", "stem", "box", "violin"})
+
+
 def _to_float_list(data: Union[List[float], "object"]) -> List[float]:
     """Convert data to a list of floats. Supports lists and numpy arrays."""
     if isinstance(data, list):
@@ -262,6 +267,32 @@ class Series:
             )
             self._session._request(P.REQ_SET_DATA, payload)
 
+    def _set_payload(self, data: List[float]) -> None:
+        """Send a statistical series' structured payload.
+
+        ``data`` follows the per-type float layout documented in
+        src/ui/app/figure_snapshot.hpp ("bar", "histogram", "band", "stem", ...);
+        the backend stores it as-is and the window rebuilds the native series.
+        """
+        try:
+            import numpy as np
+
+            arr = np.ascontiguousarray(data, dtype=np.float32)
+            payload = codec.encode_req_set_data_raw(
+                figure_id=self._figure_id,
+                series_index=self._index,
+                raw_bytes=arr.tobytes(),
+                count=int(arr.size),
+            )
+        except ImportError:
+            payload = codec.encode_req_set_data(
+                figure_id=self._figure_id,
+                series_index=self._index,
+                data=[float(v) for v in data],
+            )
+        self._session._request(P.REQ_SET_DATA, payload)
+        self._has_data = bool(data)
+
     def append(
         self,
         x: Union[List[float], "object"],
@@ -272,6 +303,9 @@ class Series:
         Values are sent relative to the series' data origin (see set_data);
         the first points streamed into an empty series pick that origin.
         """
+        if self._type in STATS_SERIES_TYPES:
+            raise TypeError(f"append() is not supported for {self._type!r} series; "
+                            "create the series again with the full data")
         if not self._has_data:
             xs = _shift(x, 0.0)
             ys = _shift(y, 0.0)
@@ -326,6 +360,18 @@ class Series:
             data=interleaved,
         )
         self._session._request(P.REQ_SET_DATA, payload)
+
+    def _set_categories(self, names: List[str]) -> None:
+        """Category names of a bar series (one tick label per bar)."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="categories",
+            f1=float(len(names)),
+            # 0x1F separates names (ipc::CATEGORY_SEPARATOR); strip it from names.
+            str_val="\x1f".join(str(n).replace("\x1f", " ") for n in names),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
     def set_label(self, label: str) -> None:
         """Set the series label."""

@@ -5,7 +5,9 @@
 //
 // A colorbar is shown for an axes when AxesBase::colorbar_visible() is set
 // and the axes holds a visible colormapped series: a ScatterSeries with
-// per-point color values + colormap, or a SurfaceSeries with a colormap.
+// per-point color values + colormap, a SurfaceSeries with a colormap, a
+// scalar ImageSeries (imshow / heatmap / contourf) or a ContourSeries whose
+// lines are coloured by level.
 // It sits in a strip carved out of the right side of the axes layout cell,
 // so it never covers data.
 
@@ -18,8 +20,11 @@
 #include <spectra/color.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <string>
 #include <vector>
+
+#include "image_colormap.hpp"
 
 namespace spectra::colorbar_layout
 {
@@ -42,6 +47,7 @@ enum class Mapping
 {
     Scatter,   // scatter.frag apply_colormap (3-stop piecewise linear)
     Surface,   // surface3d.frag apply_colormap == SurfaceSeries::sample_colormap
+    Image,     // heatmap.frag lookup table (image_colormap), banded when levels are set
 };
 
 struct Source
@@ -50,6 +56,8 @@ struct Source
     Mapping      mapping = Mapping::Scatter;
     double       vmin    = 0.0;
     double       vmax    = 1.0;
+    // Mapping::Image only: band edges of a filled contour (empty = continuous).
+    std::vector<float> levels;
 };
 
 // First visible colormapped series of the axes (nullopt if there is none).
@@ -63,7 +71,11 @@ inline std::optional<Source> find_source(const AxesBase& axes)
         {
             if (!sc->has_colormap())
                 continue;
-            return Source{sc->colormap(), Mapping::Scatter, sc->colormap_min(), sc->colormap_max()};
+            return Source{sc->colormap(),
+                          Mapping::Scatter,
+                          sc->colormap_min(),
+                          sc->colormap_max(),
+                          {}};
         }
         if (const auto* sf = dynamic_cast<const SurfaceSeries*>(sp.get()))
         {
@@ -75,7 +87,19 @@ inline std::optional<Source> find_source(const AxesBase& axes)
             AxisLimits zl{0.0, 1.0};
             if (const auto* a3 = dynamic_cast<const Axes3D*>(&axes))
                 zl = a3->z_limits();
-            return Source{sf->colormap_type(), Mapping::Surface, zl.min, zl.max};
+            return Source{sf->colormap_type(), Mapping::Surface, zl.min, zl.max, {}};
+        }
+        if (const auto* img = dynamic_cast<const ImageSeries*>(sp.get()))
+        {
+            if (!img->has_colormap())
+                continue;
+            return Source{img->colormap(), Mapping::Image, img->vmin(), img->vmax(), img->levels()};
+        }
+        if (const auto* ct = dynamic_cast<const ContourSeries*>(sp.get()))
+        {
+            if (!ct->uses_colormap())
+                continue;
+            return Source{ct->colormap(), Mapping::Image, ct->vmin(), ct->vmax(), {}};
         }
     }
     return std::nullopt;
@@ -128,6 +152,8 @@ inline Color sample(ColormapType cm, Mapping mapping, float t)
     t = std::clamp(t, 0.0f, 1.0f);
     if (mapping == Mapping::Surface)
         return SurfaceSeries::sample_colormap(cm, t);
+    if (mapping == Mapping::Image)
+        return image_colormap::sample(cm, t);
 
     // Mirror of apply_colormap() in src/gpu/shaders/scatter.frag — keep in sync.
     auto three_stop = [t](Color c0, Color c1, Color c2)
@@ -171,6 +197,23 @@ inline Color sample(ColormapType cm, Mapping mapping, float t)
         default:
             return Color{0.5f, 0.5f, 0.5f, 1.0f};
     }
+}
+
+// Colour of the bar at t in [0, 1] for source: sample() for a continuous
+// colormap, or the flat colour of the band holding t for banded levels.
+inline Color sample_source(const Source& src, float t)
+{
+    if (src.mapping == Mapping::Image && src.levels.size() >= 2)
+    {
+        const float lo = src.levels.front();
+        const float hi = src.levels.back();
+        const int   b =
+            image_colormap::band_of(src.levels, lo + std::clamp(t, 0.0f, 1.0f) * (hi - lo));
+        return image_colormap::band_color(src.cmap,
+                                          src.levels,
+                                          static_cast<size_t>(std::max(b, 0)));
+    }
+    return sample(src.cmap, src.mapping, t);
 }
 
 struct Tick

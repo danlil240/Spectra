@@ -15,7 +15,9 @@
 
 #include "anim/frame_scheduler.hpp"
 #include "adapters/data_source_registry.hpp"
+#include "adapters/data_source_topics.hpp"
 #include "io/export_registry.hpp"
+#include "io/logs/log_reader_registry.hpp"
 #include "math/data_transform.hpp"
 #include "render/renderer.hpp"
 #include "io/svg_export_internal.hpp"
@@ -33,6 +35,7 @@
 #include "window_ui_context_builder.hpp"
 #include "window_ui_context.hpp"
 #include "window_png_export.hpp"
+#include "ui/workspace/data_binding.hpp"
 #include "ui/workspace/plugin_api.hpp"
 #include "ui/settings/settings_store.hpp"
 
@@ -67,6 +70,7 @@
 
 #ifndef _WIN32
     #include "../../app/inproc_topic_server.hpp"
+    #include "daemon/bridges/udp_json_bridge.hpp"
 #endif
 
 #include "perf_metrics.hpp"
@@ -229,10 +233,11 @@ struct App::AppRuntime
 
     // Host registries the plugin manager points to: declared before it so
     // they outlive it even if ~AppRuntime has to unload plugins itself.
-    ExportFormatRegistry export_format_registry;
-    DataSourceRegistry   data_source_registry;
-    SeriesTypeRegistry   series_type_registry;
-    PluginManager        plugin_manager;
+    ExportFormatRegistry    export_format_registry;
+    logs::LogReaderRegistry log_reader_registry;   // log browser readers (ULog, MCAP)
+    DataSourceRegistry      data_source_registry;
+    SeriesTypeRegistry      series_type_registry;
+    PluginManager           plugin_manager;
     // UI context whose command registry, shortcuts and undo stack the plugin
     // manager uses (headless context or a window's).  Plugins are unloaded
     // or re-hosted before it is destroyed (see App::release_plugin_ui_host).
@@ -274,6 +279,9 @@ struct App::AppRuntime
 
 #ifndef _WIN32
     std::unique_ptr<InprocTopicServer> topic_server;
+    // Optional UDP JSON/CSV bridge publishing into topic_server
+    // (SPECTRA_UDP_BRIDGE).  Stopped before topic_server.
+    std::unique_ptr<daemon::UdpJsonBridge> udp_bridge;
     // Window whose TopicsPanel is wired to topic_server (only one at a time).
     // When that window closes, the panel is rewired to a surviving window.
     bool     topics_panel_wired     = false;
@@ -368,16 +376,73 @@ static void release_plugin_ui_host(PluginManager&    plugin_manager,
 }
 #endif
 
+#ifndef _WIN32
+// Let the Topics panel list plugin data sources and start / stop them.  The
+// registry lives on AppRuntime, which outlives every window's panel.
+static void wire_data_source_controls(ui::topics::TopicsPanel& panel,
+                                      DataSourceRegistry&      data_sources)
+{
+    panel.set_data_source_callbacks(
+        [&data_sources]()
+        {
+            std::vector<ui::topics::DataSourceRow> rows;
+            for (auto& st : data_sources.status())
+                rows.push_back(
+                    ui::topics::DataSourceRow{std::move(st.name), st.running, st.faulted});
+            return rows;
+        },
+        [&data_sources](const std::string& name, bool start)
+        { data_sources.set_running(name, start); });
+}
+
+// Start the in-process UDP bridge when SPECTRA_UDP_BRIDGE is set.
+static std::unique_ptr<daemon::UdpJsonBridge> start_udp_bridge_from_env(InprocTopicServer& sink)
+{
+    const char* spec = std::getenv("SPECTRA_UDP_BRIDGE");
+    if (!spec || spec[0] == '\0')
+        return nullptr;
+
+    daemon::UdpBridgeConfig cfg;
+    std::string             err;
+    if (const char* prefix = std::getenv("SPECTRA_UDP_BRIDGE_PREFIX"); prefix && prefix[0] != '\0')
+        cfg.prefix = prefix;
+    if (!daemon::parse_udp_bridge_spec(spec, cfg, &err))
+    {
+        SPECTRA_LOG_WARN("topics", "UDP bridge disabled: {}", err);
+        return nullptr;
+    }
+    auto bridge = std::make_unique<daemon::UdpJsonBridge>(cfg);
+    if (!bridge->start(sink, daemon::BRIDGE_OWNER_ID_BASE + 1, &err))
+    {
+        SPECTRA_LOG_WARN("topics", "UDP bridge failed to start: {}", err);
+        return nullptr;
+    }
+    SPECTRA_LOG_INFO("topics", "UDP bridge listening: {}", bridge->describe());
+    return bridge;
+}
+#endif
+
 #if !defined(_WIN32) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
 // Keep exactly one open window's TopicsPanel wired to the topic server.  The
 // panel unwires itself when its window is destroyed; this wires the panel of
 // the first surviving regular window instead.  Main thread only.
-static void rewire_topics_panel_if_needed(InprocTopicServer& server,
-                                          WindowManager&     window_mgr,
-                                          FigureRegistry&    registry,
-                                          bool&              wired,
-                                          uint32_t&          wired_window_id)
+static void rewire_topics_panel_if_needed(InprocTopicServer&  server,
+                                          WindowManager&      window_mgr,
+                                          FigureRegistry&     registry,
+                                          DataSourceRegistry& data_sources,
+                                          bool&               wired,
+                                          uint32_t&           wired_window_id)
 {
+    #ifdef SPECTRA_USE_IMGUI
+    // Every window resolves layout topic bindings through the server (cheap
+    // pointer store; covers windows opened since the last step).
+    for (auto* wctx : window_mgr.windows())
+    {
+        if (wctx && wctx->ui_ctx)
+            wctx->ui_ctx->layout_session.set_topic_provider(&server);
+    }
+    #endif
+
     WindowContext* candidate = nullptr;
     for (auto* wctx : window_mgr.windows())
     {
@@ -395,6 +460,7 @@ static void rewire_topics_panel_if_needed(InprocTopicServer& server,
         return;
 
     server.wire_topics_panel(candidate->ui_ctx->topics_panel, &registry);
+    wire_data_source_controls(candidate->ui_ctx->topics_panel, data_sources);
     wired           = true;
     wired_window_id = candidate->id;
 }
@@ -432,6 +498,7 @@ void App::init_runtime()
 
     runtime_ = std::make_unique<AppRuntime>(init_fps, *backend_, *renderer_, registry_);
     auto& rt = *runtime_;
+    logs::register_builtin_log_readers(rt.log_reader_registry);
 
     // Headless apps ignore ~/.config/spectra/settings.json unless asked
     // (AppConfig::use_user_settings) so exports look the same on every machine;
@@ -545,6 +612,7 @@ void App::init_runtime()
                 wm_opts.settings_store         = rt.settings_store.get();
                 wm_opts.plugin_manager         = &rt.plugin_manager;
                 wm_opts.export_format_registry = &rt.export_format_registry;
+                wm_opts.log_reader_registry    = &rt.log_reader_registry;
                 rt.window_mgr                  = create_configured_window_manager(wm_opts);
                 rt.window_mgr->set_interactive_frame_handler(
                     [&rt]()
@@ -622,6 +690,7 @@ void App::init_runtime()
                 wm_opts.settings_store         = rt.settings_store.get();
                 wm_opts.plugin_manager         = &rt.plugin_manager;
                 wm_opts.export_format_registry = &rt.export_format_registry;
+                wm_opts.log_reader_registry    = &rt.log_reader_registry;
                 rt.window_mgr                  = create_configured_window_manager(wm_opts);
                 rt.window_mgr->set_interactive_frame_handler(
                     [&rt]()
@@ -739,16 +808,21 @@ void App::init_runtime()
         wire_window_ui_runtime(wire_opts);
     }
 
+    // `spectra --layout file.spectra`: opened on the first frame, once the
+    // topic server is up so topic bindings can subscribe.
+    if (!config_.open_layout.empty() && rt.ui_ctx_ptr)
+        rt.ui_ctx_ptr->layout_session.request_open(config_.open_layout);
+
     if (!config_.headless && rt.ui_ctx_ptr && rt.ui_ctx_ptr->imgui_ui)
     {
         auto& fig_mgr  = *rt.ui_ctx_ptr->fig_mgr;
         auto& imgui_ui = rt.ui_ctx_ptr->imgui_ui;
         imgui_ui->set_csv_plot_callback(
-            [&fig_mgr, this](const std::string& /*path*/,
+            [&fig_mgr, this](const std::string&        path,
                              const std::vector<float>& x,
                              const std::vector<float>& y,
-                             const std::string& /* x_label */,
-                             const std::string& y_label,
+                             const std::string&        x_label,
+                             const std::string&        y_label,
                              const std::vector<float>* /*z*/,
                              const std::string* /*z_label*/,
                              double x_offset)
@@ -766,27 +840,53 @@ void App::init_runtime()
                 auto& ax   = fig->subplot(1, 1, 1);
                 auto& line = ax.line(x, y);
                 line.label(y_label);
+                // Saved by File > Save Layout: the file by name, so a
+                // teammate's copy elsewhere still matches.
+                line.set_data_binding(
+                    csv_binding_uri(std::filesystem::path(path).filename().string(),
+                                    x_label,
+                                    y_label));
                 // Preserve absolute x values (e.g. epoch timestamps): the
                 // axis shows x_offset + x[i] at full double precision.
                 line.x_offset(x_offset);
                 ax.auto_fit();
             });
 
-        // Wire OS drag-and-drop: CSV/TSV/TXT files trigger the Load from CSV flow.
-        auto* imgui_ui_ptr = imgui_ui.get();
+        // Log browser: double-click / welcome-screen drops plot into the
+        // active figure's first axes, creating a figure when there is none.
+        auto& log_panel = rt.ui_ctx_ptr->log_browser_panel;
+        log_panel.set_axes_provider(
+            [&fig_mgr, this]() -> Axes*
+            {
+                FigureId active_id = fig_mgr.active_index();
+                Figure*  fig       = registry_.get(active_id);
+                if (!fig)
+                {
+                    active_id = fig_mgr.create_figure(FigureConfig{});
+                    fig       = registry_.get(active_id);
+                    if (!fig)
+                        return nullptr;
+                }
+                if (!fig->axes().empty() && fig->axes().front())
+                    return fig->axes().front().get();
+                return &fig->subplot(1, 1, 1);
+            });
+
+        // Wire OS drag-and-drop: CSV/TSV/TXT files trigger the Load from CSV
+        // flow; log files the registry recognizes (ULog, MCAP) open in the
+        // log browser.
+        auto* imgui_ui_ptr  = imgui_ui.get();
+        auto* log_panel_ptr = &log_panel;
         if (rt.window_mgr)
         {
             rt.window_mgr->set_file_drop_handler(
-                [imgui_ui_ptr](uint32_t /*window_id*/, const std::string& path)
+                [imgui_ui_ptr, log_panel_ptr](uint32_t /*window_id*/, const std::string& path)
                 {
-                    namespace fs = std::filesystem;
-                    auto ext     = fs::path(path).extension().string();
-                    std::transform(ext.begin(),
-                                   ext.end(),
-                                   ext.begin(),
-                                   [](unsigned char c) { return std::tolower(c); });
-                    if (ext == ".csv" || ext == ".tsv" || ext == ".txt")
+                    const std::string ext = logs::lowercase_extension(path);
+                    if (ext == "csv" || ext == "tsv" || ext == "txt")
                         imgui_ui_ptr->request_csv_load(path);
+                    else if (log_panel_ptr->can_open(path))
+                        log_panel_ptr->open_file(path);
                 });
         }
     }
@@ -895,13 +995,21 @@ void App::init_runtime()
             rewire_topics_panel_if_needed(*rt.topic_server,
                                           *rt.window_mgr,
                                           registry_,
+                                          rt.data_source_registry,
                                           rt.topics_panel_wired,
                                           rt.topics_panel_window_id);
             wired_via_window_mgr = true;
         }
     #endif
         if (!wired_via_window_mgr && rt.ui_ctx_ptr)
+        {
             rt.topic_server->wire_topics_panel(rt.ui_ctx_ptr->topics_panel, &registry_);
+    #ifdef SPECTRA_USE_IMGUI
+            rt.ui_ctx_ptr->layout_session.set_topic_provider(rt.topic_server.get());
+    #endif
+            wire_data_source_controls(rt.ui_ctx_ptr->topics_panel, rt.data_source_registry);
+        }
+        rt.udp_bridge = start_udp_bridge_from_env(*rt.topic_server);
     }
 #endif
 
@@ -939,7 +1047,12 @@ App::StepResult App::step()
     // run on this (main) thread before tick() commits pending series data so
     // the samples show up in this frame.
     if (rt.topic_server)
+    {
+        // Plugin data sources publish as topics "<source>/<series label>";
+        // their samples are queued like any publisher's and drained below.
+        pump_data_sources_to_topics(rt.data_source_registry, *rt.topic_server);
         rt.topic_server->drain_pending();
+    }
 #endif
 
     // A PNG capture with its own theme: the frame it reads back is drawn with
@@ -974,6 +1087,7 @@ App::StepResult App::step()
         rewire_topics_panel_if_needed(*rt.topic_server,
                                       *rt.window_mgr,
                                       registry_,
+                                      rt.data_source_registry,
                                       rt.topics_panel_wired,
                                       rt.topics_panel_window_id);
 #endif
@@ -1102,9 +1216,29 @@ void App::shutdown_runtime()
 #ifndef _WIN32
     // Stop before MCP/automation: the topic worker may call UI callbacks that
     // reference TopicsPanel, which is destroyed when the user closes the window.
+    if (rt.udp_bridge)
+    {
+        rt.udp_bridge->stop();
+        rt.udp_bridge.reset();
+    }
     if (rt.topic_server)
     {
         rt.topic_server->stop();
+    #ifdef SPECTRA_USE_IMGUI
+        // Layout sessions must not keep the server as their topic provider.
+        if (rt.ui_ctx_ptr)
+            rt.ui_ctx_ptr->layout_session.set_topic_provider(nullptr);
+        #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        if (rt.window_mgr)
+        {
+            for (auto* wctx : rt.window_mgr->windows())
+            {
+                if (wctx && wctx->ui_ctx)
+                    wctx->ui_ctx->layout_session.set_topic_provider(nullptr);
+            }
+        }
+        #endif
+    #endif
         rt.topic_server.reset();
     }
 #endif
@@ -1215,6 +1349,7 @@ void App::shutdown_runtime()
         }
 
         write_pending_svg(f, theme_mgr_.get(), &svg_host);
+        write_pending_pdf(f, theme_mgr_.get(), &svg_host);
     }
 
     // Unload plugins while everything they registered into is still alive:

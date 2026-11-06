@@ -57,6 +57,10 @@ struct AppConfig
     /// $HOME/.config/spectra.  Point SPECTRA_CONFIG_DIR at an empty directory to
     /// isolate a windowed app from saved user settings.
     bool use_user_settings = false;
+    /// Layout file (File > Save Layout, `spectra --layout`) to open on the first
+    /// frame of a windowed app: its figures are created and their data bindings
+    /// re-resolved against topics and CSV files.  Empty = none.
+    std::string open_layout{};
 };
 
 class SessionRuntime;

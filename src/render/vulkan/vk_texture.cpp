@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstring>
 
+#include <spectra/logger.hpp>
+
 #include "vk_buffer.hpp"
 
 namespace spectra
@@ -331,6 +333,207 @@ TextureHandle VulkanBackend::create_texture(uint32_t       width,
         vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
     }
 
+    textures_[h.id] = tex;
+    return h;
+}
+
+TextureHandle VulkanBackend::create_data_texture(uint32_t     width,
+                                                 uint32_t     height,
+                                                 const float* values)
+{
+    if (width == 0 || height == 0 || !values || ctx_.device == VK_NULL_HANDLE)
+        return TextureHandle{};
+
+    VkPhysicalDeviceProperties props{};
+    vkGetPhysicalDeviceProperties(ctx_.physical_device, &props);
+    if (width > props.limits.maxImageDimension2D || height > props.limits.maxImageDimension2D)
+    {
+        SPECTRA_LOG_WARN("vulkan",
+                         "Data texture {}x{} exceeds the device limit {}; not drawn",
+                         width,
+                         height,
+                         props.limits.maxImageDimension2D);
+        return TextureHandle{};
+    }
+
+    TextureEntry tex{};
+    auto         fail = [&]()
+    {
+        destroy_texture_entry_now(tex);
+        return TextureHandle{};
+    };
+
+    VkImageCreateInfo image_info{};
+    image_info.sType         = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_info.imageType     = VK_IMAGE_TYPE_2D;
+    image_info.format        = VK_FORMAT_R32_SFLOAT;
+    image_info.extent        = {width, height, 1};
+    image_info.mipLevels     = 1;
+    image_info.arrayLayers   = 1;
+    image_info.samples       = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling        = VK_IMAGE_TILING_OPTIMAL;
+    image_info.usage         = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    image_info.sharingMode   = VK_SHARING_MODE_EXCLUSIVE;
+    image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (vkCreateImage(ctx_.device, &image_info, nullptr, &tex.image) != VK_SUCCESS)
+        return fail();
+
+    VkMemoryRequirements mem_reqs;
+    vkGetImageMemoryRequirements(ctx_.device, tex.image, &mem_reqs);
+    uint32_t mem_type_idx = UINT32_MAX;
+    for (uint32_t i = 0; i < ctx_.memory_properties.memoryTypeCount; ++i)
+    {
+        if ((mem_reqs.memoryTypeBits & (1u << i))
+            && (ctx_.memory_properties.memoryTypes[i].propertyFlags
+                & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        {
+            mem_type_idx = i;
+            break;
+        }
+    }
+    if (mem_type_idx == UINT32_MAX)
+        return fail();
+
+    VkMemoryAllocateInfo alloc_info{};
+    alloc_info.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize  = mem_reqs.size;
+    alloc_info.memoryTypeIndex = mem_type_idx;
+    if (vkAllocateMemory(ctx_.device, &alloc_info, nullptr, &tex.memory) != VK_SUCCESS)
+        return fail();
+    vkBindImageMemory(ctx_.device, tex.image, tex.memory, 0);
+
+    // Upload through a staging buffer with a one-shot command buffer.
+    const VkDeviceSize byte_size = static_cast<VkDeviceSize>(width) * height * sizeof(float);
+    vk::GpuBuffer      staging;
+    try
+    {
+        staging = vk::GpuBuffer::create(
+            ctx_.device,
+            ctx_.physical_device,
+            byte_size,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    }
+    catch (const std::exception& e)
+    {
+        SPECTRA_LOG_ERROR("vulkan", "Data texture staging buffer failed: {}", e.what());
+        return fail();
+    }
+    staging.upload(values, byte_size);
+
+    VkCommandBufferAllocateInfo cmd_alloc{};
+    cmd_alloc.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmd_alloc.commandPool        = command_pool_;
+    cmd_alloc.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmd_alloc.commandBufferCount = 1;
+    VkCommandBuffer cmd          = VK_NULL_HANDLE;
+    if (vkAllocateCommandBuffers(ctx_.device, &cmd_alloc, &cmd) != VK_SUCCESS)
+    {
+        staging.destroy();
+        return fail();
+    }
+
+    VkCommandBufferBeginInfo begin{};
+    begin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &begin);
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED;
+    barrier.newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image               = tex.image;
+    barrier.subresourceRange    = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    barrier.srcAccessMask       = 0;
+    barrier.dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0,
+                         0,
+                         nullptr,
+                         0,
+                         nullptr,
+                         1,
+                         &barrier);
+
+    VkBufferImageCopy region{};
+    region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+    region.imageExtent      = {width, height, 1};
+    vkCmdCopyBufferToImage(cmd,
+                           staging.buffer(),
+                           tex.image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &region);
+
+    barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    vkCmdPipelineBarrier(cmd,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         0,
+                         0,
+                         nullptr,
+                         0,
+                         nullptr,
+                         1,
+                         &barrier);
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit{};
+    submit.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers    = &cmd;
+    vkQueueSubmit(ctx_.graphics_queue, 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(ctx_.graphics_queue);
+    vkFreeCommandBuffers(ctx_.device, command_pool_, 1, &cmd);
+    staging.destroy();
+
+    VkImageViewCreateInfo view_info{};
+    view_info.sType            = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.image            = tex.image;
+    view_info.viewType         = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.format           = VK_FORMAT_R32_SFLOAT;
+    view_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    if (vkCreateImageView(ctx_.device, &view_info, nullptr, &tex.view) != VK_SUCCESS)
+        return fail();
+
+    // The shader reads texels with texelFetch; a nearest sampler keeps the
+    // combined image sampler valid without requiring float filtering support.
+    VkSamplerCreateInfo sampler_info{};
+    sampler_info.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_info.magFilter    = VK_FILTER_NEAREST;
+    sampler_info.minFilter    = VK_FILTER_NEAREST;
+    sampler_info.mipmapMode   = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    if (vkCreateSampler(ctx_.device, &sampler_info, nullptr, &tex.sampler) != VK_SUCCESS)
+        return fail();
+
+    tex.descriptor_set = allocate_descriptor_set(texture_desc_layout_, &tex.descriptor_pool);
+    if (tex.descriptor_set == VK_NULL_HANDLE)
+        return fail();
+    VkDescriptorImageInfo img_info{};
+    img_info.sampler     = tex.sampler;
+    img_info.imageView   = tex.view;
+    img_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    VkWriteDescriptorSet write{};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet          = tex.descriptor_set;
+    write.dstBinding      = 0;
+    write.descriptorCount = 1;
+    write.descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.pImageInfo      = &img_info;
+    vkUpdateDescriptorSets(ctx_.device, 1, &write, 0, nullptr);
+
+    TextureHandle h;
+    h.id            = next_texture_id_++;
     textures_[h.id] = tex;
     return h;
 }

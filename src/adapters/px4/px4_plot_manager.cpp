@@ -166,6 +166,8 @@ std::vector<std::string> Px4PlotManager::topic_fields(const std::string& topic) 
         {
             for (auto& f : fmt->fields)
             {
+                if (f.name.rfind("_padding", 0) == 0)
+                    continue;
                 if (f.array_size > 1)
                 {
                     for (int i = 0; i < f.array_size; ++i)

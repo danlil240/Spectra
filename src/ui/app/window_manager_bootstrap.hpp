@@ -7,6 +7,10 @@ namespace spectra
 {
 
 class ExportFormatRegistry;
+namespace logs
+{
+class LogReaderRegistry;
+}
 class FigureRegistry;
 class PluginManager;
 class Renderer;
@@ -28,14 +32,15 @@ class SettingsStore;
 
 struct WindowManagerBootstrapOptions
 {
-    VulkanBackend*               backend                = nullptr;
-    FigureRegistry*              registry               = nullptr;
-    Renderer*                    renderer               = nullptr;
-    ui::ThemeManager*            theme_mgr              = nullptr;
-    SessionRuntime*              session                = nullptr;
-    ui::settings::SettingsStore* settings_store         = nullptr;
-    PluginManager*               plugin_manager         = nullptr;
-    ExportFormatRegistry*        export_format_registry = nullptr;
+    VulkanBackend*                 backend                = nullptr;
+    FigureRegistry*                registry               = nullptr;
+    Renderer*                      renderer               = nullptr;
+    ui::ThemeManager*              theme_mgr              = nullptr;
+    SessionRuntime*                session                = nullptr;
+    ui::settings::SettingsStore*   settings_store         = nullptr;
+    PluginManager*                 plugin_manager         = nullptr;
+    ExportFormatRegistry*          export_format_registry = nullptr;
+    const logs::LogReaderRegistry* log_reader_registry    = nullptr;
 };
 
 // Apply shared session/tab/settings wiring used by App and the window agent.

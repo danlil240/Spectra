@@ -9,10 +9,12 @@
 #include <spectra/chunked_series.hpp>
 #include <spectra/custom_series.hpp>
 #include <spectra/event_bus.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_stats.hpp>
 
 #include "colorbar_layout.hpp"
+#include "contour.hpp"
 #include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
 #include "core/axis_ticks.hpp"
@@ -237,6 +239,56 @@ StemSeries& Axes::stem(std::span<const float> x, std::span<const float> y)
 ShapeSeries& Axes::shapes()
 {
     return add_series<ShapeSeries>();
+}
+
+ImageSeries& Axes::imshow(std::span<const float> values, size_t cols, size_t rows)
+{
+    return add_series<ImageSeries>(values, cols, rows);
+}
+
+ImageSeries& Axes::heatmap(std::span<const float>   values,
+                           size_t                   cols,
+                           size_t                   rows,
+                           std::vector<std::string> col_names,
+                           std::vector<std::string> row_names)
+{
+    auto& ref = add_series<ImageSeries>(values, cols, rows);
+    ref.show_values(true);
+    if (!col_names.empty())
+        ref.x_categories(std::move(col_names));
+    if (!row_names.empty())
+        ref.y_categories(std::move(row_names));
+    return ref;
+}
+
+ContourSeries& Axes::contour(std::span<const float> z, size_t cols, size_t rows, int levels)
+{
+    auto& ref = add_series<ContourSeries>(z, cols, rows);
+    ref.levels(levels);
+    return ref;
+}
+
+ImageSeries& Axes::contourf(std::span<const float> z, size_t cols, size_t rows, int levels)
+{
+    auto& ref = add_series<ImageSeries>();
+    ref.node_aligned(true);
+    ref.origin(ImageOrigin::Lower);
+    ref.interpolation(ImageInterpolation::Bilinear);
+    ref.set_data(z, cols, rows);
+    float lo  = std::numeric_limits<float>::max();
+    float hi  = std::numeric_limits<float>::lowest();
+    bool  any = false;
+    for (float v : z)
+    {
+        if (!std::isfinite(v))
+            continue;
+        lo  = std::min(lo, v);
+        hi  = std::max(hi, v);
+        any = true;
+    }
+    if (any)
+        ref.levels(contour::auto_levels(lo, hi, levels, true));
+    return ref;
 }
 
 // --- Text annotations ---
@@ -474,6 +526,33 @@ static void consume_chunked_axis(const ChunkedLineSeries& cs,
         extent.consume(best);
 }
 
+// Extent of a grid-valued series (ImageSeries: its extent; ContourSeries:
+// its node coordinates).  Returns false for other series.  These extents are
+// "sticky": autoscale padding never grows the limits past them (see
+// data_extent_with_mode), so images fill the plot area like in matplotlib.
+static bool consume_grid_extent(const Series& s, AxisExtent& x, AxisExtent& y)
+{
+    if (const auto* img = dynamic_cast<const ImageSeries*>(&s))
+    {
+        if (img->empty())
+            return false;
+        x.consume(img->x0());
+        x.consume(img->x1());
+        y.consume(img->y0());
+        y.consume(img->y1());
+        return true;
+    }
+    if (const auto* ct = dynamic_cast<const ContourSeries*>(&s))
+    {
+        if (ct->cols() < 2 || ct->rows() < 2)
+            return false;
+        consume_finite_extent(ct->x_coords(), x, 0.0);
+        consume_finite_extent(ct->y_coords(), y, 0.0);
+        return true;
+    }
+    return false;
+}
+
 // Compute the raw (unpadded) data extent across all series.  Every autoscale
 // mode shares this so they all cover the same series types.
 // `zoom_center` selects the view.zoom_in/out variant (see data_center()):
@@ -537,6 +616,7 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
             consume_chunked_axis(*cs, false, xoff, x);
             consume_chunked_axis(*cs, true, yoff, y);
         }
+        consume_grid_extent(*s, x, y);
         if (zoom_center)
         {
             if (auto* cu = dynamic_cast<const CustomSeries*>(s.get()); cu && cu->has_bounds())
@@ -644,6 +724,29 @@ static void data_extent_with_mode(const AxisExtent& x,
     const bool pad = mode != AutoscaleMode::Tight;
     x_lim          = finalize_extent(x, pad, x_scale);
     y_lim          = finalize_extent(y, pad, y_scale);
+    if (!pad)
+        return;
+
+    // Sticky edges of grid-valued series: padding stops at an image edge
+    // that is also the edge of all the data.
+    AxisExtent sx;
+    AxisExtent sy;
+    for (const auto& s : series)
+    {
+        if (s && !s->excluded_from_autoscale())
+            consume_grid_extent(*s, sx, sy);
+    }
+    auto stick = [](AxisLimits& lim, const AxisExtent& all, const AxisExtent& sticky, ScaleType sc)
+    {
+        if (sc != ScaleType::Linear || !sticky.valid() || !all.valid())
+            return;
+        if (all.min >= sticky.min && lim.min < sticky.min)
+            lim.min = sticky.min;
+        if (all.max <= sticky.max && lim.max > sticky.max)
+            lim.max = sticky.max;
+    };
+    stick(x_lim, x, sx, x_scale);
+    stick(y_lim, y, sy, y_scale);
 }
 
 static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x)
@@ -1309,6 +1412,20 @@ static std::optional<TickResult> named_category_ticks(
     std::vector<std::pair<double, std::string>> cats;
     for (const auto& s : series)
     {
+        if (const auto* img = dynamic_cast<const ImageSeries*>(s.get()); img && img->visible())
+        {
+            // One tick per named column / row, at the cell centre.
+            const auto&  names = along_x ? img->x_categories() : img->y_categories();
+            const size_t n     = along_x ? img->cols() : img->rows();
+            for (size_t i = 0; i < names.size() && i < n; ++i)
+            {
+                double cx = 0.0;
+                double cy = 0.0;
+                img->cell_center(along_x ? i : 0, along_x ? 0 : i, cx, cy);
+                cats.emplace_back(along_x ? cx : cy, names[i]);
+            }
+            continue;
+        }
         const auto* bar = dynamic_cast<const BarSeries*>(s.get());
         if (!bar || !bar->visible() || bar->categories().empty()
             || (bar->orientation() == BarOrientation::Vertical) != along_x)

@@ -34,7 +34,9 @@
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
+    #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "../workspace/layout_session.hpp"
     #include "../settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/commands/welcome_actions.hpp"
@@ -585,6 +587,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_axis_link_indicators(figure);
         draw_axes_context_menu(figure);
         draw_topic_drop_target(figure);
+        draw_log_field_drop_target(figure);
     }
     if (canvas_visible_)
     {
@@ -891,6 +894,14 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_csv_dialog();
     }
 
+    // Requested layout opens (startup --layout, File > Recent Layouts) and
+    // the Data Bindings window.
+    if (layout_session_)
+    {
+        layout_session_->poll();
+        layout_session_->draw();
+    }
+
     // Draw custom transform dialog if open
     if (custom_transform_dialog_.is_open())
     {
@@ -910,6 +921,8 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 
         if (topics_panel_)
             topics_panel_->draw();
+        if (log_browser_panel_)
+            log_browser_panel_->draw();
     }
 
     // Draw Settings panel.
@@ -1094,6 +1107,13 @@ void ImGuiIntegration::build_empty_ui()
     if (csv_dialog_open_)
         draw_csv_dialog();
 
+    // A layout may be opened from the welcome screen too (startup --layout).
+    if (layout_session_)
+    {
+        layout_session_->poll();
+        layout_session_->draw();
+    }
+
     // Plugins panel can be opened while no figure exists.
     if (show_plugins_panel_)
         draw_plugins_panel();
@@ -1101,6 +1121,10 @@ void ImGuiIntegration::build_empty_ui()
     // Topics panel can be opened while no figure exists.
     if (topics_panel_)
         topics_panel_->draw();
+
+    // So can the log browser (open a log, then drop a field to create a figure).
+    if (log_browser_panel_)
+        log_browser_panel_->draw();
 
     // Settings panel can be opened while no figure exists.
     if (settings_panel_)
@@ -1111,6 +1135,7 @@ void ImGuiIntegration::build_empty_ui()
 
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();
+    draw_log_field_drop_target_welcome();
 
     // Command palette overlay (Ctrl+K / Tools menu) — last so it renders on top.
     if (command_palette_)
@@ -1190,6 +1215,33 @@ void ImGuiIntegration::open_csv_with_dialog()
     if (!result)
         return;
     load_csv_into_dialog(result);
+}
+
+void ImGuiIntegration::open_log_with_dialog()
+{
+    if (!log_browser_panel_ || !native_dialogs_enabled())
+        return;
+
+    // Filters from the registry, e.g. {"*.ulg", "*.mcap"}.
+    std::vector<std::string> patterns;
+    for (const auto& ext : log_browser_panel_->registry().extensions())
+        patterns.push_back("*." + ext);
+    std::vector<const char*> filters;
+    for (const auto& pat : patterns)
+        filters.push_back(pat.c_str());
+
+    DialogEnvGuard env_guard;
+    const char*    home_env = std::getenv("HOME");
+    std::string    home_dir = home_env ? std::string(home_env) + "/" : "/";
+    char const*    result   = tinyfd_openFileDialog("Open Log File",
+                                               home_dir.c_str(),
+                                               static_cast<int>(filters.size()),
+                                               filters.empty() ? nullptr : filters.data(),
+                                               "Log files",
+                                               0);
+    if (!result)
+        return;
+    log_browser_panel_->open_file(result);
 }
 
 void ImGuiIntegration::load_csv_into_dialog(const std::string& path)

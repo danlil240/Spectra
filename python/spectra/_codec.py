@@ -307,6 +307,17 @@ def encode_req_remove_series(figure_id: int, series_index: int) -> bytes:
 def encode_req_close_figure(figure_id: int) -> bytes:
     return fb_codec.encode_fb_req_close_figure(figure_id=figure_id)
 
+def encode_req_export_figure(
+    figure_id: int, path: str, fmt: str = "", width: int = 0, height: int = 0, theme: str = ""
+) -> bytes:
+    """REQ_EXPORT_FIGURE (FlatBuffers only; there is no legacy TLV form)."""
+    return fb_codec.encode_fb_req_export_figure(
+        figure_id=figure_id, path=path, fmt=fmt, width=width, height=height, theme=theme
+    )
+
+def decode_req_export_figure(data: bytes) -> dict:
+    return fb_codec.decode_fb_req_export_figure(data)
+
 def decode_req_update_batch(data: bytes) -> list:
     """Decode REQ_UPDATE_BATCH. Returns a list of update dicts."""
     if fb_codec._is_fb(data):

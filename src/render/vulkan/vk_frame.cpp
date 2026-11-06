@@ -455,7 +455,7 @@ void VulkanBackend::bind_index_buffer(BufferHandle handle)
                          VK_INDEX_TYPE_UINT32);
 }
 
-void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
+void VulkanBackend::bind_texture(TextureHandle handle, uint32_t binding)
 {
     auto it = textures_.find(handle.id);
     if (it == textures_.end())
@@ -469,7 +469,7 @@ void VulkanBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
         vkCmdBindDescriptorSets(active_window_->current_cmd,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 layout,
-                                1,
+                                1 + binding,
                                 1,
                                 &tex.descriptor_set,
                                 0,

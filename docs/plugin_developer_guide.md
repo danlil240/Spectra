@@ -456,7 +456,7 @@ See `examples/plugins/export_csv.cpp` for a complete CSV export example.
 
 ### Data source plugins (v1.3)
 
-Data sources supply streaming data to Spectra's live series. Registered sources appear in the **Data Sources** panel, where the user can start and stop them. The host calls `poll_fn` once per frame to collect new data points.
+Data sources supply streaming data to Spectra's live series. Registered sources appear in the **Data sources** section of the **Topics** panel (Ctrl+Shift+T), where the user can start and stop them. While a source runs, the host calls `poll_fn` once per frame and publishes each point as a sample `(timestamp, value)` on the topic `<source name>/<series_label>` (for example `Sine Generator/sine`); drag the topic onto an axes to plot it. See [Topics](topics.md#plugin-data-sources-as-topics).
 
 ```cpp
 struct MySourceState

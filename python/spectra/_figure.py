@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 from . import _protocol as P
 from . import _codec as codec
@@ -114,6 +114,46 @@ class Figure:
             self._window_id = resp_wid
         self._visible = True
         self._shown_once = True
+
+    def savefig(
+        self,
+        path,
+        width: int = 0,
+        height: int = 0,
+        format: Optional[str] = None,
+        theme: str = "",
+        dpi=None,
+    ) -> str:
+        """Write this figure to a PNG or SVG file and return its absolute path.
+
+        The backend renders the figure offscreen (no window has to be open)
+        and replies once the file is written.  ``format`` is "png" or "svg";
+        by default it follows the file extension (PNG unless ``.svg``).
+        ``width`` / ``height`` set the PNG size in pixels (0 = figure size);
+        ``theme`` (e.g. "light") overrides the saved theme for this file.
+        ``dpi`` is accepted for matplotlib compatibility and ignored.
+
+        Raises :class:`~spectra.BackendError` when the backend cannot write
+        the file (bad directory, no GPU/Vulkan driver, ...).
+        """
+        import os
+
+        target = os.path.abspath(os.path.expanduser(os.fspath(path)))
+        fmt = (format or "").lower()
+        if fmt not in ("", "png", "svg"):
+            raise ValueError(f"unsupported format {format!r}; use 'png' or 'svg'")
+        if int(width) < 0 or int(height) < 0:
+            raise ValueError("width and height must be >= 0")
+        payload = codec.encode_req_export_figure(
+            figure_id=self._id,
+            path=target,
+            fmt=fmt,
+            width=int(width),
+            height=int(height),
+            theme=theme,
+        )
+        self._session._request(P.REQ_EXPORT_FIGURE, payload)
+        return target
 
     def close_window(self) -> None:
         """Close this figure's window but keep the figure in the model.

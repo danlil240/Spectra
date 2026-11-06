@@ -230,6 +230,21 @@ TEST_F(CrossCodecCppRead, DecodeReqShow)
     EXPECT_EQ(req->figure_id, 42u);
 }
 
+TEST_F(CrossCodecCppRead, DecodeReqExportFigure)
+{
+    auto data = read_bin("req_export_figure.bin");
+    if (data.empty())
+        GTEST_SKIP() << "req_export_figure.bin not written (older Python payload set)";
+    auto req = decode_req_export_figure(data);
+    ASSERT_TRUE(req.has_value());
+    EXPECT_EQ(req->figure_id, 42u);
+    EXPECT_EQ(req->path, "/tmp/cross/plot.svg");
+    EXPECT_EQ(req->format, "svg");
+    EXPECT_EQ(req->width, 640u);
+    EXPECT_EQ(req->height, 480u);
+    EXPECT_EQ(req->theme, "light");
+}
+
 TEST_F(CrossCodecCppRead, DecodeReqDestroyFigure)
 {
     auto data = read_bin("req_destroy_figure.bin");

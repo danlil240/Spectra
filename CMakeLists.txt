@@ -131,6 +131,7 @@ option(SPECTRA_USE_IMGUI   "Enable Dear ImGui menu bar/settings" ON)
 option(SPECTRA_USE_QT      "Enable Qt adapter scaffolding"        OFF)
 option(SPECTRA_USE_FFMPEG  "Enable video export via ffmpeg pipe"  ON)
 option(SPECTRA_USE_EIGEN   "Enable Eigen vector adapters"         ON)
+option(SPECTRA_USE_MCAP    "Open MCAP logs in the log browser (fetches foxglove/mcap)" ON)
 # Developer/integration features default to ON only for top-level builds so
 # that add_subdirectory()/FetchContent consumers get just the library.
 option(SPECTRA_USE_ROS2    "Enable ROS2 adapter (requires sourced ROS2 workspace)" ${SPECTRA_IS_TOP_LEVEL})
@@ -253,6 +254,10 @@ file(GLOB SPECTRA_DAEMON_SOURCES
     src/daemon/process_manager.cpp
     src/daemon/figure_model.cpp
     src/daemon/topic_registry.cpp
+    src/daemon/bridges/field_path.cpp
+    src/daemon/bridges/text_message.cpp
+    src/daemon/bridges/topic_ingest.cpp
+    src/daemon/bridges/udp_json_bridge.cpp
 )
 
 # UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
@@ -313,6 +318,8 @@ foreach(_ui_src
     src/ui/native_dialog_policy.cpp
     src/ui/ui_interaction_log.cpp
     src/ui/workspace/figure_serializer.cpp
+    src/ui/workspace/data_binding.cpp
+    src/ui/workspace/binding_resolver.cpp
     src/ui/commands/series_clipboard.cpp
     src/ui/overlay/data_editor.cpp
     src/ui/overlay/custom_transform_dialog.cpp
@@ -320,6 +327,7 @@ foreach(_ui_src
     src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
     src/adapters/data_source_registry.cpp
+    src/adapters/data_source_topics.cpp
     src/embed/embed_surface.cpp
     src/embed/spectra_embed_c.cpp
     src/ui/automation/automation_server.cpp
@@ -338,6 +346,25 @@ foreach(_ui_src
         list(APPEND SPECTRA_UI_SOURCES ${_ui_src})
     endif()
 endforeach()
+
+# Foxglove MCAP C++ library (header-only, MIT) for the MCAP LogReader in
+# src/io/logs/.  zstd/lz4 are not in Spectra's dependency set, so chunk
+# compression is compiled out and compressed chunks are reported as
+# unsupported when a file is opened.
+if(SPECTRA_USE_MCAP)
+    include(FetchContent)
+    FetchContent_Declare(
+        mcap
+        GIT_REPOSITORY https://github.com/foxglove/mcap.git
+        GIT_TAG        releases/cpp/v2.1.2  # a7eeff1383cc95a29dd9c5cac94104d277b5414e
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(mcap)
+    set(SPECTRA_MCAP_INCLUDE_DIR ${mcap_SOURCE_DIR}/cpp/mcap/include)
+    set(SPECTRA_MCAP_DEFINITIONS
+        SPECTRA_HAS_MCAP MCAP_COMPRESSION_NO_ZSTD MCAP_COMPRESSION_NO_LZ4 MCAP_PUBLIC=)
+    message(STATUS "MCAP log reader: ON (foxglove/mcap v2.1.2, uncompressed chunks only)")
+endif()
 
 # ─── spectra-core: headless data model library (no Vulkan, no GLFW, no ImGui) ─
 # This is a real static/shared library containing the core data model, math,
@@ -373,7 +400,12 @@ target_include_directories(spectra-core PRIVATE
 )
 target_include_directories(spectra-core SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party   # nlohmann/json (MCAP json messages)
 )
+if(SPECTRA_USE_MCAP)
+    target_include_directories(spectra-core SYSTEM PRIVATE ${SPECTRA_MCAP_INCLUDE_DIR})
+    target_compile_definitions(spectra-core PRIVATE ${SPECTRA_MCAP_DEFINITIONS})
+endif()
 
 target_compile_definitions(spectra-core PUBLIC
     $<$<BOOL:${SPECTRA_USE_FFMPEG}>:SPECTRA_USE_FFMPEG>
@@ -696,6 +728,8 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/commands/undo_manager.cpp
         src/ui/workspace/workspace.cpp
         src/ui/workspace/workspace_autosave.cpp
+        src/ui/workspace/layout.cpp
+        src/ui/workspace/layout_session.cpp
         src/ui/commands/shortcut_config.cpp
         src/ui/workspace/plugin_api.cpp
         src/ui/workspace/plugin_guard.cpp
@@ -717,6 +751,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/app/commands/commands_app.cpp
         src/ui/app/commands/plugin_export_commands.cpp
         src/ui/topics/topics_panel.cpp
+        src/ui/logs/log_browser_panel.cpp
         src/ui/settings/settings_store.cpp
         src/ui/settings/settings_panel.cpp
     )
@@ -840,7 +875,6 @@ endif()
 if(SPECTRA_USE_PX4)
     add_library(spectra_px4_adapter
         src/adapters/px4/px4_adapter.cpp
-        src/adapters/px4/ulog_reader.cpp
         src/adapters/px4/px4_bridge.cpp
         src/adapters/px4/px4_plot_manager.cpp
         src/adapters/px4/px4_app_shell.cpp
@@ -972,6 +1006,7 @@ if(SPECTRA_BUILD_APPS AND SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
             src/daemon/session_graph.cpp
             src/daemon/process_manager.cpp
             src/daemon/figure_model.cpp
+            src/daemon/figure_export.cpp
         )
         target_link_libraries(spectra-backend PRIVATE spectra)
         target_compile_features(spectra-backend PRIVATE cxx_std_20)
@@ -1135,6 +1170,15 @@ if(SPECTRA_PYTHON_WHEEL)
             )
         endif()
     endforeach()
+    # In-process embed library for spectra._embed / spectra.notebook (ctypes).
+    # pyproject.toml turns SPECTRA_BUILD_EMBED_SHARED on for Linux wheels only.
+    if(TARGET spectra_embed)
+        # COMPONENT binds per artifact kind, so repeat it for each.
+        install(TARGETS spectra_embed
+            LIBRARY DESTINATION spectra/_lib COMPONENT python_wheel
+            RUNTIME DESTINATION spectra/_lib COMPONENT python_wheel
+        )
+    endif()
     # Redistribution notices for the bundled binaries (ImGui, GLFW, FlatBuffers, fonts).
     install(FILES LICENSE THIRD_PARTY_NOTICES.md
         DESTINATION spectra/licenses

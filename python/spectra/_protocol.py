@@ -59,6 +59,7 @@ REQ_UPDATE_BATCH = 0x050A
 # Python → Backend: queries
 REQ_GET_SNAPSHOT = 0x0510
 REQ_LIST_FIGURES = 0x0511
+REQ_EXPORT_FIGURE = 0x0512
 
 # Python → Backend: animation
 REQ_ANIM_START = 0x0520

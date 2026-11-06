@@ -20,6 +20,10 @@ struct WorkspaceData
 {
     // File format version for migration support
     static constexpr uint32_t FORMAT_VERSION = 4;
+    // Version of the layout-only extension (the "layout_only" / "layout_version"
+    // keys).  Layout files keep FORMAT_VERSION, so older builds still open
+    // them as ordinary workspaces.
+    static constexpr uint32_t LAYOUT_VERSION = 1;
 
     struct AxisState
     {
@@ -81,6 +85,12 @@ struct WorkspaceData
         float shininess     = 0.0f;
         // Bar category names (optional "categories" key; empty = none).
         std::vector<std::string> categories;
+        // Index of the owning axes in the figure's axes list (optional
+        // "axes_index" key; -1 in files written before it existed).
+        int axes_index = -1;
+        // Data binding URI (optional "binding" key; see data_binding.hpp).
+        // Layout files store this instead of the data.
+        std::string binding;
     };
 
     // 2D text annotation (Axes::text / Axes::annotate).  Stored in the
@@ -138,6 +148,12 @@ struct WorkspaceData
     PanelState               panels;
     InteractionState         interaction;
     std::vector<FigureState> figures;
+
+    // Layout file (File > Save Layout): window layout, plots, styles and data
+    // bindings, but no data and no per-user session state.  Optional keys:
+    // absent in workspaces (layout_only = false, layout_version = 0).
+    bool     layout_only    = false;
+    uint32_t layout_version = 0;
 
     // Undo history metadata (not the actual actions — just count for UI display)
     size_t undo_count = 0;
@@ -234,7 +250,21 @@ class Workspace
                                  float                       inspector_width,
                                  bool                        nav_rail_expanded);
 
+    // Turn captured workspace state into a shareable layout: sets layout_only,
+    // and drops what belongs to this session or user rather than to the
+    // dashboard (point counts, data tips, undo counts, modified flags,
+    // shortcut overrides, plugin state, last export directory).
+    static void make_layout(WorkspaceData& data);
+
+    // Build an empty figure for a layout figure: build_figure() plus axes
+    // labels / titles and one empty, styled series per saved 2D line or
+    // scatter series, carrying its data binding.  Other series types are not
+    // rebuilt (their data cannot be bound yet).
+    static std::unique_ptr<Figure> build_layout_figure(const WorkspaceData::FigureState& state);
+
     // Apply loaded workspace data to figures (restores axis limits, etc.).
+    // For layout files the series are styled by build_layout_figure(), so
+    // apply() leaves them alone.
     // Returns false if data is incompatible.
     static bool apply(const WorkspaceData& data, std::vector<Figure*>& figures);
 

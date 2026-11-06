@@ -44,6 +44,7 @@ No Session(), no figure(), no subplot(), no show() needed.
 from __future__ import annotations
 
 import atexit
+import math
 import threading
 from typing import (
     Any,
@@ -61,17 +62,136 @@ from ._protocol import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 ArrayLike = Union[List[float], Tuple[float, ...], Sequence[float], Any]
 
 
+def _is_dataframe(data: Any) -> bool:
+    """True for pandas/polars-style 2-D tables (have columns and an index or schema)."""
+    return hasattr(data, "columns") and (hasattr(data, "index") or hasattr(data, "schema")) \
+        and hasattr(data, "__getitem__") and not isinstance(data, (list, tuple, dict))
+
+
+def _numpy_to_list(np: Any, arr: Any) -> List[float]:
+    """Flatten a NumPy array to floats; datetimes become Unix epoch seconds."""
+    kind = arr.dtype.kind
+    if kind == "M":  # datetime64 -> epoch seconds (NaT -> NaN)
+        ns = arr.astype("datetime64[ns]")
+        out = ns.astype(np.int64).astype(np.float64) / 1e9
+        out[np.isnat(ns)] = np.nan
+        return out.ravel().tolist()
+    if kind == "m":  # timedelta64 -> seconds
+        td = arr.astype("timedelta64[ns]")
+        out = td.astype(np.int64).astype(np.float64) / 1e9
+        out[np.isnat(td)] = np.nan
+        return out.ravel().tolist()
+    if kind == "O":
+        # Object arrays (e.g. pandas nullable ints with pd.NA, Timestamps).
+        return [_scalar_to_float(v) for v in arr.ravel().tolist()]
+    return arr.ravel().astype(np.float64).tolist()
+
+
+def _scalar_to_float(v: Any) -> float:
+    if v is None:
+        return float("nan")
+    ts = getattr(v, "timestamp", None)
+    if callable(ts):  # datetime / pandas.Timestamp
+        try:
+            return float(ts())
+        except (ValueError, OverflowError):  # NaT
+            return float("nan")
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        if str(v) in ("<NA>", "NaT", "nan"):
+            return float("nan")
+        raise
+
+
 def _to_list(data: ArrayLike) -> List[float]:
-    """Convert any array-like to list of floats."""
+    """Convert any array-like to list of floats.
+
+    Accepts lists, tuples, generators, NumPy arrays, pandas Series/Index,
+    polars Series and anything implementing ``__array__`` (xarray, CPU
+    tensors).  Datetime values become Unix epoch seconds.
+    """
     if isinstance(data, list):
-        return [float(v) for v in data]
+        try:
+            return [float(v) for v in data]
+        except (TypeError, ValueError):
+            return [_scalar_to_float(v) for v in data]
+    if _is_dataframe(data):
+        raise TypeError(
+            "pass one column (df['name']) or call sp.plot(df) to plot every column"
+        )
     try:
         import numpy as np
-        if isinstance(data, np.ndarray):
-            return data.ravel().astype(np.float64).tolist()
     except ImportError:
+        np = None
+    if np is not None:
+        if isinstance(data, np.ndarray):
+            return _numpy_to_list(np, data)
+        to_numpy = getattr(data, "to_numpy", None)
+        if callable(to_numpy):  # pandas Series/Index, polars Series
+            try:
+                return _numpy_to_list(np, np.asarray(to_numpy()))
+            except (TypeError, ValueError):
+                pass
+        if hasattr(data, "__array__"):
+            return _numpy_to_list(np, np.asarray(data))
+    values = list(data)
+    try:
+        return [float(v) for v in values]
+    except (TypeError, ValueError):
+        return [_scalar_to_float(v) for v in values]
+
+
+def _index_to_list(index: Any, n: int) -> List[float]:
+    """x values from a pandas index: numeric or datetime as-is, else 0..n-1."""
+    try:
+        x = _to_list(index)
+        if len(x) == n:
+            return x
+    except (TypeError, ValueError):
         pass
-    return [float(v) for v in data]
+    return [float(i) for i in range(n)]
+
+
+def _is_datetime_like(data: Any) -> bool:
+    """True when ``data`` holds dates/times (converted to epoch seconds by _to_list)."""
+    if data is None or isinstance(data, (str, bytes, int, float)):
+        return False
+    dtype = getattr(data, "dtype", None)
+    if dtype is not None:
+        return getattr(dtype, "kind", "") == "M"
+    if isinstance(data, (list, tuple)):
+        import datetime as _dt
+
+        for v in data:
+            if v is None:
+                continue
+            return isinstance(v, _dt.datetime) or type(v).__name__ in ("Timestamp", "datetime64")
+    return False
+
+
+def _xy_args_datetime(args) -> bool:
+    """True when the x values that _parse_xy_args() derives from ``args`` are datetimes."""
+    if len(args) >= 2:
+        return _is_datetime_like(args[0])
+    if len(args) == 1 and hasattr(args[0], "to_numpy"):
+        index = getattr(args[0], "index", None)
+        if index is not None and not callable(index):
+            return _is_datetime_like(index)
+    return False
+
+
+def _mark_datetime_x(ax, is_datetime: bool) -> None:
+    """Switch the axes to date-time x tick labels the first time datetime x data arrive."""
+    if not is_datetime:
+        return
+    key = (getattr(ax, "_figure_id", 0), getattr(ax, "_index", 0))
+    if key in _state._datetime_axes:
+        return
+    setter = getattr(ax, "set_xaxis_datetime", None)
+    if setter is not None:
+        setter(True)
+    _state._datetime_axes.add(key)
 
 
 def _parse_color(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, float, float, float]]:
@@ -173,6 +293,9 @@ class _EasyState:
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
+        self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
+        self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
+        self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
         self._pending_knobs: List[dict] = []
         self._interactive_bindings: List = []
@@ -271,6 +394,9 @@ class _EasyState:
         self._current_axes3d = None
         self._figures.clear()
         self._axes_bounds.clear()
+        self._errorbar_counts.clear()
+        self._axes_scales.clear()
+        self._datetime_axes.clear()
         self._subplot_cache.clear()
         self._shutting_down = False
 
@@ -406,13 +532,60 @@ def plot(
 
     Returns the Series object for further customization.
     """
+    if len(args) == 1 and _is_dataframe(args[0]):
+        return _plot_dataframe(args[0], color=color, width=width, label=label, **kwargs)
     x, y = _parse_xy_args(args)
+    if not label and len(args) == 1:
+        label = _series_name(args[0])
     ax = _state._ensure_axes()
     series = ax.line(x, y, label=label)
     _apply_series_style(series, color=color, width=width, **kwargs)
+    _mark_datetime_x(ax, _xy_args_datetime(args))
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
     return series
+
+
+def _series_name(data: Any) -> str:
+    """The ``name`` of a pandas/polars Series, used as the default legend label."""
+    if isinstance(data, (list, tuple)) or not hasattr(data, "to_numpy"):
+        return ""
+    name = getattr(data, "name", None)
+    return "" if name is None else str(name)
+
+
+def _dataframe_columns(df: Any) -> List[Any]:
+    cols = list(df.columns)
+    numeric = []
+    for c in cols:
+        try:
+            _to_list(df[c])
+        except (TypeError, ValueError):
+            continue  # skip text / category columns
+        numeric.append(c)
+    return numeric
+
+
+def _plot_dataframe(df: Any, color=None, width=None, label: str = "", **kwargs):
+    """One line per numeric column against the index (pandas) or row number."""
+    cols = _dataframe_columns(df)
+    if not cols:
+        raise ValueError("DataFrame has no numeric columns to plot")
+    n = len(df)
+    index = getattr(df, "index", None)
+    x = _index_to_list(index, n) if index is not None else [float(i) for i in range(n)]
+    ax = _state._ensure_axes()
+    _mark_datetime_x(ax, index is not None and _is_datetime_like(index))
+    series_list = []
+    for c in cols:
+        y = _to_list(df[c])
+        lbl = f"{label}{c}" if label else str(c)
+        s = ax.line(x, y, label=lbl)
+        _apply_series_style(s, color=color, width=width, **kwargs)
+        _auto_fit_axes(ax, x, y)
+        series_list.append(s)
+    _state._show_if_pending()
+    return series_list
 
 
 def scatter(
@@ -437,6 +610,7 @@ def scatter(
     ax = _state._ensure_axes()
     series = ax.scatter(x, y, label=label)
     _apply_series_style(series, color=color, size=size, **kwargs)
+    _mark_datetime_x(ax, _xy_args_datetime(args))
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
     return series
@@ -446,26 +620,165 @@ def stem(
     *args,
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
+    baseline: float = 0.0,
+    show_heads: bool = True,
+    width: Optional[float] = None,
 ):
-    """Stem plot (vertical lines from baseline to data points).
+    """Stem plot: a vertical line from ``baseline`` to each point, with a head.
 
-    Implemented as scatter + thin lines to baseline.
+    Drawn by the native stem series (one legend entry, round heads).
+
+    Usage::
+
+        sp.stem(y)
+        sp.stem(x, y, color="r", baseline=0.5)
     """
     x, y = _parse_xy_args(args)
     ax = _state._ensure_axes()
-    # Draw vertical lines as a line series with NaN gaps
-    stem_x = []
-    stem_y = []
-    for xi, yi in zip(x, y):
-        stem_x.extend([xi, xi, float("nan")])
-        stem_y.extend([0.0, yi, float("nan")])
-    line = ax.line(stem_x, stem_y, label=label)
-    dots = ax.scatter(x, y, label="")
-    _apply_color(line, color)
-    _apply_color(dots, color)
-    _auto_fit_axes(ax, x, y)
+    series = ax.stem(x, y, baseline=float(baseline),
+                     stem_width=1.5 if width is None else float(width),
+                     show_heads=show_heads, label=label)
+    _apply_color(series, color)
+    _mark_datetime_x(ax, _xy_args_datetime(args))
+    _auto_fit_axes(ax, x, y + [float(baseline)])
     _state._show_if_pending()
-    return line
+    return series
+
+
+_ERRORBAR_COLOR_CYCLE = ("b", "r", "g", "m", "c", "y")
+
+
+def _expand_err(err: Any, n: int, name: str) -> Tuple[List[float], List[float]]:
+    """Normalise an error spec to (lower, upper) lists of length n.
+
+    Accepts a scalar, a length-n array (symmetric) or a 2 x n pair
+    ``(lower, upper)`` like matplotlib.
+    """
+    if isinstance(err, (int, float)):
+        v = abs(float(err))
+        return [v] * n, [v] * n
+    shape = getattr(err, "shape", None)
+    if shape is not None and len(shape) == 2:
+        if shape[0] != 2:
+            raise ValueError(f"{name} must have shape (n,) or (2, n), got {tuple(shape)}")
+        lower, upper = _to_list(err[0]), _to_list(err[1])
+    elif isinstance(err, (list, tuple)) and len(err) == 2 \
+            and all(hasattr(e, "__len__") for e in err):
+        lower, upper = _to_list(err[0]), _to_list(err[1])
+    else:
+        lower = _to_list(err)
+        upper = lower
+    if len(lower) != n or len(upper) != n:
+        raise ValueError(f"{name} has {len(lower)} values but the data has {n}")
+    return [abs(v) for v in lower], [abs(v) for v in upper]
+
+
+def errorbar(
+    x: ArrayLike,
+    y: ArrayLike,
+    yerr: Any = None,
+    xerr: Any = None,
+    fmt: str = "-",
+    color: Union[str, Tuple, List, None] = None,
+    capsize: float = 0.0,
+    label: str = "",
+    width: Optional[float] = None,
+    size: Optional[float] = None,
+):
+    """Line or markers with error bars, like ``matplotlib.pyplot.errorbar``.
+
+    ``yerr`` / ``xerr`` may be a scalar, an array (symmetric) or a pair
+    ``(lower, upper)``.  ``fmt`` is ``"-"`` (line, default), ``"o"`` or
+    ``"."`` (markers) or ``"none"`` (error bars only).  ``capsize`` is the
+    full cap width in data units (0 = no caps, the matplotlib default).
+
+    Usage::
+
+        sp.errorbar(x, y, yerr=0.1)
+        sp.errorbar(x, y, yerr=(lo, hi), fmt="o", capsize=0.2)
+
+    Returns ``(data_series, bar_series)``; ``data_series`` is ``None`` when
+    ``fmt="none"``.
+    """
+    xv = _to_list(x)
+    yv = _to_list(y)
+    if len(xv) != len(yv):
+        raise ValueError(f"x has {len(xv)} values but y has {len(yv)}")
+    if fmt not in ("-", "o", ".", "none", ""):
+        raise ValueError("fmt must be '-', 'o', '.' or 'none'")
+    n = len(xv)
+    nan = float("nan")
+    bx: List[float] = []
+    by: List[float] = []
+    half_cap = abs(float(capsize)) / 2.0
+    if yerr is not None:
+        lo, hi = _expand_err(yerr, n, "yerr")
+        for xi, yi, l, h in zip(xv, yv, lo, hi):
+            bx.extend([xi, xi, nan])
+            by.extend([yi - l, yi + h, nan])
+            if half_cap > 0:
+                for yc in (yi - l, yi + h):
+                    bx.extend([xi - half_cap, xi + half_cap, nan])
+                    by.extend([yc, yc, nan])
+    if xerr is not None:
+        lo, hi = _expand_err(xerr, n, "xerr")
+        for xi, yi, l, h in zip(xv, yv, lo, hi):
+            bx.extend([xi - l, xi + h, nan])
+            by.extend([yi, yi, nan])
+            if half_cap > 0:
+                for xc in (xi - l, xi + h):
+                    bx.extend([xc, xc, nan])
+                    by.extend([yi - half_cap, yi + half_cap, nan])
+
+    ax = _state._ensure_axes()
+    if color is None:
+        # Bars and data share one colour; the IPC API cannot copy a palette
+        # slot between series, so pick a theme-aware letter per call.
+        key = (getattr(ax, "_figure_id", 0), getattr(ax, "_index", 0))
+        count = _state._errorbar_counts.get(key, 0)
+        _state._errorbar_counts[key] = count + 1
+        color = _ERRORBAR_COLOR_CYCLE[count % len(_ERRORBAR_COLOR_CYCLE)]
+
+    data_series = None
+    if fmt == "-":
+        data_series = ax.line(xv, yv, label=label)
+        _apply_series_style(data_series, color=color, width=width)
+    elif fmt in ("o", "."):
+        data_series = ax.scatter(xv, yv, label=label)
+        marker = size if size is not None else (6.0 if fmt == "o" else 3.0)
+        _apply_series_style(data_series, color=color, size=marker)
+
+    bar_series = None
+    if bx:
+        bar_series = ax.line(bx, by, label="" if data_series is not None else label)
+        _apply_color(bar_series, color)
+        if width is not None:
+            bar_series.set_line_width(float(width))
+    _mark_datetime_x(ax, _is_datetime_like(x))
+    _auto_fit_axes(ax, xv + bx, yv + by)
+    _state._show_if_pending()
+    return data_series, bar_series
+
+
+def _histogram_counts(values: List[float], bins: int, density: bool,
+                      cumulative: bool) -> Tuple[float, float, List[float]]:
+    """(lo, hi, per-bin heights) as the native HistogramSeries computes them."""
+    lo, hi = min(values), max(values)
+    if lo == hi:
+        hi = lo + max(1.0, abs(lo) * 1e-6)
+    bin_width = (hi - lo) / bins
+    counts = [0.0] * bins
+    for v in values:
+        t = (v - lo) / bin_width
+        idx = bins - 1 if not (t < bins) else (0 if t <= 0 else int(t))
+        counts[min(idx, bins - 1)] += 1.0
+    if cumulative:
+        for i in range(1, bins):
+            counts[i] += counts[i - 1]
+    if density:
+        divisor = len(values) if cumulative else len(values) * bin_width
+        counts = [c / divisor for c in counts]
+    return lo, hi, counts
 
 
 def hist(
@@ -473,40 +786,35 @@ def hist(
     bins: int = 30,
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
+    density: bool = False,
+    cumulative: bool = False,
 ):
-    """Histogram. Computes bins from data and plots as a step line.
+    """Histogram of ``data`` with ``bins`` equal-width bins over its range.
+
+    Drawn by the native histogram series (filled bins, legend swatch).
+    ``density=True`` normalises to a probability density; ``cumulative=True``
+    accumulates the bins (a CDF when combined with ``density``).
 
     Usage::
 
         sp.hist(data)
-        sp.hist(data, bins=50, color="orange")
+        sp.hist(data, bins=50, color="orange", density=True)
     """
-    values = _to_list(data)
+    if not isinstance(bins, int) or isinstance(bins, bool):
+        raise TypeError("bins must be an int (number of equal-width bins)")
+    if bins < 1:
+        raise ValueError("bins must be >= 1")
+    values = [v for v in _to_list(data) if math.isfinite(v)]
     if not values:
         return None
-    lo = min(values)
-    hi = max(values)
-    if lo == hi:
-        hi = lo + 1.0
-    bin_width = (hi - lo) / bins
-    counts = [0] * bins
-    for v in values:
-        idx = min(int((v - lo) / bin_width), bins - 1)
-        counts[idx] += 1
-
-    # Build step-function x/y
-    step_x = []
-    step_y = []
-    for i in range(bins):
-        edge_l = lo + i * bin_width
-        edge_r = edge_l + bin_width
-        step_x.extend([edge_l, edge_r])
-        step_y.extend([counts[i], counts[i]])
+    lo, hi, counts = _histogram_counts(values, bins, density, cumulative)
 
     ax = _state._ensure_axes()
-    series = ax.line(step_x, step_y, label=label)
+    series = ax.histogram(values, bins=bins, density=density, cumulative=cumulative,
+                          label=label)
     _apply_color(series, color)
-    _auto_fit_axes(ax, step_x, step_y)
+    _mark_datetime_x(ax, _is_datetime_like(data))
+    _auto_fit_axes(ax, [lo, hi], [0.0, max(counts)])
     _state._show_if_pending()
     return series
 
@@ -517,28 +825,98 @@ def bar(
     bar_width: float = 0.8,
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
+    bottom: float = 0.0,
+    horizontal: bool = False,
+    width: Optional[float] = None,
 ):
-    """Bar chart. Draws rectangles as line segments.
+    """Bar chart drawn by the native bar series (filled bars, legend swatch).
+
+    ``x`` holds bar centres, or category names (strings): bar ``i`` then sits
+    at x = i and the axis shows the names.  ``width`` is an alias of
+    ``bar_width`` (matplotlib's name); ``bottom`` is the bars' baseline and
+    ``horizontal=True`` draws bars along x (like ``barh``).
 
     Usage::
 
         sp.bar([1, 2, 3], [10, 20, 15])
+        sp.bar(["a", "b", "c"], [3, 5, 2], color="g")
     """
-    xv = _to_list(x)
+    bw = float(width) if width is not None else float(bar_width)
+    names = None
+    if not isinstance(x, str):
+        items = list(x.tolist()) if hasattr(x, "tolist") else list(x)
+        if items and all(isinstance(v, str) for v in items):
+            names = [str(v) for v in items]
+    xv = [float(i) for i in range(len(names))] if names is not None else _to_list(x)
     hv = _to_list(heights)
-    hw = bar_width / 2.0
-    bx = []
-    by = []
-    for xi, hi in zip(xv, hv):
-        # Rectangle: 5 points + NaN separator
-        bx.extend([xi - hw, xi - hw, xi + hw, xi + hw, xi - hw, float("nan")])
-        by.extend([0.0, hi, hi, 0.0, 0.0, float("nan")])
+    if len(xv) != len(hv):
+        raise ValueError(f"x has {len(xv)} values but heights has {len(hv)}")
 
     ax = _state._ensure_axes()
-    series = ax.line(bx, by, label=label)
+    series = ax.bar(names if names is not None else xv, hv, width=bw, bottom=float(bottom),
+                    horizontal=horizontal, label=label)
     _apply_color(series, color)
-    series.set_line_width(2.0)
-    _auto_fit_axes(ax, bx, by)
+    hw = bw / 2.0
+    pos = [v - hw for v in xv] + [v + hw for v in xv]
+    ext = list(hv) + [float(bottom)]
+    if horizontal:
+        _auto_fit_axes(ax, ext, pos)
+    else:
+        _mark_datetime_x(ax, names is None and _is_datetime_like(x))
+        _auto_fit_axes(ax, pos, ext)
+    _state._show_if_pending()
+    return series
+
+
+def barh(
+    y: ArrayLike,
+    widths: ArrayLike,
+    height: float = 0.8,
+    color: Union[str, Tuple, List, None] = None,
+    label: str = "",
+    left: float = 0.0,
+):
+    """Horizontal bar chart (``bar(..., horizontal=True)``)."""
+    return bar(y, widths, bar_width=height, color=color, label=label, bottom=left,
+               horizontal=True)
+
+
+def fill_between(
+    x: ArrayLike,
+    y1: ArrayLike,
+    y2: Union[ArrayLike, float] = 0.0,
+    color: Union[str, Tuple, List, None] = None,
+    alpha: float = 0.25,
+    label: str = "",
+    edges: bool = True,
+    edge_width: float = 1.0,
+):
+    """Fill the area between ``y1`` and ``y2`` (a scalar or an array) over ``x``.
+
+    Drawn by the native band series: a translucent fill with optional edge
+    lines.  ``alpha`` is the fill opacity.
+
+    Usage::
+
+        sp.fill_between(x, lower, upper, alpha=0.3)
+        sp.fill_between(x, y)          # down to 0
+    """
+    xv = _to_list(x)
+    a = _to_list(y1)
+    if isinstance(y2, (int, float)):
+        b = [float(y2)] * len(xv)
+    else:
+        b = _to_list(y2)
+    if not len(xv) == len(a) == len(b):
+        raise ValueError(f"x, y1 and y2 must have the same length ({len(xv)}, {len(a)}, {len(b)})")
+    lower = [min(p, q) for p, q in zip(a, b)]
+    upper = [max(p, q) for p, q in zip(a, b)]
+    ax = _state._ensure_axes()
+    series = ax.band(xv, lower, upper, fill_opacity=float(alpha), edge_width=float(edge_width),
+                     show_edges=edges, label=label)
+    _apply_color(series, color)
+    _mark_datetime_x(ax, _is_datetime_like(x))
+    _auto_fit_axes(ax, xv + xv, lower + upper)
     _state._show_if_pending()
     return series
 
@@ -1073,40 +1451,72 @@ def ifplot(
 
 # ─── Auto-fit helper ─────────────────────────────────────────────────────────
 
+def _fit_range(lo: float, hi: float, pos_lo: float, scale: str):
+    """Padded (min, max) limits for data spanning [lo, hi] on a ``scale`` axis.
+
+    Linear axes get 5% padding.  Log axes pad by 5% of the decades spanned and
+    start at the smallest positive value (``pos_lo``); None when there is none.
+    Sqrt axes never go below 0.
+    """
+    if scale in ("log", "log10", "log2"):
+        if pos_lo is None or not hi > 0:
+            return None
+        lo = pos_lo
+        span = math.log10(hi) - math.log10(lo)
+        f = 10 ** (span * 0.05) if span > 0 else 2.0
+        return lo / f, hi * f
+    pad = (hi - lo) * 0.05 if hi != lo else 0.5
+    lo_out, hi_out = lo - pad, hi + pad
+    if scale == "sqrt":
+        lo_out = max(0.0, lo_out)
+    return lo_out, hi_out
+
+
+def _apply_fit(ax) -> None:
+    """Set the axes limits from the accumulated data bounds and its scales."""
+    ax_key = (ax._figure_id, ax._index)
+    b = _state._axes_bounds.get(ax_key)
+    if b is None:
+        return
+    xscale, yscale = _state._axes_scales.get(ax_key, ("linear", "linear"))
+    xr = _fit_range(b[0], b[1], b[4], xscale)
+    yr = _fit_range(b[2], b[3], b[5], yscale)
+    try:
+        if xr is not None:
+            ax.set_xlim(*xr)
+        if yr is not None:
+            ax.set_ylim(*yr)
+    except Exception:
+        pass
+
+
 def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
     """Set axis limits to fit ALL series data with 5% padding, ignoring NaN values.
 
     Accumulates bounds across multiple plot() calls on the same axes so that
-    earlier series are not pushed out of frame by later ones.
+    earlier series are not pushed out of frame by later ones.  Log-scaled
+    axes fit the positive data only.
     """
     finite_x = [v for v in x if v == v and abs(v) < 1e11]  # filter NaN and sentinel hlines/vlines
     finite_y = [v for v in y if v == v and abs(v) < 1e11]
     if not finite_x or not finite_y:
         return
-    new_xmin, new_xmax = min(finite_x), max(finite_x)
-    new_ymin, new_ymax = min(finite_y), max(finite_y)
+    pos_x = [v for v in finite_x if v > 0]
+    pos_y = [v for v in finite_y if v > 0]
+    new = [min(finite_x), max(finite_x), min(finite_y), max(finite_y),
+           min(pos_x) if pos_x else None, min(pos_y) if pos_y else None]
 
     # Accumulate with existing bounds for this axes
     ax_key = (ax._figure_id, ax._index)
-    if ax_key in _state._axes_bounds:
-        prev = _state._axes_bounds[ax_key]
-        xmin = min(prev[0], new_xmin)
-        xmax = max(prev[1], new_xmax)
-        ymin = min(prev[2], new_ymin)
-        ymax = max(prev[3], new_ymax)
-    else:
-        xmin, xmax = new_xmin, new_xmax
-        ymin, ymax = new_ymin, new_ymax
-    _state._axes_bounds[ax_key] = [xmin, xmax, ymin, ymax]
+    prev = _state._axes_bounds.get(ax_key)
+    if prev is not None:
+        def _min_opt(a, b):
+            return b if a is None else (a if b is None else min(a, b))
 
-    # Add 5% padding
-    xpad = (xmax - xmin) * 0.05 if xmax != xmin else 0.5
-    ypad = (ymax - ymin) * 0.05 if ymax != ymin else 0.5
-    try:
-        ax.set_xlim(xmin - xpad, xmax + xpad)
-        ax.set_ylim(ymin - ypad, ymax + ypad)
-    except Exception:
-        pass
+        new = [min(prev[0], new[0]), max(prev[1], new[1]), min(prev[2], new[2]),
+               max(prev[3], new[3]), _min_opt(prev[4], new[4]), _min_opt(prev[5], new[5])]
+    _state._axes_bounds[ax_key] = new
+    _apply_fit(ax)
 
 
 def _auto_fit_axes3d(ax, x: List[float], y: List[float], z: List[float]) -> None:
@@ -1250,6 +1660,73 @@ def ylim(ymin: float, ymax: float):
 def grid(visible: bool = True):
     """Toggle grid visibility."""
     _current_axes_any().grid(visible)
+
+
+def xscale(scale: str):
+    """Set the x axis scale of the current axes: "linear", "log", "log2" or "sqrt"."""
+    _set_scale(0, scale)
+
+
+def yscale(scale: str):
+    """Set the y axis scale of the current axes: "linear", "log", "log2" or "sqrt"."""
+    _set_scale(1, scale)
+
+
+def _set_scale(which: int, scale: str) -> None:
+    from ._axes import scale_to_wire
+
+    scale_to_wire(scale)  # validate before touching the backend
+    ax = _state._ensure_axes()
+    (ax.set_xscale if which == 0 else ax.set_yscale)(scale)
+    key = (getattr(ax, "_figure_id", 0), getattr(ax, "_index", 0))
+    scales = list(_state._axes_scales.get(key, ("linear", "linear")))
+    scales[which] = str(scale).lower()
+    _state._axes_scales[key] = tuple(scales)
+    _apply_fit(ax)  # e.g. log axes must not start at 0
+
+
+def semilogx(*args, **kwargs):
+    """``plot()`` with a log10 x axis."""
+    series = plot(*args, **kwargs)
+    xscale("log")
+    return series
+
+
+def semilogy(*args, **kwargs):
+    """``plot()`` with a log10 y axis."""
+    series = plot(*args, **kwargs)
+    yscale("log")
+    return series
+
+
+def loglog(*args, **kwargs):
+    """``plot()`` with log10 x and y axes."""
+    series = plot(*args, **kwargs)
+    xscale("log")
+    yscale("log")
+    return series
+
+
+def savefig(path, width: int = 0, height: int = 0, format: Optional[str] = None,
+            theme: str = "", dpi=None):
+    """Save the current figure to a PNG or SVG file; returns the absolute path.
+
+    The backend renders it offscreen (works before or without a window).
+    ``width`` / ``height`` set the PNG size in pixels (0 = figure size); the
+    format follows the extension unless ``format`` is given.
+
+    Usage::
+
+        sp.plot(x, y)
+        sp.savefig("plot.png")
+        sp.savefig("plot.svg")
+        sp.savefig("big.png", width=3000, height=1800)
+    """
+    fig = _state._current_fig
+    if fig is None:
+        raise RuntimeError("no figure to save: plot something first")
+    _state._flush_pending_knobs()
+    return fig.savefig(path, width=width, height=height, format=format, theme=theme, dpi=dpi)
 
 
 def legend(visible: bool = True):
@@ -1616,7 +2093,11 @@ def _parse_xy_args(args) -> Tuple[List[float], List[float]]:
         return [], []
     elif len(args) == 1:
         y = _to_list(args[0])
-        x = [float(i) for i in range(len(y))]
+        index = getattr(args[0], "index", None)
+        if index is not None and not callable(index) and hasattr(args[0], "to_numpy"):
+            x = _index_to_list(index, len(y))  # pandas Series: plot against its index
+        else:
+            x = [float(i) for i in range(len(y))]
         return x, y
     else:
         x = _to_list(args[0])

@@ -57,6 +57,35 @@ def test_runtime_dependencies_declared():
     assert "flatbuffers" in deps
 
 
+def test_notebook_extra_declared():
+    extras = _pyproject()["project"]["optional-dependencies"]
+    names = {_requirement_name(r) for r in extras["notebook"]}
+    assert {"anywidget", "pillow"} <= names
+
+
+def test_notebook_widget_assets_ship_in_the_package():
+    pkg = ROOT / "python" / "spectra"
+    assert (pkg / "_notebook_canvas.js").is_file()
+    assert (pkg / "_notebook_canvas.css").is_file()
+    assert "export default" in (pkg / "_notebook_canvas.js").read_text()
+
+
+def test_linux_wheels_bundle_the_embed_library():
+    skb = _pyproject()["tool"]["scikit-build"]
+    linux = [o for o in skb.get("overrides", []) if o.get("if", {}).get("platform-system") == "linux"]
+    assert any(
+        "-DSPECTRA_BUILD_EMBED_SHARED=ON" in o.get("cmake", {}).get("args", [])
+        and o.get("inherit", {}).get("cmake", {}).get("args") == "append"
+        for o in linux
+    )
+    cmake = (ROOT / "CMakeLists.txt").read_text()
+    block = cmake[cmake.index("install(TARGETS spectra_embed\n"):]
+    block = block[: block.index(")")]
+    # COMPONENT binds per artifact kind (LIBRARY on Linux/macOS, RUNTIME on Windows).
+    assert "LIBRARY DESTINATION spectra/_lib COMPONENT python_wheel" in block
+    assert "RUNTIME DESTINATION spectra/_lib COMPONENT python_wheel" in block
+
+
 def test_wheel_installs_only_python_component():
     skb = _pyproject()["tool"]["scikit-build"]
     assert skb["install"]["components"] == ["python_wheel"]

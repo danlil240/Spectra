@@ -1016,6 +1016,38 @@ std::optional<ReqCloseFigurePayload> decode_fb_req_close_figure(std::span<const 
     return p;
 }
 
+std::vector<uint8_t> encode_fb_req_export_figure(const ReqExportFigurePayload& p)
+{
+    flatbuffers::FlatBufferBuilder fbb(128 + p.path.size() + p.theme.size());
+    auto                           path   = fbb.CreateString(p.path);
+    auto                           format = fbb.CreateString(p.format);
+    auto                           theme  = fbb.CreateString(p.theme);
+    auto                           offset =
+        fb::CreateReqExportFigurePayload(fbb, p.figure_id, path, format, p.width, p.height, theme);
+    fbb.Finish(offset);
+    return finalize(fbb);
+}
+
+std::optional<ReqExportFigurePayload> decode_fb_req_export_figure(std::span<const uint8_t> data)
+{
+    flatbuffers::Verifier v(data.data(), data.size());
+    if (!v.VerifyBuffer<fb::ReqExportFigurePayload>())
+        return std::nullopt;
+
+    auto                   fb = flatbuffers::GetRoot<fb::ReqExportFigurePayload>(data.data());
+    ReqExportFigurePayload p;
+    p.figure_id = fb->figure_id();
+    if (fb->path())
+        p.path = fb->path()->str();
+    if (fb->format())
+        p.format = fb->format()->str();
+    p.width  = fb->width();
+    p.height = fb->height();
+    if (fb->theme())
+        p.theme = fb->theme()->str();
+    return p;
+}
+
 std::vector<uint8_t> encode_fb_req_append_data(const ReqAppendDataPayload& p)
 {
     flatbuffers::FlatBufferBuilder fbb(256 + static_cast<size_t>(p.data.size()) * 4);

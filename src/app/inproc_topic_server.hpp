@@ -36,10 +36,13 @@
     #include <unordered_map>
     #include <vector>
 
+    #include "../daemon/bridges/topic_bridge.hpp"
+    #include "../daemon/bridges/topic_ingest.hpp"
     #include "../daemon/topic_registry.hpp"
     #include "../ipc/message.hpp"
     #include "../ipc/transport.hpp"
     #include "../ui/topics/topics_panel.hpp"
+    #include "../ui/workspace/binding_resolver.hpp"
 
 namespace spectra
 {
@@ -48,14 +51,18 @@ class AxesBase;
 class FigureRegistry;
 class Series;
 
-class InprocTopicServer
+// Also a daemon::TopicSink: topic bridges (UDP JSON, ...) and plugin data
+// sources push decoded messages straight into its registry; push() is
+// thread-safe and, like the socket worker, only queues series updates for
+// drain_pending().
+class InprocTopicServer final : public daemon::TopicSink, public TopicBindingProvider
 {
    public:
     // Called whenever the topic list changes (declare / disconnect / subscribe).
     using TopicChangedFn = std::function<void()>;
 
     InprocTopicServer();
-    ~InprocTopicServer();
+    ~InprocTopicServer() override;
 
     // Start the background listener.  Returns the socket path (empty on error).
     // Typically called once from App::init_inproc().
@@ -75,6 +82,15 @@ class InprocTopicServer
     // destroyed, and by stop().
     void wire_topics_panel(ui::topics::TopicsPanel& panel, FigureRegistry* fig_registry);
 
+    // TopicBindingProvider: feed @p topic into an existing series (layout
+    // bindings).  Subscribes now when the topic is declared, otherwise queues
+    // a pending subscription that is promoted by the publisher's declare.
+    // Main thread only.
+    Result bind_topic(const std::string& topic,
+                      FigureId           figure_id,
+                      uint32_t           axes_index,
+                      Series&            series) override;
+
     // Deliver samples queued by the server thread to their subscribed series.
     // Must be called on the thread that owns the figures (the main / app
     // thread), typically once per frame before pending series data is
@@ -85,6 +101,14 @@ class InprocTopicServer
     // Number of interleaved (x, y) points waiting for drain_pending().
     size_t pending_point_count() const;
 
+    // TopicSink: declare unseen topics owned by batch.owner_id and publish
+    // every field.  Thread-safe; does not need start().
+    bool push(daemon::TopicIngestBatch&& batch) override;
+
+    // Mark every topic owned by an in-process producer offline (bridge or
+    // data source stopped).
+    void mark_owner_offline(uint64_t owner_id);
+
     // Get a snapshot of current topics (for the panel's list_request callback).
     std::vector<ipc::TopicInfoEntry> topic_snapshot() const;
 
@@ -92,6 +116,10 @@ class InprocTopicServer
     void run_loop();
     void handle_message(int fd, ipc::Connection& conn, uint64_t client_id, const ipc::Message& msg);
     void on_client_disconnected(uint64_t client_id);
+    void queue_pending(const std::string&                            name,
+                       ipc::TopicKind                                kind,
+                       const std::vector<double>&                    samples,
+                       const std::vector<daemon::TopicSubscription>& subs);
     void notify_topic_changed();
     void unwire_panel();
     void subscribe_from_panel(const ui::topics::SubscribeRequest& req);

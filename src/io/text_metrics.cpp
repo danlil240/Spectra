@@ -158,6 +158,45 @@ bool inter_covers(std::string_view text)
     return true;
 }
 
+uint16_t inter_glyph_index(uint32_t cp)
+{
+    const InterMetrics& m = inter_metrics();
+    if (!m.ok || cp > 0x10FFFF)
+        return 0;
+    const int g = stbtt_FindGlyphIndex(&m.info, static_cast<int>(cp));
+    return g > 0 && g <= 0xFFFF ? static_cast<uint16_t>(g) : 0;
+}
+
+float inter_glyph_advance_em(uint16_t glyph)
+{
+    const InterMetrics& m = inter_metrics();
+    if (!m.ok)
+        return 0.0f;
+    int advance = 0, lsb = 0;
+    stbtt_GetGlyphHMetrics(&m.info, glyph, &advance, &lsb);
+    return static_cast<float>(advance) * m.em_scale;
+}
+
+InterFontMetrics inter_font_metrics()
+{
+    const InterMetrics& m = inter_metrics();
+    InterFontMetrics    out;
+    if (!m.ok)
+        return out;
+    int ascent = 0, descent = 0, gap = 0;
+    stbtt_GetFontVMetrics(&m.info, &ascent, &descent, &gap);
+    int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    stbtt_GetFontBoundingBox(&m.info, &x0, &y0, &x1, &y1);
+    out.ok      = true;
+    out.ascent  = static_cast<float>(ascent) * m.em_scale;
+    out.descent = static_cast<float>(descent) * m.em_scale;
+    out.bbox[0] = static_cast<float>(x0) * m.em_scale;
+    out.bbox[1] = static_cast<float>(y0) * m.em_scale;
+    out.bbox[2] = static_cast<float>(x1) * m.em_scale;
+    out.bbox[3] = static_cast<float>(y1) * m.em_scale;
+    return out;
+}
+
 std::vector<uint32_t> utf8_codepoints(std::string_view text)
 {
     std::vector<uint32_t> out;

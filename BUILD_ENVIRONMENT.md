@@ -385,7 +385,8 @@ binaries.
 | `SPECTRA_USE_QT` | OFF | `qt6-base-dev` | Qt6 adapter for embedding |
 | `SPECTRA_USE_ROS2` | ON* | Sourced ROS2 workspace | ROS2 adapter (auto-disables if not found) |
 | `SPECTRA_ROS2_BAG` | ON* | `rosbag2_cpp`, `rosbag2_storage` | rosbag2 playback/recording |
-| `SPECTRA_USE_PX4` | ON | None (POSIX only) | PX4 ULog adapter + MAVLink |
+| `SPECTRA_USE_PX4` | ON | None (POSIX only) | PX4 ULog adapter + MAVLink (the ULog parser itself is always built, for the main app's log browser) |
+| `SPECTRA_USE_MCAP` | ON | None (foxglove/mcap fetched) | MCAP files in the log browser; no zstd/lz4, so compressed chunks are skipped |
 | `SPECTRA_USE_WEBGPU` | OFF | Dawn or Emscripten | Experimental WebGPU backend |
 | `SPECTRA_BUILD_EXAMPLES` | ON | — | ~47 runnable example programs |
 | `SPECTRA_BUILD_QT_EXAMPLE` | OFF | `SPECTRA_USE_QT=ON` | Qt6 embed example |

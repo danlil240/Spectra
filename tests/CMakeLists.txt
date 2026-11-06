@@ -135,6 +135,7 @@ set(SPECTRA_UNIT_TESTS
     test_series_visibility
     test_ui_icons
     test_svg_export
+    test_pdf_export
     test_annotations
     test_resize_layout
     test_layout_manager
@@ -158,6 +159,7 @@ set(SPECTRA_UNIT_TESTS
     test_region_select
     test_legend_interaction
     test_legend_colorbar
+    test_image_series
     test_legend_bounds
     test_legend_font_size
     test_figure_manager
@@ -175,6 +177,8 @@ set(SPECTRA_UNIT_TESTS
     test_palette_visibility
     test_window_agent_state
     test_multiproc_snapshot
+    test_python_mpl_api
+    test_figure_export_gpu
     test_format_letter_colors
     test_color_source_persistence
     test_settings_store
@@ -201,6 +205,7 @@ set(SPECTRA_UNIT_TESTS
     test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
+    test_layout_bindings
     test_phase3_integration
     test_math3d
     test_3d_pipelines
@@ -249,6 +254,9 @@ set(SPECTRA_UNIT_TESTS
     test_font_fallback
     test_eigen_support
     test_csv_loader
+    test_ulog_reader
+    test_log_readers
+    test_log_browser_panel
     test_series_stats
     test_double_precision_data
     test_series_clipboard
@@ -268,6 +276,8 @@ set(SPECTRA_UNIT_TESTS
     test_export_csv_plugin
     test_plugin_export_command
     test_plugin_data_source
+    test_data_source_topics
+    test_topic_bridges
     test_plugin_integration
     test_plugin_unload_cleanup
     test_plugin_concurrent
@@ -474,6 +484,7 @@ set(SPECTRA_GPU_TESTS
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
     test_window_export_extent
+    test_figure_export_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -486,13 +497,26 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     if(_test STREQUAL "test_multi_window")
         continue()
     endif()
+    # The log browser panel is part of the ImGui UI.
+    if(_test STREQUAL "test_log_browser_panel" AND NOT DEFINED imgui_SOURCE_DIR)
+        continue()
+    endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
         add_spectra_test(unit ${_test})
+        # MCAP fixtures are written with the vendored foxglove/mcap writer.
+        if(_test MATCHES "^test_log_(readers|browser_panel)$" AND SPECTRA_USE_MCAP)
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${SPECTRA_MCAP_INCLUDE_DIR})
+            target_compile_definitions(unit_${_test} PRIVATE ${SPECTRA_MCAP_DEFINITIONS})
+        endif()
         # Tag GPU-dependent tests so they can be excluded with -LE gpu
         if(_test IN_LIST SPECTRA_GPU_TESTS)
             set_tests_properties(unit_${_test} PROPERTIES
                 LABELS "gpu"
                 RESOURCE_LOCK gpu)
+        endif()
+        # The backend's REQ_EXPORT_FIGURE renderer lives with spectra-backend, not the library.
+        if(_test MATCHES "^test_(python_mpl_api|figure_export_gpu)$")
+            target_sources(unit_${_test} PRIVATE ${CMAKE_SOURCE_DIR}/src/daemon/figure_export.cpp)
         endif()
         # Link Eigen3 for Eigen-specific tests
         if(_test STREQUAL "test_eigen_support" AND SPECTRA_USE_EIGEN)
@@ -503,7 +527,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
@@ -592,7 +616,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
@@ -882,6 +906,26 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
         set_tests_properties(golden_image_tests_3d PROPERTIES
             LABELS "golden;gpu"
             RESOURCE_LOCK gpu)
+    endif()
+
+    # Image / heatmap / contour golden tests, once per theme (one App per binary)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/golden/golden_test_image.cpp)
+        foreach(_golden_theme light dark)
+            set(_golden_target golden_image_tests_image_${_golden_theme})
+            add_executable(${_golden_target} golden/golden_test_image.cpp)
+            target_link_libraries(${_golden_target} PRIVATE spectra GTest::gtest)
+            target_compile_features(${_golden_target} PRIVATE cxx_std_20)
+            target_compile_definitions(${_golden_target} PRIVATE
+                SPECTRA_GOLDEN_THEME="${_golden_theme}")
+            target_include_directories(${_golden_target} PRIVATE
+                ${CMAKE_SOURCE_DIR}/src
+                ${CMAKE_CURRENT_SOURCE_DIR}/golden
+            )
+            add_test(NAME ${_golden_target} COMMAND ${_golden_target})
+            set_tests_properties(${_golden_target} PROPERTIES
+                LABELS "golden;gpu"
+                RESOURCE_LOCK gpu)
+        endforeach()
     endif()
 endif()
 
@@ -2028,28 +2072,6 @@ endif()
 # PX4 / ULog adapter tests — only built when SPECTRA_USE_PX4 is ON.
 # Pure C++ — no PX4 hardware, no MAVLink network, no ImGui context needed.
 if(SPECTRA_USE_PX4)
-    # ULogReader tests — ULog binary format parser.
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ulog_reader.cpp)
-        add_executable(unit_test_ulog_reader
-            ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_ulog_reader.cpp
-        )
-        target_link_libraries(unit_test_ulog_reader PRIVATE
-            spectra_px4_adapter
-            GTest::gtest
-        )
-        target_compile_features(unit_test_ulog_reader PRIVATE cxx_std_20)
-        target_include_directories(unit_test_ulog_reader PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/src/adapters/px4
-            ${CMAKE_CURRENT_SOURCE_DIR}/util
-        )
-        target_compile_definitions(unit_test_ulog_reader PRIVATE
-            SPECTRA_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-        )
-        add_test(NAME unit_test_ulog_reader COMMAND unit_test_ulog_reader)
-        set_tests_properties(unit_test_ulog_reader PROPERTIES LABELS "px4")
-    endif()
-
     # PX4 panel helpers — Parameters sorting and stable live-row widget IDs.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/test_px4_panel_helpers.cpp)
         add_executable(unit_test_px4_panel_helpers

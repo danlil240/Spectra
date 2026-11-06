@@ -7,7 +7,7 @@
 #include <fstream>
 #include <sstream>
 
-namespace spectra::adapters::px4
+namespace spectra::logs
 {
 
 // ---------------------------------------------------------------------------
@@ -833,9 +833,9 @@ bool ULogReader::parse_format_message(const uint8_t* payload, uint16_t len)
         f.type_str = field_def.substr(0, space);
         f.name     = field_def.substr(space + 1);
 
-        // Trim padding fields (start with '_padding').
-        if (f.name.find("_padding") == 0)
-            continue;
+        // Padding fields ("_padding0") are kept so the offsets of the fields
+        // after them, and the size of nested types, stay right; field lists
+        // shown to users skip them.
 
         int arr_size = 1;
         f.base_type  = parse_ulog_type(f.type_str, arr_size);
@@ -1155,7 +1155,7 @@ bool ULogReader::parse_sync_message(const uint8_t* /*payload*/, uint16_t /*len*/
 // resolve_field_offsets
 // ---------------------------------------------------------------------------
 
-void ULogReader::resolve_field_offsets(ULogMessageFormat& fmt)
+void ULogReader::resolve_field_offsets(ULogMessageFormat& fmt, int depth)
 {
     size_t offset = 0;
     for (auto& f : fmt.fields)
@@ -1164,8 +1164,12 @@ void ULogReader::resolve_field_offsets(ULogMessageFormat& fmt)
 
         if (f.base_type == ULogFieldType::Nested)
         {
-            // Lookup nested format to determine size.
+            // Lookup nested format to determine size.  Resolve it first: the
+            // formats are visited in hash order, so a nested type may not have
+            // been sized yet (the depth bound stops self-referencing formats).
             auto it = formats_.find(f.nested_type);
+            if (it != formats_.end() && depth < 16)
+                resolve_field_offsets(it->second, depth + 1);
             if (it != formats_.end())
                 offset += it->second.byte_size * static_cast<size_t>(f.array_size);
             else
@@ -1190,4 +1194,4 @@ std::string ULogReader::make_data_key(const std::string& name, uint8_t multi_id)
     return name + "[" + std::to_string(multi_id) + "]";
 }
 
-}   // namespace spectra::adapters::px4
+}   // namespace spectra::logs

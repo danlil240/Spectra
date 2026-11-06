@@ -642,17 +642,8 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
         figure.compute_layout();
     }
 
-    // Upload dirty series data
-    for (auto& ax : figure.all_axes_mut())
-    {
-        if (!ax)
-            continue;
-        for (auto& s : ax->series_mut())
-        {
-            if (s)
-                renderer_->upload_series_data(*s);
-        }
-    }
+    // Series data is uploaded by render_figure_content(), only when dirty
+    // (see EmbedSurface::Impl::render_frame).
 
     // render_figure_content() already calls render_plot_text() and
     // render_plot_geometry() internally — do NOT call them again here.

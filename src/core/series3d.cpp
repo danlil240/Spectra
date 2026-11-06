@@ -10,7 +10,7 @@ namespace spectra
 namespace
 {
 
-void assign_coord(std::vector<float>& out, std::span<const float> in, std::atomic<bool>& dirty)
+void assign_coord(std::vector<float>& out, std::span<const float> in, SeriesDirtyFlag& dirty)
 {
     out.assign(in.begin(), in.end());
     dirty.store(true, std::memory_order_release);

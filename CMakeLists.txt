@@ -947,6 +947,9 @@ if(SPECTRA_BUILD_EMBED_SHARED)
     )
     target_link_libraries(spectra_embed PRIVATE spectra)
     target_compile_features(spectra_embed PRIVATE cxx_std_20)
+    # spectra_embed_c.h carries no __declspec(dllexport); without this the
+    # Windows DLL exports nothing and ctypes cannot find spectra_embed_create.
+    set_target_properties(spectra_embed PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
     # Consumers of the C FFI only need include/spectra/spectra_embed_c.h.
     target_include_directories(spectra_embed INTERFACE
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

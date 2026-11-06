@@ -5,7 +5,7 @@
 # Install: makepkg -si
 
 pkgname=spectra
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc="GPU-accelerated scientific plotting library"
 arch=('x86_64')
@@ -16,7 +16,7 @@ makedepends=('cmake' 'git' 'glslang' 'vulkan-headers')
 optdepends=('eigen: Eigen vector adapters for C++ consumers'
             'ffmpeg: video export')
 source=("$pkgname-$pkgver.tar.gz::https://github.com/danlil240/Spectra/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('108979bc97c68c67691869a91117a574c7d203e0a69561381aa01dd5f69c39d1')
+sha256sums=('spectra_hash_pending')
 
 build() {
     cd "Spectra-$pkgver"

@@ -19,6 +19,16 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
+<p align="center">
+  <img src="docs/images/hero/stream.gif" alt="Live multi-signal stream rendered by Spectra" width="49%">
+  <img src="docs/images/hero/surface.gif" alt="Orbiting lit 3D surface rendered by Spectra" width="49%">
+</p>
+
+<p align="center">
+  <b><a href="https://danlil240.github.io/Spectra/demo/">▶ Try it in your browser</a></b>
+  (WebGPU, Chrome or Edge 113+) · <code>pip install spectra-plot</code>
+</p>
+
 <table>
   <tr>
     <td width="50%"><img src="docs/images/screenshots/next_level_scientific.png" alt="Colormapped scatter and uncertainty band"></td>

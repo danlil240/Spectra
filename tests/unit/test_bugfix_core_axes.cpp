@@ -265,3 +265,46 @@ TEST(BugfixCoreAxes, TightPresentedBufferConstantYIsNotDegenerate)
     EXPECT_LT(yl.min, 3.0);
     EXPECT_GT(yl.max, 3.0);
 }
+
+// ─── Cached autoscale extent stays in sync with the data ────────────────────
+// x_limits()/y_limits() cache the data extent between calls; every kind of
+// change that moves the extent must invalidate it.
+
+TEST(BugfixCoreAxes, CachedAutoscaleFollowsDataChanges)
+{
+    Axes                     ax;
+    const std::vector<float> x  = {0.0f, 1.0f, 2.0f};
+    const std::vector<float> y  = {0.0f, 1.0f, 2.0f};
+    auto&                    ln = ax.line(x, y);
+    ax.autoscale_mode(AutoscaleMode::Tight);
+
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 2.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 2.0);   // served from the cache
+
+    // Data change, even after the renderer cleared the dirty flag.
+    ln.clear_dirty();
+    const std::vector<float> y2 = {0.0f, 5.0f, 2.0f};
+    ln.set_y(y2);
+    ln.clear_dirty();
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 5.0);
+
+    // Offset change.
+    ln.y_offset(10.0);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 15.0);
+    ln.y_offset(0.0);
+
+    // Series added, then removed.
+    const std::vector<float> big = {-3.0f, 20.0f};
+    ax.line(std::vector<float>{0.0f, 4.0f}, big);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 20.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 4.0);
+    ASSERT_TRUE(ax.remove_series(1));
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 5.0);
+    EXPECT_DOUBLE_EQ(ax.x_limits().max, 2.0);
+
+    // Excluding a series from autoscale (no dirty flag involved).
+    auto& ref = ax.line(std::vector<float>{0.0f, 1.0f}, std::vector<float>{0.0f, 100.0f});
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 100.0);
+    ref.set_excluded_from_autoscale(true);
+    EXPECT_DOUBLE_EQ(ax.y_limits().max, 5.0);
+}

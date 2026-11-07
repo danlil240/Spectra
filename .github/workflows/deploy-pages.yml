@@ -25,7 +25,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     permissions:
       contents: read
       pages: write
@@ -58,6 +58,32 @@ jobs:
           test -f docs/api/html/index.html
           echo "Doxygen warnings: $(wc -l < doxygen-warnings.log)"
 
+      # Live browser demo at <site>/demo/: the WebGPU 2D build of
+      # examples/webgpu_demo.cpp, same toolchain as the CI build-wasm job.
+      # A failed wasm build leaves the docs deploy intact (demo is skipped).
+      - name: Build WebGPU demo (wasm)
+        id: wasm
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends ninja-build glslang-tools
+          git clone --depth 1 https://github.com/emscripten-core/emsdk "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.15
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.15
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          emcmake cmake -B build-wasm -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSPECTRA_USE_WEBGPU=ON \
+            -DSPECTRA_RUNTIME_MODE=inproc \
+            -DSPECTRA_USE_ROS2=OFF -DSPECTRA_USE_PX4=OFF \
+            -DSPECTRA_USE_FFMPEG=OFF -DSPECTRA_USE_EIGEN=OFF \
+            -DSPECTRA_BUILD_TESTS=OFF
+          cmake --build build-wasm --target webgpu_demo -j"$(nproc)"
+          mkdir -p wasm-demo
+          cp build-wasm/examples/webgpu_demo.* wasm-demo/
+          mv wasm-demo/webgpu_demo.html wasm-demo/index.html
+          ls -la wasm-demo
+
       # Explicit allow-list: docs/ also holds internal material (plans/, archive/,
       # marketing/, workshops/, dev/, scripts/, review notes, dated walkthroughs,
       # SVG/.mjs diagram sources) that must not be published. Anything not listed
@@ -84,6 +110,12 @@ jobs:
           done
           mkdir -p _site/api
           cp -r docs/api/html _site/api/html
+          if [ -f wasm-demo/index.html ]; then
+            mkdir -p _site/demo
+            cp wasm-demo/* _site/demo/
+          else
+            echo "::warning::WebGPU demo was not built; /demo/ is not published"
+          fi
           if [ -d gh-pages-tree/apt ]; then
             mkdir -p _site/apt
             cp -r gh-pages-tree/apt/. _site/apt/

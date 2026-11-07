@@ -114,19 +114,27 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
 
         VkPhysicalDeviceMemoryProperties mem_props;
         vkGetPhysicalDeviceMemoryProperties(ctx_.physical_device, &mem_props);
-        uint32_t mem_type = UINT32_MAX;
-        for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
+        // The CPU reads every byte of this buffer each frame, so prefer
+        // HOST_CACHED memory: uncached host-visible memory (the first match
+        // on NVIDIA/AMD) makes CPU reads an order of magnitude slower.
+        auto find_type = [&](VkMemoryPropertyFlags want) -> uint32_t
         {
-            if ((mem_req.memoryTypeBits & (1u << i))
-                && (mem_props.memoryTypes[i].propertyFlags
-                    & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
-                       == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-                           | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+            for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i)
             {
-                mem_type = i;
-                break;
+                if ((mem_req.memoryTypeBits & (1u << i))
+                    && (mem_props.memoryTypes[i].propertyFlags & want) == want)
+                    return i;
             }
-        }
+            return UINT32_MAX;
+        };
+        constexpr VkMemoryPropertyFlags VISIBLE  = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+        constexpr VkMemoryPropertyFlags CACHED   = VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+        constexpr VkMemoryPropertyFlags COHERENT = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        uint32_t                        mem_type = find_type(VISIBLE | CACHED | COHERENT);
+        if (mem_type == UINT32_MAX)
+            mem_type = find_type(VISIBLE | CACHED);
+        if (mem_type == UINT32_MAX)
+            mem_type = find_type(VISIBLE | COHERENT);
 
         if (mem_type == UINT32_MAX)
         {
@@ -168,8 +176,10 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
         }
 
         offscreen_.readback_capacity = buffer_size;
-        staging_buf                  = offscreen_.readback_buffer;
-        mapped_ptr                   = offscreen_.readback_mapped_ptr;
+        offscreen_.readback_coherent =
+            (mem_props.memoryTypes[mem_type].propertyFlags & COHERENT) != 0;
+        staging_buf = offscreen_.readback_buffer;
+        mapped_ptr  = offscreen_.readback_mapped_ptr;
     }
     else
     {
@@ -247,6 +257,27 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
                            1,
                            &region);
 
+    // Make the copy visible to host reads of the mapped staging buffer.
+    VkBufferMemoryBarrier host_barrier{};
+    host_barrier.sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    host_barrier.srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT;
+    host_barrier.dstAccessMask       = VK_ACCESS_HOST_READ_BIT;
+    host_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    host_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    host_barrier.buffer              = copy_dst;
+    host_barrier.offset              = 0;
+    host_barrier.size                = VK_WHOLE_SIZE;
+    vkCmdPipelineBarrier(cmd,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_HOST_BIT,
+                         0,
+                         0,
+                         nullptr,
+                         1,
+                         &host_barrier,
+                         0,
+                         nullptr);
+
     // Transition back to original layout if we changed it
     if (src_layout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
     {
@@ -319,6 +350,15 @@ bool VulkanBackend::readback_framebuffer(uint8_t* out_rgba, uint32_t width, uint
     }
     else
     {
+        if (!offscreen_.readback_coherent)
+        {
+            VkMappedMemoryRange range{};
+            range.sType  = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+            range.memory = offscreen_.readback_memory;
+            range.offset = 0;
+            range.size   = VK_WHOLE_SIZE;
+            vkInvalidateMappedMemoryRanges(ctx_.device, 1, &range);
+        }
         // Persistent buffer is already mapped — copy rows with the caller's stride
         vk::copy_readback_rows(out_rgba,
                                requested_w,

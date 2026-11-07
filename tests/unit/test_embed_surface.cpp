@@ -203,6 +203,56 @@ TEST(EmbedSurface, MultipleRenders)
     }
 }
 
+// Unchanged data must not be re-uploaded every frame (render_figure_content
+// uploads only dirty series), and data changes must still reach the GPU.
+TEST(EmbedSurface, StaticRerenderIsStable)
+{
+    EmbedConfig cfg;
+    cfg.width  = 320;
+    cfg.height = 200;
+    EmbedSurface       surface(cfg);
+    auto&              ax   = surface.figure().subplot(1, 1, 1);
+    std::vector<float> x    = {0, 1, 2, 3, 4, 5};
+    std::vector<float> y    = {0, 1, 4, 9, 16, 25};
+    auto&              line = ax.line(x, y);
+
+    std::vector<uint8_t> first(320 * 200 * 4, 0);
+    std::vector<uint8_t> again(320 * 200 * 4, 0);
+    ASSERT_TRUE(surface.render_to_buffer(first.data()));
+    EXPECT_FALSE(line.is_dirty());
+    ASSERT_TRUE(surface.render_to_buffer(again.data()));
+    EXPECT_FALSE(line.is_dirty());
+    EXPECT_EQ(first, again);
+}
+
+TEST(EmbedSurface, DataChangeReachesGpu)
+{
+    EmbedConfig cfg;
+    cfg.width  = 320;
+    cfg.height = 200;
+    EmbedSurface       surface(cfg);
+    auto&              ax   = surface.figure().subplot(1, 1, 1);
+    std::vector<float> x    = {0, 1, 2, 3, 4, 5};
+    std::vector<float> up   = {0, 1, 2, 3, 4, 5};
+    std::vector<float> down = {5, 4, 3, 2, 1, 0};
+    auto&              line = ax.line(x, up);
+    ax.xlim(0.0f, 5.0f);
+    ax.ylim(0.0f, 5.0f);
+
+    std::vector<uint8_t> before(320 * 200 * 4, 0);
+    std::vector<uint8_t> changed(320 * 200 * 4, 0);
+    std::vector<uint8_t> restored(320 * 200 * 4, 0);
+    ASSERT_TRUE(surface.render_to_buffer(before.data()));
+
+    line.set_y(down);
+    ASSERT_TRUE(surface.render_to_buffer(changed.data()));
+    EXPECT_NE(before, changed);
+
+    line.set_y(up);
+    ASSERT_TRUE(surface.render_to_buffer(restored.data()));
+    EXPECT_EQ(before, restored);
+}
+
 // ─── Resize ─────────────────────────────────────────────────────────────────
 
 TEST(EmbedSurface, Resize)

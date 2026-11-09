@@ -8,6 +8,7 @@
     #include "wgpu_backend.hpp"
 
     #include "wgpu_pipeline_support.hpp"
+    #include "../pixel_scale.hpp"
 
     #include <spectra/logger.hpp>
 
@@ -614,7 +615,19 @@ bool WebGPUBackend::create_swapchain(uint32_t width, uint32_t height)
     WGPUTextureFormat       surface_format = WGPUTextureFormat_BGRA8Unorm;   // fallback
     if (cap_status == WGPUStatus_Success && caps.formatCount > 0)
     {
-        surface_format = caps.formats[0];   // use the preferred format
+        // Prefer a UNORM format so theme colours pass through 1:1, like the
+        // Vulkan swapchain.  An sRGB format would gamma-encode the output and
+        // wash the theme out; native Dawn often lists one first.
+        surface_format = caps.formats[0];
+        for (size_t i = 0; i < caps.formatCount; ++i)
+        {
+            if (caps.formats[i] == WGPUTextureFormat_BGRA8Unorm
+                || caps.formats[i] == WGPUTextureFormat_RGBA8Unorm)
+            {
+                surface_format = caps.formats[i];
+                break;
+            }
+        }
         wgpuSurfaceCapabilitiesFreeMembers(caps);
     }
 
@@ -1440,18 +1453,34 @@ void WebGPUBackend::set_viewport(float x, float y, float width, float height)
 {
     if (!pass_encoder_)
         return;
-    wgpuRenderPassEncoderSetViewport(pass_encoder_, x, y, width, height, 0.0f, 1.0f);
+    const float s = pixel_scale_;
+    wgpuRenderPassEncoderSetViewport(pass_encoder_,
+                                     x * s,
+                                     y * s,
+                                     width * s,
+                                     height * s,
+                                     0.0f,
+                                     1.0f);
 }
 
 void WebGPUBackend::set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height)
 {
     if (!pass_encoder_)
         return;
+    // WebGPU rejects a scissor that extends past the render target, so clip
+    // it after scaling to framebuffer pixels.
+    const PixelRect r = scale_scissor_rect(x,
+                                           y,
+                                           width,
+                                           height,
+                                           pixel_scale_,
+                                           swapchain_width(),
+                                           swapchain_height());
     wgpuRenderPassEncoderSetScissorRect(pass_encoder_,
-                                        static_cast<uint32_t>(x < 0 ? 0 : x),
-                                        static_cast<uint32_t>(y < 0 ? 0 : y),
-                                        width,
-                                        height);
+                                        static_cast<uint32_t>(r.x),
+                                        static_cast<uint32_t>(r.y),
+                                        r.w,
+                                        r.h);
 }
 
 void WebGPUBackend::draw(uint32_t vertex_count, uint32_t first_vertex)

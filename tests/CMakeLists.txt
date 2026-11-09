@@ -308,6 +308,7 @@ set(SPECTRA_UNIT_TESTS
     test_runtime_robustness
     test_app_init_failure
     test_export_viewport
+    test_pixel_scale
     test_headless_export_text
     test_framebuffer_contrast
     test_text_scaling

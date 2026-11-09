@@ -124,6 +124,12 @@ class WebGPUBackend : public Backend
     void set_viewport(float x, float y, float width, float height) override;
     void set_scissor(int32_t x, int32_t y, uint32_t width, uint32_t height) override;
     void set_line_width(float /*width*/) override {}   // no-op (WebGPU has no line-width)
+
+    // HiDPI: viewports and scissors arrive in logical pixels and are scaled to
+    // framebuffer pixels, so a figure laid out at CSS size renders at full
+    // device resolution (same contract as VulkanBackend::set_pixel_scale).
+    void  set_pixel_scale(float scale) override { pixel_scale_ = scale > 0.0f ? scale : 1.0f; }
+    float pixel_scale() const override { return pixel_scale_; }
     void draw(uint32_t vertex_count, uint32_t first_vertex) override;
     void draw_instanced(uint32_t vertex_count,
                         uint32_t instance_count,
@@ -185,6 +191,8 @@ class WebGPUBackend : public Backend
     uint32_t        offscreen_height_     = 0;
 
     bool headless_ = false;
+
+    float pixel_scale_ = 1.0f;   // framebuffer px per logical px
 
     // ── Current frame state ──────────────────────────────────────────────────
     WGPUCommandEncoder    encoder_            = nullptr;

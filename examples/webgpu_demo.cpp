@@ -110,9 +110,11 @@ int main()
     auto& fig1 = app.figure({.width = 800, .height = 600});
     auto& ax1  = fig1.subplot(1, 1, 1);
 
-    ax1.line(x, y_sin).label("sin(t)").color(spectra::rgb(0.3f, 0.6f, 1.0f));
-    ax1.line(x, y_cos).label("cos(t)").color(spectra::rgb(1.0f, 0.4f, 0.4f));
-    ax1.line(x, y_damped).label("damped").color(spectra::rgb(0.4f, 1.0f, 0.5f));
+    // No explicit colors: series take the theme's data palette, as in the
+    // native app.
+    ax1.line(x, y_sin).label("sin(t)");
+    ax1.line(x, y_cos).label("cos(t)");
+    ax1.line(x, y_damped).label("e^(−0.15t) · sin(2t)");
 
     ax1.title("Spectra — WebGPU Backend");
     ax1.xlabel("Time (s)");
@@ -132,7 +134,7 @@ int main()
         sy[i]   = std::cos(2.0f * t);
     }
 
-    ax2.scatter(sx, sy).label("Lissajous 3:2").color(spectra::rgb(1.0f, 0.7f, 0.2f)).size(6.0f);
+    ax2.scatter(sx, sy).label("Lissajous 3:2").size(6.0f);
 
     ax2.title("Scatter — Lissajous Curve");
     ax2.xlabel("sin(3t)");

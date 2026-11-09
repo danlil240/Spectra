@@ -490,6 +490,13 @@ if(EMSCRIPTEN)
         COMMENT "Generating Vulkan entry-point stubs for Emscripten"
     )
     target_sources(spectra PRIVATE ${_spectra_vk_stubs})
+
+    # Browsers have no system fonts for the text fallback chain, so embed a
+    # small DejaVu Sans subset (Greek, arrows, math and other symbols) into
+    # every page that links Spectra.  font_fallback.cpp looks for it here.
+    target_link_options(spectra PUBLIC
+        "SHELL:--embed-file ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans-Symbols.ttf@/spectra/fonts/DejaVuSans-Symbols.ttf"
+    )
 endif()
 
 # Ensure shaders are compiled before the library

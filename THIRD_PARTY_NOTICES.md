@@ -36,6 +36,7 @@ How a component reaches you:
 | Inter (Regular, 4.001) | 4.001 | SIL OFL 1.1 | embedded asset (`third_party/Inter-Regular.ttf`, installed to `share/spectra/fonts/`, embedded into `libspectra`) | https://github.com/rsms/inter |
 | Inter (variable, InterVariable.ttf) | 4.x | SIL OFL 1.1 | embedded asset (`third_party/inter_font.hpp`) | https://github.com/rsms/inter |
 | Font Awesome Free (Solid 900) | 6.5.1 | Font: SIL OFL 1.1; icons: CC BY 4.0; code: MIT | embedded asset (`third_party/fa_solid_900.hpp`) | https://github.com/FortAwesome/Font-Awesome |
+| DejaVu Sans (symbol subset) | 2.37 | Bitstream Vera license (DejaVu changes public domain) | embedded asset (`third_party/fonts/DejaVuSans-Symbols.ttf`, embedded into Emscripten/browser builds only as the symbol fallback font) | https://dejavu-fonts.github.io/ |
 
 ## Build-time / test-only components (not redistributed)
 
@@ -75,6 +76,7 @@ are original Spectra artwork under Spectra's MIT License.
 | [`licenses/tinyfiledialogs-LICENSE.txt`](licenses/tinyfiledialogs-LICENSE.txt) | tinyfiledialogs (zlib) |
 | [`licenses/Inter-OFL.txt`](licenses/Inter-OFL.txt) | Inter (SIL OFL 1.1) |
 | [`licenses/FontAwesome-Free-LICENSE.txt`](licenses/FontAwesome-Free-LICENSE.txt) | Font Awesome Free (OFL 1.1 fonts, CC BY 4.0 icons, MIT code) |
+| [`licenses/DejaVu-LICENSE.txt`](licenses/DejaVu-LICENSE.txt) | DejaVu Sans symbol subset (Bitstream Vera license) |
 
 Font Awesome attribution (CC BY 4.0): icons by Fonticons, Inc.,
 https://fontawesome.com, licensed under CC BY 4.0

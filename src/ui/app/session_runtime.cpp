@@ -8,6 +8,7 @@
 #include <spectra/series.hpp>
 
 #include "anim/frame_scheduler.hpp"
+#include "render/pixel_scale.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/commands/command_queue.hpp"
@@ -36,6 +37,7 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <chrono>
 #include <string>
 #include <thread>
@@ -712,9 +714,15 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     if (!headless && !window_mgr && frame_state.active_figure)
     {
-        auto* fig           = frame_state.active_figure;
-        fig->config_.width  = backend_.swapchain_width();
-        fig->config_.height = backend_.swapchain_height();
+        // Lay the figure out in logical pixels; the backend's pixel scale
+        // (devicePixelRatio in the browser) maps them onto the framebuffer,
+        // so text and line widths keep their size and stay sharp on HiDPI.
+        auto*          fig      = frame_state.active_figure;
+        const float    ps       = backend_.pixel_scale();
+        const uint32_t layout_w = logical_extent(backend_.swapchain_width(), ps);
+        const uint32_t layout_h = logical_extent(backend_.swapchain_height(), ps);
+        fig->config_.width      = layout_w;
+        fig->config_.height     = layout_h;
         fig->compute_layout();
 
         if (backend_.begin_frame())
@@ -722,9 +730,7 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
             renderer_.begin_render_pass();
             renderer_.set_legend_overlay_active(false);   // no ImGui overlay here
             renderer_.render_figure_content(*fig);
-            auto sw = static_cast<float>(backend_.swapchain_width());
-            auto sh = static_cast<float>(backend_.swapchain_height());
-            renderer_.render_text(sw, sh);
+            renderer_.render_text(static_cast<float>(layout_w), static_cast<float>(layout_h));
             renderer_.end_render_pass();
             backend_.end_frame();
         }

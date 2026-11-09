@@ -37,6 +37,12 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);   // No OpenGL context
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    #ifdef __EMSCRIPTEN__
+    // Size the canvas backing store at devicePixelRatio x its CSS size, so the
+    // browser does not upscale (and blur) the plot on HiDPI displays.  The
+    // window size stays in CSS pixels, which is what mouse events report.
+    glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+    #endif
     set_wayland_app_id();
 
     window_ = glfwCreateWindow(static_cast<int>(width),

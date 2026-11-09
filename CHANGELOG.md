@@ -11,6 +11,10 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+### Fixed
+
+- WebGPU windows, including the browser demo, now respond to the mouse and keyboard (pan, scroll zoom, box zoom, reset). Only Vulkan windows had input wired before.
+
 ## [0.4.0] - 2026-11-06
 
 First public preview: Linux is the supported platform; macOS and Windows are experimental.

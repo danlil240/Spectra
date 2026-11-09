@@ -44,6 +44,7 @@
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
 
+    #include "ui/input/input.hpp"
     #include "ui/window/glfw_adapter.hpp"
 #endif
 
@@ -257,6 +258,11 @@ struct App::AppRuntime
 #ifdef SPECTRA_USE_GLFW
     std::unique_ptr<GlfwAdapter>   glfw;
     std::unique_ptr<WindowManager> window_mgr;
+    // Pan/zoom for backends without WindowManager (WebGPU, incl. the browser
+    // build): GLFW callbacks feed this handler directly.
+    std::unique_ptr<InputHandler>         simple_input;
+    std::chrono::steady_clock::time_point simple_input_last;
+    Figure*                               simple_input_fig = nullptr;
 #endif
 
 #ifdef SPECTRA_USE_SDL3
@@ -314,6 +320,109 @@ struct App::AppRuntime
         plugin_manager.detach_host();
     }
 };
+
+#ifdef SPECTRA_USE_GLFW
+namespace
+{
+
+// GLFW reports the cursor in window coordinates; figure layout uses
+// framebuffer pixels (they differ on HiDPI screens and browser canvases).
+void cursor_to_framebuffer(GLFWwindow* w, double& x, double& y)
+{
+    int ww = 0, wh = 0, fw = 0, fh = 0;
+    glfwGetWindowSize(w, &ww, &wh);
+    glfwGetFramebufferSize(w, &fw, &fh);
+    if (ww > 0 && wh > 0)
+    {
+        x *= static_cast<double>(fw) / ww;
+        y *= static_cast<double>(fh) / wh;
+    }
+}
+
+InputHandler* simple_input_of(GLFWwindow* w)
+{
+    return static_cast<InputHandler*>(glfwGetWindowUserPointer(w));
+}
+
+// Wire GLFW input to an InputHandler for windows that have no WindowManager
+// (non-Vulkan backends such as WebGPU).  Without this the plot ignores the
+// mouse and keyboard entirely.
+template <typename Runtime>
+void install_simple_input(Runtime& rt)
+{
+    auto* win = rt.glfw ? static_cast<GLFWwindow*>(rt.glfw->native_window()) : nullptr;
+    if (!win)
+        return;
+    rt.simple_input      = std::make_unique<InputHandler>();
+    rt.simple_input_last = std::chrono::steady_clock::now();
+    glfwSetWindowUserPointer(win, rt.simple_input.get());
+
+    glfwSetMouseButtonCallback(win,
+                               [](GLFWwindow* w, int button, int action, int mods)
+                               {
+                                   double x = 0.0, y = 0.0;
+                                   glfwGetCursorPos(w, &x, &y);
+                                   cursor_to_framebuffer(w, x, y);
+                                   if (auto* in = simple_input_of(w))
+                                       in->on_mouse_button(button, action, mods, x, y);
+                               });
+    glfwSetCursorPosCallback(win,
+                             [](GLFWwindow* w, double x, double y)
+                             {
+                                 cursor_to_framebuffer(w, x, y);
+                                 if (auto* in = simple_input_of(w))
+                                     in->on_mouse_move(x, y);
+                             });
+    glfwSetScrollCallback(win,
+                          [](GLFWwindow* w, double dx, double dy)
+                          {
+                              double x = 0.0, y = 0.0;
+                              glfwGetCursorPos(w, &x, &y);
+                              cursor_to_framebuffer(w, x, y);
+                              if (auto* in = simple_input_of(w))
+                                  in->on_scroll(dx, dy, x, y);
+                          });
+    glfwSetKeyCallback(win,
+                       [](GLFWwindow* w, int key, int /*scancode*/, int action, int mods)
+                       {
+                           if (auto* in = simple_input_of(w))
+                               in->on_key(key, action, mods);
+                       });
+}
+
+// Point the handler at the figure being drawn and advance its animations
+// (animated zoom, inertial pan).
+template <typename Runtime>
+void update_simple_input(Runtime& rt, Backend& backend)
+{
+    if (!rt.simple_input)
+        return;
+    auto  now            = std::chrono::steady_clock::now();
+    float dt             = std::chrono::duration<float>(now - rt.simple_input_last).count();
+    rt.simple_input_last = now;
+
+    Figure* fig = rt.frame_state.active_figure;
+    if (!fig)
+        return;
+    if (fig != rt.simple_input_fig)
+    {
+        // New figure: default to its first axes until a click hit-tests one.
+        rt.simple_input_fig = fig;
+        rt.simple_input->set_figure(fig);
+        if (!fig->axes().empty() && fig->axes()[0])
+            rt.simple_input->set_active_axes(fig->axes()[0].get());
+        else if (!fig->all_axes().empty() && fig->all_axes()[0])
+            rt.simple_input->set_active_axes_base(fig->all_axes()[0].get());
+    }
+    rt.simple_input->set_viewport(0.0f,
+                                  0.0f,
+                                  static_cast<float>(backend.swapchain_width()),
+                                  static_cast<float>(backend.swapchain_height()));
+    rt.simple_input->update(dt);
+}
+
+}   // namespace
+#endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
 // Called before `dying` (a window's UI context) is destroyed.  When it hosts
@@ -661,6 +770,10 @@ void App::init_runtime()
                     }
                 }
             }   // if (config_.backend == RenderBackend::Vulkan)
+            else
+            {
+                install_simple_input(rt);
+            }
         }
     }
 #endif
@@ -1169,6 +1282,7 @@ App::StepResult App::step()
     #ifdef SPECTRA_USE_GLFW
         if (rt.glfw)
         {
+            update_simple_input(rt, *backend_);
             rt.glfw->poll_events();
             if (rt.glfw->should_close())
             {

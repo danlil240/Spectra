@@ -44,8 +44,12 @@
     #define GLFW_INCLUDE_VULKAN
     #include <GLFW/glfw3.h>
 
+    #include "render/pixel_scale.hpp"
     #include "ui/input/input.hpp"
     #include "ui/window/glfw_adapter.hpp"
+    #ifdef __EMSCRIPTEN__
+        #include <emscripten.h>
+    #endif
 #endif
 
 #ifdef SPECTRA_USE_SDL3
@@ -325,17 +329,33 @@ struct App::AppRuntime
 namespace
 {
 
-// GLFW reports the cursor in window coordinates; figure layout uses
-// framebuffer pixels (they differ on HiDPI screens and browser canvases).
-void cursor_to_framebuffer(GLFWwindow* w, double& x, double& y)
+// Logical layout size and pixel scale for a window without WindowManager.
+// The figure is laid out in window coordinates and drawn at framebuffer
+// resolution, so it keeps its size and stays sharp on HiDPI screens and
+// browser canvases with devicePixelRatio > 1.
+SurfaceScale simple_surface_scale(GLFWwindow* w)
 {
     int ww = 0, wh = 0, fw = 0, fh = 0;
     glfwGetWindowSize(w, &ww, &wh);
     glfwGetFramebufferSize(w, &fw, &fh);
+    return compute_surface_scale(ww,
+                                 wh,
+                                 static_cast<uint32_t>(std::max(fw, 0)),
+                                 static_cast<uint32_t>(std::max(fh, 0)));
+}
+
+// GLFW reports the cursor in window coordinates; map it to the figure's
+// layout coordinates (identical unless the window is smaller than its
+// framebuffer and the layout falls back to framebuffer pixels).
+void cursor_to_layout(GLFWwindow* w, double& x, double& y)
+{
+    int ww = 0, wh = 0;
+    glfwGetWindowSize(w, &ww, &wh);
+    const SurfaceScale s = simple_surface_scale(w);
     if (ww > 0 && wh > 0)
     {
-        x *= static_cast<double>(fw) / ww;
-        y *= static_cast<double>(fh) / wh;
+        x *= static_cast<double>(s.layout_width) / ww;
+        y *= static_cast<double>(s.layout_height) / wh;
     }
 }
 
@@ -362,14 +382,14 @@ void install_simple_input(Runtime& rt)
                                {
                                    double x = 0.0, y = 0.0;
                                    glfwGetCursorPos(w, &x, &y);
-                                   cursor_to_framebuffer(w, x, y);
+                                   cursor_to_layout(w, x, y);
                                    if (auto* in = simple_input_of(w))
                                        in->on_mouse_button(button, action, mods, x, y);
                                });
     glfwSetCursorPosCallback(win,
                              [](GLFWwindow* w, double x, double y)
                              {
-                                 cursor_to_framebuffer(w, x, y);
+                                 cursor_to_layout(w, x, y);
                                  if (auto* in = simple_input_of(w))
                                      in->on_mouse_move(x, y);
                              });
@@ -378,7 +398,7 @@ void install_simple_input(Runtime& rt)
                           {
                               double x = 0.0, y = 0.0;
                               glfwGetCursorPos(w, &x, &y);
-                              cursor_to_framebuffer(w, x, y);
+                              cursor_to_layout(w, x, y);
                               if (auto* in = simple_input_of(w))
                                   in->on_scroll(dx, dy, x, y);
                           });
@@ -388,6 +408,45 @@ void install_simple_input(Runtime& rt)
                            if (auto* in = simple_input_of(w))
                                in->on_key(key, action, mods);
                        });
+}
+
+// Keep the swapchain and pixel scale in step with the window.  In the browser
+// the GLFW window is also resized to fill the canvas's parent element, so the
+// plot follows the page layout instead of staying at its initial size.
+template <typename Runtime>
+void sync_simple_surface(Runtime& rt, Backend& backend)
+{
+    auto* win = rt.glfw ? static_cast<GLFWwindow*>(rt.glfw->native_window()) : nullptr;
+    if (!win)
+        return;
+
+    #ifdef __EMSCRIPTEN__
+    // clang-format off
+    const int css_w = EM_ASM_INT({
+        const c = Module.canvas;
+        return (c && c.parentElement) ? Math.floor(c.parentElement.clientWidth) : 0;
+    });
+    const int css_h = EM_ASM_INT({
+        const c = Module.canvas;
+        return (c && c.parentElement) ? Math.floor(c.parentElement.clientHeight) : 0;
+    });
+    // clang-format on
+    int ww = 0, wh = 0;
+    glfwGetWindowSize(win, &ww, &wh);
+    if (css_w > 0 && css_h > 0 && (css_w != ww || css_h != wh))
+        glfwSetWindowSize(win, css_w, css_h);
+    #endif
+
+    int fw = 0, fh = 0;
+    glfwGetFramebufferSize(win, &fw, &fh);
+    if (fw <= 0 || fh <= 0)
+        return;   // minimised or hidden: keep the last swapchain
+    if (static_cast<uint32_t>(fw) != backend.swapchain_width()
+        || static_cast<uint32_t>(fh) != backend.swapchain_height())
+    {
+        backend.recreate_swapchain(static_cast<uint32_t>(fw), static_cast<uint32_t>(fh));
+    }
+    backend.set_pixel_scale(simple_surface_scale(win).pixel_scale);
 }
 
 // Point the handler at the figure being drawn and advance its animations
@@ -414,10 +473,14 @@ void update_simple_input(Runtime& rt, Backend& backend)
         else if (!fig->all_axes().empty() && fig->all_axes()[0])
             rt.simple_input->set_active_axes_base(fig->all_axes()[0].get());
     }
+    // Same logical size the session's simple render path lays the figure out at.
+    const float    ps       = backend.pixel_scale();
+    const uint32_t layout_w = logical_extent(backend.swapchain_width(), ps);
+    const uint32_t layout_h = logical_extent(backend.swapchain_height(), ps);
     rt.simple_input->set_viewport(0.0f,
                                   0.0f,
-                                  static_cast<float>(backend.swapchain_width()),
-                                  static_cast<float>(backend.swapchain_height()));
+                                  static_cast<float>(layout_w),
+                                  static_cast<float>(layout_h));
     rt.simple_input->update(dt);
 }
 
@@ -1282,6 +1345,8 @@ App::StepResult App::step()
     #ifdef SPECTRA_USE_GLFW
         if (rt.glfw)
         {
+            if (rt.simple_input)
+                sync_simple_surface(rt, *backend_);
             update_simple_input(rt, *backend_);
             rt.glfw->poll_events();
             if (rt.glfw->should_close())

@@ -380,6 +380,9 @@ const std::vector<std::vector<const char*>>& candidate_groups()
             "/System/Library/Fonts/Apple Symbols.ttf",
             "C:/Windows/Fonts/seguisym.ttf",
             "C:/Windows/Fonts/cambria.ttc",
+            // Browser (Emscripten) builds have no system fonts; CMake embeds a
+            // DejaVu Sans symbol subset at this path in the virtual filesystem.
+            "/spectra/fonts/DejaVuSans-Symbols.ttf",
         },
         // CJK
         {

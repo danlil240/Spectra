@@ -300,6 +300,15 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_get_dpi_scale.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_get_dpi_scale.restype = ctypes.c_float
 
+    # Optional: older libraries do not export it (cursor_data() then returns None).
+    if hasattr(_lib, "spectra_embed_get_cursor_data"):
+        _lib.spectra_embed_get_cursor_data.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
+        ]
+        _lib.spectra_embed_get_cursor_data.restype = ctypes.c_int
+
     _lib.spectra_embed_set_background_alpha.argtypes = [ctypes.c_void_p, ctypes.c_float]
     _lib.spectra_embed_set_background_alpha.restype = None
 
@@ -806,11 +815,16 @@ def _resolve(value, mapping, kind: str) -> int:
 class EmbedSeries:
     """Proxy for a series in an embedded plot."""
 
-    __slots__ = ("_handle", "_lib")
+    __slots__ = ("_handle", "_lib", "_surface")
 
-    def __init__(self, handle: ctypes.c_void_p) -> None:
+    def __init__(
+        self, handle: ctypes.c_void_p, surface: "Optional[EmbedSurface]" = None
+    ) -> None:
         self._handle = handle
         self._lib = _load_lib()
+        # Owning surface, told about every change so live notebook canvases
+        # can re-render (see EmbedSurface.add_change_listener).
+        self._surface = surface
 
     def set_x(self, data) -> None:
         ptr, n = _to_float_ptr(data)
@@ -996,11 +1010,16 @@ class EmbedSeries:
 class EmbedAxes:
     """Proxy for axes in an embedded plot."""
 
-    __slots__ = ("_handle", "_lib")
+    __slots__ = ("_handle", "_lib", "_surface")
 
-    def __init__(self, handle: ctypes.c_void_p) -> None:
+    def __init__(
+        self, handle: ctypes.c_void_p, surface: "Optional[EmbedSurface]" = None
+    ) -> None:
         self._handle = handle
         self._lib = _load_lib()
+        # Owning surface, told about every change so live notebook canvases
+        # can re-render (see EmbedSurface.add_change_listener).
+        self._surface = surface
 
     def line(self, x, y, label: Optional[str] = None) -> EmbedSeries:
         xp, n = _to_float_ptr(x)
@@ -1010,7 +1029,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes_line(self._handle, xp, yp, n, lbl)
         if not h:
             raise RuntimeError("Failed to create line series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     def scatter(
         self, x, y, label: Optional[str] = None, c=None, cmap: Optional[str] = None
@@ -1030,7 +1049,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes_scatter(self._handle, xp, yp, n, lbl)
         if not h:
             raise RuntimeError("Failed to create scatter series")
-        series = EmbedSeries(h)
+        series = EmbedSeries(h, self._surface)
         if c is not None:
             series.set_scatter_colormap(cmap or "viridis")
             series.set_scatter_colors(c)
@@ -1137,7 +1156,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes_histogram(self._handle, vp, n, bins, lbl)
         if not h:
             raise RuntimeError("Failed to create histogram series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     def bar(self, positions, heights, label: Optional[str] = None) -> EmbedSeries:
         """Add a bar series.
@@ -1157,7 +1176,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes_bar(self._handle, pp, hp, pn, lbl)
         if not h:
             raise RuntimeError("Failed to create bar series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     # ── Phase 7B: stem ────────────────────────────────────────────────────
 
@@ -1180,7 +1199,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes_stem(self._handle, xp, yp, xn, lbl)
         if not h:
             raise RuntimeError("Failed to create stem series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     # ── Phase 1D: 3D series ──────────────────────────────────────────────
 
@@ -1194,7 +1213,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes3d_line(self._handle, xp, yp, zp, n, lbl)
         if not h:
             raise RuntimeError("Failed to create 3D line series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     def scatter3d(self, x, y, z, label: Optional[str] = None) -> EmbedSeries:
         """Add a 3D scatter series (requires a 3D subplot)."""
@@ -1206,7 +1225,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes3d_scatter(self._handle, xp, yp, zp, n, lbl)
         if not h:
             raise RuntimeError("Failed to create 3D scatter series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     def surf(
         self, x_grid, y_grid, z_values, label: Optional[str] = None
@@ -1223,7 +1242,7 @@ class EmbedAxes:
         h = self._lib.spectra_axes3d_surf(self._handle, xp, nx, yp, ny, zp, lbl)
         if not h:
             raise RuntimeError("Failed to create 3D surface series")
-        return EmbedSeries(h)
+        return EmbedSeries(h, self._surface)
 
     # ── Phase 1E: legend control ─────────────────────────────────────────
 
@@ -1267,17 +1286,48 @@ class EmbedFigure:
         h = self._lib.spectra_figure_subplot(self._handle, rows, cols, index)
         if not h:
             raise RuntimeError("Failed to create subplot")
-        return EmbedAxes(h)
+        return EmbedAxes(h, self.surface)
 
     def subplot3d(self, rows: int = 1, cols: int = 1, index: int = 1) -> EmbedAxes:
         h = self._lib.spectra_figure_subplot3d(self._handle, rows, cols, index)
         if not h:
             raise RuntimeError("Failed to create 3D subplot")
-        return EmbedAxes(h)
+        return EmbedAxes(h, self.surface)
 
     def set_title(self, title: str) -> None:
         """Set the figure title (sets first axes title)."""
         self._lib.spectra_figure_set_title(self._handle, title.encode("utf-8"))
+
+
+def _notify_surface_after_calls(cls, skip=()) -> None:
+    """Wrap ``cls``'s public methods so each call tells the owning surface.
+
+    Every public method of the series / axes / figure proxies changes the plot
+    (data, style, limits, new series), except the names in ``skip``.
+    """
+    import functools
+
+    for name, fn in list(vars(cls).items()):
+        if name.startswith("_") or name in skip or not callable(fn):
+            continue
+
+        def make(fn):
+            @functools.wraps(fn)
+            def wrapper(self, *args, **kwargs):
+                result = fn(self, *args, **kwargs)
+                surface = self._surface if hasattr(self, "_surface") else self.surface
+                if surface is not None:
+                    surface._notify_changed()
+                return result
+
+            return wrapper
+
+        setattr(cls, name, make(fn))
+
+
+_notify_surface_after_calls(EmbedSeries)
+_notify_surface_after_calls(EmbedAxes, skip=("annotation_count",))
+_notify_surface_after_calls(EmbedFigure)
 
 
 class EmbedSurface:
@@ -1352,6 +1402,9 @@ class EmbedSurface:
         self._hover_cb = None
         self._view_cb = None
         self._widget = None
+        self._change_listeners = []
+        # True once the user picked a theme (constructor or set_theme()).
+        self._explicit_theme = bool(theme)
 
     def __del__(self) -> None:
         if hasattr(self, "_handle") and self._handle:
@@ -1456,6 +1509,26 @@ class EmbedSurface:
         except Exception:
             return None
 
+    # ── Change notification ──────────────────────────────────────────────
+
+    def add_change_listener(self, fn) -> None:
+        """Call ``fn()`` after each change made through this surface's figures,
+        axes or series (new data, styles, limits). Used by live notebook canvases.
+        """
+        if fn not in self._change_listeners:
+            self._change_listeners.append(fn)
+
+    def remove_change_listener(self, fn) -> None:
+        """Stop calling ``fn`` (no-op when it is not registered)."""
+        try:
+            self._change_listeners.remove(fn)
+        except ValueError:
+            pass
+
+    def _notify_changed(self) -> None:
+        for fn in list(getattr(self, "_change_listeners", ())):
+            fn()
+
     def widget(self, **kwargs):
         """Return a live, pannable, zoomable Jupyter widget for this surface.
 
@@ -1519,8 +1592,30 @@ class EmbedSurface:
     # ── Display configuration ────────────────────────────────────────────
 
     def set_dpi_scale(self, scale: float) -> None:
-        """Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI)."""
+        """Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
+
+        Framebuffer pixels per logical pixel: the plot is laid out at
+        ``width / scale`` x ``height / scale`` and drawn ``scale`` times larger,
+        so text, ticks and lines keep their apparent size and stay sharp when
+        the image is shown at ``1 / scale`` of its pixel size. Input
+        coordinates stay in surface pixels.
+        """
         self._lib.spectra_embed_set_dpi_scale(self._handle, scale)
+
+    def cursor_data(self) -> Optional[Tuple[float, float]]:
+        """Data ``(x, y)`` under the pointer (last :meth:`mouse_move`), or None.
+
+        None when the pointer is not over a 2D axes, or the library is too old
+        to report it.
+        """
+        fn = getattr(self._lib, "spectra_embed_get_cursor_data", None)
+        if fn is None:
+            return None
+        x = ctypes.c_double()
+        y = ctypes.c_double()
+        if not fn(self._handle, ctypes.byref(x), ctypes.byref(y)):
+            return None
+        return x.value, y.value
 
     @property
     def dpi_scale(self) -> float:
@@ -1540,7 +1635,14 @@ class EmbedSurface:
     # ── Theme & UI chrome ─────────────────────────────────────────────────
 
     def set_theme(self, theme: str) -> None:
-        """Set theme ('dark' or 'light')."""
+        """Set theme ('light', 'dark' or 'night')."""
+        self._explicit_theme = True
+        self._apply_theme(theme)
+        self._notify_changed()
+
+    def _apply_theme(self, theme: str) -> None:
+        # Without marking the theme as chosen by the user (notebook canvases
+        # use this to follow the notebook's colours).
         self._lib.spectra_embed_set_theme(self._handle, theme.encode("utf-8"))
 
     def set_show_command_bar(self, visible: bool) -> None:

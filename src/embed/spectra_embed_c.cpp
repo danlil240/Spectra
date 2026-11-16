@@ -1016,6 +1016,23 @@ extern "C"
         return c_guard<float>(1.0f, body);
     }
 
+    int spectra_embed_get_cursor_data(const SpectraEmbed* s, double* x, double* y)
+    {
+        auto body = [&]() -> int
+        {
+            if (!s || !x || !y)
+                return 0;
+            double dx = 0.0;
+            double dy = 0.0;
+            if (!s->surface.cursor_data(dx, dy))
+                return 0;
+            *x = dx;
+            *y = dy;
+            return 1;
+        };
+        return c_guard<int>(0, body);
+    }
+
     void spectra_embed_set_background_alpha(SpectraEmbed* s, float alpha)
     {
         auto body = [&]()

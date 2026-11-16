@@ -11,6 +11,8 @@
             --dim:  #6c7086;
             --link: #89b4fa;
             --code: #181825;
+            --ok:   #a6e3a1;
+            --err:  #f38ba8;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -41,10 +43,82 @@
             overflow: hidden;
             background: #11111b;
         }
+        /* Phones: a taller canvas so both stacked plots stay readable. */
+        @media (max-width: 600px) {
+            body { padding: 1rem 0.75rem; }
+            #canvas-container { aspect-ratio: 3 / 4; max-height: 80vh; }
+        }
         canvas {
             display: block;
             width: 100%;
             height: 100%;
+            /* One-finger drag pans and two-finger pinch zooms the plot
+               instead of scrolling or zooming the page. */
+            touch-action: none;
+        }
+
+        /* Static picture of the demo: shown while the ~11 MB WebAssembly
+           module downloads, and kept as a fallback without WebGPU. */
+        #poster {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top center;
+            opacity: 0.35;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        #poster.fallback { opacity: 0.6; }
+        #poster.hidden { opacity: 0; }
+
+        /* Loading progress / fallback message, over the poster. */
+        #overlay {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: min(26rem, 86%);
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            background: rgba(17, 17, 27, 0.88);
+            border: 1px solid #313244;
+            text-align: center;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        #overlay.hidden { display: none; }
+        #overlay-text { margin-bottom: 0.6rem; }
+        #overlay.fallback #overlay-text { margin-bottom: 0; }
+        #progress {
+            position: relative;
+            height: 6px;
+            border-radius: 3px;
+            background: #313244;
+            overflow: hidden;
+        }
+        #overlay.fallback #progress { display: none; }
+        #progress-bar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 0;
+            background: var(--link);
+            transition: width 0.15s;
+        }
+        /* Size unknown (compressed transfer): a sliding bar instead of a fill. */
+        #progress.indeterminate #progress-bar {
+            width: 30%;
+            animation: slide 1.2s ease-in-out infinite;
+        }
+        @keyframes slide {
+            from { left: -30%; }
+            to   { left: 100%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #progress.indeterminate #progress-bar { animation: none; left: 0; width: 100%; opacity: 0.5; }
         }
 
         #status {
@@ -54,8 +128,8 @@
             text-align: center;
             max-width: 760px;
         }
-        #status.error { color: #f38ba8; white-space: pre-line; text-align: left; }
-        #status.ok    { color: #a6e3a1; }
+        #status.error { color: var(--err); white-space: pre-line; text-align: left; }
+        #status.ok    { color: var(--ok); }
 
         .info {
             margin-top: 1.5rem;
@@ -80,6 +154,12 @@
     <div id="canvas-container">
         <canvas id="canvas" width="800" height="600"
                 oncontextmenu="event.preventDefault()"></canvas>
+        <img id="poster" src="webgpu_demo.poster.png" alt=""
+             onerror="this.style.display='none'">
+        <div id="overlay" role="status" aria-live="polite">
+            <p id="overlay-text">Checking for WebGPU&hellip;</p>
+            <div id="progress"><div id="progress-bar"></div></div>
+        </div>
     </div>
 
     <p id="status">Initializing WebGPU&hellip;</p>
@@ -90,7 +170,12 @@
             WebAssembly via Emscripten.  The rendering uses the
             <strong>WebGPU API</strong> — no Vulkan, no OpenGL, no software
             fallback.  Requires a WebGPU-capable browser (Chrome 113+,
-            Edge 113+, or Firefox Nightly with <code>dom.webgpu.enabled</code>).
+            Edge 113+, Safari 26+, or Firefox 141+ on Windows).
+        </p>
+        <p style="margin-top: 0.5rem;">
+            <strong>Try it:</strong> scroll or pinch to zoom, drag to pan,
+            right-drag to zoom one axis, double-click to reset.  Each plot
+            zooms and pans on its own.
         </p>
         <p style="margin-top: 0.5rem;">
             <strong>Supported on WebGPU (experimental 2D subset):</strong>
@@ -106,6 +191,8 @@
             <a href="https://github.com/danlil240/Spectra/blob/main/examples/webgpu_demo.cpp">
                 examples/webgpu_demo.cpp
             </a>
+            &middot;
+            <a href="https://danlil240.github.io/Spectra/webgpu.html">WebGPU backend docs</a>
         </p>
     </div>
 
@@ -113,13 +200,26 @@
         // ── Status line ───────────────────────────────────────────────────
         // Red on any failure (sticky: later successes don't hide an error);
         // green only once the first frame rendered without a GPU error.
-        const statusEl = document.getElementById("status");
+        const statusEl   = document.getElementById("status");
+        const posterEl   = document.getElementById("poster");
+        const overlayEl  = document.getElementById("overlay");
+        const overlayTxt = document.getElementById("overlay-text");
+        const progressEl = document.getElementById("progress");
+        const barEl      = document.getElementById("progress-bar");
         let statusFailed = false;
 
         function setStatus(text, cls) {
             if (statusFailed) return;
             statusEl.textContent = text;
             statusEl.className = cls || "";
+        }
+
+        // Keep the poster with a message in front of it (no WebGPU, or a
+        // failure before the first frame).
+        function showFallback(text) {
+            overlayTxt.textContent = text;
+            overlayEl.className = "fallback";
+            posterEl.className = "fallback";
         }
 
         function showError(text) {
@@ -129,38 +229,165 @@
             statusFailed = true;
             statusEl.textContent = "Error: " + msg;
             statusEl.className = "error";
+            if (!overlayEl.classList.contains("hidden"))
+                showFallback("The live demo could not start. This is a static picture of it.");
+        }
+
+        function setProgress(received, total) {
+            const mb = (received / 1048576).toFixed(1);
+            if (total > 0 && received <= total) {
+                progressEl.className = "";
+                barEl.style.width = (100 * received / total).toFixed(1) + "%";
+                overlayTxt.textContent = "Downloading the plotting engine… " + mb + " / " +
+                                         (total / 1048576).toFixed(1) + " MB";
+            } else {
+                progressEl.className = "indeterminate";
+                overlayTxt.textContent = "Downloading the plotting engine… " + mb + " MB";
+            }
         }
 
         const RUNNING_TEXT =
-            "Running: scroll to zoom, drag to pan, Ctrl+drag to box-zoom, double-click to reset.";
+            "Running: scroll or pinch to zoom, drag to pan, Ctrl+drag to box-zoom, " +
+            "double-click to reset.";
         const NO_WEBGPU_TEXT =
             "WebGPU is not available in this browser. " +
-            "Try Chrome 113+, Edge 113+, or Firefox Nightly with dom.webgpu.enabled.";
+            "Try Chrome 113+, Edge 113+, Safari 26+, or Firefox 141+ on Windows.";
 
         // ── WebGPU availability check ─────────────────────────────────────
-        if (!navigator.gpu) {
-            showError(NO_WEBGPU_TEXT);
-        } else {
-            setStatus("Loading WASM module…");
-            navigator.gpu.requestAdapter().then(
-                (adapter) => {
-                    if (!adapter)
-                        showError("No WebGPU adapter available: the GPU may be blocklisted or " +
-                                  "WebGPU disabled. Try Chrome 113+, Edge 113+, or Firefox " +
-                                  "Nightly with dom.webgpu.enabled.");
-                },
-                (err) => showError("WebGPU adapter request failed: " + (err && err.message || err)));
-        }
+        // Resolves true when an adapter exists.  Without one the 11 MB module
+        // is never downloaded: the poster and a message stay instead.
+        const webgpuReady = (async () => {
+            if (!navigator.gpu) {
+                showFallback(NO_WEBGPU_TEXT + " Showing a static picture of the demo.");
+                showError(NO_WEBGPU_TEXT);
+                return false;
+            }
+            try {
+                const adapter = await navigator.gpu.requestAdapter();
+                if (adapter) return true;
+                const msg = "No WebGPU adapter available: the GPU may be blocklisted or " +
+                            "WebGPU disabled.";
+                showFallback(msg + " Showing a static picture of the demo.");
+                showError(msg + " Try Chrome 113+, Edge 113+, Safari 26+, or Firefox 141+.");
+            } catch (err) {
+                showError("WebGPU adapter request failed: " + (err && err.message || err));
+            }
+            return false;
+        })();
 
         window.addEventListener("error", (e) => showError(e.message || e.error));
         window.addEventListener("unhandledrejection",
                                 (e) => showError((e.reason && e.reason.message) || e.reason));
+
+        // ── WebAssembly download with progress ────────────────────────────
+        // Name of the module Emscripten emits next to this page.
+        const WASM_FILE = "webgpu_demo.wasm";
+
+        async function fetchWithProgress(url, onProgress) {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error("HTTP " + resp.status + " while loading " + url);
+            // With Content-Encoding (gzip, br) Content-Length counts compressed
+            // bytes while the stream yields decompressed ones: size unknown.
+            const encoded = resp.headers.get("Content-Encoding");
+            const total = encoded ? 0 : Number(resp.headers.get("Content-Length")) || 0;
+            if (!resp.body || !resp.body.getReader)
+                return new Uint8Array(await resp.arrayBuffer());
+            const reader = resp.body.getReader();
+            const chunks = [];
+            let received = 0;
+            onProgress(0, total);
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                received += value.length;
+                onProgress(received, total);
+            }
+            const bytes = new Uint8Array(received);
+            let offset = 0;
+            for (const c of chunks) {
+                bytes.set(c, offset);
+                offset += c.length;
+            }
+            return bytes;
+        }
+
+        // ── Touch: pinch to zoom ──────────────────────────────────────────
+        // Emscripten's GLFW turns the first finger into the left mouse button
+        // (drag = pan) and ignores other fingers.  A second finger starts a
+        // pinch: end the pan, then turn spread / squeeze into wheel steps at
+        // the midpoint between the fingers.
+        (function installPinchZoom(canvas) {
+            const STEP = Math.log(1.15);   // one wheel step per 15% spread change
+            let lastDist = 0;
+            let acc = 0;
+
+            function mid(t) {
+                return { x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 };
+            }
+            function dist(t) {
+                return Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+            }
+            function mouse(type, p) {
+                canvas.dispatchEvent(new MouseEvent(type, {
+                    bubbles: true, cancelable: true, button: 0, clientX: p.x, clientY: p.y,
+                }));
+            }
+
+            canvas.addEventListener("touchstart", (e) => {
+                if (e.touches.length !== 2) return;
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const p = mid(e.touches);
+                mouse("mouseup", p);     // end the one-finger pan
+                mouse("mousemove", p);   // zoom around the midpoint
+                lastDist = dist(e.touches);
+                acc = 0;
+            }, { capture: true, passive: false });
+
+            canvas.addEventListener("touchmove", (e) => {
+                if (e.touches.length < 2) return;
+                e.preventDefault();
+                e.stopImmediatePropagation();   // GLFW must not pan meanwhile
+                const d = dist(e.touches);
+                if (lastDist > 0 && d > 0) acc += Math.log(d / lastDist);
+                lastDist = d;
+                const p = mid(e.touches);
+                while (Math.abs(acc) >= STEP) {
+                    const zoomIn = acc > 0;
+                    acc += zoomIn ? -STEP : STEP;
+                    mouse("mousemove", p);
+                    canvas.dispatchEvent(new WheelEvent("wheel", {
+                        bubbles: true, cancelable: true, clientX: p.x, clientY: p.y,
+                        deltaMode: 0, deltaX: 0, deltaY: zoomIn ? -100 : 100,
+                    }));
+                }
+            }, { capture: true, passive: false });
+        })(document.getElementById("canvas"));
     </script>
 
     <script>
         // Emscripten reads this Module object when the generated glue loads.
         var Module = {
             canvas: document.getElementById("canvas"),
+            // Download the module ourselves to show progress, and only when
+            // WebGPU is available.
+            instantiateWasm: function (imports, receiveInstance) {
+                webgpuReady.then(async (ok) => {
+                    if (!ok) return;   // never start: the fallback stays
+                    try {
+                        const bytes = await fetchWithProgress(WASM_FILE, setProgress);
+                        overlayTxt.textContent = "Starting…";
+                        progressEl.className = "indeterminate";
+                        const result = await WebAssembly.instantiate(bytes, imports);
+                        receiveInstance(result.instance, result.module);
+                    } catch (err) {
+                        showError("Could not load the WebAssembly module: " +
+                                  (err && err.message || err));
+                    }
+                });
+                return {};   // instantiation is asynchronous
+            },
             onRuntimeInitialized: function () {
                 setStatus("Starting renderer…");
             },
@@ -172,9 +399,14 @@
                 showError(msg);
             },
             spectraOnFirstFrame: function () {
+                // The canvas draws: drop the poster (an earlier error, if any,
+                // stays in the status line).
+                overlayEl.className = "hidden";
+                posterEl.className = "hidden";
                 setStatus(RUNNING_TEXT, "ok");
             },
         };
+        setStatus("Loading…");
     </script>
 
     <!-- Emscripten replaces this marker with the generated JS glue. -->

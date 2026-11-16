@@ -14,6 +14,12 @@ The browser side is a small `anywidget <https://anywidget.dev>`_ module, so the
 same widget works in JupyterLab, Notebook 7, VS Code and Colab. Install the
 optional dependencies with ``pip install "spectra-plot[notebook]"``.
 
+The canvas renders at the browser's devicePixelRatio (sharp on Retina
+screens), follows the notebook's light or dark theme, shows the data
+coordinates under the pointer, has Home (reset view) and Save PNG buttons, can
+be resized by dragging its bottom edge, and re-renders by itself when the plot
+is changed from Python (new data, styles, limits).
+
 How it works: the browser sends pointer / wheel / key / resize events to the
 kernel. :class:`FrameController` forwards them to the surface, renders only
 when something changed, caps the frame rate (30 fps by default) and drops
@@ -58,6 +64,35 @@ _WHEEL_UNITS_PER_NOTCH = {0: 100.0, 1: 3.0, 2: 1.0}
 
 _MIN_SURFACE_PX = 16
 _MAX_SURFACE_PX = 8192
+
+# Events after which the data under the pointer may have changed.
+_POINTER_EVENTS = frozenset(("move", "down", "up", "wheel"))
+
+# Theme used for "auto" until the browser reports the notebook's colours.
+_DEFAULT_LIGHT_THEME = "light"
+_DEFAULT_DARK_THEME = "dark"
+
+
+def format_readout(xy: Optional[Tuple[float, float]]) -> str:
+    """Cursor readout text for data coordinates ``(x, y)``; "" for None."""
+    if xy is None:
+        return ""
+    x, y = xy
+    return f"x = {x:.6g}   y = {y:.6g}"
+
+
+def resolve_theme(mode: Optional[str], notebook_dark: Optional[bool]) -> Optional[str]:
+    """Theme to apply for a Canvas ``theme`` argument.
+
+    ``"auto"`` follows the notebook (light until the browser says it is dark),
+    ``None`` keeps the surface's own theme (returns None), any other name is
+    used as is.
+    """
+    if mode is None:
+        return None
+    if mode == "auto":
+        return _DEFAULT_DARK_THEME if notebook_dark else _DEFAULT_LIGHT_THEME
+    return mode
 
 
 def available() -> bool:
@@ -139,7 +174,8 @@ class FrameController:
         idle_delay: float = 0.2,
         settle_time: float = 1.0,
         jpeg_quality: int = 80,
-        hidpi: bool = False,
+        hidpi: bool = True,
+        on_readout: Optional[Callable[[str], None]] = None,
     ) -> None:
         if max_fps <= 0:
             raise ValueError("max_fps must be > 0")
@@ -151,10 +187,13 @@ class FrameController:
         self.idle_delay = idle_delay
         self.settle_time = settle_time
         self.jpeg_quality = jpeg_quality
-        # Render at devicePixelRatio x CSS size. Off by default: the embed
-        # renderer does not scale plot text, ticks and margins with
-        # dpi_scale yet, so a 2x surface would show half-size labels.
+        # Render at devicePixelRatio x CSS size; the surface's dpi_scale makes
+        # text, ticks and lines scale with it, so the image is sharp at CSS size.
         self.hidpi = hidpi
+        # Called with the cursor readout text ("" when not over a 2D axes).
+        self._on_readout = on_readout
+        self.readout = ""
+        self._rendering = False
 
         self._base_dpi = surface.dpi_scale or 1.0
         self._dpr = 1.0
@@ -189,7 +228,11 @@ class FrameController:
     def handle_events(self, events: Iterable[Dict[str, Any]]) -> None:
         """Forward a batch of browser events to the surface, then request one frame."""
         changed = False
+        readout = None  # "update" after pointer input, "clear" once it left
         for ev in events:
+            if isinstance(ev, dict) and ev.get("t") == "leave":
+                readout = "clear"
+                continue
             try:
                 applied = isinstance(ev, dict) and self._apply(ev)
             except (KeyError, TypeError, ValueError):
@@ -197,7 +240,34 @@ class FrameController:
             if applied:
                 changed = True
                 self.events_handled += 1
+                if ev.get("t") in _POINTER_EVENTS:
+                    readout = "update"
         if changed:
+            self.request_frame()
+        if readout == "clear":
+            self._set_readout("")
+        elif readout == "update":
+            self._update_readout()
+
+    def _update_readout(self) -> None:
+        get = getattr(self.surface, "cursor_data", None)
+        xy = get() if get is not None else None
+        self._set_readout(format_readout(xy))
+
+    def _set_readout(self, text: str) -> None:
+        if text == self.readout:
+            return
+        self.readout = text
+        if self._on_readout is not None:
+            self._on_readout(text)
+
+    def notify_changed(self) -> None:
+        """The plot changed from Python: render a new frame (throttled).
+
+        Ignored while this controller is rendering (a frame callback that
+        appends data is already part of that frame).
+        """
+        if not self._rendering:
             self.request_frame()
 
     def _apply(self, ev: Dict[str, Any]) -> bool:
@@ -303,8 +373,12 @@ class FrameController:
         now = self._clock()
         dt = 0.0 if self._last_update_t is None else now - self._last_update_t
         self._last_update_t = now
-        self.surface.update(max(0.0, min(dt, 0.1)))
-        self._rgba = self.surface.render()
+        self._rendering = True
+        try:
+            self.surface.update(max(0.0, min(dt, 0.1)))
+            self._rgba = self.surface.render()
+        finally:
+            self._rendering = False
         self._rgba_size = (self.surface.width, self.surface.height)
         self._last_render_t = now
         self.frames_rendered += 1
@@ -350,12 +424,22 @@ if _HAS_ANYWIDGET:
     class Canvas(_anywidget.AnyWidget):
         """Live, pannable, zoomable notebook view of an :class:`EmbedSurface`.
 
-        Scroll to zoom, drag to pan, right-drag to zoom an axis, double-click or
-        press ``R`` to reset the view. The canvas follows the output width; set
-        :attr:`height` (CSS pixels) to change its height.
+        Scroll to zoom, drag to pan, right-drag to zoom an axis, double-click,
+        press ``R`` or click Home to reset the view; the Save button downloads
+        a PNG. The data coordinates under the pointer show in the bottom-left
+        corner. The canvas follows the output width; drag its bottom-right
+        corner (or set :attr:`height`, in CSS pixels) to change its height.
 
-        ``hidpi=True`` renders at the browser's devicePixelRatio (sharper on
-        Retina screens, but plot text does not scale with it yet).
+        ``theme="auto"`` (default) matches the notebook: light, or dark when
+        the notebook uses a dark theme. Pass a theme name (``"light"``,
+        ``"dark"``, ``"night"``) to force one, or ``None`` to keep the
+        surface's own theme. A surface created with an explicit ``theme=`` keeps
+        it under ``"auto"`` too.
+
+        ``auto_refresh=True`` (default) re-renders whenever the plot is changed
+        through the surface's figures, axes or series; :meth:`refresh` does it
+        by hand. ``hidpi=True`` (default) renders at the browser's
+        devicePixelRatio so the plot is sharp on Retina screens.
         """
 
         _esm = Path(__file__).with_name("_notebook_canvas.js")
@@ -366,6 +450,8 @@ if _HAS_ANYWIDGET:
         frame_width = _traitlets.Int(0).tag(sync=True)
         frame_height = _traitlets.Int(0).tag(sync=True)
         height = _traitlets.Int(0).tag(sync=True)
+        readout = _traitlets.Unicode("").tag(sync=True)
+        dark = _traitlets.Bool(False).tag(sync=True)  # theme drawn is dark (styles the toolbar)
 
         def __init__(
             self,
@@ -374,7 +460,9 @@ if _HAS_ANYWIDGET:
             height: Optional[int] = None,
             max_fps: float = 30.0,
             jpeg_quality: int = 80,
-            hidpi: bool = False,
+            hidpi: bool = True,
+            theme: Optional[str] = "auto",
+            auto_refresh: bool = True,
             **kwargs: Any,
         ) -> None:
             if not available():
@@ -384,13 +472,22 @@ if _HAS_ANYWIDGET:
             super().__init__(height=int(height), **kwargs)
             self.surface = surface
             self._last_png: Optional[bytes] = None
+            # A surface created with an explicit theme keeps it under "auto".
+            if theme == "auto" and getattr(surface, "_explicit_theme", False):
+                theme = None
+            self._theme_mode = theme
+            self._apply_theme(notebook_dark=None)
             self.controller = FrameController(
                 surface,
                 self._push_frame,
                 max_fps=max_fps,
                 jpeg_quality=jpeg_quality,
                 hidpi=hidpi,
+                on_readout=self._push_readout,
             )
+            self._auto_refresh = bool(auto_refresh) and hasattr(surface, "add_change_listener")
+            if self._auto_refresh:
+                surface.add_change_listener(self.controller.notify_changed)
             self.on_msg(self._on_custom_msg)
             # A first PNG so the output shows the plot before any event arrives
             # (and in saved widget state).
@@ -400,6 +497,25 @@ if _HAS_ANYWIDGET:
             """Re-render after changing the plot from Python (new data, limits, ...)."""
             self.controller.render_now(final=True)
 
+        def png(self) -> bytes:
+            """The current view as PNG bytes (what the Save button downloads)."""
+            self.controller.render_now(final=True)
+            return self._last_png or b""
+
+        def _apply_theme(self, notebook_dark: Optional[bool]) -> bool:
+            """Apply the theme for ``notebook_dark``; True when it changed."""
+            name = resolve_theme(self._theme_mode, notebook_dark)
+            if name is None:
+                return False
+            current = getattr(self, "_theme_applied", None)
+            if name == current:
+                return False
+            apply = getattr(self.surface, "_apply_theme", None) or self.surface.set_theme
+            apply(name)
+            self._theme_applied = name
+            self.dark = name != "light"
+            return True
+
         def _push_frame(self, data: bytes, mime: str, width: int, height: int) -> None:
             if mime == "image/png":
                 self._last_png = data
@@ -408,6 +524,9 @@ if _HAS_ANYWIDGET:
                 self.frame_width = width
                 self.frame_height = height
                 self.frame = data
+
+        def _push_readout(self, text: str) -> None:
+            self.readout = text
 
         def _repr_mimebundle_(self, **kwargs: Any) -> Any:
             # Add the last lossless frame next to the widget view, so outputs
@@ -425,15 +544,23 @@ if _HAS_ANYWIDGET:
         def _on_custom_msg(self, _widget: Any, content: Any, _buffers: Any) -> None:
             if not isinstance(content, dict):
                 return
-            if content.get("type") == "events":
+            kind = content.get("type")
+            if kind == "events":
                 try:
                     self.controller.handle_events(content.get("events") or [])
                 finally:
                     # Flow control: the browser sends its next batch only after
                     # this ack, so input never queues up behind a slow kernel.
                     self.send({"type": "ack"})
+            elif kind == "theme":
+                if self._apply_theme(notebook_dark=bool(content.get("dark"))):
+                    self.controller.render_now(final=True)
+            elif kind == "save":
+                self.send({"type": "png", "name": "spectra.png"}, buffers=[self.png()])
 
         def close(self) -> None:
+            if getattr(self, "_auto_refresh", False):
+                self.surface.remove_change_listener(self.controller.notify_changed)
             self.controller.close()
             super().close()
 

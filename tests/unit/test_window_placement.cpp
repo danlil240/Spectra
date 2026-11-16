@@ -88,3 +88,44 @@ TEST(ZoomExtent, OnlySentinelsLeavesExtentEmpty)
     accumulate_zoom_extent(std::vector<float>{-1e12f, 1e12f}, lo, hi);
     EXPECT_FALSE(hi - lo > 0.0f);
 }
+
+// ─── fit_window_to_work_area ────────────────────────────────────────────────
+
+TEST(WindowFit, FitsUnchanged)
+{
+    const ScreenWorkArea wa{0, 0, 1920, 1050};
+    EXPECT_EQ(fit_window_to_work_area(1500, 900, wa), std::make_pair(1500, 900));
+}
+
+TEST(WindowFit, ShrinksDefaultOnSmallLaptopKeepingAspect)
+{
+    // 1366x768 screen minus a 32 px panel.
+    const ScreenWorkArea wa{0, 32, 1366, 736};
+    const auto [w, h] = fit_window_to_work_area(1500, 900, wa);
+    EXPECT_LE(w, static_cast<int>(1366 * WINDOW_MAX_WORK_AREA_FRACTION));
+    EXPECT_LE(h, static_cast<int>(736 * WINDOW_MAX_WORK_AREA_FRACTION));
+    EXPECT_NEAR(static_cast<double>(w) / h, 1500.0 / 900.0, 0.01);
+    EXPECT_GE(h, 650);   // height is the limiting side: 0.9 * 736 = 662
+}
+
+TEST(WindowFit, ShrinksWidthLimitedWindow)
+{
+    const ScreenWorkArea wa{0, 0, 1400, 1000};
+    const auto [w, h] = fit_window_to_work_area(1500, 900, wa);
+    EXPECT_EQ(w, 1260);   // 0.9 * 1400
+    EXPECT_EQ(h, 756);
+}
+
+TEST(WindowFit, UnknownWorkAreaOrBadSizeLeavesSizeAlone)
+{
+    EXPECT_EQ(fit_window_to_work_area(1500, 900, ScreenWorkArea{}), std::make_pair(1500, 900));
+    EXPECT_EQ(fit_window_to_work_area(0, 900, ScreenWorkArea{0, 0, 800, 600}),
+              std::make_pair(0, 900));
+}
+
+TEST(WindowFit, NeverBelowOnePixel)
+{
+    const auto [w, h] = fit_window_to_work_area(5000, 10, ScreenWorkArea{0, 0, 100, 100});
+    EXPECT_GE(w, 1);
+    EXPECT_GE(h, 1);
+}

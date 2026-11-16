@@ -2,6 +2,7 @@
 
 #include <flatbuffers/flatbuffers.h>
 
+#include "annotation_state.hpp"
 #include "spectra_ipc_generated.h"
 
 namespace spectra::ipc
@@ -303,6 +304,13 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
     ann_offsets.reserve(ax.annotations.size());
     for (const auto& a : ax.annotations)
     {
+        std::vector<float>        style_vec;
+        const std::vector<float>* style = nullptr;
+        if (has_annotation_style(a))
+        {
+            style_vec = pack_annotation_style(a);
+            style     = &style_vec;
+        }
         ann_offsets.push_back(fb::CreateSnapshotAnnotationStateDirect(fbb,
                                                                       a.x,
                                                                       a.y,
@@ -318,7 +326,8 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                                                       a.has_arrow,
                                                                       a.arrow_x,
                                                                       a.arrow_y,
-                                                                      a.visible));
+                                                                      a.visible,
+                                                                      style));
     }
     return fb::CreateSnapshotAxisStateDirect(fbb,
                                              ax.x_min,
@@ -383,6 +392,11 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
             a.arrow_x   = fa->arrow_x();
             a.arrow_y   = fa->arrow_y();
             a.visible   = fa->visible();
+            if (const auto* st = fa->style())
+            {
+                const std::vector<float> tail(st->begin(), st->end());
+                unpack_annotation_style(tail, a);
+            }
             ax.annotations.push_back(std::move(a));
         }
     }
@@ -419,6 +433,8 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_color_letter(s.color_letter);
     b.add_x_origin(s.x_origin);
     b.add_y_origin(s.y_origin);
+    b.add_draw_style(s.draw_style);
+    b.add_dense_mode(s.dense_mode);
     if (!s.data.empty())
         b.add_data(data_off);
     if (!s.categories.empty())
@@ -447,6 +463,8 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
     s.color_letter = fb->color_letter();
     s.x_origin     = fb->x_origin();
     s.y_origin     = fb->y_origin();
+    s.draw_style   = fb->draw_style();
+    s.dense_mode   = fb->dense_mode();
     if (fb->data())
     {
         s.data.reserve(fb->data()->size());

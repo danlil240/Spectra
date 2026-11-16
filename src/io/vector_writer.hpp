@@ -113,6 +113,11 @@ struct VectorText
     double rot_deg = 0.0;
     double rot_x   = 0.0;
     double rot_y   = 0.0;
+    // Halo: an outline of halo_width pixels in halo_color painted under the
+    // glyphs (SVG paint-order stroke; PDF a stroked copy first).
+    bool  halo       = false;
+    Color halo_color = {};
+    float halo_width = 0.0f;
 };
 
 struct VectorPoint

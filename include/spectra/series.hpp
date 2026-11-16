@@ -436,6 +436,30 @@ class LineSeries : public Series
     /// @brief Line width in pixels.
     float width() const { return line_width_; }
 
+    /// @brief How consecutive points are connected: straight segments
+    /// (default) or steps (pre / mid / post, like matplotlib's drawstyle).
+    /// Markers, hover and picking stay on the data points.
+    LineSeries& draw_style(DrawStyle s)
+    {
+        draw_style_ = s;
+        dirty_      = true;
+        return *this;
+    }
+    DrawStyle draw_style() const { return draw_style_; }
+
+    /// @brief How the line is drawn when it has far more visible points than
+    /// pixel columns.  Auto (default) keeps the first, last, lowest and highest
+    /// point of every pixel column, which draws the same picture from far fewer
+    /// points; Density draws every point translucently so the overlap shows
+    /// where the data is dense; Exact always draws every point.
+    LineSeries& dense_mode(DenseLineMode m)
+    {
+        dense_mode_ = m;
+        dirty_      = true;
+        return *this;
+    }
+    DenseLineMode dense_mode() const { return dense_mode_; }
+
     std::span<const float> x_data() const { return x_; }
     std::span<const float> y_data() const { return y_; }
     size_t                 point_count() const { return std::min(x_.size(), y_.size()); }
@@ -516,6 +540,8 @@ class LineSeries : public Series
     std::vector<float> y_;
     float              line_width_ = 2.0f;
     bool               x_sorted_   = true;
+    DrawStyle          draw_style_ = DrawStyle::Default;
+    DenseLineMode      dense_mode_ = DenseLineMode::Auto;
 };
 
 /// @brief Individual markers at (x, y) points, optionally coloured per point through a colormap.

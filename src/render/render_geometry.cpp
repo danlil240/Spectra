@@ -503,15 +503,42 @@ void Renderer::render_plot_text(Figure& figure)
                 }
                 // Drawn at exactly font_size() pixels (a baked preset scaled), not
                 // snapped to the nearest preset; 0 keeps the Label preset.
-                const auto sf = TextRenderer::scaled_font(ann->font_size());
-                text_renderer_.draw_text(ann->text(),
-                                         px,
-                                         py,
-                                         sf.preset,
-                                         rgba,
-                                         static_cast<TextAlign>(ann->halign()),
-                                         static_cast<TextVAlign>(ann->valign()),
-                                         sf.scale);
+                const auto sf     = TextRenderer::scaled_font(ann->font_size());
+                const auto halign = static_cast<TextAlign>(ann->halign());
+                const auto valign = static_cast<TextVAlign>(ann->valign());
+                // Rotation is counter-clockwise; the text renderer turns clockwise.
+                const float angle = -ann->rotation() * 3.14159265358979f / 180.0f;
+                auto        draw  = [&](float x, float y, uint32_t c)
+                {
+                    if (ann->rotation() == 0.0f)
+                        text_renderer_
+                            .draw_text(ann->text(), x, y, sf.preset, c, halign, valign, sf.scale);
+                    else
+                        text_renderer_.draw_text_rotated(ann->text(),
+                                                         x,
+                                                         y,
+                                                         angle,
+                                                         sf.preset,
+                                                         c,
+                                                         halign,
+                                                         valign,
+                                                         sf.scale);
+                };
+                // Halo: copies of the text in the halo colour around it, under the text.
+                if (ann->halo() && ann->halo_width() > 0.0f)
+                {
+                    uint32_t halo_rgba = color_to_rgba(colors.bg_canvas);
+                    if (const auto& hc = ann->halo_color())
+                        halo_rgba = static_cast<uint32_t>(hc->r * 255.0f)
+                                    | (static_cast<uint32_t>(hc->g * 255.0f) << 8)
+                                    | (static_cast<uint32_t>(hc->b * 255.0f) << 16)
+                                    | (static_cast<uint32_t>(hc->a * 255.0f) << 24);
+                    for (int k = 0; k < annotation_layout::HALO_COPIES; ++k)
+                        draw(px + annotation_layout::HALO_DIR_X[k] * ann->halo_width(),
+                             py + annotation_layout::HALO_DIR_Y[k] * ann->halo_width(),
+                             halo_rgba);
+                }
+                draw(px, py, rgba);
             }
             text_renderer_.clear_clip_rect();
         }
@@ -1631,16 +1658,40 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
     annotation_tri_scratch_.clear();
     annotation_arrow_draws_.clear();
     const auto& colors = plot_colors();
+    auto        rgba_of =
+        [&](const std::optional<Color>& c, const ui::Color& theme_c, float theme_a, float out[4])
+    {
+        if (c)
+        {
+            out[0] = c->r;
+            out[1] = c->g;
+            out[2] = c->b;
+            out[3] = c->a;
+        }
+        else
+        {
+            set_pc_color_geom(out, theme_c, theme_mgr_);
+            out[3] = theme_a;
+        }
+    };
+    auto push_draw = [&](uint32_t first, const float color[4])
+    {
+        AnnotationArrowDraw d{};
+        d.first = first;
+        d.count = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3) - first;
+        std::copy(color, color + 4, d.color);
+        if (d.count > 0)
+            annotation_arrow_draws_.push_back(d);
+    };
+
     for (const auto& ann : axes.annotations())
     {
-        if (!ann || !ann->visible() || !ann->has_arrow())
+        if (!ann || !ann->visible() || (!ann->has_arrow() && !ann->bbox()))
             continue;
 
         const float ax = data_to_px_x(ann->x());
         const float ay = data_to_px_y(ann->y());
-        const float tx = data_to_px_x(ann->arrow_x());
-        const float ty = data_to_px_y(ann->arrow_y());
-        if (!std::isfinite(ax) || !std::isfinite(ay) || !std::isfinite(tx) || !std::isfinite(ty))
+        if (!std::isfinite(ax) || !std::isfinite(ay))
             continue;
 
         float w = 0.0f;
@@ -1652,7 +1703,63 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
             w              = ext.width;
             h              = ext.height;
         }
-        const auto box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
+
+        // Background box (and its border) behind the text.
+        if (ann->bbox() && !ann->text().empty())
+        {
+            const auto& bb  = *ann->bbox();
+            const auto  box = annotation_layout::padded(
+                annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign()),
+                bb.pad);
+            const auto  q      = annotation_layout::rotate_box(box, ax, ay, ann->rotation());
+            const float quad[] = {q.x[0], q.y[0], q.x[1], q.y[1], q.x[2], q.y[2], q.x[3], q.y[3]};
+            float       fill[4];
+            rgba_of(bb.fill, colors.bg_canvas, 0.9f, fill);
+            auto first = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3);
+            append_aa_convex_polygon(annotation_tri_scratch_, quad, 4);
+            push_draw(first, fill);
+
+            if (bb.edge_width > 0.0f)
+            {
+                float edge[4];
+                rgba_of(bb.edge, colors.axis_line, 0.5f, edge);
+                first = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3);
+                // Each side as a thin quad centred on the box edge.
+                for (int i = 0; i < 4; ++i)
+                {
+                    const int   j   = (i + 1) % 4;
+                    const float dx  = q.x[j] - q.x[i];
+                    const float dy  = q.y[j] - q.y[i];
+                    const float len = std::sqrt(dx * dx + dy * dy);
+                    if (!(len > 0.0f))
+                        continue;
+                    // Like the arrow shaft: half width plus the AA fringe added by
+                    // append_aa_convex_polygon.
+                    const float hw     = bb.edge_width * 0.5f;
+                    const float nx     = -dy / len * hw;
+                    const float ny     = dx / len * hw;
+                    const float side[] = {q.x[i] + nx,
+                                          q.y[i] + ny,
+                                          q.x[j] + nx,
+                                          q.y[j] + ny,
+                                          q.x[j] - nx,
+                                          q.y[j] - ny,
+                                          q.x[i] - nx,
+                                          q.y[i] - ny};
+                    append_aa_convex_polygon(annotation_tri_scratch_, side, 4);
+                }
+                push_draw(first, edge);
+            }
+        }
+
+        if (!ann->has_arrow())
+            continue;
+        const float tx = data_to_px_x(ann->arrow_x());
+        const float ty = data_to_px_y(ann->arrow_y());
+        if (!std::isfinite(tx) || !std::isfinite(ty))
+            continue;
+
+        const auto               box = annotation_layout::annotation_extent(*ann, ax, ay, w, h);
         annotation_layout::Arrow g;
         if (!annotation_layout::arrow_geometry(box, tx, ty, g))
             continue;
@@ -1671,22 +1778,9 @@ void Renderer::render_annotation_arrows(Axes& axes, uint32_t slot, float fw, flo
         append_aa_convex_polygon(annotation_tri_scratch_, shaft, 4);
         append_aa_convex_polygon(annotation_tri_scratch_, head, 3);
 
-        AnnotationArrowDraw d{};
-        d.first = first;
-        d.count = static_cast<uint32_t>(annotation_tri_scratch_.size() / 3) - first;
-        if (ann->color())
-        {
-            const Color& c = *ann->color();
-            d.color[0]     = c.r;
-            d.color[1]     = c.g;
-            d.color[2]     = c.b;
-            d.color[3]     = c.a;
-        }
-        else
-        {
-            set_pc_color_geom(d.color, colors.text_primary, theme_mgr_);
-        }
-        annotation_arrow_draws_.push_back(d);
+        float col[4];
+        rgba_of(ann->color(), colors.text_primary, colors.text_primary.a, col);
+        push_draw(first, col);
     }
     if (annotation_arrow_draws_.empty())
         return;

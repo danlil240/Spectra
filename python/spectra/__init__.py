@@ -46,6 +46,8 @@ from .topic import Publisher
 # ─── Easy API (one-liners, everything in background) ─────────────────────────
 from ._easy import (
     plot,
+    step,
+    stairs,
     scatter,
     stem,
     errorbar,
@@ -132,6 +134,8 @@ __version__ = _resolve_version()
 __all__ = [
     # Easy API — one-liners
     "plot",
+    "step",
+    "stairs",
     "scatter",
     "stem",
     "errorbar",

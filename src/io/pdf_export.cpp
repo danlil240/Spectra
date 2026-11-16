@@ -779,6 +779,30 @@ class PdfPageWriter final : public VectorWriter
             y               = t.rot_y + s * dx + c * dy;
         }
 
+        auto text_matrix = [&]()
+        {
+            out_ += "/F1 ";
+            put_pdf_num(out_, t.font_px, 3);
+            out_ += " Tf\n";
+            for (const double v : {c, s, s, -c})
+            {
+                put_pdf_num(out_, v, 4);
+                out_ += ' ';
+            }
+            put_xy(out_, x, y);
+            out_ += " Tm\n" + shown + " Tj\n";
+        };
+        if (t.halo && t.halo_width > 0.0f)
+        {
+            // Halo: the glyph outlines stroked in the halo colour, under the fill.
+            set_stroke(t.halo_color);
+            set_line(2.0f * t.halo_width, VectorLineCap::Unset, VectorLineJoin::Round, {});
+            set_alpha(per_mille(t.halo_color.a), state_.fill_alpha);
+            out_ += "BT\n1 Tr\n";
+            text_matrix();
+            out_ += "0 Tr\nET\n";
+        }
+
         set_fill(t.color);
         if (t.medium_weight)
         {
@@ -792,16 +816,7 @@ class PdfPageWriter final : public VectorWriter
         out_ += "BT\n";
         if (t.medium_weight)
             out_ += "2 Tr\n";
-        out_ += "/F1 ";
-        put_pdf_num(out_, t.font_px, 3);
-        out_ += " Tf\n";
-        for (const double v : {c, s, s, -c})
-        {
-            put_pdf_num(out_, v, 4);
-            out_ += ' ';
-        }
-        put_xy(out_, x, y);
-        out_ += " Tm\n" + shown + " Tj\n";
+        text_matrix();
         if (t.medium_weight)
             out_ += "0 Tr\n";
         out_ += "ET\n";

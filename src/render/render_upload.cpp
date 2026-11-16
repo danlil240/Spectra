@@ -18,6 +18,7 @@
 
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
+#include "data/line_geometry.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
@@ -61,6 +62,146 @@ void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gp
             backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
         gpu.lut_generation = image.lut_generation();
     }
+}
+
+bool Renderer::line_wants_m4(const LineSeries& line, const LineView& view)
+{
+    if (!view.valid || view.columns == 0 || line.dense_mode() != DenseLineMode::Auto
+        || !line.x_is_sorted() || line.plot_style().has_marker()
+        || line.point_count() <= view.columns * data::M4_MIN_POINTS_PER_COLUMN)
+        return false;
+    const double xoff  = line.x_offset();
+    const auto   range = compute_line_draw_range(line.x_data(),
+                                               line.point_count(),
+                                               true,
+                                               true,
+                                               static_cast<float>(view.x_min - xoff),
+                                               static_cast<float>(view.x_max - xoff));
+    return data::should_m4_decimate(range.pt_count, view.columns);
+}
+
+bool Renderer::upload_line_geometry(LineSeries&    line,
+                                    SeriesGpuData& gpu,
+                                    double         origin_x,
+                                    double         origin_y,
+                                    ScaleType      xscale,
+                                    ScaleType      yscale)
+{
+    const DrawStyle ds       = line.draw_style();
+    const bool      steps    = data::is_step_style(ds);
+    const bool      decimate = line_wants_m4(line, line_view_);
+    if (!steps && !decimate)
+    {
+        gpu.line_transformed = false;
+        gpu.line_decimated   = false;
+        return false;
+    }
+
+    const size_t n    = line.point_count();
+    const auto   xs   = line.x_data().first(n);
+    const auto   ys   = line.y_data().first(n);
+    const double xoff = line.x_offset();
+    const double yoff = line.y_offset();
+
+    // 1. Points the line goes through: all of them, or the M4 selection of
+    //    the visible ones (bucketed by pixel column in axis space).
+    std::span<const float> px = xs;
+    std::span<const float> py = ys;
+    if (decimate)
+    {
+        const auto   range = compute_line_draw_range(xs,
+                                                   n,
+                                                   true,
+                                                   true,
+                                                   static_cast<float>(line_view_.x_min - xoff),
+                                                   static_cast<float>(line_view_.x_max - xoff));
+        const double ax0   = to_axis_space(xscale, line_view_.x_min);
+        const double ax1   = to_axis_space(xscale, line_view_.x_max);
+        const double col_w =
+            (ax1 - ax0) / static_cast<double>(std::max<uint32_t>(1, line_view_.columns));
+        const double inv_w = (col_w != 0.0 && std::isfinite(col_w)) ? 1.0 / col_w : 0.0;
+        line_keep_scratch_.clear();
+        data::m4_decimate(
+            ys,
+            range.first_pt,
+            static_cast<size_t>(range.first_pt) + range.pt_count,
+            line_view_.columns,
+            [&](size_t i)
+            { return (to_axis_space(xscale, static_cast<double>(xs[i]) + xoff) - ax0) * inv_w; },
+            line_keep_scratch_);
+        line_x_scratch_.resize(line_keep_scratch_.size());
+        line_y_scratch_.resize(line_keep_scratch_.size());
+        for (size_t k = 0; k < line_keep_scratch_.size(); ++k)
+        {
+            line_x_scratch_[k] = xs[line_keep_scratch_[k]];
+            line_y_scratch_[k] = ys[line_keep_scratch_[k]];
+        }
+        px = line_x_scratch_;
+        py = line_y_scratch_;
+    }
+
+    // 2. Step corners, added in data space (as the SVG/PDF export does).
+    if (steps)
+    {
+        step_x_scratch_.clear();
+        step_y_scratch_.clear();
+        data::expand_steps(px, py, ds, step_x_scratch_, step_y_scratch_);
+        px = step_x_scratch_;
+        py = step_y_scratch_;
+    }
+
+    // 3. Line vertices, then (steps with markers) the data points for markers.
+    const size_t line_count   = std::min(px.size(), py.size());
+    const bool   with_markers = steps && !decimate && line.plot_style().has_marker();
+    const size_t total        = line_count + (with_markers ? n : 0);
+    if (total == 0)
+        return false;
+
+    constexpr size_t stride = 2;
+    if (!gpu.ssbo || gpu.ssbo_capacity < total || gpu.ssbo_stride_floats != stride)
+    {
+        if (gpu.ssbo)
+            backend_.destroy_buffer(gpu.ssbo);
+        const size_t alloc_count = total * 2;
+        gpu.ssbo =
+            backend_.create_buffer(BufferUsage::Storage, alloc_count * stride * sizeof(float));
+        gpu.ssbo_capacity      = alloc_count;
+        gpu.ssbo_stride_floats = stride;
+    }
+    if (upload_scratch_.size() < total * stride)
+        upload_scratch_.resize(total * stride);
+    auto put = [&](size_t slot, float x, float y)
+    {
+        upload_scratch_[slot * 2] =
+            static_cast<float>(to_axis_space(xscale, static_cast<double>(x) + xoff) - origin_x);
+        upload_scratch_[slot * 2 + 1] =
+            static_cast<float>(to_axis_space(yscale, static_cast<double>(y) + yoff) - origin_y);
+    };
+    for (size_t i = 0; i < line_count; ++i)
+        put(i, px[i], py[i]);
+    if (with_markers)
+    {
+        for (size_t i = 0; i < n; ++i)
+            put(line_count + i, xs[i], ys[i]);
+    }
+    backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), total * stride * sizeof(float));
+
+    gpu.uploaded_count    = total;
+    gpu.origin_x          = origin_x;
+    gpu.origin_y          = origin_y;
+    gpu.upload_xscale     = xscale;
+    gpu.upload_yscale     = yscale;
+    gpu.line_transformed  = true;
+    gpu.line_decimated    = decimate;
+    gpu.line_draw_style   = ds;
+    gpu.line_vertex_count = static_cast<uint32_t>(line_count);
+    gpu.marker_base       = static_cast<uint32_t>(line_count);
+    gpu.marker_count      = with_markers ? static_cast<uint32_t>(n) : 0;
+    gpu.decim_x_min       = line_view_.x_min;
+    gpu.decim_x_max       = line_view_.x_max;
+    gpu.decim_columns     = line_view_.columns;
+    line.clear_dirty();
+    return true;
 }
 
 void Renderer::upload_series_data(Series& series)
@@ -179,6 +320,10 @@ void Renderer::upload_series_data(Series&   series,
         series.clear_dirty();
         return;
     }
+
+    if (line && line->point_count() > 0
+        && upload_line_geometry(*line, gpu, origin_x, origin_y, xscale, yscale))
+        return;
 
     if (line || scatter || boxplot || violin || histogram || bar || band || stem || shape
         || contour)

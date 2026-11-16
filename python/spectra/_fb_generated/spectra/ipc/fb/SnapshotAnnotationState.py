@@ -129,8 +129,35 @@ class SnapshotAnnotationState(object):
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return True
 
+    # SnapshotAnnotationState
+    def Style(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return 0
+
+    # SnapshotAnnotationState
+    def StyleAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float32Flags, o)
+        return 0
+
+    # SnapshotAnnotationState
+    def StyleLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotAnnotationState
+    def StyleIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(34))
+        return o == 0
+
 def SnapshotAnnotationStateStart(builder):
-    builder.StartObject(15)
+    builder.StartObject(16)
 
 def Start(builder):
     SnapshotAnnotationStateStart(builder)
@@ -224,6 +251,18 @@ def SnapshotAnnotationStateAddVisible(builder, visible):
 
 def AddVisible(builder, visible):
     SnapshotAnnotationStateAddVisible(builder, visible)
+
+def SnapshotAnnotationStateAddStyle(builder, style):
+    builder.PrependUOffsetTRelativeSlot(15, flatbuffers.number_types.UOffsetTFlags.py_type(style), 0)
+
+def AddStyle(builder, style):
+    SnapshotAnnotationStateAddStyle(builder, style)
+
+def SnapshotAnnotationStateStartStyleVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartStyleVector(builder, numElems):
+    return SnapshotAnnotationStateStartStyleVector(builder, numElems)
 
 def SnapshotAnnotationStateEnd(builder):
     return builder.EndObject()

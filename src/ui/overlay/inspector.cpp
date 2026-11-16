@@ -1565,6 +1565,27 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 {
                     line->width(w);
                 }
+
+                // Straight segments or steps (matplotlib drawstyle).
+                static const char* draw_style_names[] = {"Lines",
+                                                         "Steps (pre)",
+                                                         "Steps (mid)",
+                                                         "Steps (post)"};
+                int                ds_idx             = static_cast<int>(line->draw_style());
+                if (widgets::combo_field("Draw Style", ds_idx, draw_style_names, 4))
+                {
+                    line->draw_style(static_cast<spectra::DrawStyle>(ds_idx));
+                }
+
+                // Very dense lines: min/max per pixel column, every point, or density.
+                static const char* dense_mode_names[] = {"Auto (min/max)",
+                                                         "Every point",
+                                                         "Density"};
+                int                dm_idx             = static_cast<int>(line->dense_mode());
+                if (widgets::combo_field("Dense Data", dm_idx, dense_mode_names, 3))
+                {
+                    line->dense_mode(static_cast<spectra::DenseLineMode>(dm_idx));
+                }
             }
             if (auto* scatter = dynamic_cast<ScatterSeries*>(&s))
             {

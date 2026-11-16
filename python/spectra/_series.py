@@ -139,13 +139,55 @@ def _shift(values, origin: float):
     return [v - origin for v in vals] if origin != 0.0 else vals
 
 
+# matplotlib drawstyle names -> spectra::DrawStyle (Default, StepsPre, StepsMid, StepsPost).
+_DRAWSTYLES = {
+    "default": 0,
+    "lines": 0,
+    "steps": 1,
+    "steps-pre": 1,
+    "pre": 1,
+    "steps-mid": 2,
+    "mid": 2,
+    "steps-post": 3,
+    "post": 3,
+}
+# spectra::DenseLineMode (Auto, Exact, Density).
+_DENSE_MODES = {"auto": 0, "minmax": 0, "exact": 1, "full": 1, "density": 2}
+
+
+def parse_drawstyle(value) -> int:
+    """matplotlib ``drawstyle`` / step ``where`` value -> spectra::DrawStyle number."""
+    key = "default" if value is None else str(value).lower()
+    if key not in _DRAWSTYLES:
+        raise ValueError(f"invalid drawstyle {value!r}; expected one of {sorted(_DRAWSTYLES)}")
+    return _DRAWSTYLES[key]
+
+
+def parse_dense_mode(value) -> int:
+    """``"auto"`` / ``"exact"`` / ``"density"`` -> spectra::DenseLineMode number."""
+    key = "auto" if value is None else str(value).lower()
+    if key not in _DENSE_MODES:
+        raise ValueError(f"invalid dense mode {value!r}; expected one of {sorted(_DENSE_MODES)}")
+    return _DENSE_MODES[key]
+
+
 class Series:
     """Proxy for a data series within a figure.
 
     All mutations are sent to the backend via IPC.
     """
 
-    __slots__ = ("_session", "_figure_id", "_index", "_type", "_label", "_origin", "_has_data")
+    __slots__ = (
+        "_session",
+        "_figure_id",
+        "_index",
+        "_type",
+        "_label",
+        "_origin",
+        "_has_data",
+        "_draw_style",
+        "_dense_mode",
+    )
 
     def __init__(
         self,
@@ -165,6 +207,9 @@ class Series:
         # their precision.  Mirrors the backend's per-series x/y origin.
         self._origin = (0.0, 0.0)
         self._has_data = False
+        # Line draw style / dense mode (spectra::DrawStyle / DenseLineMode).
+        self._draw_style = 0
+        self._dense_mode = 0
 
     @property
     def index(self) -> int:
@@ -445,6 +490,33 @@ class Series:
             series_index=self._index,
             prop="marker_size",
             f1=size,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_draw_style(self, drawstyle: str = "default") -> None:
+        """How a line connects its points, like matplotlib's ``drawstyle``:
+        ``"default"`` (straight segments), ``"steps-pre"`` (also ``"steps"``),
+        ``"steps-mid"`` or ``"steps-post"``.  Line series only."""
+        self._draw_style = parse_drawstyle(drawstyle)
+        self._send_draw_style()
+
+    def set_dense_mode(self, mode: str = "auto") -> None:
+        """How a line with far more points than pixels is drawn: ``"auto"``
+        (min/max per pixel column, the same picture from fewer points),
+        ``"exact"`` (every point) or ``"density"`` (every point translucent,
+        so overlaps show where the data is dense).  Line series only."""
+        self._dense_mode = parse_dense_mode(mode)
+        self._send_draw_style()
+
+    def _send_draw_style(self) -> None:
+        if self._type != "line":
+            raise ValueError("draw style applies to line series only")
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="draw_style",
+            f1=float(self._draw_style),
+            f2=float(self._dense_mode),
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 

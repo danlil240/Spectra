@@ -1383,6 +1383,19 @@ void Renderer::render_axes(AxesBase&   axes,
         // re-upload to prevent float precision loss in the data_offset sum.
         constexpr double ORIGIN_DRIFT_THRESHOLD = 100.0;
 
+        // Pixel columns of the plot area: dense lines are M4-decimated to them
+        // (Auto) or drawn translucently by the points per column (Density).
+        line_view_ = LineView{};
+        if (axes2d)
+        {
+            const float cols = std::ceil(viewport.w * std::max(backend_.pixel_scale(), 1.0f));
+            line_view_.valid = std::isfinite(vis.x_min) && std::isfinite(vis.x_max)
+                               && vis.x_max > vis.x_min && cols >= 1.0f;
+            line_view_.x_min   = vis.x_min;
+            line_view_.x_max   = vis.x_max;
+            line_view_.columns = line_view_.valid ? static_cast<uint32_t>(cols) : 0;
+        }
+
         for (auto& series_ptr : axes.series())
         {
             if (!series_ptr)
@@ -1423,6 +1436,19 @@ void Renderer::render_axes(AxesBase&   axes,
                         need_upload = true;
                 }
             }
+            // A decimated line was built for one view: rebuild it when the
+            // view changes, and switch between full and decimated geometry.
+            if (!need_upload && gpu.type == SeriesType::Line2D)
+            {
+                const auto* line = static_cast<const LineSeries*>(series_ptr.get());
+                const bool  m4   = line_wants_m4(*line, line_view_);
+                if (m4 != gpu.line_decimated
+                    || (m4
+                        && (gpu.decim_x_min != line_view_.x_min
+                            || gpu.decim_x_max != line_view_.x_max
+                            || gpu.decim_columns != line_view_.columns)))
+                    need_upload = true;
+            }
             if (!need_upload && axes2d && gpu.uploaded_count > 0)
             {
                 double drift_x  = std::abs(gpu.origin_x - view_cx);
@@ -1443,6 +1469,7 @@ void Renderer::render_axes(AxesBase&   axes,
 
         // Selection highlight on top of all 2D series
         render_selection_highlight(axes, viewport);
+        line_view_ = LineView{};
     }
 
     // Tick labels, axis labels, and titles are now rendered by ImGui

@@ -466,7 +466,113 @@ static void scene_negative_axes(App& /*app*/, Figure& fig)
     ax.grid(true);
 }
 
+// Step draw styles (with markers) and annotations with a background box,
+// a halo and a rotation.
+static void scene_steps_and_annotations(App& /*app*/, Figure& fig)
+{
+    auto&                    ax = fig.subplot(1, 1, 1);
+    const std::vector<float> t  = {0, 1, 2, 3, 4, 5, 6};
+    const std::vector<float> v  = {0, 1, 1, 3, 2, 2, 4};
+    std::vector<float>       v2 = v;
+    std::vector<float>       v3 = v;
+    for (auto& y : v2)
+        y += 5.0f;
+    for (auto& y : v3)
+        y += 10.0f;
+    ax.plot(t, v, "-o").draw_style(DrawStyle::StepsPre).label("pre");
+    ax.plot(t, v2, "-").draw_style(DrawStyle::StepsMid).label("mid");
+    ax.plot(t, v3, "-s").draw_style(DrawStyle::StepsPost).label("post");
+    ax.annotate("change", 3.0f, 13.0f, 1.2f, 13.5f).bbox(true);
+    ax.text(4.2f, 7.0f, "halo").halo(true);
+    ax.text(5.2f, 1.0f, "rotated").rotation(30.0f).bbox(true);
+    ax.xlim(-0.5f, 6.5f);
+    ax.ylim(-1.0f, 16.0f);
+    ax.title("Step Draw Styles");
+    ax.grid(true);
+}
+
+// Very dense noisy line (200k points over ~560 pixel columns).
+static void dense_line_scene(Figure& fig, DenseLineMode mode)
+{
+    auto&              ax = fig.subplot(1, 1, 1);
+    constexpr size_t   N  = 200000;
+    std::vector<float> x(N), y(N);
+    uint32_t           state = 12345u;
+    for (size_t i = 0; i < N; ++i)
+    {
+        state             = state * 1664525u + 1013904223u;
+        const float noise = static_cast<float>(state >> 8) / static_cast<float>(1u << 24) - 0.5f;
+        x[i]              = static_cast<float>(i) * 10.0f / N;
+        y[i]              = std::sin(x[i]) + 0.8f * noise;
+    }
+    ax.line(x, y).color(rgb(0.12f, 0.47f, 0.71f)).width(1.5f).dense_mode(mode);
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(-2.0f, 2.0f);
+    ax.title("Dense Line");
+    ax.grid(true);
+}
+
+// Render one scene into pixels (no baseline).
+static bool render_scene_pixels(const std::function<void(Figure&)>& setup,
+                                uint32_t                            width,
+                                uint32_t                            height,
+                                std::vector<uint8_t>&               pixels)
+{
+    App&     app    = *g_app;
+    auto&    fig    = app.figure({.width = width, .height = height});
+    FigureId fig_id = app.figure_registry().find_id(&fig);
+    setup(fig);
+    const bool ok = render_headless(fig, app, pixels);
+    if (fig_id != INVALID_FIGURE_ID)
+    {
+        if (auto* r = app.renderer())
+        {
+            for (auto& axes_ptr : fig.all_axes())
+            {
+                for (auto& ser_ptr : axes_ptr->series())
+                    r->notify_series_removed(ser_ptr.get());
+                r->notify_axes_removed(axes_ptr.get());
+            }
+            r->notify_figure_removed(&fig);
+        }
+        app.figure_registry().unregister_figure(fig_id);
+    }
+    return ok;
+}
+
 // ─── Phase 2 Golden Test Cases ──────────────────────────────────────────────
+
+TEST(GoldenImagePhase2, StepsAndAnnotations)
+{
+    run_golden_test("p2_steps_and_annotations", scene_steps_and_annotations);
+}
+
+TEST(GoldenImagePhase2, DenseLineDensityMode)
+{
+    run_golden_test("p2_dense_line_density",
+                    [](App&, Figure& fig) { dense_line_scene(fig, DenseLineMode::Density); });
+}
+
+// Min/max (M4) decimation must draw the same picture as every point.
+TEST(GoldenImagePhase2, DenseLineDecimationIsVisuallyLossless)
+{
+    ASSERT_NE(g_app, nullptr);
+    std::vector<uint8_t> exact, decimated;
+    ASSERT_TRUE(render_scene_pixels([](Figure& f) { dense_line_scene(f, DenseLineMode::Exact); },
+                                    640,
+                                    480,
+                                    exact));
+    ASSERT_TRUE(render_scene_pixels([](Figure& f) { dense_line_scene(f, DenseLineMode::Auto); },
+                                    640,
+                                    480,
+                                    decimated));
+    GoldenTolerance tol;
+    tol.max_percent = 0.5;
+    tol.max_mae     = 1.0;
+    const DiffResult diff =
+        compare_images(decimated.data(), exact.data(), 640, 480, tol.pixel_threshold);
+    EXPECT_TRUE(diff.passed(tol)) << diff.describe(tol);
+}
 
 TEST(GoldenImagePhase2, MultiSeriesLine)
 {

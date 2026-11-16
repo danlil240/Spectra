@@ -449,6 +449,26 @@ inline LineSeries& plot()
     return detail::easy_state().ensure_axes().line();
 }
 
+/// Step plot (see Axes::step): the value changes in steps at each x.
+///
+///      spectra::step(t, mode, "-", spectra::DrawStyle::StepsPost);
+///
+inline LineSeries& step(std::span<const float> x,
+                        std::span<const float> y,
+                        std::string_view       fmt   = "-",
+                        DrawStyle              where = DrawStyle::StepsPre)
+{
+    return detail::easy_state().ensure_axes().step(x, y, fmt, where);
+}
+
+/// Stairs (see Axes::stairs): values[i] holds from edges[i] to edges[i + 1].
+inline LineSeries& stairs(std::span<const float> values,
+                          std::span<const float> edges,
+                          std::string_view       fmt = "-")
+{
+    return detail::easy_state().ensure_axes().stairs(values, edges, fmt);
+}
+
 /// Horizontal reference line (e.g. y=0). Default style is dashed gray.
 inline LineSeries& hline(double y, std::string_view fmt = "k--")
 {

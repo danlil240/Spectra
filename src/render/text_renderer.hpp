@@ -87,7 +87,8 @@ class TextRenderer
                    TextVAlign         valign = TextVAlign::Top,
                    float              scale  = 1.0f);
 
-    // Queue rotated text (angle in radians, rotated around (x,y))
+    // Queue rotated text (angle in radians, clockwise on screen, rotated around
+    // (x,y)); `scale` as in draw_text().
     void draw_text_rotated(const std::string& text,
                            float              x,
                            float              y,
@@ -95,7 +96,8 @@ class TextRenderer
                            FontSize           size,
                            uint32_t           color_rgba,
                            TextAlign          align  = TextAlign::Center,
-                           TextVAlign         valign = TextVAlign::Middle);
+                           TextVAlign         valign = TextVAlign::Middle,
+                           float              scale  = 1.0f);
 
     // Clip subsequently queued unrotated 2D text to a screen-space rectangle
     // (glyph quads are cropped, so text can be partially visible).  Rotated

@@ -214,6 +214,21 @@ class Axes : public AxesBase
         return ref;
     }
 
+    /// Step plot, like matplotlib's step(): a line with the given format whose
+    /// value changes in steps at each x.  `where` picks where the step sits
+    /// (StepsPre, the matplotlib default, StepsMid or StepsPost).
+    LineSeries& step(std::span<const float> x,
+                     std::span<const float> y,
+                     std::string_view       fmt   = "-",
+                     DrawStyle              where = DrawStyle::StepsPre);
+
+    /// Stairs, like matplotlib's stairs(): values[i] holds from edges[i] to
+    /// edges[i + 1], so `edges` has one entry more than `values` (otherwise
+    /// the series is empty).  A post-step line through the edges.
+    LineSeries& stairs(std::span<const float> values,
+                       std::span<const float> edges,
+                       std::string_view       fmt = "-");
+
     /// Horizontal / vertical reference lines (e.g. y=0, x=0). Span uses sentinel
     /// coordinates so auto_fit ignores them.
     LineSeries& hline(double y, std::string_view fmt = "-");

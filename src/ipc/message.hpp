@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -246,6 +247,20 @@ struct SnapshotAnnotationState
     bool        has_arrow = false;
     float       arrow_x = 0.0f, arrow_y = 0.0f;
     bool        visible = true;
+    // Background box, halo and rotation (TextAnnotation::bbox / halo /
+    // rotation); carried as the optional tail of pack_annotation().
+    bool                 has_bbox        = false;
+    float                bbox_pad        = 4.0f;
+    bool                 has_bbox_fill   = false;
+    std::array<float, 4> bbox_fill       = {0.0f, 0.0f, 0.0f, 1.0f};
+    bool                 has_bbox_edge   = false;
+    std::array<float, 4> bbox_edge       = {0.0f, 0.0f, 0.0f, 1.0f};
+    float                bbox_edge_width = 1.0f;
+    bool                 halo            = false;
+    bool                 has_halo_color  = false;
+    std::array<float, 4> halo_color      = {0.0f, 0.0f, 0.0f, 1.0f};
+    float                halo_width      = 2.0f;
+    float                rotation        = 0.0f;   // degrees, counter-clockwise
 
     bool operator==(const SnapshotAnnotationState&) const = default;
 };
@@ -299,6 +314,9 @@ struct SnapshotSeriesState
     double y_origin = 0.0;
     // Bar series: category names (BarSeries::categories()), empty otherwise.
     std::vector<std::string> categories;
+    // Line series: spectra::DrawStyle and spectra::DenseLineMode (0 = default).
+    uint8_t draw_style = 0;
+    uint8_t dense_mode = 0;
 };
 
 // A single figure's full state.
@@ -396,6 +414,8 @@ struct DiffOp
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
+        // Line draw style: f1=spectra::DrawStyle, f2=spectra::DenseLineMode.
+        SET_SERIES_DRAW_STYLE = 42,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

@@ -258,6 +258,10 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             fig.legend_position = spectra::ipc::legend_position_to_wire(
                 spectra::ipc::legend_position_from_wire(op.f1));
             break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_DRAW_STYLE:
+            if (op.series_index < fig.series.size())
+                spectra::ipc::apply_series_draw_style_op(fig.series[op.series_index], op);
+            break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {
             std::vector<std::string> names;
@@ -432,6 +436,13 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
         case spectra::ipc::DiffOp::Type::SET_OPACITY:
             if (auto* s = find_live_series())
                 s->opacity(static_cast<float>(op.f1));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_DRAW_STYLE:
+            if (auto* line = dynamic_cast<spectra::LineSeries*>(find_live_series()))
+                spectra::ipc::apply_series_draw_style(
+                    *line,
+                    spectra::ipc::draw_style_to_wire(spectra::ipc::draw_style_from_wire(op.f1)),
+                    spectra::ipc::dense_mode_to_wire(spectra::ipc::dense_mode_from_wire(op.f2)));
             break;
         case spectra::ipc::DiffOp::Type::SET_LINE_WIDTH:
             if (auto* s = find_live_series())

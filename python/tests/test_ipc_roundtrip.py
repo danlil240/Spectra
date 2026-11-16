@@ -102,6 +102,11 @@ def _snapshot(session):
                     "title": s(ax.Title()),
                     "scale": (ax.XScale(), ax.YScale()),
                     "datetime": (ax.XDatetime(), ax.YDatetime()),
+                    "annotation_styles": [
+                        [ax.Annotations(n).Style(j)
+                         for j in range(ax.Annotations(n).StyleLength())]
+                        for n in range(ax.AnnotationsLength())
+                    ],
                 }
             )
         series = []
@@ -120,6 +125,7 @@ def _snapshot(session):
                     "line_width": se.LineWidth(),
                     "visible": se.Visible(),
                     "categories": [s(se.Categories(j)) for j in range(se.CategoriesLength())],
+                    "draw_style": (se.DrawStyle(), se.DenseMode()),
                 }
             )
         figures[f.FigureId()] = {
@@ -247,6 +253,24 @@ def test_axes_and_series_properties_round_trip(session):
     assert _close(s["color"], (0.25, 0.5, 0.75, 1.0))
     assert math.isclose(s["line_width"], 3.5)
     assert s["visible"] is False
+
+
+def test_draw_style_and_annotation_style_round_trip(session):
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    line = ax.line([0.0, 1.0, 2.0], [0.0, 1.0, 0.5])
+    line.set_draw_style("steps-post")
+    line.set_dense_mode("density")
+    ax.text(1.0, 0.5, "boxed", bbox=True, rotation=30)
+    ax.text(0.5, 0.5, "plain")
+
+    f = _snapshot(session)[fig.id]
+    assert f["series"][0]["draw_style"] == (3, 2)
+    styles = f["axes"][0]["annotation_styles"]
+    assert len(styles) == 2
+    assert len(styles[0]) == 21 and styles[0][0] == 1.0  # has_bbox
+    assert math.isclose(styles[0][20], 30.0)  # rotation
+    assert styles[1] == []  # plain text carries no style
 
 
 def test_subplots_and_series_removal(session):

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <optional>
 #include <spectra/color.hpp>
 #include <string>
@@ -33,6 +34,17 @@ class TextAnnotation
         Top,      ///< Anchor at the top of the text (text hangs below)
         Middle,   ///< Anchor at the vertical centre of the text
         Bottom,   ///< Anchor at the bottom of the text (text sits above)
+    };
+
+    /// @brief Background box behind the text (see bbox()).
+    struct Box
+    {
+        float                pad = 4.0f;   ///< Space between text and box edge, in pixels
+        std::optional<Color> fill;         ///< Unset: the theme's plot background, 90% opaque
+        std::optional<Color> edge;         ///< Unset: the theme's axis border colour at 50%
+        float                edge_width = 1.0f;   ///< Border width in pixels; 0 = no border
+
+        bool operator==(const Box&) const = default;
     };
 
     TextAnnotation(float x, float y, std::string_view text) : x_(x), y_(y), text_(text) {}
@@ -104,6 +116,56 @@ class TextAnnotation
     float arrow_x() const { return arrow_x_; }
     float arrow_y() const { return arrow_y_; }
 
+    /// @brief Draw a box behind the text so it stays readable over data.
+    const std::optional<Box>& bbox() const { return bbox_; }
+    TextAnnotation&           bbox(const Box& b)
+    {
+        bbox_ = b;
+        return *this;
+    }
+    /// @brief Turn the default background box on or off.
+    TextAnnotation& bbox(bool on)
+    {
+        if (!on)
+            bbox_.reset();
+        else if (!bbox_)
+            bbox_ = Box{};
+        return *this;
+    }
+
+    /// @brief Outline the glyphs with a halo (default: the theme's plot
+    /// background) so text stays readable over data without a box.
+    bool            halo() const { return halo_; }
+    TextAnnotation& halo(bool on)
+    {
+        halo_ = on;
+        return *this;
+    }
+    /// @brief Halo colour; unset follows the theme's plot background.
+    const std::optional<Color>& halo_color() const { return halo_color_; }
+    TextAnnotation&             halo_color(const Color& c)
+    {
+        halo_       = true;
+        halo_color_ = c;
+        return *this;
+    }
+    /// @brief Halo width in pixels (default 2).
+    float           halo_width() const { return halo_width_; }
+    TextAnnotation& halo_width(float px)
+    {
+        halo_width_ = px > 0.0f ? px : 0.0f;
+        return *this;
+    }
+
+    /// @brief Rotation in degrees, counter-clockwise (like matplotlib), about
+    /// the anchor point.  The alignment applies along the rotated text.
+    float           rotation() const { return rotation_; }
+    TextAnnotation& rotation(float degrees)
+    {
+        rotation_ = std::isfinite(degrees) ? degrees : 0.0f;
+        return *this;
+    }
+
     bool            visible() const { return visible_; }
     TextAnnotation& visible(bool v)
     {
@@ -123,6 +185,11 @@ class TextAnnotation
     float                arrow_x_   = 0.0f;
     float                arrow_y_   = 0.0f;
     bool                 visible_   = true;
+    std::optional<Box>   bbox_;
+    bool                 halo_ = false;
+    std::optional<Color> halo_color_;
+    float                halo_width_ = 2.0f;
+    float                rotation_   = 0.0f;
 };
 
 }   // namespace spectra

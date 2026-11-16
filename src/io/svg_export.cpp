@@ -335,6 +335,11 @@ class SvgWriter final : public VectorWriter
         text_length_attr(t.text, t.font_px);
         if (t.medium_weight)
             body_ += " font-weight=\"500\"";
+        if (t.halo && t.halo_width > 0.0f)
+            body_ += " stroke=\"" + hex(t.halo_color) + "\""
+                     + opacity_attr("stroke-opacity", t.halo_color.a) + " stroke-width=\""
+                     + num(2.0 * t.halo_width)
+                     + "\" stroke-linejoin=\"round\" paint-order=\"stroke\"";
         if (t.rotated)
             body_ += " transform=\"rotate(" + num(t.rot_deg) + " " + num(t.rot_x) + " "
                      + num(t.rot_y) + ")\"";

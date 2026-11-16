@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "../ipc/annotation_state.hpp"
+#include "../ipc/axes_format_state.hpp"
 #include "../ipc/message.hpp"
 #include "live_series_index.hpp"
 #include "ui/app/figure_snapshot.hpp"
@@ -164,6 +165,7 @@ inline void add_2d_series(Axes& ax, const ipc::SnapshotSeriesState& ss)
         s.x_offset(ss.x_origin).y_offset(ss.y_origin);
         apply_snapshot_common(s, ss);
         s.width(ss.line_width);
+        ipc::apply_series_draw_style(s, ss.draw_style, ss.dense_mode);
     }
 }
 

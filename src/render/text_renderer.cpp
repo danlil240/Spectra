@@ -894,10 +894,13 @@ void TextRenderer::draw_text_rotated(const std::string& text,
                                      FontSize           size,
                                      uint32_t           color_rgba,
                                      TextAlign          align,
-                                     TextVAlign         valign)
+                                     TextVAlign         valign,
+                                     float              scale)
 {
     if (!initialized_ || text.empty())
         return;
+    if (!(scale > 0.0f))
+        scale = 1.0f;
 
     const auto& fd    = font(size);
     float       cos_a = std::cos(angle_rad);
@@ -909,20 +912,21 @@ void TextRenderer::draw_text_rotated(const std::string& text,
 
     if (align != TextAlign::Left)
     {
-        auto ext = measure_text(text, size);
+        auto ext = measure_text(text, size, scale);
         if (align == TextAlign::Center)
             offset_x = -ext.width * 0.5f;
         else if (align == TextAlign::Right)
             offset_x = -ext.width;
     }
 
+    const float line_height = fd.line_height * scale;
     if (valign == TextVAlign::Middle)
-        offset_y = -fd.line_height * 0.5f;
+        offset_y = -line_height * 0.5f;
     else if (valign == TextVAlign::Bottom)
-        offset_y = -fd.line_height;
+        offset_y = -line_height;
 
     float cursor_x = x + offset_x;
-    float cursor_y = y + offset_y + fd.ascent;
+    float cursor_y = y + offset_y + fd.ascent * scale;
 
     for (size_t i = 0; i < text.size();)
     {
@@ -932,7 +936,15 @@ void TextRenderer::draw_text_rotated(const std::string& text,
         if (!gp)
             continue;
 
-        const auto& g = *gp;
+        GlyphInfo g = *gp;
+        if (scale != 1.0f)
+        {
+            g.x_offset *= scale;
+            g.y_offset *= scale;
+            g.width *= scale;
+            g.height *= scale;
+            g.x_advance *= scale;
+        }
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(vertices_, g, cursor_x, cursor_y, 0.0f, color_rgba, cos_a, sin_a, x, y);

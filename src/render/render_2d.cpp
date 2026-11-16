@@ -22,6 +22,7 @@
 #include "ui/workspace/plugin_guard.hpp"
 
 #include "core/axis_scale.hpp"
+#include "data/line_geometry.hpp"
 #include "render/scatter_marker.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -68,6 +69,34 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
         r.first_pt = static_cast<uint32_t>(lo_idx);
         r.pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
     }
+    return r;
+}
+
+// Segment range of a Line2D's ssbo to draw for the visible point range:
+// the plain points, the step vertices between the visible data points, or
+// every vertex of an M4-decimated line (built for the visible range only).
+LineDrawRange Renderer::line_segments_to_draw(const SeriesGpuData& gpu, const LineDrawRange& range)
+{
+    if (!gpu.line_transformed)
+        return range;
+    LineDrawRange r = range;
+    if (gpu.line_decimated)
+    {
+        r.first_seg = 0;
+        r.seg_count = gpu.line_vertex_count > 1 ? gpu.line_vertex_count - 1 : 0;
+        return r;
+    }
+    if (range.pt_count < 2)
+    {
+        r.seg_count = 0;
+        return r;
+    }
+    const auto first =
+        static_cast<uint32_t>(data::step_vertex_index(range.first_pt, gpu.line_draw_style));
+    const auto last = static_cast<uint32_t>(
+        data::step_vertex_index(range.first_pt + range.pt_count - 1, gpu.line_draw_style));
+    r.first_seg = first;
+    r.seg_count = last > first ? std::min(last, gpu.line_vertex_count - 1) - first : 0;
     return r;
 }
 
@@ -158,10 +187,15 @@ void Renderer::render_series(Series&             series,
                                         visible != nullptr,
                                         local_x_min,
                                         local_x_max);
-            const uint32_t first_seg = range.first_seg;
-            const uint32_t seg_count = range.seg_count;
+            const auto     segs      = line_segments_to_draw(gpu, range);
+            const uint32_t first_seg = segs.first_seg;
+            const uint32_t seg_count = segs.seg_count;
             const uint32_t first_pt  = range.first_pt;
             const uint32_t pt_count  = range.pt_count;
+
+            // Density mode: every segment translucent, so overlaps build up.
+            if (line->dense_mode() == DenseLineMode::Density && line_view_.valid)
+                pc.color[3] *= data::density_alpha(pt_count, line_view_.columns);
 
             if (style.has_line() && seg_count > 0)
             {
@@ -171,7 +205,7 @@ void Renderer::render_series(Series&             series,
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.draw(seg_count * 6, first_seg * 6);
             }
-            if (style.has_marker() && pt_count > 0)
+            if (style.has_marker() && pt_count > 0 && (!gpu.line_transformed || gpu.marker_count))
             {
                 backend_.bind_pipeline(scatter_pipeline_);
                 pc.point_size = style.marker_size;
@@ -179,7 +213,9 @@ void Renderer::render_series(Series&             series,
                 backend_.bind_buffer(gpu.ssbo, 0);
                 // first_pt is the first *instance*: scatter.vert reads
                 // points[gl_InstanceIndex] and uses gl_VertexIndex % 6 as the corner.
-                backend_.draw_instanced(6, pt_count, 0, first_pt);
+                // Step lines keep their data points after the line vertices.
+                const uint32_t base = gpu.line_transformed ? gpu.marker_base : 0;
+                backend_.draw_instanced(6, pt_count, 0, base + first_pt);
             }
             break;
         }
@@ -868,8 +904,9 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                                             cull,
                                             local_x_min,
                                             local_x_max);
-                const uint32_t first_seg = range.first_seg;
-                const uint32_t seg_count = range.seg_count;
+                const auto     segs      = line_segments_to_draw(gpu, range);
+                const uint32_t first_seg = segs.first_seg;
+                const uint32_t seg_count = segs.seg_count;
                 const uint32_t first_pt  = range.first_pt;
                 const uint32_t pt_count  = range.pt_count;
 
@@ -881,7 +918,8 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                     backend_.bind_buffer(gpu.ssbo, 0);
                     backend_.draw(seg_count * 6, first_seg * 6);
                 }
-                if (pt_count > 0)
+                // Point dots only where the ssbo holds the data points.
+                if (pt_count > 0 && !gpu.line_transformed)
                 {
                     backend_.bind_pipeline(scatter_pipeline_);
                     pc.point_size  = 5.0f;

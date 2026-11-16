@@ -183,8 +183,22 @@ class SnapshotSeriesState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
         return o == 0
 
+    # SnapshotSeriesState
+    def DrawStyle(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotSeriesState
+    def DenseMode(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(18)
+    builder.StartObject(20)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -308,6 +322,18 @@ def SnapshotSeriesStateStartCategoriesVector(builder, numElems):
 
 def StartCategoriesVector(builder, numElems):
     return SnapshotSeriesStateStartCategoriesVector(builder, numElems)
+
+def SnapshotSeriesStateAddDrawStyle(builder, drawStyle):
+    builder.PrependUint8Slot(18, drawStyle, 0)
+
+def AddDrawStyle(builder, drawStyle):
+    SnapshotSeriesStateAddDrawStyle(builder, drawStyle)
+
+def SnapshotSeriesStateAddDenseMode(builder, denseMode):
+    builder.PrependUint8Slot(19, denseMode, 0)
+
+def AddDenseMode(builder, denseMode):
+    SnapshotSeriesStateAddDenseMode(builder, denseMode)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

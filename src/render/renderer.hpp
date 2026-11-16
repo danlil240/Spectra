@@ -15,6 +15,7 @@
 namespace spectra
 {
 class Axes3D;
+struct StatFillStyle;
 class FigureViewModel;
 }   // namespace spectra
 
@@ -587,6 +588,13 @@ class Renderer
         DashPhaseKey dash_phase_key[FRAME_BUFFER_SLOTS];
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Flat fill + thin outline of a bar / histogram / box / violin series
+    // (render_2d.cpp).
+    void draw_stat_fill(SeriesGpuData&             gpu,
+                        const SeriesPushConstants& pc,
+                        const StatFillStyle&       style,
+                        size_t                     outline_points);
     // Incremented by begin_render_pass(); tags per-pass state such as
     // SeriesGpuData::sorted_ready_serial.
     uint64_t render_pass_serial_ = 0;

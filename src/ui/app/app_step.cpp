@@ -399,8 +399,15 @@ void install_simple_input(Runtime& rt)
                               double x = 0.0, y = 0.0;
                               glfwGetCursorPos(w, &x, &y);
                               cursor_to_layout(w, x, y);
+                              int mods = 0;
+                              if (glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+                                  || glfwGetKey(w, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
+                                  mods |= GLFW_MOD_SHIFT;
+                              if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS
+                                  || glfwGetKey(w, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
+                                  mods |= GLFW_MOD_CONTROL;
                               if (auto* in = simple_input_of(w))
-                                  in->on_scroll(dx, dy, x, y);
+                                  in->on_scroll(dx, dy, x, y, mods);
                           });
     glfwSetKeyCallback(win,
                        [](GLFWwindow* w, int key, int /*scancode*/, int action, int mods)

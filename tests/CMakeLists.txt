@@ -148,6 +148,7 @@ set(SPECTRA_UNIT_TESTS
     test_command_registry
     test_axes_context_menu
     test_undo_manager
+    test_series_transform
     test_command_palette_registry
     test_welcome_actions
     test_shortcut_manager
@@ -202,6 +203,7 @@ set(SPECTRA_UNIT_TESTS
     test_shell_nav_rail
     test_shell_app_shell
     test_ui_shell_fixes
+    test_interaction_fixes
     test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
@@ -212,6 +214,7 @@ set(SPECTRA_UNIT_TESTS
     test_camera
     test_axes3d_fit
     test_axes3d_render_helpers
+    test_axes3d_box
     test_3d_lighting
     test_shape3d_first_frame
     test_shape2d_first_frame

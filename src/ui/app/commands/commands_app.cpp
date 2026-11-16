@@ -13,6 +13,8 @@
 #include "ui/figures/figure_manager.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
+    #include <imgui.h>
+
     #include "ui/theme/icons.hpp"
 #endif
 
@@ -96,6 +98,12 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
                     static_cast<uint16_t>(ui::Icon::Search),
                     [&]() { cmd_palette.toggle(); }});
 
+    // One Esc undoes one level, innermost first:
+    //   1. the gesture in progress (box zoom / ROI / select drag, measurement
+    //      being placed, annotation drag or pending annotation);
+    //   2. the command palette, or an ImGui popup / menu (ImGui closes those
+    //      itself on the same key);
+    //   3. finished tool results left on screen (measurement, ROI selection).
     cmds.push_back({"app.cancel",
                     "Cancel / Close",
                     "Escape",
@@ -103,10 +111,21 @@ std::vector<CommandDescriptor> make_app_commands(CommandContext& ctx)
                     0,
                     [&]()
                     {
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+                        if (ui_ctx.input_handler.cancel_active_gesture())
+                            return;
+    #endif
                         if (cmd_palette.is_open())
                         {
                             cmd_palette.close();
+                            return;
                         }
+                        if (ImGui::GetCurrentContext()
+                            && ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId))
+                            return;
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+                        ui_ctx.input_handler.dismiss_tool_results();
+    #endif
                     }});
 
     // File > Exit. Closes every window this process owns through the same

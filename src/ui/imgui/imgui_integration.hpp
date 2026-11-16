@@ -20,6 +20,7 @@
 
     #include "ui/docking/dock_system.hpp"
     #include "ui/input/input.hpp"
+    #include "ui/input/plot_cursor.hpp"
     #include "ui/overlay/custom_transform_dialog.hpp"
     #include "ui/overlay/plot_overlay_dialog.hpp"
     #include "ui/overlay/data_editor.hpp"
@@ -63,7 +64,8 @@ class LogBrowserPanel;
 namespace settings
 {
 class SettingsPanel;
-}
+class SettingsStore;
+}   // namespace settings
 }   // namespace spectra::ui
 
 namespace spectra
@@ -100,10 +102,11 @@ class ImGuiIntegration
     struct MenuItem
     {
         std::string           label;
-        std::function<void()> callback;   // null = disabled item
-        std::string           shortcut;   // right-aligned hint, e.g. "Ctrl+Shift+T"
-        std::function<bool()> checked;    // set = checkable; returns the current state
-        uint16_t              icon = 0;   // ui::Icon codepoint (0 = none)
+        std::function<void()> callback;            // null = disabled item
+        std::string           shortcut;            // right-aligned hint, e.g. "Ctrl+Shift+T"
+        std::function<bool()> checked;             // set = checkable; returns the current state
+        uint16_t              icon      = 0;       // ui::Icon codepoint (0 = none)
+        bool                  keep_open = false;   // clicking does not close the menu
         MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
         {
         }
@@ -212,18 +215,31 @@ class ImGuiIntegration
     bool     should_reset_live_view() const { return reset_live_view_; }
     void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
-    bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
+    // The active tool.  ImGuiIntegration owns it (nav rail, tool commands and
+    // shortcuts all set it here) and mirrors it to the input handler.
+    void set_interaction_mode(ToolMode mode);
+    // Cursor the plot area asks for this frame (set by build_ui).  Hosts that
+    // have no ImGui platform backend (Qt, embed) map it to their own cursors.
+    PlotCursor plot_cursor() const { return plot_cursor_; }
+    // Cursor the ImGui widgets requested this frame, as a toolkit-free value.
+    WidgetCursor widget_cursor() const;
+    bool         is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
     // Open the custom transform dialog on the current figure, as the nav
     // rail's Transform button does (automation / design review).
-    void open_transform_dialog()
-    {
-        if (custom_transform_dialog_.is_open())
-            return;
-        custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
-        custom_transform_dialog_.open(current_figure_);
-    }
-    void close_transform_dialog() { custom_transform_dialog_.close(); }
-    bool is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
+    void open_transform_dialog();
+
+    // Transforms menu / dialog: overwrite the series (true) or add a
+    // transformed copy (false, default).  Persisted in the settings store.
+    bool transform_overwrite() const { return transform_overwrite_; }
+    void set_transform_overwrite(bool overwrite);
+    // Applies a TransformRegistry transform to the current targets (selected
+    // series, else all visible series of the current plot) as one undoable step.
+    void                 apply_menu_transform(const std::string& name);
+    SeriesTransformHooks series_transform_hooks();
+    // Plot the Transforms menu targets when nothing is selected.
+    Axes* transform_current_plot() const;
+    void  close_transform_dialog() { custom_transform_dialog_.close(); }
+    bool  is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
     const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }
     bool                         is_theme_settings_visible() const { return show_theme_settings_; }
@@ -276,7 +292,12 @@ class ImGuiIntegration
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
     // Input handler (for right-click context menu hit-testing)
-    void          set_input_handler(InputHandler* ih) { input_handler_ = ih; }
+    void set_input_handler(InputHandler* ih)
+    {
+        input_handler_ = ih;
+        if (ih)
+            ih->set_tool_mode(interaction_mode_);
+    }
     InputHandler* input_handler() const { return input_handler_; }
 
     // Programmatically open the pane tab context menu (for QA agent testing)
@@ -361,6 +382,8 @@ class ImGuiIntegration
 
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
+    // Settings store — owned externally; supplies persisted UI choices.
+    void                         set_settings_store(ui::settings::SettingsStore* store);
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
 
     // Tab bar (owned externally by App)
@@ -603,7 +626,12 @@ class ImGuiIntegration
                                 ImFont*     icon_font,
                                 ImFont*     label_font,
                                 float       width,
-                                float       scale = 1.0f);
+                                float       scale   = 1.0f,
+                                const char* tooltip = nullptr);
+
+    // Rail tooltip for a tool button: "Pan (P)" when the tool's command has a
+    // key bound, else just the label.
+    std::string tool_tooltip(const char* label, ToolMode mode) const;
 
     ImFont* icon_font() const { return font_icon_; }
     ImFont* heading_font() const { return font_heading_; }
@@ -727,6 +755,17 @@ class ImGuiIntegration
     bool     reset_live_view_  = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
 
+    // Plot-area cursor (see plot_cursor()).  The GLFW crosshair cursor is
+    // applied by hand since ImGui has no crosshair; crosshair_applied_ tracks
+    // whether it is currently set on the window.
+    void       update_plot_cursor();
+    void       apply_os_cursor_before_backend();
+    void       apply_os_cursor_after_backend();
+    PlotCursor plot_cursor_       = PlotCursor::Default;
+    void*      crosshair_cursor_  = nullptr;   // GLFWcursor*, owned
+    void*      arrow_cursor_      = nullptr;   // GLFWcursor*, owned (restores)
+    bool       crosshair_applied_ = false;
+
     // Status bar data
     double cursor_data_x_     = 0.0;
     double cursor_data_y_     = 0.0;
@@ -808,6 +847,10 @@ class ImGuiIntegration
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
+
+    // Settings store — not owned.
+    ui::settings::SettingsStore* settings_store_      = nullptr;
+    bool                         transform_overwrite_ = false;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;

@@ -440,6 +440,7 @@ class Renderer
             double xmin = 0, xmax = 0;
             double ymin = 0, ymax = 0;
             double zmin = 0, zmax = 0;
+            int    key   = 0;   // 3D: box style / back-face / tick-edge selection
             bool   valid = false;
         };
         // Per-slot caches: each in-flight slot independently tracks whether its

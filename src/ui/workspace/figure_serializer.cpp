@@ -67,6 +67,9 @@ enum ChunkTag : uint16_t
     // bar series in the preceding TAG_SERIES_BAR chunk.  Also version-free.
     TAG_BAR_CATEGORIES = 0x0045,
     TAG_AXES_FORMAT    = 0x0046,
+    // Box style (BoxStyle) of a 3D axes.  Version-free: older readers skip it
+    // and keep the default box.
+    TAG_AXES3D_BOX = 0x0050,
 
     TAG_END = 0xFFFF,
 };
@@ -522,6 +525,13 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
 
     w.end_chunk(pos);
 
+    {
+        auto bpos = w.begin_chunk(TAG_AXES3D_BOX);
+        w.write_i32(axes_index);
+        w.write_u8(static_cast<uint8_t>(axes.box_style()));
+        w.end_chunk(bpos);
+    }
+
     // Write 3D series
     for (const auto& sp : axes.series())
     {
@@ -569,6 +579,9 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_floats(surf->x_grid());
             w.write_floats(surf->y_grid());
             w.write_floats(surf->z_values());
+            // Explicit colormap range flag (before the v7 colour-source tail,
+            // which older readers locate from the chunk end, so they skip it).
+            w.write_u8(static_cast<uint8_t>(surf->colormap_range_set()));
             w.end_series_chunk(spos, *sp);
         }
         else if (auto* ms = dynamic_cast<MeshSeries*>(sp.get()))
@@ -1510,10 +1523,23 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto yg = r.read_floats();
                 auto zv = r.read_floats();
 
+                // Explicit-range flag, when the chunk holds one (it precedes the
+                // 5-byte v7 colour-source tail).  Older files always stored a
+                // range, but the renderer ignored it: treat only a non-default
+                // one as explicit.
+                bool cmap_explicit = !(cmap_min == 0.0f && cmap_max == 1.0f);
+                if (version >= 7 && r.good()
+                    && static_cast<std::streamoff>(r.tell()) + 6
+                           <= static_cast<std::streamoff>(chunk_start)
+                                  + static_cast<std::streamoff>(len))
+                    cmap_explicit = r.read_u8() != 0;
+
                 auto& s = axes->surface(xg, yg, zv);
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
-                s.colormap(cmap).colormap_range(cmap_min, cmap_max);
+                s.colormap(cmap);
+                if (cmap_explicit)
+                    s.colormap_range(cmap_min, cmap_max);
                 s.ambient(amb).specular(spec).shininess(shin);
                 s.blend_mode(bm).double_sided(ds).wireframe(wf);
                 s.colormap_alpha(ca).colormap_alpha_range(ca_min, ca_max);
@@ -1668,6 +1694,18 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                     ann.color(color);
                 if (has_arrow)
                     ann.arrow_to(arrow_x, arrow_y);
+                break;
+            }
+
+            case TAG_AXES3D_BOX:
+            {
+                const int32_t ai    = r.read_i32();
+                const uint8_t style = r.read_u8();
+                Axes3D*       axes  = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                          ? dynamic_cast<Axes3D*>(axes_ptrs[static_cast<size_t>(ai)])
+                                          : nullptr;
+                if (axes && r.good() && style <= static_cast<uint8_t>(BoxStyle::None))
+                    axes->box_style(static_cast<BoxStyle>(style));
                 break;
             }
 

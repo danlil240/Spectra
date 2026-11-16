@@ -121,6 +121,16 @@ void AnnotationManager::end_drag()
     drag_active_ = false;
 }
 
+void AnnotationManager::cancel_drag()
+{
+    if (drag_active_ && drag_index_ < annotations_.size())
+    {
+        annotations_[drag_index_].offset_x = drag_start_offset_x_;
+        annotations_[drag_index_].offset_y = drag_start_offset_y_;
+    }
+    drag_active_ = false;
+}
+
 int AnnotationManager::hit_test(float              screen_x,
                                 float              screen_y,
                                 const AxisMapping& map,

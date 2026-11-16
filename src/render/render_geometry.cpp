@@ -18,6 +18,7 @@
 #include <spectra/series_shapes.hpp>
 
 #include "core/axes3d.hpp"
+#include "core/axes3d_box.hpp"
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
@@ -576,47 +577,31 @@ void Renderer::render_plot_text(Figure& figure)
         // the two horizontal axes are labelled along the bottom box edge
         // nearest the camera, the vertical axis along the leftmost vertical
         // edge on screen -- so labels sit outside the data, as in MATLAB.
-        const int   up_idx     = (cam.up_axis == Camera::UpAxis::Z) ? 2 : 1;
-        const float lo_lim[3]  = {x0, y0, z0};
-        const float hi_lim[3]  = {static_cast<float>(xlim.max),
-                                  static_cast<float>(ylim.max),
-                                  static_cast<float>(zlim.max)};
-        const float cam_pos[3] = {static_cast<float>(cam.position.x),
-                                  static_cast<float>(cam.position.y),
-                                  static_cast<float>(cam.position.z)};
-        const float view_c[3]  = {static_cast<float>(view_dir.x),
-                                  static_cast<float>(view_dir.y),
-                                  static_cast<float>(view_dir.z)};
+        const int   up_idx    = (cam.up_axis == Camera::UpAxis::Z) ? 2 : 1;
+        const float lo_lim[3] = {x0, y0, z0};
+        const float hi_lim[3] = {static_cast<float>(xlim.max),
+                                 static_cast<float>(ylim.max),
+                                 static_cast<float>(zlim.max)};
+        const float view_c[3] = {static_cast<float>(view_dir.x),
+                                 static_cast<float>(view_dir.y),
+                                 static_cast<float>(view_dir.z)};
         float       tick_off[3];
         for (int i = 0; i < 3; ++i)
             tick_off[i] = (hi_lim[i] - lo_lim[i]) * 0.04f;
-        // Normalized box is centred on the origin, so the camera's sign on an
-        // axis tells which face of the box it sees.
-        auto near_edge = [&](int axis) -> float {
-            return cam_pos[axis] >= 0.0f ? hi_lim[axis] + tick_off[axis]
-                                         : lo_lim[axis] - tick_off[axis];
+        // Same faces as the grid planes and box edges (core/axes3d_box.hpp):
+        // labels go on the near side of the back panes, the vertical axis on
+        // the leftmost bottom corner on screen.
+        const axes3d_box::BoxFaces faces     = axes3d_box::compute_faces(*axes3d);
+        auto                       near_edge = [&](int axis) -> float
+        {
+            return faces.back_hi[static_cast<size_t>(axis)] ? lo_lim[axis] - tick_off[axis]
+                                                            : hi_lim[axis] + tick_off[axis];
         };
-        // Leftmost vertical box edge on screen (corner over the two horizontal axes).
         const int h_a            = 0;   // X is horizontal for both Z-up and Y-up
         const int h_b            = (up_idx == 2) ? 1 : 2;
         float     vert_corner[3] = {x0, y0, z0};
-        {
-            float best_sx = 1e30f;
-            for (int ci = 0; ci < 4; ++ci)
-            {
-                float c[3];
-                c[up_idx] = lo_lim[up_idx];
-                c[h_a]    = (ci & 1) ? hi_lim[h_a] : lo_lim[h_a];
-                c[h_b]    = (ci & 2) ? hi_lim[h_b] : lo_lim[h_b];
-                float sx = 0.0f, sy = 0.0f, d = 0.0f;
-                if (world_to_screen({c[0], c[1], c[2]}, sx, sy, d) && sx < best_sx)
-                {
-                    best_sx          = sx;
-                    vert_corner[h_a] = c[h_a];
-                    vert_corner[h_b] = c[h_b];
-                }
-            }
-        }
+        for (int i : {h_a, h_b})
+            vert_corner[i] = faces.up_corner_hi[static_cast<size_t>(i)] ? hi_lim[i] : lo_lim[i];
         auto tick_anchor = [&](int axis, float value) -> vec3
         {
             float p[3];
@@ -1758,12 +1743,18 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
         auto  gp   = axes3d->grid_planes();
         auto& gpu  = axes_gpu_data_[&axes];
 
+        // Each grid plane sits on the box face farthest from the camera (as in
+        // matplotlib / MATLAB), so it always stays behind the data.
+        const axes3d_box::BoxFaces faces = axes3d_box::compute_faces(*axes3d);
+        // Cache key: the enabled planes plus the back-face side of each axis.
+        const int plane_key = static_cast<int>(gp) | (faces.back_hi[0] ? 0x100 : 0)
+                              | (faces.back_hi[1] ? 0x200 : 0) | (faces.back_hi[2] ? 0x400 : 0);
+
         // Check if limits/planes changed — skip regeneration if cached
         auto& gc             = gpu.grid_cache[slot];
         bool  limits_changed = !gc.valid || gc.xmin != xlim.min || gc.xmax != xlim.max
                               || gc.ymin != ylim.min || gc.ymax != ylim.max || gc.zmin != zlim.min
-                              || gc.zmax != zlim.max
-                              || gpu.cached_grid_planes[slot] != static_cast<int>(gp);
+                              || gc.zmax != zlim.max || gpu.cached_grid_planes[slot] != plane_key;
 
         if (limits_changed)
         {
@@ -1791,24 +1782,29 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             std::vector<float> y_ticks = to_float_vec(y_ticks_d);
             std::vector<float> z_ticks = to_float_vec(z_ticks_d);
 
+            const double lo[3] = {xlim.min, ylim.min, zlim.min};
+            const double hi[3] = {xlim.max, ylim.max, zlim.max};
             if (static_cast<int>(gp & Axes3D::GridPlane::XY))
-                grid_gen.generate_xy_plane(min_corner,
-                                           max_corner,
-                                           static_cast<float>(zlim.min),
-                                           x_ticks,
-                                           y_ticks);
+                grid_gen.generate_xy_plane(
+                    min_corner,
+                    max_corner,
+                    static_cast<float>(axes3d_box::back_plane(faces, 2, lo, hi)),
+                    x_ticks,
+                    y_ticks);
             if (static_cast<int>(gp & Axes3D::GridPlane::XZ))
-                grid_gen.generate_xz_plane(min_corner,
-                                           max_corner,
-                                           static_cast<float>(ylim.min),
-                                           x_ticks,
-                                           z_ticks);
+                grid_gen.generate_xz_plane(
+                    min_corner,
+                    max_corner,
+                    static_cast<float>(axes3d_box::back_plane(faces, 1, lo, hi)),
+                    x_ticks,
+                    z_ticks);
             if (static_cast<int>(gp & Axes3D::GridPlane::YZ))
-                grid_gen.generate_yz_plane(min_corner,
-                                           max_corner,
-                                           static_cast<float>(xlim.min),
-                                           y_ticks,
-                                           z_ticks);
+                grid_gen.generate_yz_plane(
+                    min_corner,
+                    max_corner,
+                    static_cast<float>(axes3d_box::back_plane(faces, 0, lo, hi)),
+                    y_ticks,
+                    z_ticks);
 
             if (grid_gen.vertices.empty())
                 return;
@@ -1839,14 +1835,15 @@ void Renderer::render_grid(AxesBase& axes, const Rect& /*viewport*/)
             gc.ymax                      = ylim.max;
             gc.zmin                      = zlim.min;
             gc.zmax                      = zlim.max;
-            gpu.cached_grid_planes[slot] = static_cast<int>(gp);
+            gpu.cached_grid_planes[slot] = plane_key;
             gc.valid                     = true;
         }
 
         if (!gpu.grid_buffer[slot] || gpu.grid_vertex_count[slot] == 0)
             return;
 
-        // Draw 3D grid as overlay (no depth test so it's always visible)
+        // Depth-tested without depth writes, drawn before the box and the
+        // series: anything in front of the back panes covers the grid.
         backend_.bind_pipeline(grid_overlay3d_pipeline_);
 
         SeriesPushConstants pc{};

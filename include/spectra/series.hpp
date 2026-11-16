@@ -229,6 +229,11 @@ class Series
     void          clear_dirty() { dirty_ = false; }
     void          mark_dirty();
 
+    /// Process-unique id of this series object, never reused (unlike its
+    /// address); a copy gets a new one.  Lets long-lived references such as
+    /// undo entries tell whether the series they captured still exists.
+    std::uint64_t instance_id() const { return instance_id_; }
+
     // ── Thread-safe data access (opt-in) ──
     /// When enabled, set_x/set_y/append/erase_before route through a pending
     /// buffer that is committed atomically at frame boundary.  Default off
@@ -359,21 +364,23 @@ class Series
     virtual size_t erase_before_f64(double x_threshold);
     virtual size_t erase_after_f64(double x_threshold);
 
-    std::string     label_;
-    Color           color_            = colors::blue;
-    int             auto_color_index_ = -1;     ///< palette slot, -1 = explicit colour
-    char            color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
-    PlotStyle       style_;                     ///< line/marker style, sizes, opacity
-    bool            visible_                 = true;
-    double          x_offset_                = 0.0;
-    double          y_offset_                = 0.0;
-    bool            excluded_from_autoscale_ = false;
-    bool            show_in_legend_          = true;
-    bool            is_reference_line_       = false;
-    std::string     data_binding_;   ///< layout binding URI, "" = none
-    SeriesDirtyFlag dirty_{true};
-    EventSystem*    event_system_ = nullptr;
-    AxesBase*       owning_axes_  = nullptr;
+    std::string          label_;
+    Color                color_            = colors::blue;
+    int                  auto_color_index_ = -1;     ///< palette slot, -1 = explicit colour
+    char                 color_letter_     = '\0';   ///< format-string colour letter, '\0' = none
+    PlotStyle            style_;                     ///< line/marker style, sizes, opacity
+    bool                 visible_                 = true;
+    double               x_offset_                = 0.0;
+    double               y_offset_                = 0.0;
+    bool                 excluded_from_autoscale_ = false;
+    bool                 show_in_legend_          = true;
+    bool                 is_reference_line_       = false;
+    std::string          data_binding_;   ///< layout binding URI, "" = none
+    SeriesDirtyFlag      dirty_{true};
+    static std::uint64_t next_instance_id();
+    std::uint64_t        instance_id_  = next_instance_id();   // not copied: see instance_id()
+    EventSystem*         event_system_ = nullptr;
+    AxesBase*            owning_axes_  = nullptr;
 
     /// Thread-safe data buffering (opt-in).
     bool                                                         thread_safe_ = false;

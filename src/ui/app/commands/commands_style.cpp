@@ -5,6 +5,7 @@
 #include "command_descriptor.hpp"
 
 #include <spectra/figure.hpp>
+#include <spectra/figure_registry.hpp>
 #include <spectra/style.hpp>
 
 #include "ui/app/window_ui_context.hpp"
@@ -25,6 +26,7 @@ std::vector<CommandDescriptor> make_style_commands(CommandContext& ctx)
     auto&  ui_ctx        = ctx.ui_ctx;
     auto*& active_figure = *ctx.active_figure;
     auto&  undo_mgr      = ui_ctx.undo_mgr;
+    auto&  reg           = ctx.registry;
 
     // style.default, style.paper, style.talk, style.minimal, style.dark-paper
     for (const std::string& name : style::available())
@@ -39,7 +41,11 @@ std::vector<CommandDescriptor> make_style_commands(CommandContext& ctx)
                             const StyleSheet* st = style::find(name);
                             if (!active_figure || !st)
                                 return;
-                            undoable_apply_style(&undo_mgr, *active_figure, *st);
+                            // Re-resolved by id: the tab may be closed before undo.
+                            StyleFigureLookup lookup;
+                            lookup.id_of   = [&reg](const Figure* f) { return reg.find_id(f); };
+                            lookup.resolve = [&reg](FigureId id) { return reg.get(id); };
+                            undoable_apply_style(&undo_mgr, *active_figure, *st, lookup);
                         }});
     }
 

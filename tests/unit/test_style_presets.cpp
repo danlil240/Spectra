@@ -7,10 +7,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <spectra/axes.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/style.hpp>
 #include <string>
 #include <thread>
@@ -237,6 +239,68 @@ TEST(StylePresets, UndoRestoresEverything)
     EXPECT_EQ(line.width(), style::find("paper")->line_width);
 }
 
+// Codex P1: undo must not touch a series deleted after the style was applied
+// (Inspector trash -> deferred Axes::remove_series), nor a closed figure.
+TEST(StylePresets, UndoSkipsSeriesRemovedAfterwards)
+{
+    Figure fig;
+    auto&  ax   = fig.subplot(1, 1, 1);
+    auto&  keep = ax.line(ramp(5), ramp(5));
+    ax.line(ramp(5), ramp(5, 2.0f));   // deleted below
+    UndoManager undo;
+    undoable_apply_style(&undo, fig, *style::find("talk"));
+    ASSERT_EQ(keep.width(), style::find("talk")->line_width);
+    ASSERT_TRUE(ax.remove_series(1));
+    auto& added = ax.line(ramp(5), ramp(5, 3.0f));   // not in the snapshot
+    added.width(7.0f);
+
+    ASSERT_TRUE(undo.undo());
+    EXPECT_EQ(ax.series().size(), 2u);
+    EXPECT_EQ(keep.width(), 2.0f);
+    EXPECT_EQ(added.width(), 7.0f);
+    EXPECT_FALSE(fig.style_sheet().has_value());
+    ASSERT_TRUE(undo.redo());
+    EXPECT_EQ(keep.width(), style::find("talk")->line_width);
+}
+
+TEST(StylePresets, UndoIsANoOpOnceTheFigureIsClosed)
+{
+    auto              fig   = std::make_unique<Figure>();
+    Figure*           raw   = fig.get();
+    bool              alive = true;
+    StyleFigureLookup lookup;
+    lookup.id_of   = [&](const Figure* f) -> FigureId { return alive && f == raw ? 7 : 0; };
+    lookup.resolve = [&](FigureId id) -> Figure* { return alive && id == 7 ? raw : nullptr; };
+    fig->subplot(1, 1, 1).line(ramp(3), ramp(3));
+    UndoManager undo;
+    undoable_apply_style(&undo, *fig, *style::find("paper"), lookup);
+    fig.reset();
+    alive = false;
+    EXPECT_TRUE(undo.undo());   // runs, touches nothing
+    EXPECT_TRUE(undo.redo());
+}
+
+// Codex P2: scatter points are drawn at ScatterSeries::size().
+TEST(StylePresets, ScatterSizeFollowsTheStyleAndUndo)
+{
+    Figure      fig;
+    auto&       ax          = fig.subplot(1, 1, 1);
+    auto&       dflt        = ax.scatter(ramp(4), ramp(4));
+    auto&       explicit_sz = ax.scatter(ramp(4), ramp(4)).size(11.0f);
+    UndoManager undo;
+    undoable_apply_style(&undo, fig, *style::find("talk"));
+    const float talk = style::find("talk")->marker_size;
+    EXPECT_EQ(dflt.size(), talk);
+    EXPECT_EQ(dflt.marker_size(), talk);
+    EXPECT_EQ(explicit_sz.size(), 11.0f);
+    EXPECT_EQ(ax.scatter(ramp(2), ramp(2)).size(), talk);   // new series
+
+    ASSERT_TRUE(undo.undo());
+    EXPECT_EQ(dflt.size(), 6.0f);
+    EXPECT_EQ(dflt.marker_size(), 6.0f);
+    EXPECT_EQ(explicit_sz.size(), 11.0f);
+}
+
 // ─── Minor ticks helper ─────────────────────────────────────────────────────
 
 TEST(StylePresets, MinorTickValues)
@@ -411,6 +475,73 @@ TEST(StylePresetsPersistence, SerializerRoundTrip)
     EXPECT_EQ(loaded.style_name(), "paper");
     EXPECT_EQ(loaded.style().palette, "colorblind");
     EXPECT_TRUE(loaded.style().background_override);
+}
+
+// Codex P2: the Export dialog copies the figure through FigureSerializer, so
+// image / heatmap / contourf / contour series must survive it.
+TEST(StylePresetsPersistence, ImageAndContourSeriesRoundTrip)
+{
+    Figure                   fig;
+    auto&                    ax = fig.subplot(1, 1, 1);
+    const std::vector<float> z{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};   // 4 x 3
+    auto&                    img = ax.imshow(z, 4, 3);
+    img.extent(-1.0, 3.0, 10.0, 16.0).colormap("magma_r").colormap_range(1.0f, 9.0f);
+    auto& hm = ax.heatmap(z, 4, 3, {"a", "b", "c", "d"}, {"x", "y", "z"});
+    hm.show_values(true, 1);
+    auto&                    cf = ax.contourf(z, 4, 3, 5);
+    const std::vector<Color> stops{colors::red, colors::blue};
+    auto&                    ct = ax.contour(z, 4, 3, 4);
+    ct.colormap(Colormap::from_colors(stops)).width(2.5f).label("iso");
+    std::vector<float> rgba(2 * 2 * 4, 0.5f);
+    auto&              pic = ax.imshow({}, 0, 0);
+    pic.set_rgba(rgba, 2, 2, 4);
+
+    const std::string path = temp_file("grid.spectra");
+    ASSERT_TRUE(FigureSerializer::save(path, fig));
+    Figure loaded;
+    ASSERT_TRUE(FigureSerializer::load(path, loaded));
+    fs::remove(path);
+    ASSERT_FALSE(loaded.axes().empty());
+    const auto& series = loaded.axes()[0]->series();
+    ASSERT_EQ(series.size(), 5u);
+
+    auto* limg = dynamic_cast<ImageSeries*>(series[0].get());
+    ASSERT_NE(limg, nullptr);
+    EXPECT_EQ(limg->cols(), 4u);
+    EXPECT_EQ(limg->rows(), 3u);
+    EXPECT_EQ(limg->x0(), -1.0);
+    EXPECT_EQ(limg->y1(), 16.0);
+    EXPECT_EQ(limg->cmap(), img.cmap());
+    EXPECT_TRUE(limg->colormap_range_set());
+    EXPECT_EQ(limg->vmax(), 9.0f);
+
+    auto* lhm = dynamic_cast<ImageSeries*>(series[1].get());
+    ASSERT_NE(lhm, nullptr);
+    EXPECT_TRUE(lhm->show_values());
+    EXPECT_EQ(lhm->value_decimals(), 1);
+    EXPECT_EQ(lhm->x_categories(), hm.x_categories());
+    EXPECT_EQ(lhm->y_categories(), hm.y_categories());
+
+    auto* lcf = dynamic_cast<ImageSeries*>(series[2].get());
+    ASSERT_NE(lcf, nullptr);
+    EXPECT_EQ(lcf->levels(), cf.levels());
+    EXPECT_TRUE(lcf->node_aligned());
+    EXPECT_EQ(lcf->origin(), ImageOrigin::Lower);
+    EXPECT_EQ(lcf->x1(), cf.x1());
+
+    auto* lct = dynamic_cast<ContourSeries*>(series[3].get());
+    ASSERT_NE(lct, nullptr);
+    EXPECT_EQ(lct->label(), "iso");
+    EXPECT_EQ(lct->width(), 2.5f);
+    EXPECT_EQ(lct->level_values(), ct.level_values());
+    EXPECT_EQ(lct->point_count(), ct.point_count());
+    EXPECT_TRUE(lct->cmap().is_custom());
+    EXPECT_EQ(lct->cmap().rgba8(), ct.cmap().rgba8());
+
+    auto* lpic = dynamic_cast<ImageSeries*>(series[4].get());
+    ASSERT_NE(lpic, nullptr);
+    EXPECT_TRUE(lpic->is_rgba());
+    EXPECT_EQ(lpic->cols(), 2u);
 }
 
 TEST(StylePresetsPersistence, DefaultFigureLoadsDefaults)

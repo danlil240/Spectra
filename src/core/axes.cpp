@@ -89,6 +89,8 @@ T& Axes::add_series(Args&&... args)
         ref.width(default_line_width_);
     if constexpr (std::is_base_of_v<LineSeries, T> || std::is_base_of_v<ScatterSeries, T>)
         ref.marker_size(default_marker_size_);
+    if constexpr (std::is_base_of_v<ScatterSeries, T>)
+        ref.size(default_marker_size_);   // scatter points are drawn at size()
     ref.set_event_context(event_system_, this);
     series_.push_back(std::move(s));
     if (event_system_)

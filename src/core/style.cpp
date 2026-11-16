@@ -154,8 +154,12 @@ void AxesBase::apply_style(const StyleSheet& style)
         }
         else if (auto* scatter = dynamic_cast<ScatterSeries*>(sp.get()))
         {
-            if (scatter->marker_size() == default_marker_size_)
+            // Scatter points are drawn at size(); marker_size() mirrors it.
+            if (scatter->size() == default_marker_size_)
+            {
+                scatter->size(style.marker_size);
                 scatter->marker_size(style.marker_size);
+            }
         }
     }
     default_line_width_  = style.line_width;

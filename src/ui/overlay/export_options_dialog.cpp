@@ -30,9 +30,12 @@ using ui::settings::ExportDialogSettings;
 using ui::settings::ExportFormat;
 using ui::settings::ExportSizeUnit;
 
-constexpr float  OPTIONS_WIDTH     = 300.0f;
-constexpr float  PREVIEW_WIDTH     = 360.0f;
-constexpr float  PREVIEW_HEIGHT    = 260.0f;
+constexpr float OPTIONS_WIDTH  = 300.0f;
+constexpr float PREVIEW_WIDTH  = 360.0f;
+constexpr float PREVIEW_HEIGHT = 260.0f;
+// Preview render bounds: twice the shown size so it stays crisp on HiDPI.
+constexpr auto   PREVIEW_RENDER_W  = static_cast<uint32_t>(PREVIEW_WIDTH * 2.0f);
+constexpr auto   PREVIEW_RENDER_H  = static_cast<uint32_t>(PREVIEW_HEIGHT * 2.0f);
 constexpr double PREVIEW_DEBOUNCE  = 0.3;   // seconds after the last change
 constexpr int    TEXTURE_KEEPALIVE = 4;     // frames a released preview stays alive
 
@@ -160,17 +163,15 @@ void ExportOptionsDialog::request_preview(Figure& figure)
     }
     preview_figure_file_ = job.figure_file;
     preview_dirty_       = false;
-    // Twice the shown size so it stays crisp on HiDPI screens.
-    const auto max_w = static_cast<uint32_t>(PREVIEW_WIDTH * 2.0f);
-    const auto max_h = static_cast<uint32_t>(PREVIEW_HEIGHT * 2.0f);
-    preview_job_     = std::async(std::launch::async,
-                              [job, max_w, max_h]()
-                              {
-                                  PreviewImage    img = render_offscreen_preview(job, max_w, max_h);
-                                  std::error_code ec;
-                                  std::filesystem::remove(job.figure_file, ec);
-                                  return img;
-                              });
+    preview_job_         = std::async(
+        std::launch::async,
+        [job]()
+        {
+            PreviewImage    img = render_offscreen_preview(job, PREVIEW_RENDER_W, PREVIEW_RENDER_H);
+            std::error_code ec;
+            std::filesystem::remove(job.figure_file, ec);
+            return img;
+        });
 }
 
 void ExportOptionsDialog::poll_preview()

@@ -113,6 +113,9 @@ void Renderer::render_series(Series&             series,
     pc.color[1] = eff_color.g;
     pc.color[2] = eff_color.b;
     pc.color[3] = eff_color.a * eff_opacity;
+    if (!dimmed_series_.empty()
+        && std::find(dimmed_series_.begin(), dimmed_series_.end(), &series) != dimmed_series_.end())
+        pc.color[3] *= DIMMED_SERIES_ALPHA;
 
     const auto& style = series.plot_style();
     pc.line_style     = static_cast<uint32_t>(style.line_style);

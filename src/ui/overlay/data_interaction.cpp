@@ -16,10 +16,19 @@
     #include "data/sorted_x_query.hpp"
     #include "axes3d_pick.hpp"
     #include "crosshair_mapping.hpp"
+    #include "marker_actions.hpp"
+    #include "measure_math.hpp"
     #include "ui/data/axis_link.hpp"
+    #include "ui/theme/theme.hpp"
+    #include "ui/theme/theme_imgui.hpp"
 
 namespace spectra
 {
+
+namespace
+{
+constexpr int SHIFT_MOD = 0x0001;   // GLFW_MOD_SHIFT
+}   // namespace
 
 void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
 {
@@ -360,6 +369,7 @@ void DataInteraction::draw_overlays(float       window_width,
             if (auto* axes3d = dynamic_cast<Axes3D*>(axes_ptr.get()))
                 markers_.draw_3d(*axes3d, 1.0f, dl);
         }
+        draw_marker_deltas(*overlay_figure, dl);
     }
 
     // Draw region selection overlay — use the axes where the ROI was started
@@ -500,7 +510,10 @@ bool DataInteraction::try_toggle_datatip_at_nearest()
     return false;
 }
 
-bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, double screen_y)
+bool DataInteraction::on_mouse_click_datatip_only(int    button,
+                                                  double screen_x,
+                                                  double screen_y,
+                                                  int    mods)
 {
     refresh_pointer_state(screen_x, screen_y);
 
@@ -530,13 +543,27 @@ bool DataInteraction::on_mouse_click_datatip_only(int button, double screen_x, d
                                                active_axes_);
             if (marker_hit >= 0)
             {
-                markers_.remove(static_cast<size_t>(marker_hit));
+                click_marker(static_cast<size_t>(marker_hit), mods);
                 return true;
             }
         }
 
+        const size_t before = markers_.count();
         if (try_toggle_datatip_at_nearest())
+        {
+            // A new 2D tip is selected, so the arrow keys step it right away.
+            if (markers_.count() > before && !markers_.markers().back().is_3d)
+            {
+                if (mods & SHIFT_MOD)
+                    markers_.marker(markers_.count() - 1)->selected = true;
+                else
+                    markers_.select_only(markers_.count() - 1);
+            }
             return true;
+        }
+        // Click on empty canvas: drop the tip selection (arrow keys pan again).
+        if (!(mods & SHIFT_MOD))
+            markers_.clear_selection();
     }
 
     // Right click: remove marker
@@ -674,6 +701,199 @@ bool DataInteraction::on_mouse_click(int button, double screen_x, double screen_
     }
 
     return false;
+}
+
+void DataInteraction::click_marker(size_t idx, int mods)
+{
+    const DataMarker* m = markers_.marker(idx);
+    if (!m)
+        return;
+    if (mods & SHIFT_MOD)
+    {
+        markers_.toggle_selected(idx);
+        return;
+    }
+    // Clicking the only selected tip removes it (the old click-to-toggle).
+    if (m->selected && markers_.selected_count() == 1)
+    {
+        markers_.remove(idx);
+        return;
+    }
+    markers_.select_only(idx);
+}
+
+bool DataInteraction::begin_marker_drag(double screen_x, double screen_y)
+{
+    refresh_pointer_state(screen_x, screen_y);
+    if (!active_axes_ || active_axes3d_)
+        return false;
+    const int hit = markers_.hit_test(static_cast<float>(screen_x),
+                                      static_cast<float>(screen_y),
+                                      active_mapping(),
+                                      10.0f,
+                                      active_axes_);
+    if (hit < 0)
+        return false;
+    const DataMarker* m = markers_.marker(static_cast<size_t>(hit));
+    if (!m || !m->series || m->is_3d)
+        return false;
+    drag_marker_      = hit;
+    drag_start_point_ = m->point_index;
+    return true;
+}
+
+void DataInteraction::update_marker_drag(double screen_x, double screen_y)
+{
+    DataMarker* m =
+        drag_marker_ >= 0 ? markers_.marker(static_cast<size_t>(drag_marker_)) : nullptr;
+    if (!m || !m->series || !m->axes)
+        return;
+    const auto idx = measure::drag_index(*m->series, AxisMapping(*m->axes), screen_x, screen_y);
+    if (idx && *idx != m->point_index)
+        markers_.move_to_point(static_cast<size_t>(drag_marker_), *idx);
+}
+
+void DataInteraction::end_marker_drag(double screen_x, double screen_y, bool moved, int mods)
+{
+    (void)screen_x;
+    (void)screen_y;
+    const int idx = drag_marker_;
+    drag_marker_  = -1;
+    if (idx < 0)
+        return;
+    if (!moved)
+    {
+        click_marker(static_cast<size_t>(idx), mods);
+        return;
+    }
+    // A dragged tip becomes the selection (arrow keys fine-tune it).
+    if (!(mods & SHIFT_MOD))
+        markers_.select_only(static_cast<size_t>(idx));
+}
+
+void DataInteraction::cancel_marker_drag()
+{
+    if (drag_marker_ >= 0)
+        markers_.move_to_point(static_cast<size_t>(drag_marker_), drag_start_point_);
+    drag_marker_ = -1;
+}
+
+bool DataInteraction::step_selected_markers(int delta)
+{
+    bool any = false;
+    for (size_t i = 0; i < markers_.count(); ++i)
+    {
+        const DataMarker* m = markers_.marker(i);
+        if (!m || !m->selected || m->is_3d || !m->series)
+            continue;
+        if (last_figure_ && !marker_in_figure(*m, *last_figure_))
+            continue;
+        any = true;
+        if (auto next = measure::step_index(*m->series, m->point_index, delta))
+            markers_.move_to_point(i, *next);
+    }
+    return any;
+}
+
+void DataInteraction::draw_measurement_label(ImDrawList*                     dl,
+                                             float                           x,
+                                             float                           y,
+                                             const std::vector<std::string>& lines,
+                                             const ui::ThemeColors&          colors)
+{
+    if (!dl || lines.empty())
+        return;
+    const float pad    = 6.0f;
+    const float line_h = ImGui::GetTextLineHeight();
+    float       w      = 0.0f;
+    for (const auto& l : lines)
+        w = std::max(w, ImGui::CalcTextSize(l.c_str()).x);
+    const float h  = line_h * static_cast<float>(lines.size());
+    const float x0 = x - w * 0.5f - pad;
+    const float y1 = y - pad;
+    const float y0 = y1 - h - pad * 2.0f;
+    dl->AddRectFilled(ImVec2(x0, y0),
+                      ImVec2(x0 + w + pad * 2.0f, y1),
+                      ui::to_imu32(colors.bg_elevated, 0.92f),
+                      4.0f);
+    dl->AddRect(ImVec2(x0, y0),
+                ImVec2(x0 + w + pad * 2.0f, y1),
+                ui::to_imu32(colors.border_subtle, 0.9f),
+                4.0f);
+    float ty = y0 + pad;
+    for (const auto& l : lines)
+    {
+        dl->AddText(ImVec2(x0 + pad, ty), ui::to_imu32(colors.text_primary, 0.94f), l.c_str());
+        ty += line_h;
+    }
+}
+
+void DataInteraction::draw_marker_deltas(Figure& figure, ImDrawList* dl)
+{
+    if (!theme_mgr_ || markers_.selected_count() < 2)
+        return;
+    ImDrawList*            fg     = dl ? dl : ImGui::GetForegroundDrawList();
+    const ui::ThemeColors& colors = theme_mgr_->colors();
+    for (auto& axes_ptr : figure.axes())
+    {
+        if (!axes_ptr)
+            continue;
+        const DataMarker* a     = nullptr;
+        const DataMarker* b     = nullptr;
+        int               count = 0;
+        for (const auto& m : markers_.markers())
+        {
+            if (m.is_3d || !m.selected || m.axes != axes_ptr.get())
+                continue;
+            ++count;
+            (a ? b : a) = &m;
+        }
+        if (count != 2)
+            continue;
+        const AxisMapping map(*axes_ptr);
+        if (!map.x_drawable(a->data_x) || !map.y_drawable(a->data_y) || !map.x_drawable(b->data_x)
+            || !map.y_drawable(b->data_y))
+            continue;
+        const ImVec2 pa(static_cast<float>(map.to_screen_x(a->data_x)),
+                        static_cast<float>(map.to_screen_y(a->data_y)));
+        const ImVec2 pb(static_cast<float>(map.to_screen_x(b->data_x)),
+                        static_cast<float>(map.to_screen_y(b->data_y)));
+
+        // Dashed connector between the two tips.
+        const ImU32 line_col = ui::to_imu32(colors.accent, 0.85f);
+        const float len      = std::hypot(pb.x - pa.x, pb.y - pa.y);
+        const int   dashes   = std::max(1, static_cast<int>(len / 8.0f));
+        for (int i = 0; i < dashes; i += 2)
+        {
+            const float t0 = static_cast<float>(i) / static_cast<float>(dashes);
+            const float t1 = std::min(1.0f, static_cast<float>(i + 1) / static_cast<float>(dashes));
+            fg->AddLine(ImVec2(pa.x + (pb.x - pa.x) * t0, pa.y + (pb.y - pa.y) * t0),
+                        ImVec2(pa.x + (pb.x - pa.x) * t1, pa.y + (pb.y - pa.y) * t1),
+                        line_col,
+                        1.5f);
+        }
+
+        // Earlier sample first, so Δx reads left to right.
+        if (b->data_x < a->data_x)
+            std::swap(a, b);
+        // Tips sit on exact samples: full precision, not pixel precision.
+        measure::MeasureFormat fmt    = measure::measure_format(*axes_ptr, b->data_x, b->data_y);
+        fmt.x_resolution              = 0.0;
+        fmt.y_resolution              = 0.0;
+        const measure::Measurement mm = measure::compute_measurement(a->data_x,
+                                                                     a->data_y,
+                                                                     b->data_x,
+                                                                     b->data_y,
+                                                                     fmt.xscale,
+                                                                     fmt.yscale,
+                                                                     fmt.x_unit,
+                                                                     fmt.y_unit);
+        draw_measurement_label(fg,
+                               (pa.x + pb.x) * 0.5f,
+                               (pa.y + pb.y) * 0.5f,
+                               measure::measurement_lines(mm, fmt),
+                               colors);
+    }
 }
 
 void DataInteraction::add_marker(double        data_x,

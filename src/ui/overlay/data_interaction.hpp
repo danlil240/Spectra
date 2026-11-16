@@ -92,13 +92,14 @@ class DataInteraction
 
     // Marker / data label control
     // data_x/data_y are absolute data coordinates (series offsets included).
-    void                           add_marker(double        data_x,
-                                              double        data_y,
-                                              const Series* series,
-                                              size_t        index,
-                                              const Axes*   axes = nullptr);
-    void                           remove_marker(size_t idx);
-    void                           clear_markers();
+    void add_marker(double        data_x,
+                    double        data_y,
+                    const Series* series,
+                    size_t        index,
+                    const Axes*   axes = nullptr);
+    void remove_marker(size_t idx);
+    void clear_markers();
+    void insert_marker(size_t idx, DataMarker m) { markers_.insert(idx, std::move(m)); }
     const std::vector<DataMarker>& markers() const { return markers_.markers(); }
 
     // Toggle a data label (datatip) on a point: adds if absent, removes if present.

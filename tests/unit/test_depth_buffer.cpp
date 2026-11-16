@@ -196,8 +196,9 @@ TEST_F(DepthBufferTest, FrameUBOSize)
 {
     // FrameUBO must be exactly the right size for std140 layout
     // 3 * mat4 (48 floats) + viewport_size(2) + time(1) + pad(1) +
-    // camera_pos(3) + near(1) + light_dir(3) + far(1) = 60 floats = 240 bytes
-    EXPECT_EQ(sizeof(FrameUBO), 240u);
+    // camera_pos(3) + near(1) + light_dir(3) + far(1) + viewport_origin(2) +
+    // pixel_scale(1) + pad(1) = 64 floats = 256 bytes
+    EXPECT_EQ(sizeof(FrameUBO), 256u);
 }
 
 TEST_F(DepthBufferTest, FrameUBODefaultValues)

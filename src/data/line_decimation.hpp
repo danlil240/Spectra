@@ -83,12 +83,14 @@ inline bool should_m4_decimate(size_t visible_points, size_t columns)
 
 // M4 decimation of points [begin, end) of a line whose x is sorted.
 // `column_of(i)` returns point i's pixel column as a double (any value; NaN
-// for a NaN x); `y` holds the y values.  For every column the first, lowest,
+// or +/-inf for a non-finite x); `y` holds the y values.  For every column the first, lowest,
 // highest and last point are kept, in data order, so a line through the kept
 // points covers exactly the same pixels as the line through all of them (for
 // lines at least one pixel wide).  Columns before 0 and from `columns` on are
 // merged into one column on each side, keeping the segments that enter and
-// leave the view.  Points with a NaN x or y are kept, so line gaps survive.
+// leave the view.  Points with a NaN or infinite x or y end the current
+// column and are kept as gap markers (the line pipeline breaks the line at
+// them), so line gaps survive and never count as a column's min or max.
 // The kept indices are appended to `out` in increasing order.
 template <typename ColumnOf>
 void m4_decimate(std::span<const float> y,
@@ -127,7 +129,9 @@ void m4_decimate(std::span<const float> y,
         const auto   idx = static_cast<uint32_t>(i);
         const float  yi  = y[i];
         const double c   = column_of(i);
-        if (std::isnan(yi) || std::isnan(c))
+        // NaN and +/-inf break the line (line.vert draws neither), so they
+        // end the column and are kept as gap markers, never as extrema.
+        if (!std::isfinite(yi) || !std::isfinite(c))
         {
             flush();
             out.push_back(idx);   // gap marker

@@ -235,6 +235,54 @@ TEST(M4Decimation, NaNGapsSurvive)
     EXPECT_NE(std::find(keep.begin(), keep.end(), 501u), keep.end());   // first after it
 }
 
+// +/-inf breaks the line like NaN (line.vert draws neither): it must end its
+// column and be kept as a gap marker, never chosen as the column's min / max.
+TEST(M4Decimation, InfinitiesAreGapsNotExtrema)
+{
+    constexpr float    Inf = std::numeric_limits<float>::infinity();
+    std::vector<float> y(1000);
+    for (size_t i = 0; i < y.size(); ++i)
+        y[i] = static_cast<float>(i % 7);   // finite min 0, max 6 in every column
+    y[250] = Inf;
+    y[650] = -Inf;
+    std::vector<uint32_t> keep;
+    data::m4_decimate(
+        y,
+        0,
+        y.size(),
+        10,
+        [](size_t i) { return static_cast<double>(i) / 100.0; },
+        keep);
+    ASSERT_TRUE(std::is_sorted(keep.begin(), keep.end()));
+    for (uint32_t gap : {250u, 650u})
+    {
+        const auto at = std::find(keep.begin(), keep.end(), gap);
+        ASSERT_NE(at, keep.end());
+        // The line is cut right before and after the gap marker.
+        ASSERT_NE(at, keep.begin());
+        EXPECT_EQ(*(at - 1), gap - 1);
+        EXPECT_EQ(*(at + 1), gap + 1);
+    }
+    // Every other kept point is finite and within the finite range.
+    for (uint32_t k : keep)
+        if (k != 250u && k != 650u)
+        {
+            EXPECT_TRUE(std::isfinite(y[k]));
+            EXPECT_LE(y[k], 6.0f);
+        }
+    // An x that maps to an infinite column is a gap too.
+    keep.clear();
+    data::m4_decimate(
+        y,
+        0,
+        200,
+        10,
+        [](size_t i) { return i == 120 ? std::numeric_limits<double>::infinity() : i / 100.0; },
+        keep);
+    EXPECT_NE(std::find(keep.begin(), keep.end(), 119u), keep.end());
+    EXPECT_NE(std::find(keep.begin(), keep.end(), 121u), keep.end());
+}
+
 TEST(M4Decimation, Threshold)
 {
     EXPECT_FALSE(data::should_m4_decimate(1000, 0));

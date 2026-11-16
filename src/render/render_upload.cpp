@@ -337,9 +337,24 @@ void Renderer::upload_series_data(Series&   series,
         return;
     }
 
-    if (line && line->point_count() > 0
-        && upload_line_geometry(*line, gpu, origin_x, origin_y, xscale, yscale))
-        return;
+    if (line)
+    {
+        if (line->point_count() > 0
+            && upload_line_geometry(*line, gpu, origin_x, origin_y, xscale, yscale))
+            return;
+        // Plain points from here on: forget any step / M4 geometry, and stop
+        // drawing the previous upload when the line has been emptied.
+        gpu.line_transformed  = false;
+        gpu.line_decimated    = false;
+        gpu.line_vertex_count = 0;
+        gpu.marker_count      = 0;
+        if (line->point_count() == 0)
+        {
+            gpu.uploaded_count = 0;
+            line->clear_dirty();
+            return;
+        }
+    }
 
     if (line || scatter || boxplot || violin || histogram || bar || band || stem || shape
         || contour)

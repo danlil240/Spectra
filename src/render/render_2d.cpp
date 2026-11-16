@@ -82,15 +82,17 @@ LineDrawRange Renderer::line_segments_to_draw(const SeriesGpuData& gpu, const Li
     if (!gpu.line_transformed)
         return range;
     LineDrawRange r = range;
+    // Nothing visible (or the line was emptied after the last upload): draw
+    // none of the cached vertices.
+    if (range.pt_count < 2)
+    {
+        r.seg_count = 0;
+        return r;
+    }
     if (gpu.line_decimated)
     {
         r.first_seg = 0;
         r.seg_count = gpu.line_vertex_count > 1 ? gpu.line_vertex_count - 1 : 0;
-        return r;
-    }
-    if (range.pt_count < 2)
-    {
-        r.seg_count = 0;
         return r;
     }
     const auto first =

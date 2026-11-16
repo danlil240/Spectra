@@ -512,17 +512,24 @@ static void dense_line_scene(Figure& fig, DenseLineMode mode)
     ax.grid(true);
 }
 
-// Render one scene into pixels (no baseline).
+// Render one scene into pixels (no baseline).  With `update`, the scene is
+// rendered once, changed by `update`, and the second frame is returned.
 static bool render_scene_pixels(const std::function<void(Figure&)>& setup,
                                 uint32_t                            width,
                                 uint32_t                            height,
-                                std::vector<uint8_t>&               pixels)
+                                std::vector<uint8_t>&               pixels,
+                                const std::function<void(Figure&)>& update = {})
 {
     App&     app    = *g_app;
     auto&    fig    = app.figure({.width = width, .height = height});
     FigureId fig_id = app.figure_registry().find_id(&fig);
     setup(fig);
-    const bool ok = render_headless(fig, app, pixels);
+    bool ok = render_headless(fig, app, pixels);
+    if (ok && update)
+    {
+        update(fig);
+        ok = render_headless(fig, app, pixels);
+    }
     if (fig_id != INVALID_FIGURE_ID)
     {
         if (auto* r = app.renderer())
@@ -571,6 +578,41 @@ TEST(GoldenImagePhase2, DenseLineDecimationIsVisuallyLossless)
     tol.max_mae     = 1.0;
     const DiffResult diff =
         compare_images(decimated.data(), exact.data(), 640, 480, tol.pixel_threshold);
+    EXPECT_TRUE(diff.passed(tol)) << diff.describe(tol);
+}
+
+// Emptying a line that was drawn M4-decimated must stop drawing it: the
+// cached decimated vertices may not outlive the data.
+TEST(GoldenImagePhase2, EmptiedDecimatedLineDisappears)
+{
+    ASSERT_NE(g_app, nullptr);
+    auto empty_line = [](Figure& f)
+    {
+        auto* line = dynamic_cast<LineSeries*>(f.axes()[0]->series()[0].get());
+        ASSERT_NE(line, nullptr);
+        line->set_x(std::span<const float>{});
+        line->set_y(std::span<const float>{});
+    };
+    std::vector<uint8_t> reference, emptied;
+    ASSERT_TRUE(render_scene_pixels(
+        [&](Figure& f)
+        {
+            dense_line_scene(f, DenseLineMode::Auto);
+            empty_line(f);
+        },
+        640,
+        480,
+        reference));
+    ASSERT_TRUE(render_scene_pixels([](Figure& f) { dense_line_scene(f, DenseLineMode::Auto); },
+                                    640,
+                                    480,
+                                    emptied,
+                                    empty_line));
+    GoldenTolerance tol;
+    tol.max_percent = 0.1;
+    tol.max_mae     = 0.5;
+    const DiffResult diff =
+        compare_images(emptied.data(), reference.data(), 640, 480, tol.pixel_threshold);
     EXPECT_TRUE(diff.passed(tol)) << diff.describe(tol);
 }
 

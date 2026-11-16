@@ -9,6 +9,7 @@
     #include "ui/commands/command_registry.hpp"
     #include "ui/commands/welcome_actions.hpp"
     #include "ui/commands/shortcut_manager.hpp"
+    #include "ui/data_sidebar/data_sidebar.hpp"
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/input/input.hpp"
     #include "ui/layout/layout_manager.hpp"
@@ -617,6 +618,8 @@ void SpectraAppShell::sync_panel_state_from_imgui()
         return;
 
     auto& lm = imgui_->get_layout_manager();
+    if (auto* p = panels_.find("core.data"))
+        p->set_visible(lm.is_left_panel_visible());
     if (auto* p = panels_.find("core.inspector"))
         p->set_visible(lm.is_inspector_visible());
     if (auto* p = panels_.find("core.timeline"))
@@ -637,6 +640,12 @@ void SpectraAppShell::sync_panel_state_to_imgui()
         return;
 
     auto& lm = imgui_->get_layout_manager();
+    if (const Panel* p = panels_.find("core.data"))
+    {
+        if (p->visible() && !lm.is_left_panel_visible() && imgui_->data_sidebar_)
+            imgui_->data_sidebar_->focus_search();
+        lm.set_left_panel_visible(p->visible());
+    }
     if (const Panel* p = panels_.find("core.inspector"))
     {
         lm.set_inspector_visible(p->visible());
@@ -687,6 +696,23 @@ void SpectraAppShell::on_register_panels()
         info.default_visible = default_visible;
         panels().add(std::make_unique<CallbackPanel>(std::move(info), std::move(draw_fn)));
     };
+
+    // Data sidebar (src/ui/data_sidebar/): docked left of the canvas; its
+    // visibility lives in LayoutManager (see the sync functions).
+    add("core.data",
+        "Data",
+        "Panels",
+        Icon::Database,
+        DockSlot::Left,
+        false,
+        [this](bool* /*p_open*/)
+        {
+            if (!imgui_->data_sidebar_)
+                return;
+            // ImGuiIntegration replaces its LayoutManager on init.
+            imgui_->data_sidebar_->set_layout_manager(&imgui_->get_layout_manager());
+            imgui_->data_sidebar_->draw(imgui_->font_heading_);
+        });
 
     add("core.inspector",
         "Inspector",
@@ -915,6 +941,8 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     auto& view = bar.menu("View");
     view.add(command("Zoom to Fit", "view.autofit"));
     view.add(command("Reset View", "view.reset"));
+    view.add(command("Previous View", "view.back"));
+    view.add(command("Next View", "view.forward"));
     view.add(command("Toggle Grid", "view.toggle_grid"));
     view.add(command("Toggle Legend", "view.toggle_legend"));
     view.add({.label    = "Remove All Data Tips",
@@ -994,6 +1022,7 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
 const std::vector<SpectraAppShell::CorePanelEntry>& SpectraAppShell::core_panels()
 {
     static const std::vector<CorePanelEntry> panels = {
+        {"core.data", "Data", Icon::Database},
         {"core.inspector", "Inspector", Icon::Axes},
         {"core.timeline", "Timeline", Icon::Timeline},
         {"core.curve_editor", "Curve Editor", Icon::ChartLine},

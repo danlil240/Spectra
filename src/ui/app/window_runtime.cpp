@@ -13,6 +13,7 @@
 #include <spectra/figure_registry.hpp>
 #include "window_ui_context.hpp"
 #include "zoom_level.hpp"
+#include "ui/input/view_history.hpp"
 
 #include <limits>
 
@@ -545,11 +546,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         // Handle interaction state from UI — Home restores original view
         if (active_figure && imgui_ui->should_reset_view())
         {
-            auto& active_vm = fig_mgr.active_state();
+            auto&     active_vm = fig_mgr.active_state();
+            ViewState home_before;
+            ViewState home_after;
             for (auto& ax : active_figure->axes_mut())
             {
                 if (ax)
                 {
+                    home_before.push_back({ax.get(), ax->x_limits(), ax->y_limits()});
                     auto it = active_vm.home_limits().find(ax.get());
                     if (it != active_vm.home_limits().end())
                     {
@@ -559,6 +563,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                                                             it->second.y,
                                                             0.25f,
                                                             ease::ease_out);
+                        home_after.push_back({ax.get(), it->second.x, it->second.y});
                     }
                     else
                     {
@@ -575,9 +580,17 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                                                             target_y,
                                                             0.25f,
                                                             ease::ease_out);
+                        home_after.push_back({ax.get(), target_x, target_y});
                     }
                 }
             }
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+            // One Back / Forward entry and undo step.
+            ui_ctx.input_handler.record_view_change(active_figure,
+                                                    "Restore original view",
+                                                    std::move(home_before),
+                                                    std::move(home_after));
+    #endif
             // 3D axes (subplot3d populates all_axes only)
             for (auto& ax_base : active_figure->all_axes_mut())
             {

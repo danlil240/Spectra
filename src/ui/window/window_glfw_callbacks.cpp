@@ -405,7 +405,19 @@ void WindowManager::glfw_scroll_callback(GLFWwindow* window, double x_offset, do
         }
     }
 
-    input_handler.on_scroll(x_offset, y_offset, cx, cy);
+    // Scroll events carry no modifiers: read them (Shift / Ctrl / Alt pick
+    // the zoom axis).
+    int scroll_mods = 0;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+        || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
+        scroll_mods |= GLFW_MOD_SHIFT;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS
+        || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
+        scroll_mods |= GLFW_MOD_CONTROL;
+    if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS
+        || glfwGetKey(window, GLFW_KEY_RIGHT_ALT) == GLFW_PRESS)
+        scroll_mods |= GLFW_MOD_ALT;
+    input_handler.on_scroll(x_offset, y_offset, cx, cy, scroll_mods);
 
     // Restore previous ImGui context
     if (prev_ctx)

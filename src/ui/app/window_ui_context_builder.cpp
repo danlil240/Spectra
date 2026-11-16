@@ -19,6 +19,7 @@
         #include <SDL3/SDL.h>
     #endif
 
+    #include "ui/data_sidebar/builtin_providers.hpp"
     #include "ui/figures/figure_manager.hpp"
     #include "ui/figures/tab_bar.hpp"
     #include "ui/imgui/imgui_integration.hpp"
@@ -277,6 +278,22 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->log_browser_panel.set_open_dialog_callback([imgui = ui->imgui_ui.get()]()
                                                        { imgui->open_log_with_dialog(); });
         ui->imgui_ui->set_log_browser_panel(&ui->log_browser_panel);
+        {
+            ui::data_sidebar::BuiltinProviderHooks hooks;
+            hooks.log_panel       = &ui->log_browser_panel;
+            hooks.topics_panel    = &ui->topics_panel;
+            hooks.open_log_dialog = [imgui = ui->imgui_ui.get()]()
+            { imgui->open_log_with_dialog(); };
+            hooks.open_csv_dialog = [imgui = ui->imgui_ui.get()]()
+            { imgui->request_open_csv_dialog(); };
+            ui->data_sidebar.set_csv_provider(
+                ui::data_sidebar::install_builtin_providers(ui->data_sidebar.model(), hooks));
+            // Every window (inproc, detached, multiproc agent) plots into its
+            // own active figure.
+            ui->data_sidebar.model().set_target_provider(
+                [fm = ui->fig_mgr]() { return ui::data_sidebar::active_figure_target(*fm); });
+            ui->imgui_ui->set_data_sidebar(&ui->data_sidebar);
+        }
         ui->app_shell = std::make_unique<ui::shell::SpectraAppShell>(ui->imgui_ui.get());
         ui->imgui_ui->set_app_shell(ui->app_shell.get());
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)

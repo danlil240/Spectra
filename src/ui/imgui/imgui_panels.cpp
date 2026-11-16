@@ -6,6 +6,7 @@
     #include <algorithm>
     #include <format>
 
+    #include "../data_sidebar/data_sidebar.hpp"
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
     #include "ui/commands/welcome_actions.hpp"
@@ -1478,6 +1479,37 @@ void ImGuiIntegration::draw_log_field_drop_target(Figure& figure)
             if (!ax && !figure.axes().empty())
                 ax = figure.axes().front().get();
             log_browser_panel_->plot_payload(dp, ax);
+        });
+}
+
+// Data sidebar drop target for fields whose source has no drop target of its
+// own (CSV columns): plotted into the hovered 2D axes, else the first axes.
+void ImGuiIntegration::draw_data_field_drop_target(Figure& figure)
+{
+    if (!data_sidebar_)
+        return;
+
+    draw_canvas_drop_overlay(
+        figure,
+        ui::data_sidebar::DATA_FIELD_DRAG_TYPE,
+        "##data_field_drop_overlay",
+        [this, &figure](const ImGuiPayload* p, int hover_idx)
+        {
+            if (p->DataSize != sizeof(ui::data_sidebar::DataFieldDragPayload))
+                return;
+            const auto& dp = *static_cast<const ui::data_sidebar::DataFieldDragPayload*>(p->Data);
+            auto&       model                   = data_sidebar_->model();
+            ui::data_sidebar::PlotTarget target = model.current_target();
+            const auto&                  all    = figure.all_axes();
+            if (hover_idx >= 0 && static_cast<size_t>(hover_idx) < all.size())
+            {
+                if (auto* ax = dynamic_cast<Axes*>(all[static_cast<size_t>(hover_idx)].get()))
+                {
+                    target.axes       = ax;
+                    target.axes_index = static_cast<uint32_t>(hover_idx);
+                }
+            }
+            model.plot_payload(dp, target);
         });
 }
 

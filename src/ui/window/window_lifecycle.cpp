@@ -130,6 +130,18 @@ WindowContext* WindowManager::create_window(uint32_t           width,
         return nullptr;
     }
 
+    // Never open larger than the screen (keeps the aspect ratio).
+    {
+        ScreenWorkArea wa;
+        if (primary_work_area(wa))
+        {
+            const auto fit =
+                fit_window_to_work_area(static_cast<int>(width), static_cast<int>(height), wa);
+            width  = static_cast<uint32_t>(fit.first);
+            height = static_cast<uint32_t>(fit.second);
+        }
+    }
+
 #ifdef SPECTRA_USE_GLFW
     // Create GLFW window (shared context not needed — Vulkan doesn't use GL contexts)
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

@@ -1543,6 +1543,9 @@ void ImGuiIntegration::draw_chrome_backdrops()
     if (layout_manager_->is_tab_bar_visible())
         draw_zone(layout_manager_->tab_bar_rect(), ui::GlassSurface::Toolbar, 0.0f);
 
+    if (layout_manager_->left_panel_rect().w >= 1.0f)
+        draw_zone(layout_manager_->left_panel_rect(), ui::GlassSurface::Panel, 0.0f);
+
     if (layout_manager_->is_inspector_visible())
         draw_zone(layout_manager_->inspector_rect(),
                   ui::GlassSurface::Panel,

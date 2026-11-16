@@ -333,7 +333,20 @@ void Renderer::render_series(Series&             series,
             auto* surface = static_cast<SurfaceSeries*>(&series);
             if (gpu.index_buffer)
             {
-                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;
+                bool is_transparent =
+                    (pc.color[3] * pc.opacity) < 0.99f || surface->colormap_alpha();
+                // Colormap in push constants (see surface3d.frag): dash_count =
+                // colormap type (1=Viridis..7=Grayscale, 0=None), dash_pattern[0..1]
+                // = data value range, dash_pattern[2..4] = colormap alpha on/min/max.
+                // The vertex z is the data value, so the colours follow the data
+                // and not the axes limits.
+                const ColormapType cm = surface->colormap_type();
+                pc.dash_count         = (cm != ColormapType::None) ? static_cast<int>(cm) : 0;
+                pc.dash_pattern[0]    = surface->colormap_min();
+                pc.dash_pattern[1]    = surface->colormap_max();
+                pc.dash_pattern[2]    = surface->colormap_alpha() ? 1.0f : 0.0f;
+                pc.dash_pattern[3]    = surface->colormap_alpha_min();
+                pc.dash_pattern[4]    = surface->colormap_alpha_max();
                 if (surface->wireframe())
                 {
                     if (!surface->is_wireframe_mesh_generated())
@@ -367,16 +380,6 @@ void Renderer::render_series(Series&             series,
                     {
                         pc.marker_size = surface->shininess();
                         pc.marker_type = 0;
-                    }
-                    // Encode colormap in push constants for fragment shader:
-                    // dash_count = colormap type (1=Viridis..7=Grayscale, 0=None)
-                    // dash_pattern[0..1] = model-space Z range
-                    auto cm = surface->colormap_type();
-                    if (cm != ColormapType::None)
-                    {
-                        pc.dash_count      = static_cast<int>(cm);
-                        pc.dash_pattern[0] = -3.0f;   // box_half_size (model-space Z min)
-                        pc.dash_pattern[1] = 3.0f;    // box_half_size (model-space Z max)
                     }
                     backend_.push_constants(pc);
                     backend_.bind_buffer(gpu.ssbo, 0);

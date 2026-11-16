@@ -34,6 +34,7 @@ layout(push_constant) uniform SeriesPC {
 layout(location = 0) in vec3 v_world_pos;
 layout(location = 1) in vec3 v_normal;
 layout(location = 2) in vec3 v_view_dir;
+layout(location = 3) in float v_value;   // data-space z (see surface3d.vert)
 
 layout(location = 0) out vec4 out_color;
 
@@ -42,8 +43,10 @@ vec3 cm_poly(float t, vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4, vec3 c5, vec3
     return c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * c6)))));
 }
 
-// Colormap lookup: dash_count encodes colormap type (1=Viridis..7=Grayscale)
-// dash_pattern[0] = z_min, dash_pattern[1] = z_max
+// Colormap lookup: dash_count encodes colormap type (1=Viridis..7=Grayscale).
+// dash_pattern[0..1] = data value range mapped onto the colormap
+// (SurfaceSeries::colormap_min/max), dash_pattern[2] > 0.5 enables colormap
+// alpha, dash_pattern[3..4] = alpha at the low / high end of the range.
 vec3 apply_colormap(int cm_type, float t) {
     t = clamp(t, 0.0, 1.0);
     switch (cm_type) {
@@ -127,20 +130,29 @@ void main() {
         N = -N;
     }
 
+    // Position of the data value in the colormap range (0.5 for a flat range)
+    bool  alpha_map = dash_pattern[2] > 0.5;
+    float t         = 0.5;
+    if (dash_count > 0 || alpha_map) {
+        float v_min   = dash_pattern[0];
+        float v_range = dash_pattern[1] - v_min;
+        t = (abs(v_range) > 1e-30) ? clamp((v_value - v_min) / v_range, 0.0, 1.0) : 0.5;
+    }
+
     // Determine base color: use colormap if dash_count > 0, else push constant color
     vec3 base_color = color.rgb;
     if (dash_count > 0) {
-        float z_min = dash_pattern[0];
-        float z_max = dash_pattern[1];
-        float z_range = z_max - z_min;
-        float t = (z_range > 0.0001) ? (v_world_pos.z - z_min) / z_range : 0.5;
         base_color = apply_colormap(dash_count, t);
+    }
+    float alpha = color.a * opacity;
+    if (alpha_map) {
+        alpha *= mix(dash_pattern[3], dash_pattern[4], t);
     }
 
     // Lighting disabled (Axes3D::lighting_enabled(false)): the renderer sends a
     // zero light_dir, and the surface is drawn in its flat base colour.
     if (dot(light_dir, light_dir) < 1e-12) {
-        out_color = vec4(base_color, color.a * opacity);
+        out_color = vec4(base_color, alpha);
         return;
     }
 
@@ -178,5 +190,5 @@ void main() {
 
     vec3 lit_color = clamp(base_color * shade + spec_color, 0.0, 1.0);
 
-    out_color = vec4(lit_color, color.a * opacity);
+    out_color = vec4(lit_color, alpha);
 }

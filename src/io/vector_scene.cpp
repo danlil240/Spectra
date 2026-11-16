@@ -43,6 +43,7 @@
 
 #include "core/annotation_layout.hpp"
 #include "core/axes3d.hpp"
+#include "core/axes3d_box.hpp"
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
@@ -2399,6 +2400,9 @@ struct Prim3D
     float    p[6]{};
     Color    color;   // triangle fill / per-segment stroke
     bool     has_color = false;
+    // Per-primitive opacity (surface colormap alpha); it replaces the group's
+    // opacity in SVG/PDF inheritance, so it already includes the series alpha.
+    float opacity = 1.0f;
 };
 
 // Style shared by consecutive primitives of one series.
@@ -2582,6 +2586,9 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
     proj.m[5] /= fit;
     pj.mvp = mat4_mul(proj, mat4_mul(cam.view_matrix(), pj.model));
     pj.vp  = vp;
+    // Back faces (grid planes, box edges) and tick edges, as in the renderer.
+    const axes3d_box::BoxFaces faces =
+        axes3d_box::compute_faces(cam, mat4_mul(proj, cam.view_matrix()));
 
     const auto   xlim  = axes.x_limits();
     const auto   ylim  = axes.y_limits();
@@ -2597,7 +2604,7 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
         c.w.begin_group(cg);
     }
 
-    // ── Grid planes at the min corners (an overlay behind the series) ──
+    // ── Grid planes on the back faces (behind the series) ──
     if (axes.grid_enabled())
     {
         const auto   gp      = static_cast<int>(axes.grid_planes());
@@ -2621,26 +2628,29 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             d += ' ';
             put_num(d, by);
         };
+        const double bx = axes3d_box::back_plane(faces, 0, lo, hi);
+        const double by = axes3d_box::back_plane(faces, 1, lo, hi);
+        const double bz = axes3d_box::back_plane(faces, 2, lo, hi);
         if (gp & static_cast<int>(Axes3D::GridPlane::XY))
         {
             for (double x : xt)
-                seg({x, lo[1], lo[2]}, {x, hi[1], lo[2]});
+                seg({x, lo[1], bz}, {x, hi[1], bz});
             for (double y : yt)
-                seg({lo[0], y, lo[2]}, {hi[0], y, lo[2]});
+                seg({lo[0], y, bz}, {hi[0], y, bz});
         }
         if (gp & static_cast<int>(Axes3D::GridPlane::XZ))
         {
             for (double x : xt)
-                seg({x, lo[1], lo[2]}, {x, lo[1], hi[2]});
+                seg({x, by, lo[2]}, {x, by, hi[2]});
             for (double z : zt)
-                seg({lo[0], lo[1], z}, {hi[0], lo[1], z});
+                seg({lo[0], by, z}, {hi[0], by, z});
         }
         if (gp & static_cast<int>(Axes3D::GridPlane::YZ))
         {
             for (double y : yt)
-                seg({lo[0], y, lo[2]}, {lo[0], y, hi[2]});
+                seg({bx, y, lo[2]}, {bx, y, hi[2]});
             for (double z : zt)
-                seg({lo[0], lo[1], z}, {lo[0], hi[1], z});
+                seg({bx, lo[1], z}, {bx, hi[1], z});
         }
         if (!d.empty())
             c.w.path(6, d, stroke_group_style("grid", blended, 1.0f, blended.a));
@@ -2686,24 +2696,18 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
         prims.push_back(p);
     };
 
-    if (axes.show_bounding_box())
+    if (const uint16_t edges = axes3d_box::edge_mask(axes.box_style(), faces); edges != 0)
     {
         const auto gi = static_cast<uint32_t>(groups.size());
         groups.push_back(
             {stroke_group_style("box", st.axis_line, 1.2f, st.axis_line.a), -1, false});
-        for (int a = 0; a < 3; ++a)
+        for (int e = 0; e < axes3d_box::EDGE_COUNT; ++e)
         {
-            const int b  = (a + 1) % 3;
-            const int cc = (a + 2) % 3;
-            for (int k = 0; k < 4; ++k)
-            {
-                double p0[3], p1[3];
-                p0[a] = lo[a];
-                p1[a] = hi[a];
-                p0[b] = p1[b] = (k & 1) ? hi[b] : lo[b];
-                p0[cc] = p1[cc] = (k & 2) ? hi[cc] : lo[cc];
-                add_segment(gi, {p0[0], p0[1], p0[2]}, {p1[0], p1[1], p1[2]}, nullptr);
-            }
+            if (!(edges & (1u << e)))
+                continue;
+            vec3 p0, p1;
+            axes3d_box::edge_endpoints(e, lo, hi, p0, p1);
+            add_segment(gi, p0, p1, nullptr);
         }
     }
 
@@ -2836,13 +2840,29 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             if (ur < 2 || uc < 2 || xg.size() < uc || yg.size() < ur || zv.size() < ur * uc)
                 continue;
             const ColormapType cm = surf->colormap_type();
-            // Colormap t follows surface3d.frag: normalized-box Z over [-3, 3].
-            auto cmap = [&](double wz)
+            // Colormap t follows surface3d.frag: the data z over the series'
+            // effective colormap range (0.5 for a flat range).
+            const double c_lo    = surf->colormap_min();
+            const double c_range = static_cast<double>(surf->colormap_max()) - c_lo;
+            auto         cmap_t  = [&](double dz)
+            {
+                if (!(std::fabs(c_range) > 1e-30))
+                    return 0.5f;
+                return static_cast<float>(std::clamp((dz - c_lo) / c_range, 0.0, 1.0));
+            };
+            auto cmap = [&](double dz)
             {
                 if (cm == ColormapType::None)
                     return col;
-                constexpr double hs = Axes3D::box_half_size();
-                return SurfaceSeries::sample_colormap(cm, static_cast<float>((wz + hs) / (2 * hs)));
+                return SurfaceSeries::sample_colormap(cm, cmap_t(dz));
+            };
+            // Colormap alpha (surface3d.frag): alpha_min..alpha_max over the range.
+            const bool cmap_alpha = surf->colormap_alpha();
+            auto       alpha_at   = [&](double dz)
+            {
+                const float t = cmap_t(dz);
+                return surf->colormap_alpha_min()
+                       + (surf->colormap_alpha_max() - surf->colormap_alpha_min()) * t;
             };
             auto vtx = [&](size_t i, size_t j) { return vec3{xg[j], yg[i], zv[i * uc + j]}; };
             if (surf->wireframe())
@@ -2856,8 +2876,12 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                     const vec3 wb = pj.to_world(b);
                     if (!inside_box(wa) || !inside_box(wb))
                         return;
-                    const Color cc = cmap(0.5 * (wa.z + wb.z));
+                    const double mz = 0.5 * (a.z + b.z);
+                    const Color  cc = cmap(mz);
+                    const size_t n0 = prims.size();
                     add_segment(gi, a, b, cm == ColormapType::None ? nullptr : &cc);
+                    if (cmap_alpha && prims.size() > n0)
+                        prims.back().opacity = alpha * alpha_at(mz);
                 };
                 for (size_t i = 0; i < ur; ++i)
                     for (size_t j = 0; j < uc; ++j)
@@ -2870,7 +2894,7 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             }
             else
             {
-                const bool opaque = alpha >= 0.999f;
+                const bool opaque = alpha >= 0.999f && !cmap_alpha;
                 groups.push_back({lit_group_style("surface", alpha, opaque), -1, opaque});
                 const Lighting3D lt =
                     material(surf->ambient(), surf->specular(), surf->shininess());
@@ -2915,12 +2939,16 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                                 if (ok)
                                 {
                                     nv[k]   = normal_at(i + q[0], j + q[1]);
-                                    base[k] = cmap(wv[k].z);
+                                    base[k] = cmap(dv[k].z);
                                 }
                             }
                             if (!ok)
                                 continue;
+                            const size_t n0 = prims.size();
                             add_triangle(gi, dv, lt.shade(base, wv, nv));
+                            if (cmap_alpha && prims.size() > n0)
+                                prims.back().opacity =
+                                    alpha * alpha_at((dv[0].z + dv[1].z + dv[2].z) / 3.0);
                         }
                     }
             }
@@ -3006,6 +3034,8 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                 s.fill = VectorPaint::rgb(p.color);
                 if (g.seam_stroke)
                     s.stroke = VectorPaint::rgb(p.color);
+                if (p.opacity < 1.0f)
+                    s.fill_opacity = p.opacity;
                 c.w.path(8, d, s);
                 break;
             }
@@ -3014,6 +3044,8 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                 VectorStyle s;
                 if (p.has_color)
                     s.stroke = VectorPaint::rgb(p.color);
+                if (p.opacity < 1.0f)
+                    s.stroke_opacity = p.opacity;
                 c.w.line(8, p.p[0], p.p[1], p.p[2], p.p[3], s);
                 break;
             }
@@ -3122,34 +3154,22 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
     // the bottom edge nearest the camera, the vertical axis on the leftmost edge).
     {
         const vec3   view_dir  = vec3_normalize(cam.target - cam.position);
-        const int    up_idx    = cam.up_axis == Camera::UpAxis::Z ? 2 : 1;
+        const int    up_idx    = faces.up_axis;
         const int    h_a       = 0;
         const int    h_b       = up_idx == 2 ? 1 : 2;
-        const double cam_p[3]  = {cam.position.x, cam.position.y, cam.position.z};
         const double view_c[3] = {view_dir.x, view_dir.y, view_dir.z};
         double       tick_off[3];
         for (int i = 0; i < 3; ++i)
             tick_off[i] = (hi[i] - lo[i]) * 0.04;
+        // Near side of an axis (opposite its back face), pushed out by the offset.
         auto near_edge = [&](int axis)
-        { return cam_p[axis] >= 0.0 ? hi[axis] + tick_off[axis] : lo[axis] - tick_off[axis]; };
-        double vert_corner[3] = {lo[0], lo[1], lo[2]};
         {
-            float best = 1e30f;
-            for (int ci = 0; ci < 4; ++ci)
-            {
-                double p[3];
-                p[up_idx] = lo[up_idx];
-                p[h_a]    = (ci & 1) ? hi[h_a] : lo[h_a];
-                p[h_b]    = (ci & 2) ? hi[h_b] : lo[h_b];
-                float sx = 0, sy = 0, d = 0;
-                if (pj.project(p[0], p[1], p[2], sx, sy, d) && sx < best)
-                {
-                    best             = sx;
-                    vert_corner[h_a] = p[h_a];
-                    vert_corner[h_b] = p[h_b];
-                }
-            }
-        }
+            return faces.back_hi[static_cast<size_t>(axis)] ? lo[axis] - tick_off[axis]
+                                                            : hi[axis] + tick_off[axis];
+        };
+        double vert_corner[3] = {lo[0], lo[1], lo[2]};
+        for (int i : {h_a, h_b})
+            vert_corner[i] = faces.up_corner_hi[static_cast<size_t>(i)] ? hi[i] : lo[i];
         c.w.begin_group(named_group(4, "tick-labels"));
         for (int axis = 0; axis < 3; ++axis)
         {

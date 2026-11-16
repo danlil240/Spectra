@@ -226,14 +226,15 @@ void InputHandler::clear_figure_cache(Figure* fig)
             }
         }
 
-        figure_           = nullptr;
-        active_axes_      = nullptr;
-        active_axes_base_ = nullptr;
-        drag3d_axes_      = nullptr;
-        measure_axes_     = nullptr;
-        mode_             = InteractionMode::Idle;
-        is_3d_orbit_drag_ = false;
-        is_3d_pan_drag_   = false;
+        figure_            = nullptr;
+        active_axes_       = nullptr;
+        active_axes_base_  = nullptr;
+        last_pressed_axes_ = nullptr;
+        drag3d_axes_       = nullptr;
+        measure_axes_      = nullptr;
+        mode_              = InteractionMode::Idle;
+        is_3d_orbit_drag_  = false;
+        is_3d_pan_drag_    = false;
     }
 }
 
@@ -314,6 +315,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         AxesBase* hit_base = hit_test_all_axes(x, y);
         active_axes_base_  = hit_base;
         active_axes_       = dynamic_cast<Axes*>(hit_base);
+        if (action == ACTION_PRESS && active_axes_)
+            last_pressed_axes_ = active_axes_;
         if (hit_base)
         {
             const auto& vp = hit_base->viewport();

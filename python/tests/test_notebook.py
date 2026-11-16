@@ -617,3 +617,30 @@ def test_canvas_save_readout_and_auto_refresh():
     w.close()
     assert w.controller.notify_changed not in surface._change_listeners
     surface.close()
+
+
+def test_notify_changed_renders_overdue_frame_while_the_loop_is_blocked():
+    # A synchronous cell loop: the clock advances but scheduled timers never
+    # run until the cell yields. Each notification past the frame interval
+    # must still render, instead of waiting for the stuck timer.
+    ctl, s, loop, sent = make()
+    ctl.render_now()
+    n = s.renders
+    s.view += 1
+    ctl.notify_changed()  # within the interval: deferred to a timer
+    assert s.renders == n
+    for i in range(1, 6):
+        loop.now += ctl.frame_interval * 1.5  # time passes, timers do not fire
+        s.view += 1
+        ctl.notify_changed()
+        assert s.renders == n + i
+        assert sent[-1][0] == "image/jpeg"
+    # Notifications inside the interval are still coalesced into one timer;
+    # the stale ones were cancelled.
+    ctl.notify_changed()
+    ctl.notify_changed()
+    assert s.renders == n + 5
+    assert sum(1 for t in loop.timers if t[3] and t[2] == ctl._on_flush) == 1
+    # When the cell yields, that one pending frame renders once.
+    loop.advance(ctl.frame_interval)
+    assert s.renders == n + 6

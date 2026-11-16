@@ -330,10 +330,16 @@ class FrameController:
     def request_frame(self) -> None:
         """Render soon: now if the frame budget allows, else once, at the next slot."""
         self._settle_start = None
-        if self._flush_timer is not None:
-            self.frames_dropped += 1  # coalesced into the frame already pending
-            return
         wait = self.frame_interval - (self._clock() - self._last_render_t)
+        if self._flush_timer is not None:
+            if wait > 0:
+                self.frames_dropped += 1  # coalesced into the frame already pending
+                return
+            # The pending timer is overdue: the event loop is blocked (a cell
+            # running a loop that updates the plot), so it cannot fire. Render
+            # now instead, or the canvas would freeze until the cell ends.
+            self._flush_timer.cancel()
+            self._flush_timer = None
         if wait > 0:
             timer = self._schedule(wait, self._on_flush)
             if timer is not None:

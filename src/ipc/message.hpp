@@ -338,6 +338,29 @@ struct StateSnapshotPayload
     std::vector<SnapshotKnobState>   knobs;   // interactive parameter knobs
 };
 
+// SET_SERIES_COLOR ops whose str_val is "C<n>" (n >= 0) give the series
+// data-palette slot n (an auto colour, resolved by each window's theme and
+// palette); f1..f4 then carry a provisional RGB for older receivers.
+inline std::string palette_slot_tag(int32_t slot)
+{
+    return "C" + std::to_string(slot);
+}
+
+// Slot of a "C<n>" tag, or -1 when @p s is not one.
+inline int32_t parse_palette_slot_tag(const std::string& s)
+{
+    if (s.size() < 2 || s.size() > 6 || s[0] != 'C')
+        return -1;
+    int32_t v = 0;
+    for (size_t i = 1; i < s.size(); ++i)
+    {
+        if (s[i] < '0' || s[i] > '9')
+            return -1;
+        v = v * 10 + (s[i] - '0');
+    }
+    return v;
+}
+
 // A single property change operation within a state diff.
 struct DiffOp
 {

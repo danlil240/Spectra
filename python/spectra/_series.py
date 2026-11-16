@@ -413,6 +413,23 @@ class Series:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_palette_index(self, index: int) -> None:
+        """Colour the series with slot ``index`` of the data palette ("C<n>").
+
+        Like set_color_letter(), the window resolves the slot from its own
+        theme and data palette and re-resolves it when either changes.
+        """
+        index = int(index)
+        if index < 0:
+            raise ValueError("palette index must be >= 0, got %d" % index)
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="palette_index",
+            f1=float(index),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def set_line_width(self, width: float) -> None:
         payload = codec.encode_req_update_property(
             figure_id=self._figure_id,

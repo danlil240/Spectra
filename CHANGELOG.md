@@ -12,6 +12,7 @@ summarise the main changes rather than listing every commit.
 ## [Unreleased]
 
 ### Changed
+- Small UX fixes: the nav rail "Markers" button opens a data-tip list (go to / remove / clear all, undoable) instead of deleting every tip; "Toggle Dark/Light Theme" switches between the last-used dark and light themes (remembered in settings) and the command palette lists every theme and data palette; Python colours accept `C0`-`C9`, `tab:*`, short hex and CSS4 names and raise `ValueError` with a suggestion for unknown names; sequential palettes (viridis, monochrome) spread a few auto-coloured series across the ramp.
 
 - The start page now offers New figure, Open file (CSV/TSV, ULog, MCAP, layouts), Open layout and Topics with their shortcuts, lists recent files and layouts, and hints that files can be dropped anywhere; empty axes show a "Drop a file here" hint (never in exports); `spectra data.csv flight.ulg` opens files given on the command line like a drop, unknown options print a warning, and dropped `.spectra` layouts open.
 - 3D surfaces map their colormap over the data z range (or `SurfaceSeries::colormap_range()` when set), so zooming or panning no longer recolours them, and `colormap_alpha()` now works; the colorbar and SVG/PDF export use the same range. 3D grid panes sit on the faces farthest from the camera and are depth-tested, and the new `Axes3D::box_style(BoxStyle::Back | Full | None)` (default Back) drops the box edges that crossed in front of the data.

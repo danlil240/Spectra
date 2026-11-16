@@ -13,6 +13,10 @@ AxesViewModel::AxesViewModel(Axes* model) : model_(model) {}
 
 AxisLimits AxesViewModel::visual_xlim() const
 {
+    // Shared axes follow their group: a peer's pan/zoom changes this axes'
+    // limits without passing through this view model.
+    if (model_ && model_->x_shared())
+        return model_->x_limits();
     if (xlim_.has_value())
         return *xlim_;
     if (model_)
@@ -22,6 +26,8 @@ AxisLimits AxesViewModel::visual_xlim() const
 
 AxisLimits AxesViewModel::visual_ylim() const
 {
+    if (model_ && model_->y_shared())
+        return model_->y_limits();
     if (ylim_.has_value())
         return *ylim_;
     if (model_)

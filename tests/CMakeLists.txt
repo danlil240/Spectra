@@ -102,6 +102,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_core_axes
     test_axis_scale
     test_crosshair_mapping
+    test_series_probe
     test_log_overlays
     test_bugfix_core_series
     test_bugfix_core_stats
@@ -121,6 +122,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_r2_series
     test_bugfix_r2_plugin
     test_layout
+    test_subplot_layout
     test_easing
     test_ring_buffer
     test_input
@@ -191,6 +193,7 @@ set(SPECTRA_UNIT_TESTS
     test_r2b_followups
     test_settings_appearance
     test_theme_toggle_commands
+    test_theme_registry
     test_sequential_palette
     test_marker_actions
     test_settings_layout
@@ -222,10 +225,13 @@ set(SPECTRA_UNIT_TESTS
     test_math3d
     test_3d_pipelines
     test_camera
+    test_3d_camera_views
+    test_scatter3d_selection_gpu
     test_axes3d_fit
     test_axes3d_render_helpers
     test_axes3d_box
     test_3d_lighting
+    test_cvd_preview_gpu
     test_shape3d_first_frame
     test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
@@ -263,6 +269,7 @@ set(SPECTRA_UNIT_TESTS
     test_text_renderer
     test_text_fit
     test_label_layout
+    test_mathtext
     test_overlay_text_fit
     test_font_fallback
     test_eigen_support
@@ -500,7 +507,9 @@ set(SPECTRA_GPU_TESTS
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_scatter3d_selection_gpu
     test_3d_lighting
+    test_cvd_preview_gpu
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
     test_window_export_extent
@@ -547,7 +556,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|series_probe|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
@@ -636,7 +645,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|scatter3d_selection_gpu|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

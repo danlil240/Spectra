@@ -10,6 +10,7 @@
     #include <spectra/axes.hpp>
     #include <spectra/figure.hpp>
 
+    #include "axis_readout.hpp"
     #include "crosshair_mapping.hpp"
     #include "overlay_text_fit.hpp"
     #include "readout_format.hpp"
@@ -188,8 +189,11 @@ void Crosshair::draw(const CursorReadout& cursor,
     const double y_res =
         axes ? crosshair_mapping::pixel_resolution_y(*axes, cursor.screen_y)
              : std::abs(static_cast<double>(ylim_max) - ylim_min) / std::max(1.0f, viewport.h);
-    const std::string x_label = ui::format_compact_value(cursor.data_x, x_res);
-    const std::string y_label = ui::format_compact_value(cursor.data_y, y_res);
+    // Date-time axes label the cursor as a date-time at the same resolution.
+    const std::string x_label =
+        ui::format_axis_cursor(axes, ui::ReadoutAxis::X, cursor.data_x, x_res);
+    const std::string y_label =
+        ui::format_axis_cursor(axes, ui::ReadoutAxis::Y, cursor.data_y, y_res);
 
     ImFont*         font      = ImGui::GetFont();
     constexpr float label_pad = 3.0f;
@@ -321,8 +325,10 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
             // X label at bottom
             const std::string x_label =
-                ui::format_compact_value(data_x,
-                                         crosshair_mapping::pixel_resolution_x(*axes_ptr, sx));
+                ui::format_axis_cursor(axes_ptr.get(),
+                                       ui::ReadoutAxis::X,
+                                       data_x,
+                                       crosshair_mapping::pixel_resolution_x(*axes_ptr, sx));
             const CrosshairReadoutLabel fl =
                 fit_label(font, font->LegacySize * 0.85f, x_label, (vx1 - vx0) - label_pad * 2.0f);
             const ImVec2 sz = fl.size;
@@ -359,8 +365,10 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
                 // Y label inside left edge of viewport
                 const std::string y_label =
-                    ui::format_compact_value(data_y,
-                                             crosshair_mapping::pixel_resolution_y(*axes_ptr, cy));
+                    ui::format_axis_cursor(axes_ptr.get(),
+                                           ui::ReadoutAxis::Y,
+                                           data_y,
+                                           crosshair_mapping::pixel_resolution_y(*axes_ptr, cy));
                 const float                 lx2 = vx0 + 4.0f;
                 const CrosshairReadoutLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);
@@ -407,8 +415,10 @@ void Crosshair::draw_all_axes(const CursorReadout& cursor,
 
                 // Y label showing the same data-Y value
                 const std::string y_label =
-                    ui::format_compact_value(data_y,
-                                             crosshair_mapping::pixel_resolution_y(*axes_ptr, sy));
+                    ui::format_axis_cursor(axes_ptr.get(),
+                                           ui::ReadoutAxis::Y,
+                                           data_y,
+                                           crosshair_mapping::pixel_resolution_y(*axes_ptr, sy));
                 const float                 lx2 = vx0 + 4.0f;
                 const CrosshairReadoutLabel fl =
                     fit_label(font, font->LegacySize * 0.85f, y_label, vx1 - lx2 - label_pad);

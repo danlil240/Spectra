@@ -86,6 +86,7 @@ AnimationController::AnimId AnimationController::animate_camera(Camera&       ca
     anim.target_distance   = target.distance;
     anim.target_fov        = target.fov;
     anim.target_ortho_size = target.ortho_size;
+    anim.target_projection = target.projection_mode;
     anim.duration          = duration_sec;
     anim.easing            = easing;
     anim.elapsed           = 0.0f;
@@ -225,6 +226,8 @@ void AnimationController::update(float dt)
             a.camera->distance   = a.target_distance;
             a.camera->fov        = a.target_fov;
             a.camera->ortho_size = a.target_ortho_size;
+            // Projection is not interpolated: it switches once the move ends.
+            a.camera->projection_mode = a.target_projection;
             a.camera->update_position_from_orbit();
             a.finished = true;
         }

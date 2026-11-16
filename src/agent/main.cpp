@@ -42,6 +42,7 @@
     #include "ui/topics/topics_panel.hpp"
 #endif
 
+#include "core/config_paths.hpp"
 #include "ui/settings/settings_store.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -273,6 +274,10 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_LEGEND_POSITION:
             fig.legend_position = spectra::ipc::legend_position_to_wire(
                 spectra::ipc::legend_position_from_wire(op.f1));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+            spectra::ipc::apply_figure_layout_op(fig, op);
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {
@@ -519,6 +524,17 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
         case spectra::ipc::DiffOp::Type::SET_LEGEND_POSITION:
             fig.legend().position = spectra::ipc::legend_position_from_wire(op.f1);
             break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+            fig.suptitle(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+        {
+            spectra::ipc::SnapshotFigureState fs;
+            spectra::ipc::apply_figure_layout_op(fs, op);
+            fs.suptitle = fig.suptitle();
+            spectra::ipc::apply_figure_layout_state(fig, fs);
+            break;
+        }
         case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
             fig.anim_.live_streaming = op.bool_val;
             if (op.f1 > 0.0)
@@ -814,6 +830,8 @@ int main(int argc, char* argv[])
     // Saved preferences (theme, data palette), as App::run does in-process.
     spectra::ui::settings::SettingsStore settings_store;
     settings_store.load();
+    theme_mgr.ensure_initialized();
+    theme_mgr.load_user_files(spectra::user_config_dir());
     settings_store.apply_to(theme_mgr);
     settings_store.set_on_change([&settings_store]() { settings_store.save(); });
 
@@ -1537,9 +1555,11 @@ int main(int argc, char* argv[])
 #endif
 
         // ── Standard session tick (same as inproc) ───────────────────────
-        // A PNG capture with its own theme draws the captured frame with it.
+        // A PNG capture with its own theme draws the captured frame with it;
+        // every capture suspends the colour vision deficiency preview.
         std::optional<spectra::ui::ScopedExportTheme> capture_theme;
-        if (png_export.awaiting_capture() && !png_export.theme().empty())
+        if (png_export.awaiting_capture()
+            && spectra::ui::ScopedExportTheme::needed_for(&theme_mgr, png_export.theme()))
         {
             capture_theme.emplace(&theme_mgr, png_export.theme());
             session.redraw_tracker().mark_dirty("themed export");

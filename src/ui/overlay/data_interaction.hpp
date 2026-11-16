@@ -10,6 +10,7 @@
 
     #include "annotation.hpp"
     #include "axis_mapping.hpp"
+    #include "compare_readout.hpp"
     #include "crosshair.hpp"
     #include "data_marker.hpp"
     #include "ui/input/input.hpp"
@@ -76,6 +77,22 @@ class DataInteraction
     const Rect& active_viewport() const { return active_viewport_; }
     void        toggle_crosshair() { crosshair_.toggle(); }
     void        set_crosshair(bool e) { crosshair_.set_enabled(e); }
+    // 2D axes under the cursor at the last update() (nullptr when none).
+    const Axes* active_axes() const { return active_axes_; }
+
+    // Compare-at-X readout (shown with the crosshair): every visible series'
+    // value at the cursor X in one tooltip, replacing the single-point tooltip.
+    bool               compare_enabled() const { return compare_.enabled(); }
+    void               set_compare_enabled(bool e) { compare_.set_enabled(e); }
+    probe::ProbeMode   compare_mode() const { return compare_.mode(); }
+    void               set_compare_mode(probe::ProbeMode m) { compare_.set_mode(m); }
+    probe::CompareSort compare_sort() const { return compare_.sort(); }
+    void               set_compare_sort(probe::CompareSort s) { compare_.set_sort(s); }
+    // Hide the compare readout while a tool uses the crosshair for its own
+    // purpose (Measure turns the crosshair on and draws its own labels).
+    void set_compare_suppressed(bool s) { compare_suppressed_ = s; }
+    // True when the last draw_overlays() showed the compare readout.
+    bool compare_readout_drawn() const { return compare_drawn_; }
 
     // Tooltip control
     bool tooltip_active() const { return tooltip_.enabled(); }
@@ -313,6 +330,9 @@ class DataInteraction
     NearestPointResult nearest_;
     Tooltip            tooltip_;
     Crosshair          crosshair_;
+    CompareReadout     compare_;
+    bool               compare_drawn_      = false;
+    bool               compare_suppressed_ = false;
     DataMarkerManager  markers_;
     AnnotationManager  annotations_;
     RegionSelect       region_;

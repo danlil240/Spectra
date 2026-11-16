@@ -9,6 +9,18 @@
 #include <string>
 #include <vector>
 
+// Absolute baseline / output directories, set by tests/CMakeLists.txt so the result does
+// not depend on the working directory (ctest runs from build/tests) or on how the
+// compiler spells __FILE__ (ccache's base_dir makes it relative). The
+// SPECTRA_GOLDEN_BASELINE_DIR / SPECTRA_GOLDEN_OUTPUT_DIR environment variables still
+// override them at run time.
+#ifndef SPECTRA_GOLDEN_BASELINE_DIR_DEFAULT
+    #error "SPECTRA_GOLDEN_BASELINE_DIR_DEFAULT must be defined (see tests/CMakeLists.txt)"
+#endif
+#ifndef SPECTRA_GOLDEN_OUTPUT_DIR_DEFAULT
+    #error "SPECTRA_GOLDEN_OUTPUT_DIR_DEFAULT must be defined (see tests/CMakeLists.txt)"
+#endif
+
 namespace spectra::test
 {
 
@@ -236,12 +248,13 @@ inline bool save_raw_rgba(const std::string& path,
     return f.good();
 }
 
-// If SPECTRA_GOLDEN_STRICT=1, a missing baseline is a test failure instead of a skip.
-// CI sets this so that a scene added without a committed baseline cannot pass silently.
+// A missing baseline is a test failure by default, so a wrong baseline directory or a
+// scene added without a committed baseline cannot pass silently. Set
+// SPECTRA_GOLDEN_STRICT=0 to skip such scenes instead (e.g. while drafting a new scene).
 inline bool golden_strict()
 {
     const char* env = std::getenv("SPECTRA_GOLDEN_STRICT");
-    return env && std::string(env) == "1";
+    return !(env && std::string(env) == "0");
 }
 
 }   // namespace spectra::test

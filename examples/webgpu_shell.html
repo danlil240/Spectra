@@ -54,7 +54,7 @@
             text-align: center;
             max-width: 760px;
         }
-        #status.error { color: #f38ba8; }
+        #status.error { color: #f38ba8; white-space: pre-line; text-align: left; }
         #status.ok    { color: #a6e3a1; }
 
         .info {
@@ -110,17 +110,51 @@
     </div>
 
     <script>
-        // ── WebGPU availability check ─────────────────────────────────────
+        // ── Status line ───────────────────────────────────────────────────
+        // Red on any failure (sticky: later successes don't hide an error);
+        // green only once the first frame rendered without a GPU error.
         const statusEl = document.getElementById("status");
+        let statusFailed = false;
 
-        if (!navigator.gpu) {
-            statusEl.textContent =
-                "WebGPU is not available in this browser. " +
-                "Try Chrome 113+, Edge 113+, or Firefox Nightly with dom.webgpu.enabled.";
-            statusEl.className = "error";
-        } else {
-            statusEl.textContent = "Loading WASM module…";
+        function setStatus(text, cls) {
+            if (statusFailed) return;
+            statusEl.textContent = text;
+            statusEl.className = cls || "";
         }
+
+        function showError(text) {
+            const msg = String(text || "Unknown error").trim();
+            console.error("[spectra]", msg);
+            if (statusFailed) return;   // keep the first (root-cause) error
+            statusFailed = true;
+            statusEl.textContent = "Error: " + msg;
+            statusEl.className = "error";
+        }
+
+        const RUNNING_TEXT =
+            "Running: scroll to zoom, drag to pan, Ctrl+drag to box-zoom, double-click to reset.";
+        const NO_WEBGPU_TEXT =
+            "WebGPU is not available in this browser. " +
+            "Try Chrome 113+, Edge 113+, or Firefox Nightly with dom.webgpu.enabled.";
+
+        // ── WebGPU availability check ─────────────────────────────────────
+        if (!navigator.gpu) {
+            showError(NO_WEBGPU_TEXT);
+        } else {
+            setStatus("Loading WASM module…");
+            navigator.gpu.requestAdapter().then(
+                (adapter) => {
+                    if (!adapter)
+                        showError("No WebGPU adapter available: the GPU may be blocklisted or " +
+                                  "WebGPU disabled. Try Chrome 113+, Edge 113+, or Firefox " +
+                                  "Nightly with dom.webgpu.enabled.");
+                },
+                (err) => showError("WebGPU adapter request failed: " + (err && err.message || err)));
+        }
+
+        window.addEventListener("error", (e) => showError(e.message || e.error));
+        window.addEventListener("unhandledrejection",
+                                (e) => showError((e.reason && e.reason.message) || e.reason));
     </script>
 
     <script>
@@ -128,8 +162,17 @@
         var Module = {
             canvas: document.getElementById("canvas"),
             onRuntimeInitialized: function () {
-                statusEl.textContent = "Running: scroll to zoom, drag to pan, Ctrl+drag to box-zoom, double-click to reset.";
-                statusEl.className = "ok";
+                setStatus("Starting renderer…");
+            },
+            onAbort: function (what) {
+                showError("The WebAssembly module aborted: " + what);
+            },
+            // Called by the WebGPU backend (src/render/webgpu/wgpu_backend.cpp).
+            spectraOnError: function (msg) {
+                showError(msg);
+            },
+            spectraOnFirstFrame: function () {
+                setStatus(RUNNING_TEXT, "ok");
             },
         };
     </script>

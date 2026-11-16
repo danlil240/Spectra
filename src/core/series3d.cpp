@@ -177,6 +177,27 @@ void SurfaceSeries::set_data(std::span<const float> x_grid,
     cols_ = static_cast<int>(x_grid_.size());
     rows_ = static_cast<int>(y_grid_.size());
 
+    // Finite data z range: the default colormap range.
+    bool any = false;
+    for (float z : z_values_)
+    {
+        if (!std::isfinite(z))
+            continue;
+        if (!any)
+        {
+            z_min_ = z;
+            z_max_ = z;
+            any    = true;
+        }
+        z_min_ = std::min(z_min_, z);
+        z_max_ = std::max(z_max_, z);
+    }
+    if (!any)
+    {
+        z_min_ = 0.0f;
+        z_max_ = 1.0f;
+    }
+
     mesh_generated_           = false;
     wireframe_mesh_generated_ = false;
     dirty_                    = true;

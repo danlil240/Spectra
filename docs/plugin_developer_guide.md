@@ -258,7 +258,7 @@ The host automatically unregisters all commands that were registered by a plugin
 
 ### Transform plugins (v1.1)
 
-Transforms appear in the **Transforms** menu and are applied to series data. Two signatures are supported.
+Transforms appear in the **Transforms** menu and are applied to series data (the selected series, else the visible series of the current plot; by default as a new copy named `<series> · <transform>`, or in place when *Overwrite current series* is checked; undoable). Two signatures are supported.
 
 **Scalar transform** — applied independently to each Y value. X is unchanged:
 

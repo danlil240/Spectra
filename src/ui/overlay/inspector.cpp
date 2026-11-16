@@ -1274,10 +1274,12 @@ void Inspector::draw_axes3d_properties(Axes3D& ax, int index)
             plane_toggle("XY Plane", Axes3D::GridPlane::XY);
             plane_toggle("XZ Plane", Axes3D::GridPlane::XZ);
             plane_toggle("YZ Plane", Axes3D::GridPlane::YZ);
-            bool box = ax.show_bounding_box();
-            if (widgets::checkbox_field("Bounding Box", box))
+            // Box style: back panes (default), all 12 edges, or none.
+            const char* box_styles[] = {"Back panes", "Full box", "None"};
+            int         box_style    = static_cast<int>(ax.box_style());
+            if (widgets::combo_field("Box", box_style, box_styles, 3))
             {
-                ax.show_bounding_box(box);
+                ax.box_style(static_cast<BoxStyle>(box_style));
             }
             widgets::end_group();
             widgets::small_spacing();

@@ -21,6 +21,7 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- Golden image tests resolve their baselines through an absolute path set by CMake, so `ctest` compares images instead of silently skipping every scene (ccache made `__FILE__` relative and ctest runs from `build/tests`); a missing baseline now fails unless `SPECTRA_GOLDEN_STRICT=0`. 22 stale 3D baselines were regenerated for the Back box style.
 - Browser builds embed a DejaVu Sans symbol subset as the text fallback font, so symbols Inter lacks (for example ∇, ∮, ⇌) no longer render as boxes.
 - The WebGPU backend prefers a UNORM surface format, matching the Vulkan swapchain, so theme colours are not gamma-shifted on native Dawn.
 - The browser (WebGPU) demo no longer shows a blank canvas on browsers whose preferred canvas format is RGBA8Unorm (Chrome on Android, Linux and ChromeOS): pipelines are rebuilt whenever the swapchain format changes. The demo page now shows GPU errors, device loss, a missing adapter and wasm aborts as a red status with the error text, and only says "Running" after the first frame rendered without errors.

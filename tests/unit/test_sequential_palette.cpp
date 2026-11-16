@@ -126,6 +126,25 @@ TEST(SequentialPalette, RanksFollowPaletteSlotNotPosition)
     EXPECT_TRUE(same_rgb(lines[0]->color(), viridis.colors[8]));
 }
 
+TEST(SequentialPalette, SeriesSharingASlotShareTheColour)
+{
+    // errorbar(color="C2") gives the data and the error series slot 2.
+    ui::ThemeManager tm;
+    tm.ensure_initialized();
+    const DataPalette& viridis = tm.get_data_palette("viridis");
+    Figure             fig;
+    auto&              ax    = fig.subplot(1, 1, 1);
+    auto               lines = add_lines(ax, 3);
+    lines[0]->set_auto_color_index(2);
+    lines[1]->set_auto_color_index(2);
+    lines[2]->set_auto_color_index(0);
+    ui::resolve_auto_series_colors(fig, viridis, false);
+    // Two distinct slots -> 10% / 90% of the ramp; slot 2 ranks second.
+    EXPECT_TRUE(same_rgb(lines[2]->color(), viridis.colors[1]));
+    EXPECT_TRUE(same_rgb(lines[0]->color(), viridis.colors[8]));
+    EXPECT_TRUE(same_rgb(lines[1]->color(), viridis.colors[8]));
+}
+
 // ─── "C<n>" palette slot over IPC ───────────────────────────────────────────
 
 TEST(PaletteSlotTag, RoundTrip)

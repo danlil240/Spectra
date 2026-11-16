@@ -661,8 +661,9 @@ inline bool is_light_plot_background(const ThemeColors& theme)
 // or light background.  Explicitly coloured series are left untouched.  An
 // empty palette falls back to palette::default_cycle.
 // Sequential palettes (DataPalette::sequential, e.g. viridis) are sampled
-// instead of cycled: the auto-coloured series of each axes are ranked by slot
-// and spread evenly over the ramp (see sequential_palette_slot), so a few
+// instead of cycled: the distinct palette slots of each axes' auto-coloured
+// series are ranked and spread evenly over the ramp (series sharing a slot
+// share the colour) (see sequential_palette_slot), so a few
 // lines stay distinguishable.  Categorical palettes keep palette[slot % n].
 // Called by the renderer before drawing a figure and by the UI before building
 // overlays (legend), so palette and theme switches recolour existing plots.

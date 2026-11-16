@@ -2,6 +2,8 @@
 // remove one / clear all with undo, and pan the view to a tip.
 
 #include <gtest/gtest.h>
+#include <map>
+#include <memory>
 #include <spectra/axes.hpp>
 #include <spectra/figure.hpp>
 #include <vector>
@@ -124,7 +126,10 @@ TEST_F(MarkerActions, CenterViewKeepsSpanAndIsUndoable)
 {
     ax1_->xlim(0.0, 2.0);
     ax1_->ylim(0.0, 100.0);
-    ASSERT_TRUE(center_view_on_marker(di_.markers()[3], fig_, &undo_));   // (4, 40)
+    FigureLookup lookup;
+    lookup.id_of   = [this](const Figure* f) -> FigureId { return f == &fig_ ? 1 : 0; };
+    lookup.resolve = [this](FigureId id) -> Figure* { return id == 1 ? &fig_ : nullptr; };
+    ASSERT_TRUE(center_view_on_marker(di_.markers()[3], fig_, &undo_, lookup));   // (4, 40)
     EXPECT_DOUBLE_EQ(ax1_->x_limits().min, 3.0);
     EXPECT_DOUBLE_EQ(ax1_->x_limits().max, 5.0);
     EXPECT_DOUBLE_EQ(ax1_->y_limits().min, -10.0);
@@ -132,6 +137,79 @@ TEST_F(MarkerActions, CenterViewKeepsSpanAndIsUndoable)
     ASSERT_TRUE(undo_.undo());
     EXPECT_DOUBLE_EQ(ax1_->x_limits().min, 0.0);
     EXPECT_DOUBLE_EQ(ax1_->x_limits().max, 2.0);
+}
+
+TEST_F(MarkerActions, CenterViewUndoAfterFigureClosedIsSafe)
+{
+    // Figures live in a registry-like map; the undo entry must re-resolve the
+    // figure by id instead of keeping the (freed) Axes pointer.
+    std::map<FigureId, std::unique_ptr<Figure>> figures;
+    auto                                        owned = std::make_unique<Figure>();
+    Figure*                                     f     = owned.get();
+    figures[7]                                        = std::move(owned);
+    auto&   ax                                        = f->subplot(1, 1, 1);
+    Series* s                                         = &ax.line(x_, y_);
+    ax.xlim(0.0, 2.0);
+    ax.ylim(0.0, 100.0);
+    DataInteraction di;
+    di.add_marker(4.0, 40.0, s, 4, &ax);
+
+    FigureLookup lookup;
+    lookup.id_of = [&](const Figure* fig) -> FigureId
+    {
+        for (auto& [id, p] : figures)
+            if (p.get() == fig)
+                return id;
+        return INVALID_FIGURE_ID;
+    };
+    lookup.resolve = [&](FigureId id) -> Figure*
+    {
+        auto it = figures.find(id);
+        return it == figures.end() ? nullptr : it->second.get();
+    };
+
+    ASSERT_TRUE(center_view_on_marker(di.markers()[0], *f, &undo_, lookup));
+    ASSERT_TRUE(undo_.can_undo());
+    // While the figure is open undo restores the limits through the lookup.
+    ASSERT_TRUE(undo_.undo());
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, 0.0);
+    ASSERT_TRUE(undo_.redo());
+    EXPECT_DOUBLE_EQ(ax.x_limits().min, 3.0);
+
+    di.clear_figure_cache(f);
+    figures.erase(7);            // tab closed: figure and axes are freed
+    EXPECT_TRUE(undo_.undo());   // no-op, must not touch freed memory
+    EXPECT_TRUE(undo_.redo());
+}
+
+TEST_F(MarkerActions, CenterViewWithoutLookupPushesNoUndo)
+{
+    ASSERT_TRUE(center_view_on_marker(di_.markers()[0], fig_, &undo_));
+    EXPECT_FALSE(undo_.can_undo());
+}
+
+TEST_F(MarkerActions, CenterViewOnSqrtAxisUsesSignedSqrtSpace)
+{
+    ax1_->yscale(ScaleType::Sqrt);
+    ax1_->xlim(0.0, 2.0);
+    ax1_->ylim(0.0, 100.0);   // axis space [0, 10]
+    DataMarker m = di_.markers()[0];
+    m.data_y     = 1.0;   // axis space 1 -> [-4, 6] -> data [-16, 36]
+    ASSERT_TRUE(center_view_on_marker(m, fig_, nullptr));
+    EXPECT_NEAR(ax1_->y_limits().min, -16.0, 1e-9);
+    EXPECT_NEAR(ax1_->y_limits().max, 36.0, 1e-9);
+    // Negative centres are drawable on a signed-sqrt axis.
+    m.data_y = -4.0;
+    EXPECT_TRUE(center_view_on_marker(m, fig_, nullptr));
+}
+
+TEST_F(MarkerActions, CenterViewOnLogAxisRejectsNonPositiveCentre)
+{
+    ax1_->yscale(ScaleType::Log10);
+    ax1_->ylim(1.0, 100.0);
+    DataMarker m = di_.markers()[0];
+    m.data_y     = 0.0;
+    EXPECT_FALSE(center_view_on_marker(m, fig_, nullptr));
 }
 
 TEST_F(MarkerActions, CenterViewOnLogAxisCentresInLogSpace)

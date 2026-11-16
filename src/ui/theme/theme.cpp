@@ -2249,10 +2249,13 @@ size_t sequential_palette_slot(size_t rank, size_t count, size_t palette_size)
 
 void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool light_background)
 {
-    // Sequential palettes: rank of each auto-coloured series (by palette slot,
-    // then position) among the auto-coloured series of its axes.
+    // Sequential palettes: rank of each auto-coloured series' palette slot
+    // among the distinct slots of the auto-coloured series of its axes.
+    // Series sharing a slot (e.g. errorbar data + error bars, both "C2")
+    // share the rank and so the colour.
     std::vector<std::pair<int, size_t>> order;
     std::vector<size_t>                 rank_of;
+    size_t                              n_distinct       = 0;
     auto                                rank_auto_series = [&](AxesBase& axes)
     {
         order.clear();
@@ -2265,8 +2268,15 @@ void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool
                 order.emplace_back(s->auto_color_index(), i);
         }
         std::sort(order.begin(), order.end());
+        n_distinct = 0;
         for (size_t r = 0; r < order.size(); ++r)
-            rank_of[order[r].second] = r;
+        {
+            if (r > 0 && order[r].first != order[r - 1].first)
+                ++n_distinct;
+            rank_of[order[r].second] = n_distinct;
+        }
+        if (!order.empty())
+            ++n_distinct;
     };
 
     auto resolve_axes = [&](AxesBase& axes)
@@ -2291,8 +2301,7 @@ void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool
             if (!palette.colors.empty())
             {
                 if (sampled)
-                    slot =
-                        sequential_palette_slot(rank_of[pos], order.size(), palette.colors.size());
+                    slot = sequential_palette_slot(rank_of[pos], n_distinct, palette.colors.size());
                 const auto& pc = palette.colors[slot % palette.colors.size()];
                 c              = spectra::Color{pc.r, pc.g, pc.b, pc.a};
             }

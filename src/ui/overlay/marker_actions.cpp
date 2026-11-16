@@ -8,6 +8,7 @@
     #include <spectra/axes3d.hpp>
     #include <spectra/figure.hpp>
 
+    #include "core/axis_scale.hpp"
     #include "data_interaction.hpp"
     #include "ui/commands/undo_manager.hpp"
 
@@ -80,58 +81,13 @@ void remove_saved(DataInteraction& di, const std::vector<std::pair<size_t, DataM
     }
 }
 
-double to_scale(ScaleType s, double v)
+// Live axes @p axes_index of figure @p id, or nullptr once either is gone.
+Axes* resolve_axes(const FigureLookup& lookup, FigureId id, size_t axes_index)
 {
-    switch (s)
-    {
-        case ScaleType::Log10:
-            return std::log10(v);
-        case ScaleType::Log2:
-            return std::log2(v);
-        case ScaleType::Sqrt:
-            return std::sqrt(std::max(v, 0.0));
-        case ScaleType::Linear:
-            break;
-    }
-    return v;
-}
-
-double from_scale(ScaleType s, double v)
-{
-    switch (s)
-    {
-        case ScaleType::Log10:
-            return std::pow(10.0, v);
-        case ScaleType::Log2:
-            return std::exp2(v);
-        case ScaleType::Sqrt:
-            return v * v;
-        case ScaleType::Linear:
-            break;
-    }
-    return v;
-}
-
-// Limits [lo, hi] shifted so @p centre is in the middle, in scale space.
-// Returns false when the value cannot be shown on this scale.
-bool centred_limits(ScaleType s,
-                    double    lo,
-                    double    hi,
-                    double    centre,
-                    double&   out_lo,
-                    double&   out_hi)
-{
-    const bool log = s == ScaleType::Log10 || s == ScaleType::Log2;
-    if ((log && (centre <= 0.0 || lo <= 0.0 || hi <= 0.0))
-        || (s == ScaleType::Sqrt && centre < 0.0))
-        return false;
-    const double a    = to_scale(s, lo);
-    const double b    = to_scale(s, hi);
-    const double c    = to_scale(s, centre);
-    const double half = 0.5 * (b - a);
-    out_lo            = from_scale(s, c - half);
-    out_hi            = from_scale(s, c + half);
-    return std::isfinite(out_lo) && std::isfinite(out_hi) && out_lo < out_hi;
+    Figure* fig = lookup.resolve ? lookup.resolve(id) : nullptr;
+    if (!fig || axes_index >= fig->axes().size())
+        return nullptr;
+    return fig->axes_mut()[axes_index].get();
 }
 
 }   // namespace
@@ -202,38 +158,56 @@ size_t clear_figure_markers_undoable(DataInteraction& di,
     return saved.size();
 }
 
-bool center_view_on_marker(const DataMarker& m, Figure& figure, UndoManager* undo)
+bool center_view_on_marker(const DataMarker&   m,
+                           Figure&             figure,
+                           UndoManager*        undo,
+                           const FigureLookup& lookup)
 {
     if (m.is_3d || !marker_in_figure(m, figure))
         return false;
-    Axes* axes = nullptr;
-    for (auto& a : figure.axes_mut())
-        if (a.get() == m.axes)
-            axes = a.get();
+    Axes*  axes       = nullptr;
+    size_t axes_index = 0;
+    for (size_t i = 0; i < figure.axes().size(); ++i)
+    {
+        if (figure.axes()[i].get() == m.axes)
+        {
+            axes       = figure.axes_mut()[i].get();
+            axes_index = i;
+        }
+    }
     if (!axes)
+        return false;
+
+    auto drawable = [](ScaleType s, double v)
+    { return std::isfinite(v) && (!is_log_scale(s) || v > 0.0); };
+    if (!drawable(axes->xscale(), m.data_x) || !drawable(axes->yscale(), m.data_y))
         return false;
 
     const AxisLimits old_x = axes->x_limits();
     const AxisLimits old_y = axes->y_limits();
-    double           x0 = 0.0, x1 = 0.0, y0 = 0.0, y1 = 0.0;
-    if (!centred_limits(axes->xscale(), old_x.min, old_x.max, m.data_x, x0, x1)
-        || !centred_limits(axes->yscale(), old_y.min, old_y.max, m.data_y, y0, y1))
+    const AxisLimits new_x = zoom_limits_centered(axes->xscale(), old_x, m.data_x, 1.0);
+    const AxisLimits new_y = zoom_limits_centered(axes->yscale(), old_y, m.data_y, 1.0);
+    if (!(std::isfinite(new_x.min) && std::isfinite(new_x.max) && new_x.min < new_x.max
+          && std::isfinite(new_y.min) && std::isfinite(new_y.max) && new_y.min < new_y.max))
         return false;
-    axes->xlim(x0, x1);
-    axes->ylim(y0, y1);
-    if (undo)
+    axes->xlim(new_x.min, new_x.max);
+    axes->ylim(new_y.min, new_y.max);
+
+    const FigureId id = lookup ? lookup.id_of(&figure) : INVALID_FIGURE_ID;
+    if (undo && id != 0 && id != INVALID_FIGURE_ID)
     {
+        auto apply = [resolve = lookup.resolve, id, axes_index](AxisLimits x, AxisLimits y)
+        {
+            FigureLookup l{nullptr, resolve};
+            if (Axes* ax = resolve_axes(l, id, axes_index))
+            {
+                ax->xlim(x.min, x.max);
+                ax->ylim(y.min, y.max);
+            }
+        };
         undo->push(UndoAction{"Go to data tip",
-                              [axes, old_x, old_y]()
-                              {
-                                  axes->xlim(old_x.min, old_x.max);
-                                  axes->ylim(old_y.min, old_y.max);
-                              },
-                              [axes, x0, x1, y0, y1]()
-                              {
-                                  axes->xlim(x0, x1);
-                                  axes->ylim(y0, y1);
-                              }});
+                              [apply, old_x, old_y]() { apply(old_x, old_y); },
+                              [apply, new_x, new_y]() { apply(new_x, new_y); }});
     }
     return true;
 }

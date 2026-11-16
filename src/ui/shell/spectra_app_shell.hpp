@@ -129,7 +129,6 @@ class SpectraNavRail : public NavRail
     bool         markers_popover_fresh_ = false;   // opened this frame
     float        markers_btn_x_ = 0.0f, markers_btn_y_ = 0.0f;
     float        markers_btn_x1_ = 0.0f, markers_btn_y1_ = 0.0f;
-    bool         markers_btn_hovered_ = false;
 };
 
 /// Canvas host wrapping core draw_canvas (glass frame, welcome screen, scrollbar).

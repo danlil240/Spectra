@@ -296,13 +296,10 @@ void SpectraNavRail::draw()
             }
             if (item.id == "markers")
             {
-                markers_btn_x_       = ImGui::GetItemRectMin().x;
-                markers_btn_y_       = ImGui::GetItemRectMin().y;
-                markers_btn_x1_      = ImGui::GetItemRectMax().x;
-                markers_btn_y1_      = ImGui::GetItemRectMax().y;
-                markers_btn_hovered_ = ImGui::IsItemHovered();
-                if (markers_btn_hovered_ && !markers_popover_open_)
-                    ImGui::SetTooltip("%s", item.tooltip.c_str());
+                markers_btn_x_  = ImGui::GetItemRectMin().x;
+                markers_btn_y_  = ImGui::GetItemRectMin().y;
+                markers_btn_x1_ = ImGui::GetItemRectMax().x;
+                markers_btn_y1_ = ImGui::GetItemRectMax().y;
             }
         }
     }
@@ -331,6 +328,9 @@ void SpectraNavRail::draw_markers_popover()
     spectra::ImGuiIntegration*     imgui   = imgui_;
     spectra::UndoManager*          undo    = imgui_->undo_manager_;
     const spectra::CurrentFigureFn cur_fig = [imgui]() { return imgui->current_figure_; };
+    spectra::FigureLookup          lookup;
+    lookup.id_of   = imgui_->get_figure_id_;
+    lookup.resolve = imgui_->get_figure_ptr_;
 
     ImGui::SetNextWindowPos(ImVec2(markers_btn_x1_ + ui::tokens::SPACE_2, markers_btn_y_),
                             ImGuiCond_Always);
@@ -414,7 +414,7 @@ void SpectraNavRail::draw_markers_popover()
                                                  - ImGui::GetStyle().ItemSpacing.x,
                                              row_h)))
                 {
-                    center_view_on_marker(m, *fig, undo);
+                    center_view_on_marker(m, *fig, undo, lookup);
                 }
                 if (ImGui::IsItemHovered() && !m.is_3d)
                     ImGui::SetTooltip("Go to this data tip");

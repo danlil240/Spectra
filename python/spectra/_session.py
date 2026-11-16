@@ -11,12 +11,40 @@ from ._errors import (
     ConnectionError,
     ProtocolError,
     BackendError,
+    TimeoutError,
 )
 from ._blob import BlobStore
 from ._log import log
 
 if TYPE_CHECKING:
     from ._figure import Figure
+
+
+# Reply timeout of a small request, in seconds ($SPECTRA_IPC_TIMEOUT overrides).
+DEFAULT_IPC_TIMEOUT = 5.0
+# Conservative backend throughput used to give large payloads more time: the
+# backend decodes the data and forwards it to every window showing the figure.
+_IPC_BYTES_PER_SECOND = 10e6
+# Extra seconds for an offscreen export (software Vulkan renders slowly).
+_EXPORT_EXTRA_TIMEOUT = 60.0
+
+
+def _base_timeout() -> float:
+    import os
+
+    raw = os.environ.get("SPECTRA_IPC_TIMEOUT", "")
+    try:
+        value = float(raw) if raw else DEFAULT_IPC_TIMEOUT
+    except ValueError:
+        value = DEFAULT_IPC_TIMEOUT
+    return value if value > 0 else DEFAULT_IPC_TIMEOUT
+
+
+def _message_name(msg_type: int) -> str:
+    for name in dir(P):
+        if name.startswith("REQ_") and getattr(P, name) == msg_type:
+            return name
+    return f"0x{msg_type:04X}"
 
 
 class Session:
@@ -49,6 +77,10 @@ class Session:
         self._blob_store = BlobStore()
         self._closed = False
         self._live_thread_count = 0  # number of active live threads using the socket
+        # time.monotonic() at which the backend should be done with the data
+        # sent so far (grows with large payloads; see _reply_timeout()).
+        self._busy_until = 0.0
+        self._data_bytes = 0  # series data sent so far (export timeout heuristic)
 
         # Connect with retry. When auto_launch is on, re-invoke
         # ensure_backend() on each retry so that a dying backend whose
@@ -138,6 +170,8 @@ class Session:
         with self._lock:
             req_id = self._next_req_id_unlocked()
             log.debug("_request send type=0x%04X req_id=%d", msg_type, req_id)
+            timeout = self._reply_timeout(msg_type, len(payload))
+            self._transport.set_timeout(timeout)
             self._transport.send(
                 msg_type=msg_type,
                 payload=payload,
@@ -147,7 +181,16 @@ class Session:
 
             # Read responses until we get one matching our request_id
             while True:
-                msg = self._transport.recv()
+                try:
+                    msg = self._transport.recv()
+                except TimeoutError as exc:
+                    raise TimeoutError(
+                        f"The Spectra backend did not answer {_message_name(msg_type)} within "
+                        f"{timeout:.0f} s. It may still be busy with a large dataset "
+                        f"({len(payload) / 1e6:.1f} MB in this request). Try again, plot "
+                        "fewer points (e.g. y[::10]), or allow more time with "
+                        "SPECTRA_IPC_TIMEOUT=<seconds>."
+                    ) from exc
                 if msg is None:
                     raise ConnectionError("Backend closed connection")
 
@@ -174,6 +217,26 @@ class Session:
 
                 # Otherwise it's an event or unrelated message — store for later
                 self._handle_event(msg)
+
+    def _reply_timeout(self, msg_type: int, payload_len: int) -> float:
+        """Seconds to wait for the reply to a request carrying ``payload_len`` bytes.
+
+        The base timeout plus the time the backend needs for this payload and
+        for any large payload sent just before it (which it may still be
+        forwarding to a window): 5M points (40 MB) get about 4 s extra.
+        Offscreen exports (savefig, inline PNGs) render every point, so they
+        get a minute plus 1 s per MB of data sent in this session.
+        """
+        import time
+
+        now = time.monotonic()
+        self._busy_until = max(self._busy_until, now) + payload_len / _IPC_BYTES_PER_SECOND
+        if msg_type in (P.REQ_SET_DATA, P.REQ_APPEND_DATA):
+            self._data_bytes += payload_len
+        timeout = _base_timeout() + (self._busy_until - now)
+        if msg_type == P.REQ_EXPORT_FIGURE:
+            timeout += _EXPORT_EXTRA_TIMEOUT + self._data_bytes / 1e6
+        return timeout
 
     def _register_animator(self, animator) -> None:
         """Register a BackendAnimator for ANIM_TICK dispatch."""
@@ -221,6 +284,7 @@ class Session:
 
         _, figure_id = codec.decode_resp_figure_created(resp["payload"])
         fig = Figure(self, figure_id, title)
+        fig._size = (int(width), int(height))
         self._figures.append(fig)
         return fig
 

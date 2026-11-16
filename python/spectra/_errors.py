@@ -16,8 +16,12 @@ class ProtocolError(SpectraError):
     pass
 
 
-class TimeoutError(SpectraError):
-    """A request to the backend timed out."""
+class TimeoutError(ConnectionError):
+    """A request to the backend timed out.
+
+    Subclass of :class:`ConnectionError` so code that caught the raw timeout
+    (reported as ConnectionError before) keeps working.
+    """
     pass
 
 

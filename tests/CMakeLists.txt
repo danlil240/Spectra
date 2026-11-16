@@ -132,6 +132,7 @@ set(SPECTRA_UNIT_TESTS
     test_tick_generation
     test_axes_layout_fit
     test_axes_format_transport
+    test_series_style_transport
     test_series_visibility
     test_ui_icons
     test_svg_export

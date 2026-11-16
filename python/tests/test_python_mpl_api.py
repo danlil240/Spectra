@@ -37,6 +37,14 @@ class _FakeSeries:
         self.width = None
         self.marker_size = None
         self.opacity = None
+        self.line_style = None
+        self.marker_style = None
+
+    def set_line_style(self, style):
+        self.line_style = style
+
+    def set_marker_style(self, marker):
+        self.marker_style = marker
 
     def set_color_letter(self, letter):
         self.letter = letter
@@ -439,9 +447,26 @@ def test_pyplot_plot_routes_fmt(fake_plt):
         plt.plot([0, 1], [1, 2], "g--")
     assert [s.kind for s in lines] == ["line", "scatter"]
     assert lines[0].letter == "r" and lines[0].width == 3.0
+    assert lines[0].line_style == "-"
     assert lines[1].letter == "b" and lines[1].marker_size == 6.0
-    msgs = [str(x.message) for x in w]
-    assert len([m for m in msgs if "--" in m]) == 1  # warned once
+    assert lines[1].marker_style == "o"
+    dashed = ax.created[-1]
+    assert dashed.letter == "g" and dashed.line_style == "--"
+    assert not [str(x.message) for x in w]  # line styles are drawn, not ignored
+
+
+def test_pyplot_plot_line_with_markers_and_keywords(fake_plt):
+    ax, _ = fake_plt
+    (s,) = plt.plot([0, 1], [1, 2], "k-.^")
+    assert s.kind == "line" and s.letter == "k"
+    assert s.line_style == "-." and s.marker_style == "^"
+    (s,) = plt.plot([0, 1], [1, 2], linestyle="dotted", marker="s", ms=4)
+    assert s.line_style == ":" and s.marker_style == "s" and s.marker_size == 4.0
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        (s,) = plt.plot([0, 1], [1, 2], linestyle=(0, (5, 2)), marker="8")
+    assert s.line_style is None and s.marker_style is None
+    assert len(w) == 2  # unsupported dash tuple and marker warn instead of failing
 
 
 def test_pyplot_unknown_kwargs_warn_once(fake_plt):

@@ -131,6 +131,14 @@ sp.title("Cosine")
 sp.show()
 ```
 
+Format strings work like MATLAB and matplotlib: `sp.plot(x, y, "r--o")` (red, dashed,
+circle markers), `sp.plot(y, "g^")` (green triangles), or `linestyle=":"` / `marker="s"`.
+
+In **Jupyter** the same calls draw inline: each cell's figures appear as PNG images under it,
+and `sp.show()` never blocks the kernel. `sp.use_window()` switches to native windows,
+`sp.use_inline()` back (or set `SPECTRA_DISPLAY=window|inline`); `spectra.notebook` gives a
+live, pannable canvas instead.
+
 Live streaming, 3D plots, statistical charts and the Session API are covered in the
 [Feature Guide](https://danlil240.github.io/Spectra/features.html#python-api).
 

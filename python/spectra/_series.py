@@ -18,59 +18,86 @@ if TYPE_CHECKING:
 STATS_SERIES_TYPES = frozenset({"bar", "histogram", "band", "stem", "box", "violin"})
 
 
+def _numpy():
+    """The numpy module, or None when it is not installed (numpy is optional)."""
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    return np
+
+
 def _to_float_list(data: Union[List[float], "object"]) -> List[float]:
     """Convert data to a list of floats. Supports lists and numpy arrays."""
     if isinstance(data, list):
         return [float(v) for v in data]
-    # numpy array path
-    try:
-        import numpy as np
-
-        if isinstance(data, np.ndarray):
-            return data.astype(np.float32).tolist()
-    except ImportError:
-        pass
+    np = _numpy()
+    if np is not None and isinstance(data, np.ndarray):
+        return data.astype(np.float32).tolist()
     # Generic iterable fallback
     return [float(v) for v in data]
+
+
+def _as_float64(data):
+    """``data`` as a flat float64 NumPy array, or None (no numpy / not numeric)."""
+    np = _numpy()
+    if np is None:
+        return None
+    if isinstance(data, np.ndarray) and data.dtype == np.float64 and data.ndim == 1:
+        return data
+    try:
+        return np.asarray(data, dtype=np.float64).ravel()
+    except (TypeError, ValueError):
+        return None
 
 
 def _interleave_xy(
     x: Union[List[float], "object"],
     y: Union[List[float], "object"],
 ) -> List[float]:
-    """Interleave x and y into [x0, y0, x1, y1, ...]."""
+    """Interleave x and y into [x0, y0, x1, y1, ...] (pure-Python fallback)."""
     xf = _to_float_list(x)
     yf = _to_float_list(y)
     if len(xf) != len(yf):
         raise ValueError(f"x and y must have same length ({len(xf)} vs {len(yf)})")
-    result = []
-    for xi, yi in zip(xf, yf):
-        result.append(xi)
-        result.append(yi)
+    result = [0.0] * (2 * len(xf))
+    result[0::2] = xf
+    result[1::2] = yf
     return result
+
+
+def _interleave_numpy(*columns):
+    """Interleave equal-length columns into one contiguous little-endian float32 array."""
+    np = _numpy()
+    n = len(columns[0])
+    out = np.empty((n, len(columns)), dtype="<f4")
+    with np.errstate(over="ignore", invalid="ignore"):
+        for i, c in enumerate(columns):
+            out[:, i] = c
+    return out.ravel()
 
 
 def _try_interleave_numpy(
     x: Union[List[float], "object"],
     y: Union[List[float], "object"],
 ) -> tuple:
-    """Try to interleave using numpy for zero-copy. Returns (raw_bytes, count) or None."""
-    try:
-        import numpy as np
+    """Interleave two NumPy arrays into float32 bytes. Returns (raw_bytes, count) or None.
 
-        if isinstance(x, np.ndarray) and isinstance(y, np.ndarray):
-            xf = np.ascontiguousarray(x, dtype=np.float32)
-            yf = np.ascontiguousarray(y, dtype=np.float32)
-            if xf.shape != yf.shape:
-                return None
-            # Interleave: stack columns then flatten
-            interleaved = np.column_stack((xf, yf)).astype(np.float32)
-            raw = interleaved.tobytes()
-            count = interleaved.size  # total float count
-            return raw, count
-    except ImportError:
-        pass
-    return None
+    None when numpy is missing, either input is not an ndarray or the lengths
+    differ (the caller then falls back to the list path, which reports the
+    mismatch).  Series.set_data()/append() convert inputs to float64 arrays
+    first whenever numpy is installed, so a multi-million-point series costs
+    one vectorised copy instead of a Python loop.
+    """
+    np = _numpy()
+    if np is None or not isinstance(x, np.ndarray) or not isinstance(y, np.ndarray):
+        return None
+    xf = x.ravel()
+    yf = y.ravel()
+    if xf.shape != yf.shape:
+        return None
+    interleaved = _interleave_numpy(xf, yf)
+    return interleaved.tobytes(), int(interleaved.size)
 
 
 def _float32_exact(v: float) -> bool:
@@ -197,6 +224,9 @@ class Series:
         sent as offsets from a double-precision origin, which the backend
         keeps with the series.
         """
+        xa, ya = _as_float64(x), _as_float64(y)
+        if xa is not None and ya is not None:
+            x, y = xa, ya  # vectorised origin / shift / interleave below
         origin = (_choose_data_origin(x), _choose_data_origin(y))
         x = _shift(x, origin[0])
         y = _shift(y, origin[1])
@@ -306,6 +336,9 @@ class Series:
         if self._type in STATS_SERIES_TYPES:
             raise TypeError(f"append() is not supported for {self._type!r} series; "
                             "create the series again with the full data")
+        xa, ya = _as_float64(x), _as_float64(y)
+        if xa is not None and ya is not None:
+            x, y = xa, ya
         if not self._has_data:
             xs = _shift(x, 0.0)
             ys = _shift(y, 0.0)
@@ -345,19 +378,23 @@ class Series:
         z: Union[List[float], "object"],
     ) -> None:
         """Set XYZ data for 3D series. Sends as interleaved [x0,y0,z0, x1,y1,z1, ...]."""
-        xf = _to_float_list(x)
-        yf = _to_float_list(y)
-        zf = _to_float_list(z)
-        n = min(len(xf), len(yf), len(zf))
-        interleaved: List[float] = []
-        for i in range(n):
-            interleaved.append(xf[i])
-            interleaved.append(yf[i])
-            interleaved.append(zf[i])
+        xa, ya, za = _as_float64(x), _as_float64(y), _as_float64(z)
+        if xa is not None and ya is not None and za is not None:
+            n = min(xa.size, ya.size, za.size)
+            data = _interleave_numpy(xa[:n], ya[:n], za[:n])
+        else:
+            xf = _to_float_list(x)
+            yf = _to_float_list(y)
+            zf = _to_float_list(z)
+            n = min(len(xf), len(yf), len(zf))
+            data = [0.0] * (3 * n)
+            data[0::3] = xf[:n]
+            data[1::3] = yf[:n]
+            data[2::3] = zf[:n]
         payload = codec.encode_req_set_data(
             figure_id=self._figure_id,
             series_index=self._index,
-            data=interleaved,
+            data=data,
         )
         self._session._request(P.REQ_SET_DATA, payload)
 
@@ -430,6 +467,44 @@ class Series:
             f1=size,
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_line_style(self, style) -> None:
+        """Line style: "-", "--", ":", "-.", "-.." or "none" (also "solid",
+        "dashed", "dotted", "dashdot")."""
+        from ._style import normalize_linestyle
+
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="line_style",
+            str_val=normalize_linestyle(style),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_marker_style(self, marker) -> None:
+        """Marker: "o", ".", "s", "d", "D", "^", "v", "<", ">", "+", "x", "*",
+        "p", "h" or "none" (matplotlib names such as "circle" also work)."""
+        from ._style import normalize_marker
+
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="marker_style",
+            str_val=normalize_marker(marker),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_format(self, fmt: str) -> None:
+        """Apply a MATLAB / matplotlib format string such as "r--o" or "g^"."""
+        from ._style import resolve_style
+
+        color, line, marker = resolve_style(fmt)
+        if color is not None:
+            self.set_color_letter(color)
+        if line is not None:
+            self.set_line_style(line)
+        if marker is not None:
+            self.set_marker_style(marker)
 
     def set_visible(self, visible: bool) -> None:
         payload = codec.encode_req_update_property(

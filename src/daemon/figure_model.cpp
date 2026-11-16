@@ -2,6 +2,7 @@
 
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
+#include "../ipc/series_style_state.hpp"
 
 #include <algorithm>
 #include <spectra/color.hpp>
@@ -525,6 +526,42 @@ ipc::DiffOp FigureModel::set_marker_size(uint64_t figure_id, uint32_t series_ind
     return op;
 }
 
+ipc::DiffOp FigureModel::set_series_line_style(uint64_t figure_id,
+                                               uint32_t series_index,
+                                               uint8_t  style)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+        it->second.series[series_index].line_style = style;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type         = ipc::DiffOp::Type::SET_SERIES_LINE_STYLE;
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+    op.f1           = style;
+    return op;
+}
+
+ipc::DiffOp FigureModel::set_series_marker_style(uint64_t figure_id,
+                                                 uint32_t series_index,
+                                                 uint8_t  style)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+        it->second.series[series_index].marker_style = style;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type         = ipc::DiffOp::Type::SET_SERIES_MARKER_STYLE;
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+    op.f1           = style;
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_opacity(uint64_t figure_id, uint32_t series_index, float opacity)
 {
     std::lock_guard lock(mu_);
@@ -938,6 +975,26 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.legend_position =
                 ipc::legend_position_to_wire(ipc::legend_position_from_wire(op.f1));
             break;
+
+        case ipc::DiffOp::Type::SET_SERIES_LINE_STYLE:
+        {
+            const uint8_t v = ipc::style_wire_from_double(op.f1, ipc::LINE_STYLE_WIRE_MAX);
+            if (it == figures_.end() || op.series_index >= it->second.series.size()
+                || v == ipc::SERIES_STYLE_UNSET)
+                return false;
+            it->second.series[op.series_index].line_style = v;
+            break;
+        }
+
+        case ipc::DiffOp::Type::SET_SERIES_MARKER_STYLE:
+        {
+            const uint8_t v = ipc::style_wire_from_double(op.f1, ipc::MARKER_STYLE_WIRE_MAX);
+            if (it == figures_.end() || op.series_index >= it->second.series.size()
+                || v == ipc::SERIES_STYLE_UNSET)
+                return false;
+            it->second.series[op.series_index].marker_style = v;
+            break;
+        }
 
         case ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {

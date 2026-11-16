@@ -57,7 +57,7 @@ void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gp
     {
         if (gpu.lut_texture)
             backend_.destroy_texture(gpu.lut_texture);
-        const auto lut = image_colormap::build_lut(image.colormap(), image.levels());
+        const auto lut = image_colormap::build_lut(image.cmap(), image.levels());
         gpu.lut_texture =
             backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
         gpu.lut_generation = image.lut_generation();
@@ -205,6 +205,19 @@ bool Renderer::upload_line_geometry(LineSeries&    line,
     gpu.decim_columns     = line_view_.columns;
     line.clear_dirty();
     return true;
+}
+
+TextureHandle Renderer::colormap_lut(SeriesGpuData& gpu, const Colormap& cm)
+{
+    if (gpu.lut_texture && gpu.lut_colormap == cm)
+        return gpu.lut_texture;
+    if (gpu.lut_texture)
+        backend_.destroy_texture(gpu.lut_texture);   // deferred by the backend
+    const auto lut = cm.rgba8();
+    gpu.lut_texture =
+        backend_.create_texture(static_cast<uint32_t>(Colormap::LUT_SIZE), 1, lut.data());
+    gpu.lut_colormap = cm;
+    return gpu.lut_texture;
 }
 
 void Renderer::upload_series_data(Series& series)

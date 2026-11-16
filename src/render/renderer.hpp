@@ -544,6 +544,8 @@ class Renderer
         TextureHandle image_texture;
         TextureHandle lut_texture;
         uint64_t      lut_generation = 0;
+        // Scatter / surface: the colormap lut_texture was built from.
+        Colormap lut_colormap;
         // Plugin custom series type fields
         std::string custom_type_name;   // Links to SeriesTypeRegistry entry
         // Opaque per-series state owned by the plugin.  The plugin allocates it
@@ -678,6 +680,10 @@ class Renderer
     // (Re)create the value texture / colormap LUT of an image whose grid or
     // colormap changed since the last upload.  Render thread only.
     void upload_image_textures(const ImageSeries& image, SeriesGpuData& gpu);
+    // Colormap lookup table (Colormap::rgba8, LUT_SIZE x 1) of a scatter or
+    // surface series, rebuilt when the colormap changes; read by
+    // scatter_colormap.frag and surface3d.frag as set 2.  Invalid on failure.
+    TextureHandle colormap_lut(SeriesGpuData& gpu, const Colormap& cm);
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);

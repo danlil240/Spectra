@@ -19,6 +19,7 @@
 
     // Compressed Inter font data
     #include "../../../third_party/inter_font.hpp"
+    #include "../../../third_party/inter_semibold_font.hpp"
 
     // Embedded Font Awesome 6 Free Solid icon font data
     #include "../../../third_party/fa_solid_900.hpp"
@@ -481,7 +482,7 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     // Timeline playback moves the playhead (and the panel) every frame.
     if (timeline_editor_ && (timeline_editor_->is_playing() || timeline_editor_->is_recording()))
         return true;
-    // Modal scrim fading in/out (Settings, Theme Settings): ImGui advances the
+    // Modal scrim fading in/out (Settings): ImGui advances the
     // dim ratio per frame, so keep frames coming until it settles.
     if (const ImGuiContext* g = ImGui::GetCurrentContext();
         g && g->DimBgRatio > 0.0f && g->DimBgRatio < 1.0f)
@@ -965,15 +966,14 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             log_browser_panel_->draw();
     }
 
+    // Colour vision preview indicator (only while a preview is on).
+    draw_cvd_preview_badge();
+
     // Draw Settings panel.
     if (settings_panel_)
     {
         settings_panel_->draw();
     }
-
-    // Theme settings modal (draws nothing unless open; called every frame so the
-    // popup also closes when show_theme_settings_ is cleared elsewhere)
-    draw_theme_settings();
 
     // ── ROS2 Adapter error modal ──────────────────────────────────────────────
     // Shown when the tools.ros2_adapter command encounters a launch failure.
@@ -1242,6 +1242,18 @@ void ImGuiIntegration::set_interaction_mode(ToolMode mode)
         input_handler_->set_tool_mode(mode);
 }
 
+void ImGuiIntegration::set_settings_panel(ui::settings::SettingsPanel* p)
+{
+    settings_panel_ = p;
+    if (settings_panel_)
+        settings_panel_->set_fonts(font_section_);
+}
+
+bool ImGuiIntegration::is_theme_settings_visible() const
+{
+    return settings_panel_ && settings_panel_->is_visible() && settings_panel_->active_tab() == 0;
+}
+
 std::string ImGuiIntegration::tool_tooltip(const char* label, ToolMode mode) const
 {
     const std::string key =
@@ -1399,9 +1411,6 @@ void ImGuiIntegration::build_empty_ui()
     // Settings panel can be opened while no figure exists.
     if (settings_panel_)
         settings_panel_->draw();
-
-    // Theme Settings is reachable from the Tools menu on the welcome screen too.
-    draw_theme_settings();
 
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();
@@ -2083,15 +2092,18 @@ void ImGuiIntegration::load_fonts()
     cfg.OversampleV          = 2;       // sharper vertical edges
     cfg.PixelSnapH           = true;    // snap glyphs to whole pixels for crispness
 
-    // Helper lambda: add Inter font at a given size, then merge FA6 icons
-    auto add_font_pair = [&](float size) -> ImFont*
+    // Helper lambda: add Inter (Regular, or SemiBold for headings) at a given
+    // size, then merge FA6 icons
+    auto add_font_pair = [&](float size, bool semibold = false) -> ImFont*
     {
         cfg.SizePixels = 0;
-        ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
-                                                                InterFont_compressed_size,
-                                                                size,
-                                                                &cfg,
-                                                                text_ranges);
+        ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(
+            semibold ? InterSemiBoldFont_compressed_data : InterFont_compressed_data,
+            static_cast<int>(semibold ? InterSemiBoldFont_compressed_size
+                                      : InterFont_compressed_size),
+            size,
+            &cfg,
+            text_ranges);
 
         ImFontConfig icon_cfg;
         icon_cfg.FontDataOwnedByAtlas = false;
@@ -2141,20 +2153,17 @@ void ImGuiIntegration::load_fonts()
             fallback_font_files_.push_back(std::move(file));
     }
 
-    // Body font (16px) + FA6 icon merge
-    font_body_ = add_font_pair(16.0f);
-
-    // Heading font (12.5px) + FA6 icon merge
-    font_heading_ = add_font_pair(11.5f);
-
-    // Icon font (20px) — primary icon font with Inter merged in
-    font_icon_ = add_font_pair(20.0f);
-
-    // Title font (18px) + FA6 icon merge
-    font_title_ = add_font_pair(20.0f);
-
-    // Menubar font (15px) + FA6 icon merge
-    font_menubar_ = add_font_pair(14.0f);
+    // Sizes are the typography tokens (design_tokens.hpp); each font merges FA6
+    // icons.  Headings and titles use Inter SemiBold so they read as headings
+    // without being smaller than the body text they introduce.
+    font_body_    = add_font_pair(ui::tokens::FONT_BODY);
+    font_heading_ = add_font_pair(ui::tokens::FONT_SM);   // compact caps labels, rail
+    font_icon_    = add_font_pair(ui::tokens::ICON_MD);   // icon bar symbols
+    font_title_   = add_font_pair(ui::tokens::FONT_2XL, true);
+    font_menubar_ = add_font_pair(ui::tokens::FONT_MD);
+    font_section_ = add_font_pair(ui::tokens::FONT_XL, true);
+    if (settings_panel_)
+        settings_panel_->set_fonts(font_section_);
 
     io.FontDefault = font_body_;
 }

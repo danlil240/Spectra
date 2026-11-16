@@ -191,6 +191,7 @@ set(SPECTRA_UNIT_TESTS
     test_r2b_followups
     test_settings_appearance
     test_theme_toggle_commands
+    test_theme_registry
     test_sequential_palette
     test_marker_actions
     test_settings_layout
@@ -227,6 +228,7 @@ set(SPECTRA_UNIT_TESTS
     test_axes3d_render_helpers
     test_axes3d_box
     test_3d_lighting
+    test_cvd_preview_gpu
     test_shape3d_first_frame
     test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
@@ -503,6 +505,7 @@ set(SPECTRA_GPU_TESTS
     test_custom_series_gpu
     test_scatter3d_selection_gpu
     test_3d_lighting
+    test_cvd_preview_gpu
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
     test_window_export_extent

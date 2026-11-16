@@ -294,6 +294,13 @@ inline C adapt_series_color_to_theme(const C& c, const ThemeColors& theme)
 }
 
 // Color Vision Deficiency types
+enum class ThemeKind
+{
+    Dark,
+    Light,
+    HighContrast,
+};
+
 enum class CVDType
 {
     None,           // Normal vision
@@ -398,6 +405,26 @@ class ThemeManager
     // Human-readable name of a theme id for UI labels ("high_contrast" -> "High Contrast").
     // Uses the registered theme's display_name, falling back to theme_display_name(id).
     std::string display_name(std::string_view theme_id) const;
+
+    // Registered theme ids: the built-ins first (night, dark, light,
+    // high_contrast), then any other registered theme in name order.
+    std::vector<std::string> available_themes() const;
+
+    // Dark / light classification for the "Toggle Dark/Light Theme" command:
+    // "high_contrast" is its own kind, any other theme is Light when its plot
+    // canvas is light and Dark otherwise (unknown ids count as Dark).
+    ThemeKind theme_kind(std::string_view theme_id) const;
+
+    // Last dark and last light theme made active.  set_theme() records them
+    // (high contrast is never recorded); set_last_themes() restores them from
+    // settings and ignores ids that are unregistered or of the wrong kind.
+    const std::string& last_dark_theme() const { return last_dark_theme_; }
+    const std::string& last_light_theme() const { return last_light_theme_; }
+    void               set_last_themes(const std::string& dark, const std::string& light);
+
+    // Theme the toggle switches to: the last light theme from a dark or high
+    // contrast theme, the last dark theme from a light one.
+    const std::string& toggle_theme_target() const;
 
     // Data palette management.  The selected palette name is global across
     // themes; "default" resolves to the active theme's own default palette
@@ -518,6 +545,8 @@ class ThemeManager
     std::unordered_map<std::string, Theme> themes_;
     std::string                            current_theme_name_ = "night";
     Theme*                                 current_theme_      = nullptr;
+    std::string                            last_dark_theme_    = "night";
+    std::string                            last_light_theme_   = "light";
 
     std::unordered_map<std::string, DataPalette> data_palettes_;
     mutable std::vector<std::string>             palette_names_cache_;
@@ -631,6 +660,10 @@ inline bool is_light_plot_background(const ThemeColors& theme)
 // (Series::color_letter(), e.g. "r--") to the letter's tuned shade for a dark
 // or light background.  Explicitly coloured series are left untouched.  An
 // empty palette falls back to palette::default_cycle.
+// Sequential palettes (DataPalette::sequential, e.g. viridis) are sampled
+// instead of cycled: the auto-coloured series of each axes are ranked by slot
+// and spread evenly over the ramp (see sequential_palette_slot), so a few
+// lines stay distinguishable.  Categorical palettes keep palette[slot % n].
 // Called by the renderer before drawing a figure and by the UI before building
 // overlays (legend), so palette and theme switches recolour existing plots.
 void resolve_auto_series_colors(Figure&            figure,
@@ -647,6 +680,17 @@ void resolve_auto_series_colors(Figure&               figure,
                                 const DataPalette&    palette,
                                 bool                  light_background,
                                 const spectra::Color& canvas);
+
+// Part of a sequential palette that auto-coloured series are spread over.
+inline constexpr double SEQUENTIAL_RAMP_LO = 0.1;
+inline constexpr double SEQUENTIAL_RAMP_HI = 0.9;
+
+// Palette slot of the auto-coloured series ranked @p rank (0-based) out of
+// @p count in its axes, for a sequential palette of @p palette_size slots:
+// evenly spaced over [SEQUENTIAL_RAMP_LO, SEQUENTIAL_RAMP_HI] of the ramp
+// (nearest slot; a single series takes the middle).  With at least as many
+// series as slots every slot is used once in order (rank % palette_size).
+size_t sequential_palette_slot(size_t rank, size_t count, size_t palette_size);
 
 // ─── Auto series colour visibility rule ─────────────────────────────────────
 // Minimum WCAG contrast (exact sRGB relative luminance) between an

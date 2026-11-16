@@ -12,6 +12,7 @@ summarise the main changes rather than listing every commit.
 ## [Unreleased]
 
 ### Changed
+- Small UX fixes: the nav rail "Markers" button opens a data-tip list (go to / remove / clear all, undoable) instead of deleting every tip; "Toggle Dark/Light Theme" switches between the last-used dark and light themes (remembered in settings) and the command palette lists every theme and data palette; Python colours accept `C0`-`C9`, `tab:*`, short hex and CSS4 names and raise `ValueError` with a suggestion for unknown names; sequential palettes (viridis, monochrome) spread a few auto-coloured series across the ramp.
 
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 

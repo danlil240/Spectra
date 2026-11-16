@@ -15,9 +15,12 @@ struct SettingsData
 {
     std::string default_theme        = "night";
     std::string default_data_palette = "default";
-    bool        inspector_visible    = true;
-    bool        nav_rail_visible     = true;
-    bool        timeline_visible     = false;
+    // Last dark / light theme used, for "Toggle Dark/Light Theme".
+    std::string last_dark_theme   = "night";
+    std::string last_light_theme  = "light";
+    bool        inspector_visible = true;
+    bool        nav_rail_visible  = true;
+    bool        timeline_visible  = false;
     // App UI scale (1.0 = 100%); clamped to ThemeManager::UI_SCALE_MIN..MAX.
     float ui_scale = 1.0f;
 };
@@ -74,6 +77,10 @@ bool select_data_palette(ui::ThemeManager& tm, SettingsStore& store, const std::
 // Save the currently active theme / data palette as the startup default.
 void make_active_theme_default(const ui::ThemeManager& tm, SettingsStore& store);
 void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore& store);
+
+// Copy the theme manager's last dark / light theme into @p store; notifies
+// (saves) only when they changed.  Returns true when they changed.
+bool remember_toggle_themes(const ui::ThemeManager& tm, SettingsStore& store);
 
 class SettingsStore
 {

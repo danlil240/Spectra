@@ -13,12 +13,12 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <spectra/axes.hpp>
 #include <vector>
 
 namespace spectra
 {
 
-class Axes;
 class Series;
 class BarSeries;
 class HistogramSeries;
@@ -53,30 +53,53 @@ struct ProbeSample
     bool   interpolated = false;
 };
 
+/// Axis scales and series offsets used to interpolate the way lines are drawn:
+/// segments are straight in axis space (core/axis_scale.hpp), so on a log or
+/// sqrt axis the value between two samples is interpolated there, on the
+/// absolute (offset) coordinates, and mapped back.
+struct ProbeScale
+{
+    ScaleType x    = ScaleType::Linear;
+    ScaleType y    = ScaleType::Linear;
+    double    xoff = 0.0;   // series offsets added to the stored values
+    double    yoff = 0.0;
+};
+
 /// Sample (x, y) at @p lx where @p x is sorted ascending (binary search).
-/// Invalid outside [x.front(), x.back()] or across a NaN gap (Interpolate).
+/// Invalid outside [x.front(), x.back()] or across a NaN gap (Interpolate);
+/// an exact hit on a finite sample is valid even next to a gap.
 ProbeSample sample_sorted_at_x(std::span<const float> x,
                                std::span<const float> y,
                                double                 lx,
-                               ProbeMode              mode);
+                               ProbeMode              mode,
+                               const ProbeScale&      scale = {});
 
 /// Same for unsorted x (linear scan).  Interpolate uses the first segment that
 /// spans @p lx; Nearest the sample with the closest x inside the data's x range.
 ProbeSample sample_unsorted_at_x(std::span<const float> x,
                                  std::span<const float> y,
                                  double                 lx,
-                                 ProbeMode              mode);
+                                 ProbeMode              mode,
+                                 const ProbeScale&      scale = {});
 
 /// Chunked series (x sorted ascending, as streaming storage assumes).  @p lx is
 /// in stored (un-offset) coordinates.
-ProbeSample sample_chunked_at_x(const ChunkedLineSeries& s, double lx, ProbeMode mode);
+ProbeSample sample_chunked_at_x(const ChunkedLineSeries& s,
+                                double                   lx,
+                                ProbeMode                mode,
+                                const ProbeScale&        scale = {});
 
 /// Value of a 2D series at absolute @p abs_x for the compare readout:
 /// lines (interpolated or nearest), scatter sorted by x and stems (nearest
 /// sample; an unsorted scatter cloud has no value at X), chunked
 /// lines, vertical bars (the bar under X) and histograms (the bin under X).
-/// Other series types return an invalid sample.
-ProbeSample sample_series_at_x(const Series& s, double abs_x, ProbeMode mode);
+/// Other series types return an invalid sample.  @p xscale / @p yscale are the
+/// axes' scales (interpolation happens in axis space).
+ProbeSample sample_series_at_x(const Series& s,
+                               double        abs_x,
+                               ProbeMode     mode,
+                               ScaleType     xscale = ScaleType::Linear,
+                               ScaleType     yscale = ScaleType::Linear);
 
 /// One row of the compare-at-X readout.
 struct CompareRow

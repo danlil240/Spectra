@@ -90,6 +90,43 @@ TEST(SeriesProbeSorted, NanGapIsNotInterpolatedAcross)
     EXPECT_DOUBLE_EQ(n.y, 1.0);
 }
 
+TEST(SeriesProbeSorted, ExactHitAtNanGapEdgeHasValue)
+{
+    const std::vector<float> x = {0.0f, 1.0f, 2.0f};
+    const std::vector<float> y = {5.0f, NaN, 7.0f};
+    const auto               a = sample_sorted_at_x(x, y, 0.0, ProbeMode::Interpolate);
+    ASSERT_TRUE(a.valid);
+    EXPECT_DOUBLE_EQ(a.y, 5.0);
+    EXPECT_EQ(a.index, 0u);
+    EXPECT_FALSE(a.interpolated);
+    const auto b = sample_sorted_at_x(x, y, 2.0, ProbeMode::Interpolate);
+    ASSERT_TRUE(b.valid);
+    EXPECT_DOUBLE_EQ(b.y, 7.0);
+    EXPECT_FALSE(sample_sorted_at_x(x, y, 0.5, ProbeMode::Interpolate).valid);
+    EXPECT_FALSE(sample_sorted_at_x(x, y, 1.0, ProbeMode::Interpolate).valid);
+
+    // Same for the unsorted scan.
+    const auto u = sample_unsorted_at_x(x, y, 0.0, ProbeMode::Interpolate);
+    ASSERT_TRUE(u.valid);
+    EXPECT_DOUBLE_EQ(u.y, 5.0);
+    EXPECT_FALSE(sample_unsorted_at_x(x, y, 0.5, ProbeMode::Interpolate).valid);
+}
+
+TEST(SeriesProbeSorted, InterpolatesInAxisSpaceWithOffsets)
+{
+    // Absolute y runs 1 → 100 (stored 0 → 99, y offset 1) on a log axis: the
+    // drawn line passes y = 10 halfway along x.
+    const std::vector<float> x = {0.0f, 1.0f};
+    const std::vector<float> y = {0.0f, 99.0f};
+    const ProbeScale         sc{ScaleType::Linear, ScaleType::Log10, 0.0, 1.0};
+    const auto               s = sample_sorted_at_x(x, y, 0.5, ProbeMode::Interpolate, sc);
+    ASSERT_TRUE(s.valid);
+    EXPECT_NEAR(s.y, 9.0, 1e-9);   // local: absolute 10 minus the offset
+    const auto u = sample_unsorted_at_x(x, y, 0.5, ProbeMode::Interpolate, sc);
+    ASSERT_TRUE(u.valid);
+    EXPECT_NEAR(u.y, 9.0, 1e-9);
+}
+
 TEST(SeriesProbeSorted, NearestPicksClosestSample)
 {
     const std::vector<float> x = {0.0f, 1.0f, 2.0f};
@@ -259,6 +296,62 @@ TEST(CompareAtX, ListsVisibleSeriesInRequestedOrder)
     ASSERT_EQ(rows.size(), 3u);
     EXPECT_DOUBLE_EQ(rows[0].sample.y, 0.0);
     EXPECT_DOUBLE_EQ(rows[0].sample.x, 0.0);
+}
+
+TEST(CompareAtX, InterpolatesInLogAxisSpace)
+{
+    Figure             fig;
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x  = {1.0f, 100.0f};
+    std::vector<float> y  = {1.0f, 10000.0f};
+    ax.line(x, y);
+
+    // Linear axes: the straight line in data space.
+    auto rows = compare_at_x(ax, 10.0, ProbeMode::Interpolate, CompareSort::Legend);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_NEAR(rows[0].sample.y, 910.0, 1e-6);
+
+    // Log-log: the drawn line passes through (10, 100).
+    ax.xscale(ScaleType::Log10);
+    ax.yscale(ScaleType::Log10);
+    rows = compare_at_x(ax, 10.0, ProbeMode::Interpolate, CompareSort::Legend);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_DOUBLE_EQ(rows[0].sample.x, 10.0);
+    EXPECT_NEAR(rows[0].sample.y, 100.0, 1e-6);
+    EXPECT_TRUE(rows[0].sample.interpolated);
+
+    // Log2 behaves the same way (base cancels out).
+    ax.xscale(ScaleType::Log2);
+    ax.yscale(ScaleType::Log2);
+    rows = compare_at_x(ax, 10.0, ProbeMode::Interpolate, CompareSort::Legend);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_NEAR(rows[0].sample.y, 100.0, 1e-6);
+}
+
+TEST(CompareAtX, InterpolatesInSqrtAxisSpace)
+{
+    Figure             fig;
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x  = {0.0f, 4.0f};
+    std::vector<float> y  = {0.0f, 16.0f};
+    ax.line(x, y);
+
+    // Sqrt Y: halfway in x is halfway in sqrt(y) (2), i.e. y = 4 (not 8).
+    ax.yscale(ScaleType::Sqrt);
+    auto rows = compare_at_x(ax, 2.0, ProbeMode::Interpolate, CompareSort::Legend);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_NEAR(rows[0].sample.y, 4.0, 1e-9);
+
+    // Sqrt X as well: x = 1 is halfway in sqrt(x), so y = 4 again.
+    ax.xscale(ScaleType::Sqrt);
+    rows = compare_at_x(ax, 1.0, ProbeMode::Interpolate, CompareSort::Legend);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_NEAR(rows[0].sample.y, 4.0, 1e-9);
+
+    // Nearest mode still reports stored samples.
+    rows = compare_at_x(ax, 1.0, ProbeMode::Nearest, CompareSort::Legend);
+    ASSERT_EQ(rows.size(), 1u);
+    EXPECT_DOUBLE_EQ(rows[0].sample.y, 0.0);
 }
 
 TEST(CompareAtX, NonFiniteValuesSortLast)

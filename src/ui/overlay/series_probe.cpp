@@ -1,5 +1,7 @@
 #include "series_probe.hpp"
 
+#include "core/axis_scale.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -106,8 +108,29 @@ bool finite_xy(float x, float y)
     return std::isfinite(x) && std::isfinite(y);
 }
 
+// Y (local) at local x @p lx on the segment (x0, y0)-(x1, y1), interpolated in
+// axis space so the value lies on the drawn line.  Returns t along the
+// segment in axis space through @p t_out.
+double lerp_axis_space(const ProbeScale& sc,
+                       double            x0,
+                       double            y0,
+                       double            x1,
+                       double            y1,
+                       double            lx,
+                       double&           t_out)
+{
+    const double ax0 = to_axis_space(sc.x, x0 + sc.xoff);
+    const double ax1 = to_axis_space(sc.x, x1 + sc.xoff);
+    const double alx = to_axis_space(sc.x, lx + sc.xoff);
+    const double t   = ax1 != ax0 ? (alx - ax0) / (ax1 - ax0) : 1.0;
+    t_out            = t;
+    const double ay0 = to_axis_space(sc.y, y0 + sc.yoff);
+    const double ay1 = to_axis_space(sc.y, y1 + sc.yoff);
+    return from_axis_space(sc.y, ay0 + t * (ay1 - ay0)) - sc.yoff;
+}
+
 template <typename Samples>
-ProbeSample sample_sorted(const Samples& d, double lx, ProbeMode mode)
+ProbeSample sample_sorted(const Samples& d, double lx, ProbeMode mode, const ProbeScale& sc)
 {
     ProbeSample  out;
     const size_t n = d.size();
@@ -152,6 +175,15 @@ ProbeSample sample_sorted(const Samples& d, double lx, ProbeMode mode)
         return out;
     }
 
+    // An exact hit on a finite sample has a value even at the edge of a gap.
+    if (x0 == lx && finite_xy(d.x(lo), d.y(lo)))
+    {
+        out.valid = true;
+        out.x     = x0;
+        out.y     = y0;
+        out.index = lo;
+        return out;
+    }
     if (!std::isfinite(x0) || !std::isfinite(x1) || !std::isfinite(y0) || !std::isfinite(y1))
         return out;   // NaN break: the line is not drawn here
     out.valid = true;
@@ -162,12 +194,10 @@ ProbeSample sample_sorted(const Samples& d, double lx, ProbeMode mode)
         out.index = hi;
         return out;
     }
-    const double t   = (lx - x0) / (x1 - x0);
-    out.y            = y0 + t * (y1 - y0);
+    double t         = 0.0;
+    out.y            = lerp_axis_space(sc, x0, y0, x1, y1, lx, t);
     out.index        = t < 0.5 ? lo : hi;
-    out.interpolated = lx != x0;
-    if (!out.interpolated)
-        out.y = y0;
+    out.interpolated = true;
     return out;
 }
 
@@ -187,15 +217,17 @@ ProbeSample to_absolute(ProbeSample s, double xoff, double yoff)
 ProbeSample sample_sorted_at_x(std::span<const float> x,
                                std::span<const float> y,
                                double                 lx,
-                               ProbeMode              mode)
+                               ProbeMode              mode,
+                               const ProbeScale&      scale)
 {
-    return sample_sorted(SpanSamples{x, y}, lx, mode);
+    return sample_sorted(SpanSamples{x, y}, lx, mode, scale);
 }
 
 ProbeSample sample_unsorted_at_x(std::span<const float> x,
                                  std::span<const float> y,
                                  double                 lx,
-                                 ProbeMode              mode)
+                                 ProbeMode              mode,
+                                 const ProbeScale&      scale)
 {
     ProbeSample  out;
     const size_t n = std::min(x.size(), y.size());
@@ -212,7 +244,22 @@ ProbeSample sample_unsorted_at_x(std::span<const float> x,
             const double y1 = y[i + 1];
             if (!std::isfinite(x0) || !std::isfinite(x1) || !std::isfinite(y0)
                 || !std::isfinite(y1))
+            {
+                // An exact hit on the finite end of a broken segment still has
+                // a value (edge of a NaN gap).
+                for (size_t k : {i, i + 1})
+                {
+                    if (static_cast<double>(x[k]) == lx && finite_xy(x[k], y[k]))
+                    {
+                        out.valid = true;
+                        out.x     = x[k];
+                        out.y     = y[k];
+                        out.index = k;
+                        return out;
+                    }
+                }
                 continue;
+            }
             if (lx < std::min(x0, x1) || lx > std::max(x0, x1))
                 continue;
             out.valid = true;
@@ -223,10 +270,14 @@ ProbeSample sample_unsorted_at_x(std::span<const float> x,
                 out.index = i;
                 return out;
             }
-            const double t   = (lx - x0) / (x1 - x0);
-            out.y            = y0 + t * (y1 - y0);
+            double t         = 0.0;
+            out.y            = lerp_axis_space(scale, x0, y0, x1, y1, lx, t);
             out.index        = t < 0.5 ? i : i + 1;
-            out.interpolated = t > 0.0 && t < 1.0;
+            out.interpolated = lx != x0 && lx != x1;
+            if (lx == x0)
+                out.y = y0;
+            else if (lx == x1)
+                out.y = y1;
             return out;
         }
         if (n == 1 && static_cast<double>(x[0]) == lx && finite_xy(x[0], y[0]))
@@ -265,23 +316,32 @@ ProbeSample sample_unsorted_at_x(std::span<const float> x,
     return out;
 }
 
-ProbeSample sample_chunked_at_x(const ChunkedLineSeries& s, double lx, ProbeMode mode)
+ProbeSample sample_chunked_at_x(const ChunkedLineSeries& s,
+                                double                   lx,
+                                ProbeMode                mode,
+                                const ProbeScale&        scale)
 {
-    return sample_sorted(ChunkedSamples(s), lx, mode);
+    return sample_sorted(ChunkedSamples(s), lx, mode, scale);
 }
 
-ProbeSample sample_series_at_x(const Series& s, double abs_x, ProbeMode mode)
+ProbeSample sample_series_at_x(const Series& s,
+                               double        abs_x,
+                               ProbeMode     mode,
+                               ScaleType     xscale,
+                               ScaleType     yscale)
 {
-    const double xoff = s.x_offset();
-    const double yoff = s.y_offset();
-    const double lx   = abs_x - xoff;
+    const double     xoff = s.x_offset();
+    const double     yoff = s.y_offset();
+    const double     lx   = abs_x - xoff;
+    const ProbeScale sc{xscale, yscale, xoff, yoff};
 
     if (const auto* ls = dynamic_cast<const LineSeries*>(&s))
     {
         // Markers without a line connect nothing: read the nearest sample.
         const ProbeMode m = ls->line_style() == LineStyle::None ? ProbeMode::Nearest : mode;
-        const auto r = ls->x_is_sorted() ? sample_sorted_at_x(ls->x_data(), ls->y_data(), lx, m)
-                                         : sample_unsorted_at_x(ls->x_data(), ls->y_data(), lx, m);
+        const auto      r = ls->x_is_sorted()
+                                ? sample_sorted_at_x(ls->x_data(), ls->y_data(), lx, m, sc)
+                                : sample_unsorted_at_x(ls->x_data(), ls->y_data(), lx, m, sc);
         return to_absolute(r, xoff, yoff);
     }
     if (const auto* sc = dynamic_cast<const ScatterSeries*>(&s))
@@ -300,7 +360,7 @@ ProbeSample sample_series_at_x(const Series& s, double abs_x, ProbeMode mode)
         return to_absolute(r, xoff, yoff);
     }
     if (const auto* cs = dynamic_cast<const ChunkedLineSeries*>(&s))
-        return to_absolute(sample_chunked_at_x(*cs, lx, mode), xoff, yoff);
+        return to_absolute(sample_chunked_at_x(*cs, lx, mode, sc), xoff, yoff);
     if (const auto* bs = dynamic_cast<const BarSeries*>(&s))
     {
         ProbeSample out;
@@ -375,7 +435,7 @@ std::vector<CompareRow> compare_at_x(const Axes& axes,
         ++idx;
         if (!sp || !sp->visible() || sp->is_reference_line())
             continue;
-        const ProbeSample smp = sample_series_at_x(*sp, abs_x, mode);
+        const ProbeSample smp = sample_series_at_x(*sp, abs_x, mode, axes.xscale(), axes.yscale());
         if (!smp.valid)
             continue;
         rows.push_back({sp.get(), idx, smp});

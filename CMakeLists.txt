@@ -764,6 +764,9 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/app/commands/plugin_export_commands.cpp
         src/ui/topics/topics_panel.cpp
         src/ui/logs/log_browser_panel.cpp
+        src/ui/data_sidebar/data_sidebar_model.cpp
+        src/ui/data_sidebar/builtin_providers.cpp
+        src/ui/data_sidebar/data_sidebar.cpp
         src/ui/settings/settings_store.cpp
         src/ui/settings/settings_panel.cpp
     )

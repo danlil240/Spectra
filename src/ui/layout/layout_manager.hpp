@@ -35,6 +35,9 @@ class LayoutManager
     // Chrome-based workspace between toolbars; ignores plot-area canvas override.
     Rect workspace_rect() const;
     Rect inspector_rect() const;
+    // Docked left side panel (Data sidebar) between the nav rail and the canvas;
+    // zero width when hidden or auto-hidden.
+    Rect left_panel_rect() const;
     Rect status_bar_rect() const;
     Rect tab_bar_rect() const;
 
@@ -46,6 +49,8 @@ class LayoutManager
     void set_nav_rail_expanded(bool expanded);
     void set_tab_bar_visible(bool visible);
     void reset_inspector_width();
+    void set_left_panel_visible(bool visible);
+    void set_left_panel_width(float width);   // clamped to LEFT_PANEL_MIN/MAX_WIDTH
 
     // Canvas rect override — allows adapter shells (e.g. spectra-ros) to
     // specify the exact canvas region instead of computing it from chrome zones.
@@ -69,6 +74,14 @@ class LayoutManager
     // Equals inspector_width() unless the window is too narrow, in which case it is
     // clamped to the space left (the saved inspector_width() is never modified).
     float inspector_fitted_width() const { return inspector_fit_width_; }
+    bool  is_left_panel_visible() const { return left_panel_visible_; }
+    // Preferred (saved) width; left_panel_rect().w is the width actually drawn.
+    float left_panel_width() const { return left_panel_width_; }
+    // True when the left panel is visible but too narrow a window leaves no room.
+    bool is_left_panel_auto_hidden() const
+    {
+        return left_panel_visible_ && left_fit_width_ <= 0.0f;
+    }
     // True when the window is too narrow to fit even INSPECTOR_MIN_FIT_WIDTH of
     // inspector beside the minimum canvas: the inspector is then drawn at width 0
     // (still logically visible; it reappears when the window widens).
@@ -104,16 +117,21 @@ class LayoutManager
         72.0f;   // Nav rail width (full-height docked rail, no floating offset)
     static constexpr float PLOT_LEFT_MARGIN =
         100.0f;   // Default plot left margin (matches Margins::left) for tab alignment
-    static constexpr float INSPECTOR_DEFAULT_WIDTH = 320.0f;
-    static constexpr float INSPECTOR_MIN_WIDTH     = 240.0f;
-    static constexpr float INSPECTOR_MAX_WIDTH     = 480.0f;
-    static constexpr float TAB_BAR_HEIGHT          = 40.0f;
-    static constexpr float RESIZE_HANDLE_WIDTH     = 6.0f;
-    static constexpr float ANIM_SPEED              = 12.0f;   // Nav rail exponential smoothing
+    static constexpr float INSPECTOR_DEFAULT_WIDTH  = 320.0f;
+    static constexpr float INSPECTOR_MIN_WIDTH      = 240.0f;
+    static constexpr float INSPECTOR_MAX_WIDTH      = 480.0f;
+    static constexpr float LEFT_PANEL_DEFAULT_WIDTH = 280.0f;
+    static constexpr float LEFT_PANEL_MIN_WIDTH     = 200.0f;
+    static constexpr float LEFT_PANEL_MAX_WIDTH     = 520.0f;
+    // Narrowest left panel drawn when the window is tight; below it the panel hides.
+    static constexpr float LEFT_PANEL_MIN_FIT_WIDTH = 160.0f;
+    static constexpr float TAB_BAR_HEIGHT           = 40.0f;
+    static constexpr float RESIZE_HANDLE_WIDTH      = 6.0f;
+    static constexpr float ANIM_SPEED               = 12.0f;   // Nav rail exponential smoothing
 
     // Nav rail vertical content (icon+label buttons stacked in draw_nav_rail).
-    // SpectraNavRail: 8 tools + 6 panels + Help = 15 buttons, 4 section separators.
-    static constexpr int NAV_RAIL_BUTTON_COUNT    = 15;
+    // SpectraNavRail: 8 tools + 8 panels + Help = 17 buttons, 4 section separators.
+    static constexpr int NAV_RAIL_BUTTON_COUNT    = 17;
     static constexpr int NAV_RAIL_SEPARATOR_COUNT = 4;
     // Legacy ImGuiIntegration::draw_nav_rail fallback (no AppShell).
     static constexpr int   NAV_RAIL_FALLBACK_BUTTON_COUNT = 12;
@@ -162,6 +180,7 @@ class LayoutManager
     Rect canvas_rect_;
     Rect workspace_rect_;
     Rect inspector_rect_;
+    Rect left_panel_rect_;
     Rect status_bar_rect_;
     Rect tab_bar_rect_;
 
@@ -174,6 +193,9 @@ class LayoutManager
     float nav_rail_expanded_width_  = NAV_RAIL_EXPANDED_WIDTH;
     bool  tab_bar_visible_          = false;
     float bottom_panel_height_      = 0.0f;   // Timeline panel height (0 when hidden)
+    bool  left_panel_visible_       = false;
+    float left_panel_width_         = LEFT_PANEL_DEFAULT_WIDTH;
+    float left_fit_width_           = 0.0f;   // drawn width (0 when hidden / no room)
 
     // Animated state (smoothly interpolated toward targets)
     float inspector_anim_width_ = 0.0f;   // 0 when hidden
@@ -208,6 +230,7 @@ class LayoutManager
     Rect compute_canvas() const;
     Rect compute_workspace() const;
     Rect compute_inspector() const;
+    Rect compute_left_panel() const;
     Rect compute_status_bar() const;
     Rect compute_tab_bar() const;
 };

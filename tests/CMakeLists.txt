@@ -269,6 +269,7 @@ set(SPECTRA_UNIT_TESTS
     test_ulog_reader
     test_log_readers
     test_log_browser_panel
+    test_data_sidebar
     test_series_stats
     test_double_precision_data
     test_series_clipboard
@@ -516,7 +517,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         continue()
     endif()
     # The log browser panel is part of the ImGui UI.
-    if(_test STREQUAL "test_log_browser_panel" AND NOT DEFINED imgui_SOURCE_DIR)
+    if(_test MATCHES "^test_(log_browser_panel|data_sidebar)$" AND NOT DEFINED imgui_SOURCE_DIR)
         continue()
     endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
@@ -545,7 +546,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.

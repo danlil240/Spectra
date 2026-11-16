@@ -1526,6 +1526,11 @@ void Renderer::clear_selected_series()
     selected_series_.clear();
 }
 
+void Renderer::set_dimmed_series(std::vector<const Series*> dimmed)
+{
+    dimmed_series_ = std::move(dimmed);
+}
+
 void Renderer::build_ortho_projection(double left,
                                       double right,
                                       double bottom,

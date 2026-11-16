@@ -34,7 +34,8 @@ Usage::
     sp.plot3(x, y, z)
     sp.scatter3(x, y, z)
 
-    # Block at end of script (optional — windows stay open anyway)
+    # Wait for the windows to close (optional: they stay open after the
+    # script exits anyway, but live updates stop with the Python process)
     sp.show()
 
 Everything runs in the background. Windows appear instantly.
@@ -69,23 +70,28 @@ def _is_dataframe(data: Any) -> bool:
         and hasattr(data, "__getitem__") and not isinstance(data, (list, tuple, dict))
 
 
-def _numpy_to_list(np: Any, arr: Any) -> List[float]:
-    """Flatten a NumPy array to floats; datetimes become Unix epoch seconds."""
+def _numpy_to_array(np: Any, arr: Any) -> Any:
+    """Flatten a NumPy array to float64; datetimes become Unix epoch seconds."""
     kind = arr.dtype.kind
     if kind == "M":  # datetime64 -> epoch seconds (NaT -> NaN)
         ns = arr.astype("datetime64[ns]")
         out = ns.astype(np.int64).astype(np.float64) / 1e9
         out[np.isnat(ns)] = np.nan
-        return out.ravel().tolist()
+        return out.ravel()
     if kind == "m":  # timedelta64 -> seconds
         td = arr.astype("timedelta64[ns]")
         out = td.astype(np.int64).astype(np.float64) / 1e9
         out[np.isnat(td)] = np.nan
-        return out.ravel().tolist()
+        return out.ravel()
     if kind == "O":
         # Object arrays (e.g. pandas nullable ints with pd.NA, Timestamps).
-        return [_scalar_to_float(v) for v in arr.ravel().tolist()]
-    return arr.ravel().astype(np.float64).tolist()
+        return np.array([_scalar_to_float(v) for v in arr.ravel().tolist()], dtype=np.float64)
+    return np.asarray(arr, dtype=np.float64).ravel()
+
+
+def _numpy_to_list(np: Any, arr: Any) -> List[float]:
+    """Flatten a NumPy array to floats; datetimes become Unix epoch seconds."""
+    return _numpy_to_array(np, arr).tolist()
 
 
 def _scalar_to_float(v: Any) -> float:
@@ -152,6 +158,59 @@ def _index_to_list(index: Any, n: int) -> List[float]:
     except (TypeError, ValueError):
         pass
     return [float(i) for i in range(n)]
+
+
+def _to_values(data: ArrayLike) -> Any:
+    """Like :func:`_to_list` but returns a float64 NumPy array when NumPy is installed.
+
+    Used on the plot()/scatter() hot path: large arrays stay vectorised all the
+    way to the IPC payload instead of becoming millions of Python floats.
+    Falls back to a list when NumPy is missing.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        return _to_list(data)
+    if _is_dataframe(data):
+        raise TypeError(
+            "pass one column (df['name']) or call sp.plot(df) to plot every column"
+        )
+    if isinstance(data, np.ndarray):
+        return _numpy_to_array(np, data)
+    to_numpy = getattr(data, "to_numpy", None)
+    if callable(to_numpy):  # pandas Series/Index, polars Series
+        try:
+            return _numpy_to_array(np, np.asarray(to_numpy()))
+        except (TypeError, ValueError):
+            pass
+    if hasattr(data, "__array__"):
+        return _numpy_to_array(np, np.asarray(data))
+    if isinstance(data, (list, tuple)):
+        try:
+            return np.asarray(data, dtype=np.float64).ravel()
+        except (TypeError, ValueError):
+            pass  # None, datetimes, pd.NA ... handled value by value below
+    return np.asarray(_to_list(data), dtype=np.float64)
+
+
+def _index_values(index: Any, n: int) -> Any:
+    """x values from a pandas index (array form of :func:`_index_to_list`)."""
+    try:
+        x = _to_values(index)
+        if len(x) == n:
+            return x
+    except (TypeError, ValueError):
+        pass
+    return _arange(n)
+
+
+def _arange(n: int) -> Any:
+    """0, 1, ..., n-1 as float64 (NumPy array when available)."""
+    try:
+        import numpy as np
+    except ImportError:
+        return [float(i) for i in range(n)]
+    return np.arange(n, dtype=np.float64)
 
 
 def _is_datetime_like(data: Any) -> bool:
@@ -226,6 +285,29 @@ def _color_letter(color: Union[str, Tuple, List, None]) -> Optional[str]:
     return None
 
 
+def _edge_rgba(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, ...]]:
+    """RGBA of an edge colour argument (None keeps the theme-aware default)."""
+    if color is None:
+        return None
+    c = _parse_color(color)
+    if not c:
+        raise ValueError(f"unknown edge colour {color!r}")
+    return tuple(c)
+
+
+def _stat_style_kwargs(fill_alpha: Optional[float], edge_width: Optional[float],
+                       edge_color: Union[str, Tuple, List, None]) -> dict:
+    """Fill-style keywords for Axes.bar / Axes.histogram (only those given)."""
+    out: dict = {}
+    if fill_alpha is not None:
+        out["fill_alpha"] = float(fill_alpha)
+    if edge_width is not None:
+        out["edge_width"] = float(edge_width)
+    if edge_color is not None:
+        out["edge_color"] = _edge_rgba(edge_color)
+    return out
+
+
 def _check_color(color: Any) -> None:
     """Raise ValueError for an invalid colour before anything is created."""
     if color is not None and _color_letter(color) is None:
@@ -268,6 +350,8 @@ class _EasyState:
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
+        # (fig, axes) -> [sx_lo, sx_hi, sy_lo, sy_hi]: sticky edges (bar baselines)
+        self._axes_sticky: dict = {}
         self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
         self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
         self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
@@ -298,7 +382,16 @@ class _EasyState:
     def _show_if_pending(self):
         """Show the current figure if it hasn't been shown yet."""
         fig = self._current_fig
-        if fig is not None and id(fig) in self._pending_show:
+        if fig is None:
+            return
+        from . import _inline
+
+        if _inline.is_inline():
+            # Jupyter inline mode: no window; the figure is rendered as a PNG
+            # under the cell (post_run_cell hook) or by show().
+            _inline.track(fig)
+            return
+        if id(fig) in self._pending_show:
             self._flush_pending_knobs()
             self._pending_show.discard(id(fig))
             fig.show()
@@ -357,6 +450,10 @@ class _EasyState:
         self._pending_knobs.clear()
         self._interactive_bindings.clear()
         self._interactive_started = False
+        from . import _inline
+
+        _inline._settings.pending.clear()
+        _inline._settings.cell_touched = False
         self._knob_values.clear()
         if self._session is not None:
             try:
@@ -369,6 +466,7 @@ class _EasyState:
         self._current_axes3d = None
         self._figures.clear()
         self._axes_bounds.clear()
+        self._axes_sticky.clear()
         self._errorbar_counts.clear()
         self._axes_scales.clear()
         self._datetime_axes.clear()
@@ -378,6 +476,17 @@ class _EasyState:
 
 _state = _EasyState()
 atexit.register(_state.shutdown)
+
+
+def _detach_current_figure() -> None:
+    """Make the next plot call start a new figure (inline mode, after each cell).
+
+    The figure stays in the backend and its handle keeps working.
+    """
+    _state._current_fig = None
+    _state._current_axes = None
+    _state._current_axes3d = None
+    _state._current_axes_key = (1, 1, 1)
 
 
 # ─── Figure / Axes Management ────────────────────────────────────────────────
@@ -423,8 +532,12 @@ def tab(title: str = ""):
     s = _state._ensure_session()
     fig = s.figure(title=title)
 
+    from . import _inline
+
+    if _inline.is_inline():
+        _inline.track(fig)  # no windows (or tabs) inline: shown as its own image
     # If previous figure has a window_id, show new figure in that window (as tab)
-    if prev_fig is not None and prev_fig._window_id != 0:
+    elif prev_fig is not None and prev_fig._window_id != 0:
         fig.show(window_id=prev_fig._window_id)
     else:
         fig.show()
@@ -488,11 +601,20 @@ def gca():
 
 # ─── 2D Plotting ─────────────────────────────────────────────────────────────
 
+def _split_fmt(args: tuple) -> Tuple[tuple, Optional[str]]:
+    """Split a trailing MATLAB/matplotlib format string off plot()'s positional args."""
+    if len(args) in (2, 3) and isinstance(args[-1], str):
+        return args[:-1], args[-1]
+    return args, None
+
+
 def plot(
     *args,
     color: Union[str, Tuple, List, None] = None,
     width: Optional[float] = None,
     label: str = "",
+    linestyle: Optional[str] = None,
+    marker: Optional[str] = None,
     **kwargs,
 ):
     """Plot a line. The simplest possible API.
@@ -501,21 +623,40 @@ def plot(
 
         sp.plot([1, 4, 9, 16])           # y only, x = 0,1,2,...
         sp.plot(x, y)                     # x and y
+        sp.plot(x, y, "r--o")             # format string: red, dashed, circles
+        sp.plot(y, "g^")                  # green triangles, no line
         sp.plot(x, y, color="red")        # with color
+        sp.plot(x, y, linestyle=":", marker="s")
         sp.plot(x, y, label="sin(x)")     # with legend label
         sp.plot(x, y, width=2)            # line width
 
+    Format strings follow MATLAB/matplotlib: ``[colour][marker][line]`` with
+    colours ``b g r c m y k w``, markers ``. o + x * s d D ^ v < > p h`` and
+    line styles ``- -- : -.``.  ``color=``, ``linestyle=`` (``ls=``) and
+    ``marker=`` override the format string.  NumPy arrays are sent as one
+    float32 block, so millions of points take well under a second.
+
     Returns the Series object for further customization.
     """
+    from ._style import resolve_style
+
+    args, fmt = _split_fmt(args)
+    if linestyle is None and "ls" in kwargs:
+        linestyle = kwargs.pop("ls")
+    fmt_color, line_token, marker_token = resolve_style(fmt, linestyle, marker)
+    if color is None:
+        color = fmt_color
     _check_color(color)
     if len(args) == 1 and _is_dataframe(args[0]):
-        return _plot_dataframe(args[0], color=color, width=width, label=label, **kwargs)
-    x, y = _parse_xy_args(args)
+        return _plot_dataframe(args[0], color=color, width=width, label=label,
+                               linestyle=line_token, marker=marker_token, **kwargs)
+    x, y = _parse_xy_args(args, as_array=True)
     if not label and len(args) == 1:
         label = _series_name(args[0])
     ax = _state._ensure_axes()
     series = ax.line(x, y, label=label)
-    _apply_series_style(series, color=color, width=width, **kwargs)
+    _apply_series_style(series, color=color, width=width, linestyle=line_token,
+                        marker=marker_token, **kwargs)
     _mark_datetime_x(ax, _xy_args_datetime(args))
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
@@ -549,12 +690,12 @@ def _plot_dataframe(df: Any, color=None, width=None, label: str = "", **kwargs):
         raise ValueError("DataFrame has no numeric columns to plot")
     n = len(df)
     index = getattr(df, "index", None)
-    x = _index_to_list(index, n) if index is not None else [float(i) for i in range(n)]
+    x = _index_values(index, n) if index is not None else _arange(n)
     ax = _state._ensure_axes()
     _mark_datetime_x(ax, index is not None and _is_datetime_like(index))
     series_list = []
     for c in cols:
-        y = _to_list(df[c])
+        y = _to_values(df[c])
         lbl = f"{label}{c}" if label else str(c)
         s = ax.line(x, y, label=lbl)
         _apply_series_style(s, color=color, width=width, **kwargs)
@@ -569,6 +710,7 @@ def scatter(
     color: Union[str, Tuple, List, None] = None,
     size: Optional[float] = None,
     label: str = "",
+    marker: Optional[str] = None,
     **kwargs,
 ):
     """Plot scatter points.
@@ -579,14 +721,22 @@ def scatter(
         sp.scatter(x, y)                  # x and y
         sp.scatter(x, y, color="blue")    # with color
         sp.scatter(x, y, size=5)          # marker size
+        sp.scatter(x, y, marker="s")      # marker shape (also "r^" format)
 
     Returns the Series object.
     """
+    from ._style import parse_fmt
+
+    if len(args) in (2, 3) and isinstance(args[-1], str):
+        fcolor, fmarker, _ = parse_fmt(args[-1])
+        args = args[:-1]
+        color = fcolor if color is None else color
+        marker = fmarker if marker is None else marker
     _check_color(color)
-    x, y = _parse_xy_args(args)
+    x, y = _parse_xy_args(args, as_array=True)
     ax = _state._ensure_axes()
     series = ax.scatter(x, y, label=label)
-    _apply_series_style(series, color=color, size=size, **kwargs)
+    _apply_series_style(series, color=color, size=size, marker=marker, **kwargs)
     _mark_datetime_x(ax, _xy_args_datetime(args))
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()
@@ -618,7 +768,7 @@ def stem(
                      show_heads=show_heads, label=label)
     _apply_color(series, color)
     _mark_datetime_x(ax, _xy_args_datetime(args))
-    _auto_fit_axes(ax, x, y + [float(baseline)])
+    _auto_fit_axes(ax, x, y + [float(baseline)], sticky_y=[float(baseline)])
     _state._show_if_pending()
     return series
 
@@ -767,12 +917,17 @@ def hist(
     label: str = "",
     density: bool = False,
     cumulative: bool = False,
+    fill_alpha: Optional[float] = None,
+    edge_width: Optional[float] = None,
+    edge_color: Union[str, Tuple, List, None] = None,
 ):
     """Histogram of ``data`` with ``bins`` equal-width bins over its range.
 
-    Drawn by the native histogram series (filled bins, legend swatch).
-    ``density=True`` normalises to a probability density; ``cumulative=True``
-    accumulates the bins (a CDF when combined with ``density``).
+    Drawn by the native histogram series (flat filled bins with thin edges,
+    legend swatch).  ``density=True`` normalises to a probability density;
+    ``cumulative=True`` accumulates the bins (a CDF when combined with
+    ``density``).  ``fill_alpha`` (default 0.88), ``edge_width`` (pixels,
+    default 1) and ``edge_color`` (default: a shade of the fill) style the bins.
 
     Usage::
 
@@ -791,10 +946,10 @@ def hist(
 
     ax = _state._ensure_axes()
     series = ax.histogram(values, bins=bins, density=density, cumulative=cumulative,
-                          label=label)
+                          label=label, **_stat_style_kwargs(fill_alpha, edge_width, edge_color))
     _apply_color(series, color)
     _mark_datetime_x(ax, _is_datetime_like(data))
-    _auto_fit_axes(ax, [lo, hi], [0.0, max(counts)])
+    _auto_fit_axes(ax, [lo, hi], [0.0, max(counts)], sticky_y=[0.0])
     _state._show_if_pending()
     return series
 
@@ -808,13 +963,18 @@ def bar(
     bottom: float = 0.0,
     horizontal: bool = False,
     width: Optional[float] = None,
+    fill_alpha: Optional[float] = None,
+    edge_width: Optional[float] = None,
+    edge_color: Union[str, Tuple, List, None] = None,
 ):
     """Bar chart drawn by the native bar series (filled bars, legend swatch).
 
     ``x`` holds bar centres, or category names (strings): bar ``i`` then sits
     at x = i and the axis shows the names.  ``width`` is an alias of
     ``bar_width`` (matplotlib's name); ``bottom`` is the bars' baseline and
-    ``horizontal=True`` draws bars along x (like ``barh``).
+    ``horizontal=True`` draws bars along x (like ``barh``).  ``fill_alpha``
+    (default 0.88), ``edge_width`` (pixels, default 1) and ``edge_color``
+    (default: a shade of the fill) style the bars.
 
     Usage::
 
@@ -835,16 +995,17 @@ def bar(
 
     ax = _state._ensure_axes()
     series = ax.bar(names if names is not None else xv, hv, width=bw, bottom=float(bottom),
-                    horizontal=horizontal, label=label)
+                    horizontal=horizontal, label=label,
+                    **_stat_style_kwargs(fill_alpha, edge_width, edge_color))
     _apply_color(series, color)
     hw = bw / 2.0
     pos = [v - hw for v in xv] + [v + hw for v in xv]
     ext = list(hv) + [float(bottom)]
     if horizontal:
-        _auto_fit_axes(ax, ext, pos)
+        _auto_fit_axes(ax, ext, pos, sticky_x=[float(bottom)])
     else:
         _mark_datetime_x(ax, names is None and _is_datetime_like(x))
-        _auto_fit_axes(ax, pos, ext)
+        _auto_fit_axes(ax, pos, ext, sticky_y=[float(bottom)])
     _state._show_if_pending()
     return series
 
@@ -856,10 +1017,15 @@ def barh(
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
     left: float = 0.0,
+    **style,
 ):
-    """Horizontal bar chart (``bar(..., horizontal=True)``)."""
+    """Horizontal bar chart (``bar(..., horizontal=True)``).
+
+    ``style`` takes ``fill_alpha``, ``edge_width`` and ``edge_color`` as in
+    :func:`bar`.
+    """
     return bar(y, widths, bar_width=height, color=color, label=label, bottom=left,
-               horizontal=True)
+               horizontal=True, **style)
 
 
 def fill_between(
@@ -898,7 +1064,9 @@ def fill_between(
                      show_edges=edges, label=label)
     _apply_color(series, color)
     _mark_datetime_x(ax, _is_datetime_like(x))
-    _auto_fit_axes(ax, xv + xv, lower + upper)
+    # A constant edge (fill down to a baseline) is sticky, like a bar baseline.
+    sticky = [e[0] for e in (lower, upper) if e and all(v == e[0] for v in e)]
+    _auto_fit_axes(ax, xv + xv, lower + upper, sticky_y=sticky)
     _state._show_if_pending()
     return series
 
@@ -1460,6 +1628,24 @@ def _fit_range(lo: float, hi: float, pos_lo: float, scale: str):
     return lo_out, hi_out
 
 
+def _stick(rng, lo: float, hi: float, s_lo, s_hi, scale: str):
+    """Stop linear padding at a sticky edge (bar baseline) that bounds the data.
+
+    Matches the native autoscale (src/core/axes.cpp): bars and histograms
+    stand on their baseline instead of floating above it.
+    """
+    if rng is None or scale != "linear" or s_lo is None:
+        return rng
+    r_lo, r_hi = rng
+    if lo >= s_lo and r_lo < s_lo:
+        r_lo = s_lo
+    # Data constant at the sticky value (e.g. all-zero bars): sticking both
+    # sides would collapse the range, so only the lower side sticks.
+    if hi <= s_hi and r_hi > s_hi and s_hi > r_lo:
+        r_hi = s_hi
+    return r_lo, r_hi
+
+
 def _apply_fit(ax) -> None:
     """Set the axes limits from the accumulated data bounds and its scales."""
     ax_key = (ax._figure_id, ax._index)
@@ -1469,6 +1655,10 @@ def _apply_fit(ax) -> None:
     xscale, yscale = _state._axes_scales.get(ax_key, ("linear", "linear"))
     xr = _fit_range(b[0], b[1], b[4], xscale)
     yr = _fit_range(b[2], b[3], b[5], yscale)
+    st = _state._axes_sticky.get(ax_key)
+    if st is not None:
+        xr = _stick(xr, b[0], b[1], st[0], st[1], xscale)
+        yr = _stick(yr, b[2], b[3], st[2], st[3], yscale)
     try:
         if xr is not None:
             ax.set_xlim(*xr)
@@ -1478,24 +1668,57 @@ def _apply_fit(ax) -> None:
         pass
 
 
-def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
+def _finite_bounds(values: Any):
+    """(min, max, smallest positive or None) of the finite values below 1e11, or None.
+
+    NaN/inf and the huge sentinel values of hline/vline are skipped.  Uses
+    NumPy (nan-aware, vectorised) when installed.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    if np is not None:
+        arr = np.asarray(values, dtype=np.float64).ravel()
+        with np.errstate(invalid="ignore"):
+            arr = arr[np.abs(arr) < 1e11]  # NaN compares False: dropped too
+        if arr.size == 0:
+            return None
+        pos = arr[arr > 0]
+        return float(arr.min()), float(arr.max()), (float(pos.min()) if pos.size else None)
+    finite = [v for v in values if v == v and abs(v) < 1e11]
+    if not finite:
+        return None
+    pos = [v for v in finite if v > 0]
+    return min(finite), max(finite), (min(pos) if pos else None)
+
+
+def _auto_fit_axes(ax, x: Any, y: Any,
+                   sticky_x: Optional[List[float]] = None,
+                   sticky_y: Optional[List[float]] = None) -> None:
     """Set axis limits to fit ALL series data with 5% padding, ignoring NaN values.
 
     Accumulates bounds across multiple plot() calls on the same axes so that
     earlier series are not pushed out of frame by later ones.  Log-scaled
-    axes fit the positive data only.
+    axes fit the positive data only.  ``sticky_x`` / ``sticky_y`` are sticky
+    edges (bar baselines, which are part of the data): padding never grows the
+    limits past one that is also the edge of all the data.
     """
-    finite_x = [v for v in x if v == v and abs(v) < 1e11]  # filter NaN and sentinel hlines/vlines
-    finite_y = [v for v in y if v == v and abs(v) < 1e11]
-    if not finite_x or not finite_y:
+    ax_key = (ax._figure_id, ax._index)
+    if sticky_x or sticky_y:
+        st = _state._axes_sticky.setdefault(ax_key, [None, None, None, None])
+        for vals, i in ((sticky_x, 0), (sticky_y, 2)):
+            vals = [float(v) for v in (vals or []) if v == v and abs(v) < 1e11]
+            if vals:
+                st[i] = min(vals) if st[i] is None else min(st[i], min(vals))
+                st[i + 1] = max(vals) if st[i + 1] is None else max(st[i + 1], max(vals))
+    bx = _finite_bounds(x)
+    by = _finite_bounds(y)
+    if bx is None or by is None:
         return
-    pos_x = [v for v in finite_x if v > 0]
-    pos_y = [v for v in finite_y if v > 0]
-    new = [min(finite_x), max(finite_x), min(finite_y), max(finite_y),
-           min(pos_x) if pos_x else None, min(pos_y) if pos_y else None]
+    new = [bx[0], bx[1], by[0], by[1], bx[2], by[2]]
 
     # Accumulate with existing bounds for this axes
-    ax_key = (ax._figure_id, ax._index)
     prev = _state._axes_bounds.get(ax_key)
     if prev is not None:
         def _min_opt(a, b):
@@ -1510,10 +1733,10 @@ def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
 def _auto_fit_axes3d(ax, x: List[float], y: List[float], z: List[float]) -> None:
     """Set 3D axis limits to fit data with 5% padding, ignoring NaN values."""
     def _fit(vals):
-        finite = [v for v in vals if v == v and abs(v) < 1e11]
-        if not finite:
+        b = _finite_bounds(vals)
+        if b is None:
             return None, None
-        lo, hi = min(finite), max(finite)
+        lo, hi = b[0], b[1]
         pad = (hi - lo) * 0.05 if hi != lo else 0.5
         return lo - pad, hi + pad
 
@@ -1798,6 +2021,18 @@ def live(
     """
     import inspect
 
+    from . import _inline
+
+    if _inline.is_inline():
+        import warnings
+
+        warnings.warn(
+            "sp.live() streams into a window, but figures are shown as inline images in "
+            "Jupyter; call sp.use_window() first (or use spectra.notebook for an "
+            "interactive canvas)",
+            UserWarning,
+            stacklevel=2,
+        )
     fig_obj = _state._ensure_figure()
     ax = _state._ensure_axes()
     _state._show_if_pending()
@@ -1969,11 +2204,23 @@ def append(series, x_or_y, y=None):
 def show():
     """Block until all windows are closed.
 
-    Call this at the end of your script to keep windows open.
-    If you don't call it, windows stay open until the Python process exits.
+    Optional. Windows are drawn by separate Spectra processes, so without
+    ``show()`` they stay open after your script (and the Python process)
+    exits, until you close them. What stops with the Python process is
+    everything Python drives: :func:`live` callbacks, streaming appends and
+    other updates. Call ``show()`` at the end of a script that keeps the plot
+    changing, or that should wait for the user before it continues.
+
+    In Jupyter inline mode (see :func:`use_inline`) it displays the pending
+    figures as images under the cell and returns immediately.
     """
+    from . import _inline
+
     # Flush any pending figure shows before blocking
     _state._show_if_pending()
+    if _inline.is_inline():
+        _inline.flush()
+        return
     if _state._session is not None:
         _state._session.show()
 
@@ -1994,6 +2241,9 @@ def close():
     fig = _state._current_fig
     if fig is None:
         return
+    from . import _inline
+
+    _inline.forget(fig)
     try:
         fig.close()
     except Exception:
@@ -2073,26 +2323,31 @@ def subplots(rows: int, cols: int):
 
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
-def _parse_xy_args(args) -> Tuple[List[float], List[float]]:
+def _parse_xy_args(args, as_array: bool = False) -> Tuple[Any, Any]:
     """Parse positional args into (x, y) lists.
 
     Supports:
         (y,)        → x = [0, 1, 2, ...], y = y
         (x, y)      → x, y as given
+
+    With ``as_array`` the values come back as float64 NumPy arrays when NumPy
+    is installed (lists otherwise).
     """
+    conv = _to_values if as_array else _to_list
     if len(args) == 0:
         return [], []
     elif len(args) == 1:
-        y = _to_list(args[0])
+        y = conv(args[0])
         index = getattr(args[0], "index", None)
         if index is not None and not callable(index) and hasattr(args[0], "to_numpy"):
-            x = _index_to_list(index, len(y))  # pandas Series: plot against its index
+            # pandas Series: plot against its index
+            x = _index_values(index, len(y)) if as_array else _index_to_list(index, len(y))
         else:
-            x = [float(i) for i in range(len(y))]
+            x = _arange(len(y)) if as_array else [float(i) for i in range(len(y))]
         return x, y
     else:
-        x = _to_list(args[0])
-        y = _to_list(args[1])
+        x = conv(args[0])
+        y = conv(args[1])
         return x, y
 
 
@@ -2102,10 +2357,22 @@ def _apply_series_style(
     width=None,
     size=None,
     opacity=None,
+    linestyle=None,
+    marker=None,
     **kwargs,
 ):
-    """Apply optional styling to a series."""
+    """Apply optional styling to a series.
+
+    ``linestyle`` / ``marker`` are backend tokens or names (see _style.py);
+    ``ls`` is accepted as an alias of ``linestyle``.
+    """
+    if linestyle is None and "ls" in kwargs:
+        linestyle = kwargs.pop("ls")
     _apply_color(series, color)
+    if linestyle is not None:
+        series.set_line_style(linestyle)
+    if marker is not None:
+        series.set_marker_style(marker)
     if width is not None:
         series.set_line_width(float(width))
     if size is not None:

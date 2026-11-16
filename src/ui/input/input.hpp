@@ -1,11 +1,16 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
+#include <string>
+
+#include "ui/input/view_history.hpp"
+#include "ui/input/view_nav.hpp"
 
 namespace spectra
 {
@@ -74,7 +79,8 @@ class InputHandler
     ~InputHandler();
 
     // Set the figure for multi-axes hit-testing
-    void set_figure(Figure* fig) { figure_ = fig; }
+    void    set_figure(Figure* fig) { figure_ = fig; }
+    Figure* figure() const { return figure_; }
 
     // Set the active axes that input events will affect
     void set_active_axes(Axes* axes)
@@ -114,8 +120,14 @@ class InputHandler
     // Clear cursor readout when the pointer leaves the window.
     void clear_cursor_readout();
 
-    // Scroll event: zoom around cursor position (animated)
-    void on_scroll(double x_offset, double y_offset, double cursor_x, double cursor_y);
+    // Scroll event: zoom around the cursor.  @p mods (GLFW bits) pick the
+    // axes: Shift zooms X only, Ctrl or Alt Y only.  Over an axis gutter only
+    // that axis zooms.  A horizontal step (x_offset) pans X.
+    void on_scroll(double x_offset,
+                   double y_offset,
+                   double cursor_x,
+                   double cursor_y,
+                   int    mods = 0);
 
     // Per-frame update: advances animations and inertial pan. dt in seconds.
     void update(float dt);
@@ -192,6 +204,7 @@ class InputHandler
     const BoxZoomRect& box_zoom_rect() const { return box_zoom_; }
 
     // Measure tool state (for overlay rendering)
+    bool  is_tip_dragging() const { return tip_dragging_; }
     bool  is_measure_dragging() const { return measure_dragging_; }
     bool  has_measure_result() const { return measure_click_state_ >= 1; }
     Axes* measure_axes() const { return measure_axes_; }
@@ -201,7 +214,15 @@ class InputHandler
     const BoxZoomRect& select_rect() const { return select_rect_; }
 
     // Middle-mouse pan state (for callback passthrough)
-    bool   is_middle_pan_dragging() const { return middle_pan_dragging_; }
+    bool is_middle_pan_dragging() const { return middle_pan_dragging_; }
+    bool measure_start_snapped() const { return measure_start_snapped_; }
+    bool measure_end_snapped() const { return measure_end_snapped_; }
+    // Snap radius of the Measure tool, in screen pixels.
+    static constexpr double MEASURE_SNAP_PX = 12.0;
+    // Data point under screen (x, y) in the measure axes (or the active one):
+    // the nearest sample within MEASURE_SNAP_PX unless Alt is held, else the
+    // free position.  Returns true when it snapped.
+    bool   measure_point_at(double x, double y, double& data_x, double& data_y) const;
     double measure_start_data_x() const { return measure_start_data_x_; }
     double measure_start_data_y() const { return measure_start_data_y_; }
     double measure_end_data_x() const { return measure_end_data_x_; }
@@ -223,6 +244,51 @@ class InputHandler
 
     // Hit-test all axes (including 3D) — returns AxesBase*
     AxesBase* hit_test_all_axes(double screen_x, double screen_y) const;
+
+    // Hit-test the axis gutters (tick-label bands) of the 2D axes: returns
+    // which gutter the point is in and stores its axes in @p out_axes.
+    AxisGutter hit_test_gutter(double screen_x, double screen_y, Axes** out_axes = nullptr) const;
+
+    // Gutter drag in progress (pans only that axis), or AxisGutter::None.
+    AxisGutter gutter_drag_axis() const { return gutter_drag_; }
+
+    // ─── View history (Back / Forward) ──────────────────────────────────
+    // See view_history.hpp.  One history per figure; 2D axes only.
+    ViewHistoryStore& view_history_store() { return view_history_; }
+
+    // Limits of @p ax and every axes linked to it.
+    ViewState capture_view(Axes* ax) const;
+    // Limits of every 2D axes of @p fig.
+    static ViewState capture_figure_view(const Figure& fig);
+
+    // Record one completed view change of @p fig (nullptr: the current
+    // figure): one Back/Forward entry and one undo step.  @p after holds the
+    // final limits (animation targets for animated changes).  See
+    // ViewHistory::push for @p coalesce_key / @p coalesce_window.
+    void record_view_change(Figure*                             fig,
+                            std::string                         label,
+                            ViewState                           before,
+                            ViewState                           after,
+                            std::string                         coalesce_key = {},
+                            std::chrono::steady_clock::duration coalesce_window =
+                                std::chrono::steady_clock::duration::zero());
+
+    // An Inspector edit already set @p ax's limits (previously @p old_x /
+    // @p old_y): move its linked axes along and record the change.  Edits
+    // sharing @p coalesce_key (one drag of the range field) form one entry.
+    // @p fig: the figure @p ax belongs to (nullptr: the current figure).
+    void commit_axes_limits_edit(Figure*     fig,
+                                 Axes*       ax,
+                                 AxisLimits  old_x,
+                                 AxisLimits  old_y,
+                                 std::string coalesce_key);
+
+    // Step the view of @p fig (nullptr: the current figure) back / forward.
+    // Returns false at either end of the history.
+    bool view_back(Figure* fig = nullptr);
+    bool view_forward(Figure* fig = nullptr);
+    bool can_view_back(const Figure* fig = nullptr) const;
+    bool can_view_forward(const Figure* fig = nullptr) const;
 
     // Invalidate cached figure/axes pointers (call when a figure is destroyed).
     // Also cancels any in-flight AnimationController animations referencing
@@ -254,7 +320,11 @@ class InputHandler
     void handle_mouse_move_rclick_zoom(double x, double y);
     void handle_mouse_move_pan_drag(double x, double y);
     void handle_scroll_3d(Axes3D* axes3d, double y_offset);
-    void handle_scroll_2d(double y_offset, double cursor_x, double cursor_y);
+    void handle_scroll_2d(double   x_offset,
+                          double   y_offset,
+                          double   cursor_x,
+                          double   cursor_y,
+                          ViewAxes axes);
     void snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView view);
     // Animate to `target` with one undo entry; `target_auto_ortho` is the
     // automatic-orthographic mark after the move (restored by undo / redo).
@@ -266,6 +336,21 @@ class InputHandler
     // Click on the view cube of a 3D axes; true when consumed.
     bool handle_view_cube_click(Axes3D* axes3d, double x, double y);
     void update_axes3d_arrow_hover(AxesBase* hit_base, double x, double y);
+
+    // ─── View history helpers (input_pan_zoom.cpp) ──────────────────────
+    void cancel_view_animations(Axes* ax);
+    void apply_view(Figure* fig, const ViewState& state);
+    // Start / finish a drag that changes the view of active_axes_.
+    void begin_view_gesture();
+    // @p settles_later: an animation (inertia) still moves the view.
+    void end_view_gesture(const char* label, bool settles_later = false);
+    // Fold the end state of an inertial glide into the entry recorded when
+    // the drag was released.  @p end_state: limits known to be the
+    // end state (the start of the change that interrupts it), else current.
+    void finalize_pending_view(const ViewState* end_state = nullptr);
+    void handle_gutter_press(AxisGutter gutter, Axes* axes, int button, double x, double y);
+    void handle_gutter_move(double x, double y);
+    void end_gutter_drag(bool commit);
 
     // ─── Select/ROI helpers (input_select.cpp) ──────────────────────────
     void handle_mouse_button_select(int action, double x, double y);
@@ -354,6 +439,34 @@ class InputHandler
     // Axis link manager (not owned)
     AxisLinkManager* axis_link_mgr_ = nullptr;
 
+    // View history (Back / Forward) of each figure shown in this window
+    ViewHistoryStore view_history_;
+
+    // View state when the current drag started (pan, middle pan, right-drag zoom)
+    ViewState view_gesture_before_;
+    Figure*   view_gesture_figure_ = nullptr;
+    bool      view_gesture_open_   = false;
+
+    // Entry whose end state an animation is still producing
+    std::shared_ptr<ViewHistoryEntry> pending_view_entry_;
+    Figure*                           pending_view_figure_ = nullptr;
+
+    // Gutter drag (pans one axis)
+    AxisGutter gutter_drag_        = AxisGutter::None;
+    int        gutter_drag_button_ = 0;
+    double     gutter_drag_x_      = 0.0;
+    double     gutter_drag_y_      = 0.0;
+    AxisLimits gutter_drag_lim_{};
+
+    // Entry whose undo step was pushed last, and UndoManager::revision()
+    // right after that push: a burst may only extend that entry while its
+    // undo step is still the newest one with nothing undone / redone since.
+    std::weak_ptr<ViewHistoryEntry> view_undo_entry_;
+    uint64_t                        view_undo_revision_ = 0;
+
+    // Wheel steps closer together than this form one history entry
+    static constexpr std::chrono::milliseconds WHEEL_COALESCE_WINDOW{600};
+
     // 3D drag undo snapshots (captured at drag-start)
     AxisLimits drag3d_start_xlim_{};
     AxisLimits drag3d_start_ylim_{};
@@ -385,6 +498,13 @@ class InputHandler
     double measure_end_data_x_     = 0.0;
     double measure_end_data_y_     = 0.0;
     bool   crosshair_was_active_   = false;   // to restore crosshair state when leaving Measure
+    bool   measure_start_snapped_  = false;   // endpoints snapped to a data sample
+    bool   measure_end_snapped_    = false;
+
+    // Pan tool: a data tip is being dragged along its series (not a pan).
+    bool tip_dragging_ = false;
+    // Pan drag started on a live (following) axes: a plain click resumes it.
+    bool drag_start_following_ = false;
 
     // Annotate tool state
     bool   annotate_dragging_     = false;

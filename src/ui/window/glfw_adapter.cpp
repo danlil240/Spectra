@@ -3,6 +3,7 @@
     #include "glfw_adapter.hpp"
 
     #include "glfw_utils.hpp"
+    #include "window_placement.hpp"
     #include <spectra/logger.hpp>
 
     #define GLFW_INCLUDE_NONE
@@ -44,6 +45,32 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
     glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
     #endif
     set_wayland_app_id();
+
+    #ifndef __EMSCRIPTEN__
+    // Never open larger than the screen: a 1500x900 default overflows a small
+    // laptop display.  Scale down (keeping the aspect ratio) to fit the
+    // primary monitor's work area with a margin.
+    if (GLFWmonitor* mon = glfwGetPrimaryMonitor())
+    {
+        ScreenWorkArea wa;
+        glfwGetMonitorWorkarea(mon, &wa.x, &wa.y, &wa.w, &wa.h);
+        const auto fit =
+            fit_window_to_work_area(static_cast<int>(width), static_cast<int>(height), wa);
+        if (fit.first != static_cast<int>(width) || fit.second != static_cast<int>(height))
+        {
+            SPECTRA_LOG_INFO("glfw",
+                             "Window {}x{} does not fit the {}x{} work area; opening at {}x{}",
+                             width,
+                             height,
+                             wa.w,
+                             wa.h,
+                             fit.first,
+                             fit.second);
+            width  = static_cast<uint32_t>(fit.first);
+            height = static_cast<uint32_t>(fit.second);
+        }
+    }
+    #endif
 
     window_ = glfwCreateWindow(static_cast<int>(width),
                                static_cast<int>(height),

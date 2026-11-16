@@ -67,6 +67,10 @@ enum ChunkTag : uint16_t
     // bar series in the preceding TAG_SERIES_BAR chunk.  Also version-free.
     TAG_BAR_CATEGORIES = 0x0045,
     TAG_AXES_FORMAT    = 0x0046,
+    // Fill alpha / edge width / edge colour (StatFillStyle) of the bar,
+    // histogram, box or violin series of the preceding series chunk; written
+    // only when it differs from the default.  Version-free.
+    TAG_STAT_STYLE = 0x0047,
     // Box style (BoxStyle) of a 3D axes.  Version-free: older readers skip it
     // and keep the default box.
     TAG_AXES3D_BOX = 0x0050,
@@ -294,6 +298,50 @@ static Colormap decode_colormap(uint8_t v)
 
 // ─── Save implementation ────────────────────────────────────────────────────
 
+// Fill style of a bar / histogram / box / violin series, nullptr otherwise.
+static const StatFillStyle* stat_fill_style_of(const Series& s)
+{
+    if (auto* bs = dynamic_cast<const BarSeries*>(&s))
+        return &bs->fill_style();
+    if (auto* hs = dynamic_cast<const HistogramSeries*>(&s))
+        return &hs->fill_style();
+    if (auto* bp = dynamic_cast<const BoxPlotSeries*>(&s))
+        return &bp->fill_style();
+    if (auto* vs = dynamic_cast<const ViolinSeries*>(&s))
+        return &vs->fill_style();
+    return nullptr;
+}
+
+static bool set_stat_fill_style(Series& s, const StatFillStyle& st)
+{
+    if (auto* bs = dynamic_cast<BarSeries*>(&s))
+        bs->fill_style(st);
+    else if (auto* hs = dynamic_cast<HistogramSeries*>(&s))
+        hs->fill_style(st);
+    else if (auto* bp = dynamic_cast<BoxPlotSeries*>(&s))
+        bp->fill_style(st);
+    else if (auto* vs = dynamic_cast<ViolinSeries*>(&s))
+        vs->fill_style(st);
+    else
+        return false;
+    return true;
+}
+
+static void write_stat_style(BinaryWriter& w, const Series& s)
+{
+    const StatFillStyle* st = stat_fill_style_of(s);
+    if (!st
+        || (st->fill_alpha == STAT_DEFAULT_FILL_ALPHA && st->edge_width == STAT_DEFAULT_EDGE_WIDTH
+            && !st->edge_color))
+        return;
+    auto pos = w.begin_chunk(TAG_STAT_STYLE);
+    w.write_f32(st->fill_alpha);
+    w.write_f32(st->edge_width);
+    w.write_u8(static_cast<uint8_t>(st->edge_color.has_value()));
+    w.write_color(st->edge_color.value_or(Color{}));
+    w.end_chunk(pos);
+}
+
 static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
 {
     auto pos = w.begin_chunk(TAG_AXES_2D);
@@ -464,6 +512,8 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
                 w.end_chunk(cpos);
             }
         }
+        if (sp)
+            write_stat_style(w, *sp);
     }
 
     // Text annotations, in draw order
@@ -830,6 +880,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
     BarSeries* last_bar = nullptr;
     // 3D scatter of the last TAG_SERIES_SCAT3D chunk (target of TAG_SCAT3D_POINT_ATTRS).
     ScatterSeries3D* last_scatter3d = nullptr;
+    // Series of the last series chunk (target of TAG_STAT_STYLE).
+    Series* last_series = nullptr;
 
     struct PendingAutoLimits
     {
@@ -1809,6 +1861,28 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 break;
             }
 
+            case TAG_STAT_STYLE:
+            {
+                constexpr uint32_t STAT_STYLE_BYTES = 4 + 4 + 1 + 16;
+                if (!last_series || len < STAT_STYLE_BYTES)
+                {
+                    r.skip(len);
+                    break;
+                }
+                StatFillStyle st;
+                st.fill_alpha         = StatFillStyle::sanitize_alpha(r.read_f32());
+                st.edge_width         = StatFillStyle::sanitize_width(r.read_f32());
+                const bool  has_color = r.read_u8() != 0;
+                const Color c         = r.read_color();
+                if (has_color)
+                    st.edge_color = c;
+                if (len > STAT_STYLE_BYTES)
+                    r.skip(len - STAT_STYLE_BYTES);
+                if (r.good())
+                    set_stat_fill_style(*last_series, st);
+                break;
+            }
+
             case TAG_BAR_CATEGORIES:
             {
                 const uint32_t n = r.read_u32();
@@ -1832,6 +1906,9 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 r.skip(len);
                 break;
         }
+
+        if (loaded.series)
+            last_series = loaded.series;
 
         // v7: palette / format-letter colours are restored as such, so they
         // keep following the theme.  Older files keep the saved RGB.

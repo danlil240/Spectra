@@ -5,6 +5,7 @@
 #include <cfloat>
 
 #include "render/backend.hpp"
+#include "render/pixel_scale.hpp"
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include <spectra/figure_registry.hpp>
@@ -175,6 +176,24 @@ struct EmbedSurface::Impl
     // Drop the redirect so it never dangles once this Impl is gone.  Other
     // live surfaces re-register themselves via make_theme_current().
     void release_theme_current() { ui::ThemeManager::set_current(nullptr); }
+
+    // ── HiDPI ───────────────────────────────────────────────────────────
+    // With dpi_scale > 1 the figure is laid out in logical pixels
+    // (width / dpi_scale) and drawn dpi_scale times larger into the
+    // width x height framebuffer, so text, ticks, margins and line widths keep
+    // their apparent size and stay sharp (same scheme as the browser canvas).
+    // Hosts keep passing input in framebuffer pixels; it is mapped here.
+    float layout_scale() const
+    {
+        const float ps = config.dpi_scale;
+        return ps > 1.0f && backend_scales ? ps : 1.0f;
+    }
+    uint32_t layout_width() const { return logical_extent(config.width, layout_scale()); }
+    uint32_t layout_height() const { return logical_extent(config.height, layout_scale()); }
+    float    to_layout(float px) const { return px / layout_scale(); }
+
+    // False once the backend refused a pixel scale (it then draws at 1:1).
+    bool backend_scales = true;
 
 #ifdef SPECTRA_USE_IMGUI
     std::unique_ptr<ImGuiIntegration> imgui_ui;
@@ -367,11 +386,11 @@ struct EmbedSurface::Impl
             input.set_active_axes_base(active_fig->all_axes()[0].get());
         }
 
-        // Set viewport for the full surface
+        // Set viewport for the full surface (logical pixels)
         input.set_viewport(0.0f,
                            0.0f,
-                           static_cast<float>(config.width),
-                           static_cast<float>(config.height));
+                           static_cast<float>(layout_width()),
+                           static_cast<float>(layout_height()));
     }
 
     bool render_frame()
@@ -386,12 +405,23 @@ struct EmbedSurface::Impl
 
         make_theme_current();
 
-        // Update figure dimensions to match surface
-        active_fig->config_.width  = config.width;
-        active_fig->config_.height = config.height;
+        // Draw dpi_scale framebuffer pixels per logical pixel (HiDPI).
+        const float want_scale = config.dpi_scale > 1.0f ? config.dpi_scale : 1.0f;
+        backend->set_pixel_scale(want_scale);
+        backend_scales = backend->pixel_scale() == want_scale;
+        if (!backend_scales)
+            backend->set_pixel_scale(1.0f);
+        const float ps = layout_scale();
 
-        auto sw = static_cast<float>(config.width);
-        auto sh = static_cast<float>(config.height);
+        // Lay the figure out in logical pixels.
+        const uint32_t lw          = layout_width();
+        const uint32_t lh          = layout_height();
+        active_fig->config_.width  = lw;
+        active_fig->config_.height = lh;
+        input.set_viewport(0.0f, 0.0f, static_cast<float>(lw), static_cast<float>(lh));
+
+        auto sw = static_cast<float>(lw);
+        auto sh = static_cast<float>(lh);
 
 #ifdef SPECTRA_USE_IMGUI
         if (imgui_ui)
@@ -407,7 +437,7 @@ struct EmbedSurface::Impl
                 fi.mouse_down[i] = mouse_down[i];
             fi.mouse_wheel   = mouse_wheel;
             fi.mouse_wheel_h = mouse_wheel_h;
-            fi.dpi_scale     = config.dpi_scale;
+            fi.dpi_scale     = ps;
 
             imgui_ui->new_frame_headless(fi);
 
@@ -614,8 +644,11 @@ bool EmbedSurface::resize(uint32_t width, uint32_t height)
     impl_->config.width  = width;
     impl_->config.height = height;
 
-    // Update input viewport
-    impl_->input.set_viewport(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
+    // Update input viewport (logical pixels)
+    impl_->input.set_viewport(0.0f,
+                              0.0f,
+                              static_cast<float>(impl_->layout_width()),
+                              static_cast<float>(impl_->layout_height()));
 
     SPECTRA_LOG_DEBUG("embed",
                       "Resized to " + std::to_string(width) + "x" + std::to_string(height));
@@ -666,6 +699,8 @@ void EmbedSurface::inject_mouse_move(float x, float y)
     if (!impl_ || !impl_->initialized)
         return;
     impl_->make_theme_current();
+    x = impl_->to_layout(x);
+    y = impl_->to_layout(y);
 #ifdef SPECTRA_USE_IMGUI
     impl_->mouse_x = x;
     impl_->mouse_y = y;
@@ -682,6 +717,8 @@ void EmbedSurface::inject_mouse_button(int button, int action, int mods, float x
     if (!impl_ || !impl_->initialized)
         return;
     impl_->make_theme_current();
+    x = impl_->to_layout(x);
+    y = impl_->to_layout(y);
 #ifdef SPECTRA_USE_IMGUI
     impl_->mouse_x = x;
     impl_->mouse_y = y;
@@ -710,8 +747,8 @@ void EmbedSurface::inject_scroll(float dx, float dy, float cursor_x, float curso
 #endif
     impl_->input.on_scroll(static_cast<double>(dx),
                            static_cast<double>(dy),
-                           static_cast<double>(cursor_x),
-                           static_cast<double>(cursor_y));
+                           static_cast<double>(impl_->to_layout(cursor_x)),
+                           static_cast<double>(impl_->to_layout(cursor_y)));
 }
 
 void EmbedSurface::inject_key(int key, int action, int mods)
@@ -762,8 +799,29 @@ float EmbedSurface::dpi_scale() const
 
 void EmbedSurface::set_dpi_scale(float scale)
 {
-    if (impl_)
-        impl_->config.dpi_scale = scale;
+    if (!impl_ || !(scale > 0.0f))
+        return;
+    impl_->config.dpi_scale = scale;
+    impl_->backend_scales   = true;   // re-checked on the next render
+    impl_->input.set_viewport(0.0f,
+                              0.0f,
+                              static_cast<float>(impl_->layout_width()),
+                              static_cast<float>(impl_->layout_height()));
+}
+
+bool EmbedSurface::cursor_data(double& data_x, double& data_y) const
+{
+    if (!impl_ || !impl_->initialized)
+        return false;
+    const auto& r = impl_->input.cursor_readout();
+    if (!r.valid)
+        return false;
+    // The readout holds data coordinates for 2D axes only.
+    if (!dynamic_cast<Axes*>(impl_->input.hit_test_all_axes(r.screen_x, r.screen_y)))
+        return false;
+    data_x = r.data_x;
+    data_y = r.data_y;
+    return true;
 }
 
 float EmbedSurface::background_alpha() const

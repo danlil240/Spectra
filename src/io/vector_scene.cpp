@@ -50,6 +50,7 @@
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/scatter_marker.hpp"
+#include "render/stat_fill_style.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
 namespace spectra
@@ -1000,6 +1001,32 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
             emit_stroke_path(c, polyline_path(lx, ly, m, xoff, yoff), cls, col, alpha, outline_w);
     };
 
+    // Flat stat fill + thin outline (render_2d.cpp: Renderer::draw_stat_fill).
+    // Only the first `outline_points` outline points form the edge.
+    const float bg_luma   = stat_relative_luminance(st.background);
+    auto        stat_fill = [&](std::span<const float> fill,
+                         std::span<const float> lx,
+                         std::span<const float> ly,
+                         size_t                 outline_points,
+                         const StatFillStyle&   fs,
+                         const char*            cls)
+    {
+        if (fs.fill_alpha > 0.0f)
+            emit_fill(c, fill, m, xoff, yoff, col, alpha * fs.fill_alpha, cls);
+        outline_points = std::min({outline_points, lx.size(), ly.size()});
+        if (fs.edge_width > 0.0f && outline_points > 1)
+        {
+            const Color edge = stat_edge_color(fs, col, bg_luma);
+            emit_stroke_path(
+                c,
+                polyline_path(lx.first(outline_points), ly.first(outline_points), m, xoff, yoff),
+                cls,
+                Color{edge.r, edge.g, edge.b, col.a},
+                alpha * edge.a,
+                fs.edge_width);
+        }
+    };
+
     if (auto* ls = dynamic_cast<const LineSeries*>(&s))
     {
         if (style.has_line() && ls->point_count() >= 2)
@@ -1058,7 +1085,22 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
     {
         std::unique_ptr<BoxPlotSeries> bp_copy;
         const BoxPlotSeries*           bp = fresh_geometry(bp_src, bp_copy);
-        fill_and_outline(bp->fill_verts(), bp->x_data(), bp->y_data(), 0.45f, 1.5f, "box");
+        const size_t med_at               = std::min(bp->median_first_point(), bp->point_count());
+        stat_fill(bp->fill_verts(), bp->x_data(), bp->y_data(), med_at, bp->fill_style(), "box");
+        if (bp->point_count() > med_at + 1)
+        {
+            const Color ink = stat_median_color(col, bp->fill_alpha(), st.background);
+            emit_stroke_path(c,
+                             polyline_path(bp->x_data().subspan(med_at),
+                                           bp->y_data().subspan(med_at),
+                                           m,
+                                           xoff,
+                                           yoff),
+                             "box-median",
+                             ink,
+                             alpha,
+                             stat_median_width(bp->edge_width()));
+        }
         if (bp->outlier_count() > 0)
             emit_markers(c,
                          bp->outlier_x(),
@@ -1075,19 +1117,34 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
     {
         std::unique_ptr<ViolinSeries> vn_copy;
         const ViolinSeries*           vn = fresh_geometry(vn_src, vn_copy);
-        fill_and_outline(vn->fill_verts(), vn->x_data(), vn->y_data(), 0.40f, 1.5f, "violin");
+        stat_fill(vn->fill_verts(),
+                  vn->x_data(),
+                  vn->y_data(),
+                  vn->point_count(),
+                  vn->fill_style(),
+                  "violin");
     }
     else if (auto* hs_src = dynamic_cast<const HistogramSeries*>(&s))
     {
         std::unique_ptr<HistogramSeries> hs_copy;
         const HistogramSeries*           hs = fresh_geometry(hs_src, hs_copy);
-        fill_and_outline(hs->fill_verts(), hs->x_data(), hs->y_data(), 0.65f, 1.0f, "histogram");
+        stat_fill(hs->fill_verts(),
+                  hs->x_data(),
+                  hs->y_data(),
+                  hs->point_count(),
+                  hs->fill_style(),
+                  "histogram");
     }
     else if (auto* bs_src = dynamic_cast<const BarSeries*>(&s))
     {
         std::unique_ptr<BarSeries> bs_copy;
         const BarSeries*           bs = fresh_geometry(bs_src, bs_copy);
-        fill_and_outline(bs->fill_verts(), bs->x_data(), bs->y_data(), 0.75f, 1.5f, "bar");
+        stat_fill(bs->fill_verts(),
+                  bs->x_data(),
+                  bs->y_data(),
+                  bs->point_count(),
+                  bs->fill_style(),
+                  "bar");
     }
     else if (auto* band_src = dynamic_cast<const BandSeries*>(&s))
     {
@@ -1645,14 +1702,14 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
             e.line_width = 1.5f;
         }
     }
-    else if (dynamic_cast<const BarSeries*>(&s))
-        e.fill_alpha = 0.75f;
-    else if (dynamic_cast<const HistogramSeries*>(&s))
-        e.fill_alpha = 0.65f;
-    else if (dynamic_cast<const BoxPlotSeries*>(&s))
-        e.fill_alpha = 0.45f;
-    else if (dynamic_cast<const ViolinSeries*>(&s))
-        e.fill_alpha = 0.40f;
+    else if (auto* bar = dynamic_cast<const BarSeries*>(&s))
+        e.fill_alpha = bar->fill_alpha();
+    else if (auto* hist = dynamic_cast<const HistogramSeries*>(&s))
+        e.fill_alpha = hist->fill_alpha();
+    else if (auto* box = dynamic_cast<const BoxPlotSeries*>(&s))
+        e.fill_alpha = box->fill_alpha();
+    else if (auto* violin = dynamic_cast<const ViolinSeries*>(&s))
+        e.fill_alpha = violin->fill_alpha();
     else if (dynamic_cast<const ShapeSeries*>(&s))
         e.fill_alpha = 0.50f;
     return e;

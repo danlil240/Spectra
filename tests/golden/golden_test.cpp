@@ -246,6 +246,32 @@ static void scene_multi_subplot(App& /*app*/, Figure& fig)
     ax2.ylim(-1.5f, 1.5f);
 }
 
+// Suptitle above a 2x2 grid with shared x (per column) and y (per row): the
+// inner tick labels are hidden and the constrained layout packs the grid.
+static void scene_suptitle_shared(App& /*app*/, Figure& fig)
+{
+    fig.suptitle("Shared axes overview");
+    fig.share_x(ShareAxes::Col);
+    fig.share_y(ShareAxes::Row);
+    constexpr size_t   N = 120;
+    std::vector<float> x(N);
+    for (size_t i = 0; i < N; ++i)
+        x[i] = static_cast<float>(i) * 0.05f;
+    for (int k = 1; k <= 4; ++k)
+    {
+        auto&              ax = fig.subplot(2, 2, k);
+        std::vector<float> y(N);
+        for (size_t i = 0; i < N; ++i)
+            y[i] = std::sin(x[i] * static_cast<float>(k)) * static_cast<float>(k);
+        ax.line(x, y).color(k % 2 ? colors::red : rgb(0.2f, 0.6f, 1.0f));
+        ax.title("Panel " + std::to_string(k));
+        if (k > 2)
+            ax.xlabel("Time (s)");
+        if (k % 2 == 1)
+            ax.ylabel("Amplitude");
+    }
+}
+
 static void scene_empty_axes(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
@@ -352,6 +378,11 @@ TEST(GoldenImage, Scatter)
 TEST(GoldenImage, MultiSubplot)
 {
     run_golden_test("multi_subplot", scene_multi_subplot, 800, 600);
+}
+
+TEST(GoldenImage, SuptitleSharedAxes)
+{
+    run_golden_test("suptitle_shared", scene_suptitle_shared, 800, 600);
 }
 
 TEST(GoldenImage, EmptyAxes)

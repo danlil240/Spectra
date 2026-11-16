@@ -40,4 +40,29 @@ std::vector<Rect> compute_subplot_layout(float          figure_width,
                                          float          min_subplot_height    = 0.0f,
                                          float*         actual_content_height = nullptr);
 
+// Spacing of a subplot grid laid out by compute_grid_layout(): outer margins
+// around the whole grid and the gaps between neighbouring plot areas.
+struct GridSpacing
+{
+    Margins            outer;
+    std::vector<float> col_gaps;   // cols - 1 entries: gap right of column c (pixels)
+    std::vector<float> row_gaps;   // rows - 1 entries: gap below row r (pixels)
+};
+
+// Plot areas of a rows x cols grid filling the content region (origin_x,
+// origin_y, width, height) minus spacing.outer, separated by spacing's gaps
+// (missing entries count as 0).  All plot areas share one width and one
+// height.  min_subplot_height and actual_content_height work as in
+// compute_subplot_layout(): the rows may grow past the region, which then
+// scrolls.  Row-major, row 0 at the top.
+std::vector<Rect> compute_grid_layout(float              width,
+                                      float              height,
+                                      int                rows,
+                                      int                cols,
+                                      const GridSpacing& spacing,
+                                      float              origin_x              = 0.0f,
+                                      float              origin_y              = 0.0f,
+                                      float              min_subplot_height    = 0.0f,
+                                      float*             actual_content_height = nullptr);
+
 }   // namespace spectra

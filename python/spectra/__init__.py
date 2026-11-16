@@ -17,6 +17,9 @@ Usage::
 
     sp.show()  # optional — block until windows closed
 
+In Jupyter, figures are drawn inline as images under each cell instead
+(``sp.use_window()`` switches to native windows, ``sp.use_inline()`` back).
+
 Advanced usage (full control)::
 
     s = sp.Session()
@@ -43,6 +46,7 @@ from ._animation import ipc_sleep, FramePacer, BackendAnimator
 from ._log import set_log_level, get_log_level
 from .topic import Publisher
 from . import style
+from ._inline import use_inline, use_window, display_mode
 
 # ─── Easy API (one-liners, everything in background) ─────────────────────────
 from ._easy import (
@@ -203,4 +207,7 @@ __all__ = [
     "set_log_level",
     "get_log_level",
     "Publisher",
+    "use_inline",
+    "use_window",
+    "display_mode",
 ]

@@ -131,6 +131,14 @@ sp.title("Cosine")
 sp.show()
 ```
 
+Format strings work like MATLAB and matplotlib: `sp.plot(x, y, "r--o")` (red, dashed,
+circle markers), `sp.plot(y, "g^")` (green triangles), or `linestyle=":"` / `marker="s"`.
+
+In **Jupyter** the same calls draw inline: each cell's figures appear as PNG images under it,
+and `sp.show()` never blocks the kernel. `sp.use_window()` switches to native windows,
+`sp.use_inline()` back (or set `SPECTRA_DISPLAY=window|inline`); `spectra.notebook` gives a
+live, pannable canvas instead.
+
 Live streaming, 3D plots, statistical charts and the Session API are covered in the
 [Feature Guide](https://danlil240.github.io/Spectra/features.html#python-api).
 
@@ -282,6 +290,7 @@ cmake --build build-wasm --target webgpu_demo
 # Serve build-wasm/examples/ over HTTP and open webgpu_demo.html in Chrome/Edge 113+
 ```
 
+> **Live demo →** [danlil240.github.io/Spectra/demo](https://danlil240.github.io/Spectra/demo/) ·
 > **Docs →** [WebGPU backend](https://danlil240.github.io/Spectra/webgpu.html) ·
 > [`examples/webgpu_demo.cpp`](examples/webgpu_demo.cpp)
 

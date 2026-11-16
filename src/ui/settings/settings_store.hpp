@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <string>
+#include <vector>
 
 #include "ui/settings/export_settings.hpp"
 
@@ -28,9 +30,24 @@ struct SettingsData
     // Transforms menu: true replaces the series data in place, false (default,
     // non-destructive) adds a transformed copy next to each source series.
     bool transform_overwrite = false;
+    // Data files (CSV, ULog, MCAP, ...) opened or dropped most recently, newest
+    // first, absolute paths; shown on the start page.  See push_recent_file().
+    std::vector<std::string> recent_files;
+
     // Last choices of the Export options dialog (file.export_dialog).
     ExportDialogSettings export_dialog;
 };
+
+// Longest SettingsData::recent_files list.
+inline constexpr size_t MAX_RECENT_FILES = 8;
+
+// Moves @p path (made absolute and lexically normal) to the front of @p list,
+// dropping duplicates and anything beyond @p max_entries.  Empty paths are ignored.
+void push_recent_file(std::vector<std::string>& list,
+                      const std::string&        path,
+                      size_t                    max_entries = MAX_RECENT_FILES);
+// Removes @p path (as given or normalized) from @p list.
+void remove_recent_file(std::vector<std::string>& list, const std::string& path);
 
 // Theme and data palette an App starts with.
 struct StartupTheme
@@ -108,6 +125,12 @@ class SettingsStore
     SettingsData&       data_mut() { return data_; }
 
     void apply_to(ui::ThemeManager& tm) const;
+
+    // Recent data files (start page).  Each change notifies listeners, which
+    // save the file in windowed apps.
+    void add_recent_file(const std::string& path);
+    void forget_recent_file(const std::string& path);
+    void clear_recent_files();
 
     static std::string default_path();
 

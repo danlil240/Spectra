@@ -63,6 +63,10 @@ struct AppConfig
     /// frame of a windowed app: its figures are created and their data bindings
     /// re-resolved against topics and CSV files.  Empty = none.
     std::string open_layout{};
+    /// Files to open on the first frame of a windowed app, as if dropped on the
+    /// window (`spectra data.csv flight.ulg`): CSV/TSV open the column picker,
+    /// ULog/MCAP the log browser, .spectra layouts like open_layout.
+    std::vector<std::string> open_files{};
 };
 
 class SessionRuntime;

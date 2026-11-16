@@ -295,6 +295,50 @@ static std::function<void(App&, Figure&)> scene_style(const std::string& style_n
     };
 }
 
+// Flat stat fills: opaque fills, thin edges, contrasting box medians, and
+// bars/histograms standing on their baseline (sticky autoscale).
+static void scene_stat_fills(App& /*app*/, Figure& fig)
+{
+    auto sample = [](int n, float mu, float sd, int seed)
+    {
+        std::vector<float> v(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i)
+        {
+            // Deterministic, roughly bell-shaped samples.
+            const float t = static_cast<float>(i * 37 + seed * 11);
+            v[static_cast<size_t>(i)] =
+                mu + sd * (std::sin(t * 0.731f) + std::sin(t * 1.913f) + std::sin(t * 0.277f));
+        }
+        return v;
+    };
+
+    auto&              bars = fig.subplot(2, 2, 1);
+    std::vector<float> pos  = {0, 1, 2, 3, 4};
+    std::vector<float> h    = {3.2f, 5.1f, 2.4f, 4.4f, 3.9f};
+    bars.bar(pos, h).label("2025").color(rgb(0.12f, 0.47f, 0.71f));
+    bars.title("Bars");
+
+    auto& hist = fig.subplot(2, 2, 2);
+    hist.histogram(sample(800, 0.0f, 1.0f, 1), 24).color(rgb(0.84f, 0.37f, 0.0f));
+    hist.title("Histogram");
+
+    auto& box = fig.subplot(2, 2, 3);
+    auto& bp  = box.box_plot();
+    bp.color(rgb(0.17f, 0.63f, 0.17f));
+    for (int i = 0; i < 3; ++i)
+        bp.add_box(static_cast<float>(i + 1),
+                   sample(120, static_cast<float>(i), 0.6f + 0.2f * static_cast<float>(i), i));
+    box.title("Box");
+
+    auto& vio = fig.subplot(2, 2, 4);
+    auto& vn  = vio.violin();
+    vn.color(rgb(0.58f, 0.40f, 0.74f));
+    for (int i = 0; i < 3; ++i)
+        vn.add_violin(static_cast<float>(i + 1),
+                      sample(200, 0.0f, 0.5f + 0.3f * static_cast<float>(i), i + 5));
+    vio.title("Violin");
+}
+
 // ─── Test Cases ─────────────────────────────────────────────────────────────
 
 TEST(GoldenImage, BasicLine)
@@ -335,6 +379,11 @@ TEST(GoldenImage, StyleTalk)
 TEST(GoldenImage, StyleMinimal)
 {
     run_golden_test("style_minimal", scene_style("minimal"));
+}
+
+TEST(GoldenImage, StatFills)
+{
+    run_golden_test("stat_fills", scene_stat_fills, 800, 600);
 }
 
 // ─── Meta-test: verify the diff framework catches intentional differences ───

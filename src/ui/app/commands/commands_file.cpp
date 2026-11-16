@@ -124,6 +124,17 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                         active_figure->copy_to_clipboard();
                     }});
 
+    cmds.push_back({"file.open",
+                    "Open File...",
+                    "",
+                    "File",
+                    static_cast<uint16_t>(ui::Icon::FolderOpen),
+                    [&]()
+                    {
+                        if (imgui_ui)
+                            imgui_ui->open_file_with_dialog();
+                    }});
+
     cmds.push_back({"file.open_log",
                     "Open Log...",
                     "",

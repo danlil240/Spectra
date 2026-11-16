@@ -230,6 +230,67 @@ TEST(MultiprocSnapshot, StatsSeriesRebuildWithFills)
     EXPECT_GT(rb->fill_vertex_count(), 0u);
 }
 
+TEST(MultiprocSnapshot, StatFillStyleTravelsWithThePayload)
+{
+    const auto a = normal_samples(50.0f, 12.0f, 200, 4);
+
+    Figure fig({.width = 800, .height = 600});
+    auto&  box = fig.subplot(2, 2, 1).box_plot();
+    box.add_box(1.0f, a);
+    box.fill_alpha(0.5f).edge_width(2.0f).edge_color(Color{0.1f, 0.2f, 0.3f, 1.0f});
+    auto& vn = fig.subplot(2, 2, 2).violin();
+    vn.add_violin(1.0f, a);
+    vn.edge_width(0.0f);
+    auto& hist = fig.subplot(2, 2, 3).histogram(a, 12);
+    hist.fill_alpha(0.25f);
+    std::vector<float> pos = {1, 2}, h = {3, 4};
+    fig.subplot(2, 2, 4).bar(pos, h);   // default style
+
+    auto live = agent::build_figure_from_snapshot(round_trip(figure_to_snapshot(fig, 1)));
+
+    const auto* rbox = series_as<BoxPlotSeries>(*live, 0, 0);
+    ASSERT_NE(rbox, nullptr);
+    EXPECT_FLOAT_EQ(rbox->fill_alpha(), 0.5f);
+    EXPECT_FLOAT_EQ(rbox->edge_width(), 2.0f);
+    ASSERT_TRUE(rbox->edge_color().has_value());
+    EXPECT_FLOAT_EQ(rbox->edge_color()->b, 0.3f);
+    // The trailer is not mistaken for box data.
+    EXPECT_EQ(rbox->stats().size(), 1u);
+
+    const auto* rvn = series_as<ViolinSeries>(*live, 1, 0);
+    ASSERT_NE(rvn, nullptr);
+    EXPECT_FLOAT_EQ(rvn->edge_width(), 0.0f);
+    EXPECT_FALSE(rvn->edge_color().has_value());
+
+    const auto* rh = series_as<HistogramSeries>(*live, 2, 0);
+    ASSERT_NE(rh, nullptr);
+    EXPECT_FLOAT_EQ(rh->fill_alpha(), 0.25f);
+    EXPECT_EQ(rh->raw_values().size(), a.size());
+
+    const auto* rb = series_as<BarSeries>(*live, 3, 0);
+    ASSERT_NE(rb, nullptr);
+    EXPECT_FLOAT_EQ(rb->fill_alpha(), STAT_DEFAULT_FILL_ALPHA);
+    EXPECT_FALSE(rb->gradient());
+}
+
+TEST(MultiprocSnapshot, StatPayloadWithoutStyleKeepsDefaults)
+{
+    // A payload from an older sender (no style trailer), as Python used to send.
+    ipc::SnapshotFigureState snap;
+    snap.axes.resize(1);
+    ipc::SnapshotSeriesState bar;
+    bar.type = "bar";
+    bar.data = {0.8f, 0.0f, 0.0f, 0.0f, 2.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+    snap.series.push_back(bar);
+    auto        live = agent::build_figure_from_snapshot(snap);
+    const auto* rb   = series_as<BarSeries>(*live, 0, 0);
+    ASSERT_NE(rb, nullptr);
+    EXPECT_EQ(rb->bar_heights().size(), 2u);
+    EXPECT_FLOAT_EQ(rb->fill_alpha(), STAT_DEFAULT_FILL_ALPHA);
+    EXPECT_FLOAT_EQ(rb->edge_width(), STAT_DEFAULT_EDGE_WIDTH);
+    EXPECT_FALSE(rb->edge_color().has_value());
+}
+
 TEST(MultiprocSnapshot, MalformedStatsPayloadKeepsSlotWithoutDrawing)
 {
     ipc::SnapshotFigureState snap;

@@ -270,6 +270,9 @@ struct SnapshotAxisState
     bool    y_datetime = false;
 };
 
+// SnapshotSeriesState::line_style / marker_style value meaning "not set".
+inline constexpr uint8_t SERIES_STYLE_UNSET = 0xFF;
+
 // Serialized series metadata within a figure snapshot.
 struct SnapshotSeriesState
 {
@@ -299,6 +302,11 @@ struct SnapshotSeriesState
     double y_origin = 0.0;
     // Bar series: category names (BarSeries::categories()), empty otherwise.
     std::vector<std::string> categories;
+    // spectra::LineStyle / spectra::MarkerStyle set by the sender (e.g. from a
+    // format string "r--o"), or SERIES_STYLE_UNSET to keep the series type's
+    // default (solid lines, circle scatter markers).
+    uint8_t line_style   = SERIES_STYLE_UNSET;
+    uint8_t marker_style = SERIES_STYLE_UNSET;
 };
 
 // A single figure's full state.
@@ -397,6 +405,8 @@ struct DiffOp
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
+        SET_SERIES_LINE_STYLE = 40,   // f1=spectra::LineStyle
+        SET_SERIES_MARKER_STYLE = 41,   // f1=spectra::MarkerStyle
         SET_FIGURE_STYLE =
             43,   // (32-42: other open PRs) str_val=built-in plot style name (Figure::apply_style)
     };

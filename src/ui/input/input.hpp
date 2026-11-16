@@ -256,7 +256,12 @@ class InputHandler
     void handle_scroll_3d(Axes3D* axes3d, double y_offset);
     void handle_scroll_2d(double y_offset, double cursor_x, double cursor_y);
     void snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView view);
-    void animate_axes3d_camera(Axes3D* axes3d, const Camera& target, const char* undo_label);
+    // Animate to `target` with one undo entry; `target_auto_ortho` is the
+    // automatic-orthographic mark after the move (restored by undo / redo).
+    void animate_axes3d_camera(Axes3D*       axes3d,
+                               const Camera& target,
+                               const char*   undo_label,
+                               bool          target_auto_ortho);
     void set_axes3d_auto_ortho(const Axes3D* axes3d, bool on);
     // Click on the view cube of a 3D axes; true when consumed.
     bool handle_view_cube_click(Axes3D* axes3d, double x, double y);

@@ -5,6 +5,7 @@
 // functions shared by the view commands, the view cube and the unit tests;
 // the input handler animates the camera to the result and records undo.
 
+#include <algorithm>
 #include <cmath>
 #include <spectra/camera.hpp>
 
@@ -20,6 +21,16 @@ struct ViewPresetPlan
     // perspective.  An orthographic projection the user chose is kept.
     bool auto_ortho = false;
 };
+
+// Perspective distance that shows the target plane at the size the
+// orthographic camera `cam` does (inverse of perspective_matched_ortho_size).
+inline float perspective_distance_for_ortho(const Camera& cam)
+{
+    const float t = std::tan(deg_to_rad(cam.fov) * 0.5f);
+    if (!(t > 1e-6f) || !(cam.ortho_size > 0.0f))
+        return cam.distance;
+    return std::clamp(cam.ortho_size / t, 0.1f, 10000.0f);
+}
 
 // Plan the move from `from` to `preset`.  `from_auto_ortho` tells whether an
 // orthographic `from` came from an earlier preset (true) or from the user.
@@ -50,6 +61,9 @@ inline ViewPresetPlan plan_view_preset(const Camera&      from,
         else
         {
             plan.target.projection_mode = Camera::ProjectionMode::Perspective;
+            // Keep the orthographic zoom (ortho_size) in perspective.
+            if (from_ortho)
+                plan.target.distance = perspective_distance_for_ortho(from);
         }
     }
     plan.target.update_position_from_orbit();
@@ -68,7 +82,11 @@ inline Camera toggled_projection(const Camera& cam)
     }
     else
     {
+        // Orthographic zoom changes ortho_size only: move the camera so the
+        // perspective view keeps that zoom.
         out.projection_mode = Camera::ProjectionMode::Perspective;
+        out.distance        = perspective_distance_for_ortho(cam);
+        out.update_position_from_orbit();
     }
     return out;
 }

@@ -55,10 +55,13 @@ void InputHandler::update_axes3d_arrow_hover(AxesBase* hit_base, double x, doubl
 
 void InputHandler::animate_axes3d_camera(Axes3D*       axes3d,
                                          const Camera& target,
-                                         const char*   undo_label)
+                                         const char*   undo_label,
+                                         bool          target_auto_ortho)
 {
-    Camera&      cam    = axes3d->camera();
-    const Camera before = cam;
+    Camera&      cam         = axes3d->camera();
+    const Camera before      = cam;
+    const bool   before_auto = axes3d_auto_ortho(axes3d);
+    set_axes3d_auto_ortho(axes3d, target_auto_ortho);
 
     // Going to perspective switches now, so the move itself is seen in
     // perspective; going to orthographic switches when the move ends.
@@ -81,19 +84,23 @@ void InputHandler::animate_axes3d_camera(Axes3D*       axes3d,
         cam.update_position_from_orbit();
     }
 
+    // Undo / redo restore the automatic-orthographic mark with the camera,
+    // so a restored preset view still returns to perspective on orbit.
     if (undo_mgr_)
     {
         Axes3D* ax = axes3d;
         undo_mgr_->push(UndoAction{undo_label,
-                                   [ax, before]()
+                                   [this, ax, before, before_auto]()
                                    {
                                        ax->camera() = before;
                                        ax->camera().update_position_from_orbit();
+                                       set_axes3d_auto_ortho(ax, before_auto);
                                    },
-                                   [ax, target]()
+                                   [this, ax, target, target_auto_ortho]()
                                    {
                                        ax->camera() = target;
                                        ax->camera().update_position_from_orbit();
+                                       set_axes3d_auto_ortho(ax, target_auto_ortho);
                                    }});
     }
 }
@@ -102,7 +109,7 @@ void InputHandler::snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView axis_v
 {
     Camera target = axes3d->camera();
     target.align_view_to_axis(axis_view);
-    animate_axes3d_camera(axes3d, target, "Align 3D axis view");
+    animate_axes3d_camera(axes3d, target, "Align 3D axis view", axes3d_auto_ortho(axes3d));
 }
 
 bool InputHandler::axes3d_auto_ortho(const Axes3D* axes3d) const
@@ -124,8 +131,7 @@ void InputHandler::apply_axes3d_view_preset(Axes3D* axes3d, Camera::ViewPreset p
         return;
     const ViewPresetPlan plan =
         plan_view_preset(axes3d->camera(), preset, axes3d_auto_ortho(axes3d));
-    set_axes3d_auto_ortho(axes3d, plan.auto_ortho);
-    animate_axes3d_camera(axes3d, plan.target, "3D view preset");
+    animate_axes3d_camera(axes3d, plan.target, "3D view preset", plan.auto_ortho);
 }
 
 void InputHandler::toggle_axes3d_projection(Axes3D* axes3d)
@@ -134,11 +140,12 @@ void InputHandler::toggle_axes3d_projection(Axes3D* axes3d)
         return;
     if (transition_engine_)
         transition_engine_->cancel_for_camera(&axes3d->camera());
-    Camera&      cam    = axes3d->camera();
-    const Camera before = cam;
-    const Camera after  = toggled_projection(cam);
-    cam.projection_mode = after.projection_mode;
-    cam.ortho_size      = after.ortho_size;
+    Camera&      cam         = axes3d->camera();
+    const Camera before      = cam;
+    const bool   before_auto = axes3d_auto_ortho(axes3d);
+    Camera       after       = toggled_projection(cam);
+    after.update_position_from_orbit();
+    cam = after;
     // An explicit choice: presets keep it, orbiting does not undo it.
     set_axes3d_auto_ortho(axes3d, false);
     if (undo_mgr_)
@@ -147,15 +154,17 @@ void InputHandler::toggle_axes3d_projection(Axes3D* axes3d)
         undo_mgr_->push(UndoAction{after.projection_mode == Camera::ProjectionMode::Orthographic
                                        ? "Orthographic projection"
                                        : "Perspective projection",
-                                   [ax, before]()
+                                   [this, ax, before, before_auto]()
                                    {
-                                       ax->camera().projection_mode = before.projection_mode;
-                                       ax->camera().ortho_size      = before.ortho_size;
+                                       ax->camera() = before;
+                                       ax->camera().update_position_from_orbit();
+                                       set_axes3d_auto_ortho(ax, before_auto);
                                    },
-                                   [ax, after]()
+                                   [this, ax, after]()
                                    {
-                                       ax->camera().projection_mode = after.projection_mode;
-                                       ax->camera().ortho_size      = after.ortho_size;
+                                       ax->camera() = after;
+                                       ax->camera().update_position_from_orbit();
+                                       set_axes3d_auto_ortho(ax, false);
                                    }});
     }
 }

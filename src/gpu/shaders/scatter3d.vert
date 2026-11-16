@@ -35,6 +35,8 @@ layout(push_constant) uniform SeriesPC {
 // point (xyz + padding).  Per-point attributes (_pad2[0] > 0.5, see
 // ScatterSeries3D::color_values / sizes): two vec4 per point,
 // (xyz, marker diameter) and (rgb, 1 = use this colour / 0 = series colour).
+// _pad2[0] > 1.5 reads the same layout for the selection outline: the point's
+// own diameter plus point_size (the outline growth), in the series colour.
 layout(std430, set = 1, binding = 0) readonly buffer VertexData {
     vec4 points[];
 };
@@ -53,10 +55,11 @@ void main() {
     int corner = corner_map[tri_vert];
 
     bool per_point = _pad2[0] > 0.5;
+    bool outline = _pad2[0] > 1.5;
     vec4 p0 = points[per_point ? point_index * 2 : point_index];
-    float size = per_point ? max(p0.w, 0.0) : point_size;
+    float size = per_point ? max(p0.w, 0.0) + (outline ? point_size : 0.0) : point_size;
     v_point_size = size;
-    v_point_color = per_point ? points[point_index * 2 + 1] : vec4(0.0);
+    v_point_color = (per_point && !outline) ? points[point_index * 2 + 1] : vec4(0.0);
 
     vec3 data_offset = vec3(data_offset_x, data_offset_y, 0.0);
     vec3 center = p0.xyz + data_offset;

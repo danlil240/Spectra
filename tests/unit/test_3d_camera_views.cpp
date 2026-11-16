@@ -509,3 +509,60 @@ TEST(Camera3DSerialization, EqualAspectAndScatterAttrsRoundTrip)
     EXPECT_FALSE(s1->has_colormap());
     EXPECT_FALSE(s1->has_sizes());
 }
+
+// ─── Undo keeps the automatic-orthographic mark; ortho zoom survives toggle ─
+
+TEST_F(Cube3DFixture, UndoRestoresAutoOrthoMark)
+{
+    InputHandler handler;
+    UndoManager  undo;
+    handler.set_undo_manager(&undo);
+    handler.set_figure(fig.get());
+
+    handler.apply_axes3d_view_preset(ax, Camera::ViewPreset::Top);
+    handler.apply_axes3d_view_preset(ax, Camera::ViewPreset::Isometric);
+    EXPECT_FALSE(handler.axes3d_auto_ortho(ax));
+    EXPECT_EQ(ax->camera().projection_mode, Camera::ProjectionMode::Perspective);
+
+    undo.undo();   // back to the automatic ortho Top view
+    EXPECT_EQ(ax->camera().projection_mode, Camera::ProjectionMode::Orthographic);
+    EXPECT_TRUE(handler.axes3d_auto_ortho(ax));
+    // ... so Isometric returns to perspective again.
+    auto plan = plan_view_preset(ax->camera(),
+                                 Camera::ViewPreset::Isometric,
+                                 handler.axes3d_auto_ortho(ax));
+    EXPECT_EQ(plan.target.projection_mode, Camera::ProjectionMode::Perspective);
+
+    undo.redo();
+    EXPECT_FALSE(handler.axes3d_auto_ortho(ax));
+
+    // Projection toggle: undo restores the mark, redo clears it.
+    undo.undo();
+    ASSERT_TRUE(handler.axes3d_auto_ortho(ax));
+    handler.toggle_axes3d_projection(ax);   // explicit -> perspective
+    EXPECT_FALSE(handler.axes3d_auto_ortho(ax));
+    undo.undo();
+    EXPECT_TRUE(handler.axes3d_auto_ortho(ax));
+    EXPECT_EQ(ax->camera().projection_mode, Camera::ProjectionMode::Orthographic);
+    undo.redo();
+    EXPECT_FALSE(handler.axes3d_auto_ortho(ax));
+}
+
+TEST(ViewPresetPlan, OrthoZoomCarriesBackToPerspective)
+{
+    Camera cam;
+    cam.distance = 12.0f;
+    cam.update_position_from_orbit();
+    Camera o = toggled_projection(cam);
+    o.zoom(0.5f);   // ortho zoom changes ortho_size only
+    EXPECT_FLOAT_EQ(o.distance, 12.0f);
+
+    const Camera p = toggled_projection(o);
+    EXPECT_NEAR(p.distance, 6.0f, 1e-3f);
+    EXPECT_NEAR(vec3_length(p.position - p.target), 6.0, 1e-3);
+    EXPECT_NEAR(p.perspective_matched_ortho_size(), o.ortho_size, 1e-4f);
+
+    // Same when a preset leaves the automatic ortho view.
+    auto iso = plan_view_preset(o, Camera::ViewPreset::Isometric, true);
+    EXPECT_NEAR(iso.target.distance, 6.0f, 1e-3f);
+}

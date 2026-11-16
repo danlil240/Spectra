@@ -1,8 +1,10 @@
 #pragma once
 
 #include <spectra/figure.hpp>
+#include <iosfwd>
 #include <spectra/fwd.hpp>
 #include <string>
+#include <string_view>
 
 #include "overlay_snapshot.hpp"
 
@@ -34,6 +36,16 @@ class FigureSerializer
     // If overlay is non-null, overlay chunks are loaded into it.
     // Returns true on success.
     static bool load(const std::string& path, Figure& figure, OverlaySnapshot* overlay = nullptr);
+
+    // Stream forms of save()/load() (same bytes as the file).  The workspace
+    // document format (workspace_document.hpp) embeds one such blob per figure.
+    static bool save(std::ostream&          out,
+                     const Figure&          figure,
+                     const OverlaySnapshot* overlay = nullptr);
+    static bool load(std::istream& in, Figure& figure, OverlaySnapshot* overlay = nullptr);
+
+    // True if @p head (the first bytes of a file) starts with the figure magic.
+    static bool has_figure_magic(std::string_view head);
 
     // Open a native OS save dialog and save the figure.
     // Returns true if the user selected a file and save succeeded.

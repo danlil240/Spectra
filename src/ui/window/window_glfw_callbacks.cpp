@@ -86,6 +86,11 @@ void WindowManager::glfw_window_close_callback(GLFWwindow* window)
         return;
 
     SPECTRA_LOG_TRACE("input", "Window {} close requested", wctx->id);
+    if (!mgr->confirm_close(*wctx))
+    {
+        glfwSetWindowShouldClose(window, GLFW_FALSE);   // prompt shown instead
+        return;
+    }
     wctx->should_close = true;
     mgr->pending_close_ids_.push_back(wctx->id);
 }
@@ -475,19 +480,16 @@ void WindowManager::glfw_key_callback(GLFWwindow* window,
         return;
     }
 
-    // Q (no modifiers) = close active tab; if last tab, close window
+    // Q (no modifiers) = close active tab like Ctrl+W (figure.close): asks
+    // about unsaved changes and leaves the start page after the last tab.
     constexpr int GLFW_KEY_Q_VAL = 81;   // GLFW_KEY_Q
     constexpr int GLFW_PRESS_VAL = 1;    // GLFW_PRESS
-    if (key == GLFW_KEY_Q_VAL && action == GLFW_PRESS_VAL && mods == 0)
+    if (key == GLFW_KEY_Q_VAL && action == GLFW_PRESS_VAL && mods == 0 && ui.fig_mgr)
     {
-        auto* fm = ui.fig_mgr;
-        if (fm)
-        {
-            fm->queue_close(fm->active_index());
-            if (prev_ctx)
-                ImGui::SetCurrentContext(prev_ctx);
-            return;
-        }
+        ui.cmd_registry.execute("figure.close");
+        if (prev_ctx)
+            ImGui::SetCurrentContext(prev_ctx);
+        return;
     }
 
     input_handler.on_key(key, action, mods);

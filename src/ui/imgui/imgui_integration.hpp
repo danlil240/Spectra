@@ -46,6 +46,7 @@ namespace spectra::ui
 {
 struct ThemeColors;
 class ThemeManager;
+class ToastQueue;
 namespace shell
 {
 class MenuBar;
@@ -72,6 +73,7 @@ namespace spectra
 {
 
 class AnimationCurveEditor;
+class DocumentSession;
 class LayoutSession;
 class AxisLinkManager;
 class BoxZoomOverlay;
@@ -107,6 +109,8 @@ class ImGuiIntegration
         std::function<bool()> checked;             // set = checkable; returns the current state
         uint16_t              icon      = 0;       // ui::Icon codepoint (0 = none)
         bool                  keep_open = false;   // clicking does not close the menu
+        // Non-empty: a cascading submenu ("Export ▸") that opens on hover.
+        std::vector<MenuItem> children;
         MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
         {
         }
@@ -975,6 +979,31 @@ class ImGuiIntegration
         get_figure_title_ = std::move(cb);
     }
 
+    // ── File model: unsaved changes, recovery, toasts (imgui_file_model.cpp) ──
+    // Owned by WindowUIContext.  Without them nothing is drawn.
+    void             set_document_session(DocumentSession* doc) { document_ = doc; }
+    void             set_toast_queue(ui::ToastQueue* toasts) { toasts_ = toasts; }
+    DocumentSession* document_session() const { return document_; }
+    ui::ToastQueue*  toast_queue() const { return toasts_; }
+    // Draws the toast stack, the Save / Don't Save / Cancel prompt and the
+    // crash-recovery prompt.  Called at the end of build_ui()/build_empty_ui().
+    void draw_file_model_overlays();
+
+   private:
+    void             draw_toasts();
+    void             draw_unsaved_changes_prompt();
+    void             draw_recovery_prompt();
+    DocumentSession* document_ = nullptr;
+    ui::ToastQueue*  toasts_   = nullptr;
+    std::string      open_submenu_label_;    // cascading submenu open in the command bar
+    Rect             open_submenu_rect_{};   // its popup rect last frame (menu auto-close)
+    bool             submenu_item_clicked_ = false;
+
+    // Draws the rows of a command-bar menu (and cascading submenus) in the
+    // current popup.  Returns true when an item ran and the menu should close.
+    bool draw_menu_rows(const std::vector<MenuItem>& items, int depth);
+
+   public:
     // Figure pointer resolver (set by WindowManager, used for split-mode legend drawing)
     std::function<Figure*(FigureId)> get_figure_ptr_;
 

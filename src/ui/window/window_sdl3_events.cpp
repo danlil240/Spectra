@@ -67,7 +67,7 @@ void WindowManager::process_sdl3_events()
             {
                 for (auto* wctx : active_ptrs_)
                 {
-                    if (wctx && !wctx->should_close)
+                    if (wctx && !wctx->should_close && confirm_close(*wctx))
                     {
                         wctx->should_close = true;
                         request_close(wctx->id);
@@ -85,8 +85,11 @@ void WindowManager::process_sdl3_events()
                     auto* sdl_win = static_cast<SDL_Window*>(wctx->glfw_window);
                     if (SDL_GetWindowID(sdl_win) == event.window.windowID)
                     {
-                        wctx->should_close = true;
-                        request_close(wctx->id);
+                        if (confirm_close(*wctx))
+                        {
+                            wctx->should_close = true;
+                            request_close(wctx->id);
+                        }
                         break;
                     }
                 }

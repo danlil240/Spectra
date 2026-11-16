@@ -29,6 +29,7 @@
 
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme_imgui.hpp"
+    #include "ui/overlay/toast_queue.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
@@ -481,6 +482,9 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     // The FPS badge still reads live after rendering stopped: draw one more
     // frame so it can settle to "Idle".
     if (fps_badge_.needs_settle_frame(ui::FpsBadgeState::Clock::now()))
+        return true;
+    // Toasts age (and fade) per frame; export watches poll the file per frame.
+    if (toasts_ && toasts_->needs_frames())
         return true;
     return false;
 }
@@ -1092,6 +1096,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_knobs_panel();
     }
 
+    // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
+    draw_file_model_overlays();
+
     // Draw command palette overlay (Agent F) — must be last to render on top
     if (command_palette_)
     {
@@ -1260,6 +1267,9 @@ void ImGuiIntegration::build_empty_ui()
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();
     draw_log_field_drop_target_welcome();
+
+    // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
+    draw_file_model_overlays();
 
     // Command palette overlay (Ctrl+K / Tools menu) — last so it renders on top.
     if (command_palette_)

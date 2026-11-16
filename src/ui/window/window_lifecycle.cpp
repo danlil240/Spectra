@@ -226,7 +226,22 @@ WindowContext* WindowManager::create_window(uint32_t           width,
 
 void WindowManager::request_close(uint32_t window_id)
 {
+    if (WindowContext* wctx = find_window(window_id); wctx && !confirm_close(*wctx))
+        return;
     pending_close_ids_.push_back(window_id);
+}
+
+bool WindowManager::confirm_close(WindowContext& wctx)
+{
+#ifdef SPECTRA_USE_IMGUI
+    if (wctx.is_preview || wctx.is_panel || !wctx.ui_ctx || !wctx.ui_ctx->imgui_ui)
+        return true;
+    const uint32_t id = wctx.id;
+    return wctx.ui_ctx->document.confirm_close_window([this, id]() { request_close(id); });
+#else
+    (void)wctx;
+    return true;
+#endif
 }
 
 void WindowManager::destroy_window(uint32_t window_id)
@@ -338,6 +353,12 @@ void WindowManager::process_pending_closes()
         {
             if (glfwWindowShouldClose(static_cast<GLFWwindow*>(wctx->glfw_window)))
             {
+                if (!confirm_close(*wctx))
+                {
+                    glfwSetWindowShouldClose(static_cast<GLFWwindow*>(wctx->glfw_window),
+                                             GLFW_FALSE);
+                    continue;
+                }
                 wctx->should_close = true;
                 pending_close_ids_.push_back(wctx->id);
             }
@@ -486,6 +507,7 @@ WindowUIContextBuildOptions WindowManager::make_ui_build_options(WindowContext& 
             clear_figure_caches(fig);
     };
     options.create_imgui_integration = true;
+    options.enable_autosave          = !wctx.is_preview && !wctx.is_panel;
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     options.window_manager = this;
     options.window_id      = wctx.id;

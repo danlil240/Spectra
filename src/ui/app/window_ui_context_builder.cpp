@@ -265,6 +265,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
         ui->imgui_ui->set_topics_panel(&ui->topics_panel);
         ui->imgui_ui->set_layout_session(&ui->layout_session);
+        ui->imgui_ui->set_document_session(&ui->document);
+        ui->imgui_ui->set_toast_queue(&ui->toasts);
         ui->layout_session.set_figure_registry(options.registry);
         ui->layout_session.topic_names_fn = [ui_raw = ui.get()]()
         { return ui_raw->topics_panel.topic_names(); };
@@ -429,6 +431,9 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     bindings.window_mgr = options.window_manager;
     #endif
     register_standard_commands(bindings);
+    if (options.enable_autosave && !options.headless
+        && options.mode == WindowUIContextBuildMode::Full)
+        ui->document.enable_autosave(DocumentSession::default_autosave_dir());
 
     if (options.export_format_registry)
     {

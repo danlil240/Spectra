@@ -21,10 +21,17 @@
     #include "ui/workspace/figure_serializer.hpp"
     #include "ui/workspace/layout.hpp"
     #include "ui/workspace/layout_session.hpp"
+    #include "ui/workspace/workspace_document.hpp"
+    #include "ui/data/clipboard_export.hpp"
+    #include "ui/overlay/toast_queue.hpp"
+    #include "io/logs/log_reader_registry.hpp"
 
     #include <algorithm>
     #include <cstdlib>
     #include <filesystem>
+    #include <fstream>
+    #include <iterator>
+    #include <sstream>
 
     #include "../../../../third_party/tinyfiledialogs.h"
     #include "ui/dialog_env_guard.hpp"
@@ -49,67 +56,115 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
     auto&  fig_mgr          = *ui_ctx.fig_mgr;
     auto&  tm               = *ui_ctx.theme_mgr;
 
-    cmds.push_back({"file.export_png",
-                    "Export PNG",
-                    "Ctrl+S",
-                    "File",
-                    static_cast<uint16_t>(ui::Icon::Export),
-                    [&]()
-                    {
-                        if (!active_figure)
-                            return;
-                        const char* patterns[] = {"*.png"};
-                        auto        path       = spectra::ask_export_path("Export PNG",
-                                                             "spectra_export.png",
-                                                             1,
-                                                             patterns,
-                                                             "PNG Image",
-                                                             ui_ctx.last_export_dir);
-                        if (!path)
-                            return;
-                        active_figure->save_png(*path);
-                    }});
+    auto& toasts       = ui_ctx.toasts;
+    auto& document     = ui_ctx.document;
+    auto  file_name_of = [](const std::string& path)
+    { return std::filesystem::path(path).filename().string(); };
 
-    cmds.push_back({"file.export_svg",
-                    "Export SVG",
-                    "Ctrl+Shift+S",
-                    "File",
-                    static_cast<uint16_t>(ui::Icon::Export),
-                    [&]()
-                    {
-                        if (!active_figure)
-                            return;
-                        const char* patterns[] = {"*.svg"};
-                        auto        path       = spectra::ask_export_path("Export SVG",
-                                                             "spectra_export.svg",
-                                                             1,
-                                                             patterns,
-                                                             "SVG Image",
-                                                             ui_ctx.last_export_dir);
-                        if (!path)
-                            return;
-                        active_figure->save_svg(*path);
-                    }});
+    // Exports are written a frame later (PNG readback, SVG/PDF on the render
+    // loop): a refused request fails now, otherwise the toast waits for the file.
+    auto report_export =
+        [&toasts, file_name_of](bool queued, const std::string& path, const char* kind)
+    {
+        const std::string fail = std::string("Could not export ") + kind;
+        if (!queued)
+        {
+            toasts.error(fail, "Cannot write " + path);
+            return;
+        }
+        toasts.watch_file_write(path, "Exported " + file_name_of(path), fail);
+    };
 
-    cmds.push_back({"file.export_pdf",
-                    "Export PDF",
+    // File > Export > PNG / SVG / PDF.  Ctrl+S is Save now; PNG moved to Ctrl+E.
+    struct ImageExport
+    {
+        const char* id;
+        const char* label;
+        const char* shortcut;
+        const char* kind;
+        const char* pattern;
+        const char* default_name;
+        const char* description;
+        bool (Figure::*save)(const std::string&);
+    };
+    static const ImageExport image_exports[] = {
+        {"file.export_png",
+         "Export PNG...",
+         "Ctrl+E",
+         "PNG",
+         "*.png",
+         "spectra_export.png",
+         "PNG Image",
+         &Figure::save_png},
+        {"file.export_svg",
+         "Export SVG...",
+         "Ctrl+Shift+E",
+         "SVG",
+         "*.svg",
+         "spectra_export.svg",
+         "SVG Image",
+         &Figure::save_svg},
+        {"file.export_pdf",
+         "Export PDF...",
+         "",
+         "PDF",
+         "*.pdf",
+         "spectra_export.pdf",
+         "PDF Document",
+         &Figure::save_pdf},
+    };
+    for (const ImageExport& ex : image_exports)
+    {
+        cmds.push_back({ex.id,
+                        ex.label,
+                        ex.shortcut,
+                        "File",
+                        static_cast<uint16_t>(ui::Icon::Export),
+                        [&, ex, report_export]()
+                        {
+                            if (!active_figure)
+                                return;
+                            const char* patterns[] = {ex.pattern};
+                            auto        path       = spectra::ask_export_path(ex.label,
+                                                                 ex.default_name,
+                                                                 1,
+                                                                 patterns,
+                                                                 ex.description,
+                                                                 ui_ctx.last_export_dir);
+                            if (!path)
+                                return;
+                            ui_ctx.last_export_dir =
+                                std::filesystem::path(*path).parent_path().string();
+                            report_export((active_figure->*ex.save)(*path), *path, ex.kind);
+                        }});
+    }
+
+    cmds.push_back({"file.export_csv",
+                    "Export CSV Data...",
                     "",
                     "File",
-                    static_cast<uint16_t>(ui::Icon::Export),
-                    [&]()
+                    static_cast<uint16_t>(ui::Icon::FileText),
+                    [&, file_name_of]()
                     {
                         if (!active_figure)
                             return;
-                        const char* patterns[] = {"*.pdf"};
-                        auto        path       = spectra::ask_export_path("Export PDF",
-                                                             "spectra_export.pdf",
+                        const char* patterns[] = {"*.csv"};
+                        auto        path       = spectra::ask_export_path("Export CSV Data",
+                                                             "spectra_data.csv",
                                                              1,
                                                              patterns,
-                                                             "PDF Document",
+                                                             "CSV file",
                                                              ui_ctx.last_export_dir);
                         if (!path)
                             return;
-                        active_figure->save_pdf(*path);
+                        ui_ctx.last_export_dir =
+                            std::filesystem::path(*path).parent_path().string();
+                        std::string error;
+                        if (export_figure_csv(*active_figure, *path, &error))
+                            toasts.success("Exported " + file_name_of(*path),
+                                           ui::ToastQueue::folder_detail(*path));
+                        else
+                            toasts.error("Could not export CSV", error);
                     }});
 
     cmds.push_back({"file.copy_to_clipboard",
@@ -123,6 +178,70 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                             return;
                         active_figure->copy_to_clipboard();
                     }});
+
+    // File > Open... (Ctrl+O): .spectra workspaces / figures / layouts and
+    // data files (CSV/TSV, ULog, MCAP).
+    auto open_any = [&, file_name_of](const std::string& path) -> bool
+    {
+        const std::string ext = logs::lowercase_extension(path);
+        if (ext == "csv" || ext == "tsv" || ext == "txt")
+        {
+            if (!imgui_ui)
+                return false;
+            imgui_ui->request_csv_load(path);
+            return true;
+        }
+        if (ext != "spectra" && ext != "json" && ui_ctx.log_browser_panel.can_open(path))
+        {
+            ui_ctx.log_browser_panel.set_visible(true);
+            if (ui_ctx.log_browser_panel.open_file(path))
+                return true;
+            toasts.error("Could not open " + file_name_of(path), "See the Log Browser for details");
+            return false;
+        }
+        // .spectra / .json, or anything whose contents say it is one.
+        const SpectraFileKind kind = WorkspaceDocument::sniff_file(path);
+        if (ext == "spectra" || ext == "json" || kind == SpectraFileKind::WorkspaceDocument
+            || kind == SpectraFileKind::Figure)
+            return ui_ctx.layout_session.open(path);
+        toasts.error("Cannot open " + file_name_of(path),
+                     "Supported: .spectra, CSV/TSV, ULog, MCAP");
+        return false;
+    };
+
+    cmds.push_back({"file.open",
+                    "Open...",
+                    "Ctrl+O",
+                    "File",
+                    static_cast<uint16_t>(ui::Icon::FolderOpen),
+                    [&, open_any]()
+                    {
+                        if (!native_dialogs_enabled())
+                            return;
+                        DialogEnvGuard env_guard;
+                        char const*    filters[] =
+                            {"*.spectra", "*.csv", "*.tsv", "*.txt", "*.ulg", "*.mcap", "*.json"};
+                        std::string start = ui_ctx.layout_session.last_dir;
+                        if (start.empty() && !document.path().empty())
+                            start = std::filesystem::path(document.path()).parent_path().string();
+                        if (start.empty())
+                        {
+                            const char* home = std::getenv("HOME");
+                            start            = home ? home : "/";
+                        }
+                        if (start.back() != '/')
+                            start += '/';
+                        const char* result = tinyfd_openFileDialog(
+                            "Open",
+                            start.c_str(),
+                            static_cast<int>(std::size(filters)),
+                            filters,
+                            "Spectra files and data (.spectra, CSV, ULog, MCAP)",
+                            0);
+                        if (result)
+                            open_any(result);
+                    }});
+    ui_ctx.open_file_fn = open_any;
 
     cmds.push_back({"file.open_log",
                     "Open Log...",
@@ -240,13 +359,102 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
         return data;
     };
 
+    // Window state into the default location (no data, no file name).  Kept
+    // for the command palette and scripts; File > Save is the user-facing save.
     cmds.push_back({"file.save_workspace",
-                    "Save Workspace",
+                    "Save Session State",
                     "",
                     "File",
                     static_cast<uint16_t>(ui::Icon::Save),
                     [capture_workspace]()
                     { Workspace::save(Workspace::default_path(), capture_workspace()); }});
+
+    // ─── File > Save / Save As: the whole window, data included ──────────
+    auto encode_document = [&, capture_workspace]() -> std::string
+    {
+        WorkspaceData data      = capture_workspace();
+        data.data_palette_name  = tm.current_data_palette_name();
+        const auto& ids         = fig_mgr.figure_ids();
+        auto        position_of = [&ids](FigureId id) -> std::optional<FigureId>
+        {
+            auto it = std::find(ids.begin(), ids.end(), id);
+            if (it == ids.end())
+                return std::nullopt;
+            return static_cast<FigureId>(it - ids.begin());
+        };
+        data.active_figure_index = position_of(fig_mgr.active_index()).value_or(0);
+        data.dock_state          = remap_dock_figures(data.dock_state, position_of);
+
+        WorkspaceDocumentContents contents;
+        contents.workspace_json = Workspace::serialize_json(data);
+        for (FigureId id : ids)
+        {
+            Figure* fig = registry.get(id);
+            if (!fig)
+                continue;
+            std::ostringstream out(std::ios::binary);
+            if (data_interaction)
+            {
+                const OverlaySnapshot snap = data_interaction->capture_overlay_snapshot(*fig);
+                FigureSerializer::save(out, *fig, &snap);
+            }
+            else
+            {
+                FigureSerializer::save(out, *fig);
+            }
+            contents.figure_blobs.push_back(out.str());
+        }
+        return WorkspaceDocument::encode(contents);
+    };
+
+    document.set_toasts(&toasts);
+    document.set_encode_fn(encode_document);
+    document.set_snapshot_fn(
+        [&]()
+        {
+            DocumentTracker::Snapshot snap;
+            uint64_t                  h = 1469598103934665603ULL;
+            for (FigureId id : fig_mgr.figure_ids())
+            {
+                const std::string title = fig_mgr.get_title(id);
+                h                       = (h ^ static_cast<uint64_t>(id)) * 1099511628211ULL;
+                h                       = (h ^ std::hash<std::string>{}(title)) * 1099511628211ULL;
+                if (Figure* fig = registry.get(id))
+                    snap.figures.emplace_back(id, figure_fingerprint(*fig));
+            }
+            snap.structure = h;
+            return snap;
+        });
+    document.set_ask_save_path_fn(
+        [&](const std::string& suggested) -> std::optional<std::string>
+        {
+            const char* patterns[] = {"*.spectra"};
+            std::string dir        = document.path().empty()
+                                         ? layout_session.last_dir
+                                         : std::filesystem::path(document.path()).parent_path().string();
+            auto        path       = spectra::ask_export_path("Save As",
+                                                 suggested.c_str(),
+                                                 1,
+                                                 patterns,
+                                                 "Spectra workspace",
+                                                 dir);
+            if (path)
+                layout_session.last_dir = std::filesystem::path(*path).parent_path().string();
+            return path;
+        });
+    document.set_on_saved([&](const std::string& path) { layout_session.recent().push(path); });
+
+    cmds.push_back(
+        {"file.save", "Save", "Ctrl+S", "File", static_cast<uint16_t>(ui::Icon::Save), [&]() {
+             document.save();
+         }});
+
+    cmds.push_back({"file.save_as",
+                    "Save As...",
+                    "Ctrl+Shift+S",
+                    "File",
+                    static_cast<uint16_t>(ui::Icon::Save),
+                    [&]() { document.save_as(); }});
 
     // Save the window as a shareable layout: data bindings, no data.
     auto save_layout_to = [&, capture_workspace](const std::string& path) -> bool
@@ -290,7 +498,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
     };
 
     cmds.push_back({"file.save_layout",
-                    "Save Layout...",
+                    "Export Layout (bindings only)...",
                     "",
                     "File",
                     static_cast<uint16_t>(ui::Icon::Save),
@@ -308,93 +516,236 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     }});
 
     // Open a layout: new figures (tabs) whose series re-resolve their bindings.
-    layout_session.set_open_handler(
-        [&](const std::string& path) -> bool
+    auto open_json_layout = [&](const std::string& path) -> bool
+    {
+        WorkspaceData data;
+        if (!Workspace::load(path, data))
         {
-            WorkspaceData data;
-            if (!Workspace::load(path, data))
-            {
-                SPECTRA_LOG_WARN("layout", "Could not open layout {}", path);
-                return false;
-            }
-            validate_workspace_data(data);
-            if (!data.layout_only)
-                SPECTRA_LOG_INFO("layout",
-                                 "{} is a workspace, not a layout: opening its figures without "
-                                 "series",
-                                 path);
-
-            namespace fs = std::filesystem;
-            std::error_code ec;
-            const fs::path  abs_path = fs::absolute(path, ec);
-            // CSV files are looked up next to the layout, then in the working directory.
-            layout_session.csv_provider().add_search_dir(abs_path.parent_path().string());
-            layout_session.csv_provider().add_search_dir(fs::current_path(ec).string());
-            layout_session.last_dir = abs_path.parent_path().string();
-
-            const bool fresh  = fig_mgr.count() == 0;
-            auto       result = instantiate_layout(data, registry, layout_session.resolver());
-            for (size_t i = 0; i < result.figure_ids.size(); ++i)
-            {
-                const FigureId id = result.figure_ids[i];
-                fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
-                if (!data.figures[i].custom_tab_title.empty())
-                    fig_mgr.set_title(id, data.figures[i].custom_tab_title);
-            }
-
-            // Window-level state only when the layout is the whole window;
-            // opened next to existing figures it just adds tabs.
-            if (fresh)
-            {
-                if (!data.theme_name.empty())
-                {
-                    tm.set_theme(data.theme_name);
-                    tm.apply_to_imgui();
-                }
-                if (!data.data_palette_name.empty())
-                    tm.set_data_palette(data.data_palette_name);
-                if (imgui_ui)
-                {
-                    auto& lm = imgui_ui->get_layout_manager();
-                    lm.set_inspector_visible(data.panels.inspector_visible);
-                    lm.set_nav_rail_expanded(data.panels.nav_rail_expanded);
-                }
-                if (data.layout_only && !data.dock_state.empty())
-                {
-                    const auto& ids = result.figure_ids;
-                    dock_system.deserialize(
-                        remap_dock_figures(data.dock_state,
-                                           [&ids](FigureId pos) -> std::optional<FigureId>
-                                           {
-                                               if (pos < ids.size())
-                                                   return ids[static_cast<size_t>(pos)];
-                                               return std::nullopt;
-                                           }));
-                }
-                if (data_interaction)
-                {
-                    data_interaction->set_crosshair(data.interaction.crosshair_enabled);
-                    data_interaction->set_tooltip(data.interaction.tooltip_enabled);
-                }
-            }
-            if (!result.figure_ids.empty())
-            {
-                size_t active = 0;
-                if (data.layout_only && data.active_figure_index < result.figure_ids.size())
-                    active = static_cast<size_t>(data.active_figure_index);
-                fig_mgr.queue_switch(result.figure_ids[active]);
-            }
-
+            SPECTRA_LOG_WARN("layout", "Could not open layout {}", path);
+            return false;
+        }
+        validate_workspace_data(data);
+        if (!data.layout_only)
             SPECTRA_LOG_INFO("layout",
-                             "Opened layout {}: {} bound, {} waiting for topics, {} unresolved",
-                             path,
-                             result.count(BindingStatus::Bound),
-                             result.count(BindingStatus::Waiting),
-                             result.count(BindingStatus::Unresolved));
-            layout_session.adopt(std::move(result));
-            layout_session.recent().push(path);
-            return true;
+                             "{} is a workspace, not a layout: opening its figures without "
+                             "series",
+                             path);
+
+        namespace fs = std::filesystem;
+        std::error_code ec;
+        const fs::path  abs_path = fs::absolute(path, ec);
+        // CSV files are looked up next to the layout, then in the working directory.
+        layout_session.csv_provider().add_search_dir(abs_path.parent_path().string());
+        layout_session.csv_provider().add_search_dir(fs::current_path(ec).string());
+        layout_session.last_dir = abs_path.parent_path().string();
+
+        const bool fresh  = fig_mgr.count() == 0;
+        auto       result = instantiate_layout(data, registry, layout_session.resolver());
+        for (size_t i = 0; i < result.figure_ids.size(); ++i)
+        {
+            const FigureId id = result.figure_ids[i];
+            fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
+            if (!data.figures[i].custom_tab_title.empty())
+                fig_mgr.set_title(id, data.figures[i].custom_tab_title);
+        }
+
+        // Window-level state only when the layout is the whole window;
+        // opened next to existing figures it just adds tabs.
+        if (fresh)
+        {
+            if (!data.theme_name.empty())
+            {
+                tm.set_theme(data.theme_name);
+                tm.apply_to_imgui();
+            }
+            if (!data.data_palette_name.empty())
+                tm.set_data_palette(data.data_palette_name);
+            if (imgui_ui)
+            {
+                auto& lm = imgui_ui->get_layout_manager();
+                lm.set_inspector_visible(data.panels.inspector_visible);
+                lm.set_nav_rail_expanded(data.panels.nav_rail_expanded);
+            }
+            if (data.layout_only && !data.dock_state.empty())
+            {
+                const auto& ids = result.figure_ids;
+                dock_system.deserialize(
+                    remap_dock_figures(data.dock_state,
+                                       [&ids](FigureId pos) -> std::optional<FigureId>
+                                       {
+                                           if (pos < ids.size())
+                                               return ids[static_cast<size_t>(pos)];
+                                           return std::nullopt;
+                                       }));
+            }
+            if (data_interaction)
+            {
+                data_interaction->set_crosshair(data.interaction.crosshair_enabled);
+                data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+            }
+        }
+        if (!result.figure_ids.empty())
+        {
+            size_t active = 0;
+            if (data.layout_only && data.active_figure_index < result.figure_ids.size())
+                active = static_cast<size_t>(data.active_figure_index);
+            fig_mgr.queue_switch(result.figure_ids[active]);
+        }
+
+        SPECTRA_LOG_INFO("layout",
+                         "Opened layout {}: {} bound, {} waiting for topics, {} unresolved",
+                         path,
+                         result.count(BindingStatus::Bound),
+                         result.count(BindingStatus::Waiting),
+                         result.count(BindingStatus::Unresolved));
+        layout_session.adopt(std::move(result));
+        layout_session.recent().push(path);
+        return true;
+    };
+
+    // A workspace document (File > Save): its figures, with data, become new
+    // tabs.  Into an empty window it also brings the window state back.
+    auto open_workspace_document = [&](const std::string& path) -> bool
+    {
+        std::string               bytes;
+        WorkspaceDocumentContents contents;
+        if (!WorkspaceDocument::read_file(path, bytes)
+            || !WorkspaceDocument::decode(bytes, contents))
+            return false;
+        WorkspaceData data;
+        if (!Workspace::deserialize_json(contents.workspace_json, data))
+            data = WorkspaceData{};
+        validate_workspace_data(data);
+
+        const bool            fresh = fig_mgr.count() == 0;
+        std::vector<FigureId> new_ids;
+        for (size_t i = 0; i < contents.figure_blobs.size(); ++i)
+        {
+            auto               fig = std::make_unique<Figure>();
+            OverlaySnapshot    snap;
+            std::istringstream in(contents.figure_blobs[i], std::ios::binary);
+            if (!FigureSerializer::load(in, *fig, &snap))
+            {
+                SPECTRA_LOG_WARN("document", "{}: figure {} is damaged, skipped", path, i + 1);
+                continue;
+            }
+            const FigureId id = registry.register_figure(std::move(fig));
+            fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
+            if (i < data.figures.size() && !data.figures[i].custom_tab_title.empty())
+                fig_mgr.set_title(id, data.figures[i].custom_tab_title);
+            if (data_interaction)
+                data_interaction->restore_overlay_snapshot(snap, *registry.get(id));
+            new_ids.push_back(id);
+        }
+        if (new_ids.empty())
+            return false;
+
+        if (fresh)
+        {
+            if (!data.theme_name.empty())
+            {
+                tm.set_theme(data.theme_name);
+                tm.apply_to_imgui();
+            }
+            if (!data.data_palette_name.empty())
+                tm.set_data_palette(data.data_palette_name);
+            if (imgui_ui)
+            {
+                auto& lm = imgui_ui->get_layout_manager();
+                lm.set_inspector_visible(data.panels.inspector_visible);
+                lm.set_nav_rail_expanded(data.panels.nav_rail_expanded);
+            }
+            if (!data.dock_state.empty() && new_ids.size() == contents.figure_blobs.size())
+            {
+                dock_system.deserialize(
+                    remap_dock_figures(data.dock_state,
+                                       [&new_ids](FigureId pos) -> std::optional<FigureId>
+                                       {
+                                           if (pos < new_ids.size())
+                                               return new_ids[static_cast<size_t>(pos)];
+                                           return std::nullopt;
+                                       }));
+            }
+            if (data_interaction)
+            {
+                data_interaction->set_crosshair(data.interaction.crosshair_enabled);
+                data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+            }
+        }
+        const size_t active =
+            std::min(static_cast<size_t>(data.active_figure_index), new_ids.size() - 1);
+        fig_mgr.queue_switch(new_ids[active]);
+        SPECTRA_LOG_INFO("document", "Opened {} ({} figure(s))", path, new_ids.size());
+        return true;
+    };
+
+    // One figure saved by Save Figure (FigureSerializer): a new tab.
+    auto open_figure_file = [&](const std::string& path) -> bool
+    {
+        auto            fig = std::make_unique<Figure>();
+        OverlaySnapshot snap;
+        if (!FigureSerializer::load(path, *fig, &snap))
+            return false;
+        const FigureId id = registry.register_figure(std::move(fig));
+        fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
+        fig_mgr.set_title(id, std::filesystem::path(path).stem().string());
+        if (data_interaction)
+            data_interaction->restore_overlay_snapshot(snap, *registry.get(id));
+        fig_mgr.queue_switch(id);
+        return true;
+    };
+
+    // Every .spectra open (File > Open, Open Recent, drag and drop, --layout)
+    // lands here and is routed by the file's contents.
+    layout_session.set_open_handler(
+        [&, open_json_layout, open_workspace_document, open_figure_file, file_name_of](
+            const std::string& path) -> bool
+        {
+            const std::string name = file_name_of(path);
+            switch (WorkspaceDocument::sniff_file(path))
+            {
+                case SpectraFileKind::Missing:
+                    toasts.error("Could not open " + name, "File not found: " + path);
+                    layout_session.recent().remove(path);
+                    return false;
+                case SpectraFileKind::WorkspaceDocument:
+                {
+                    const bool fresh = fig_mgr.count() == 0;
+                    if (!open_workspace_document(path))
+                    {
+                        toasts.error("Could not open " + name,
+                                     "The workspace file is damaged or from a newer Spectra");
+                        return false;
+                    }
+                    if (fresh)
+                        document.adopt_opened(path);
+                    layout_session.recent().push(path);
+                    toasts.success("Opened " + name, ui::ToastQueue::folder_detail(path));
+                    return true;
+                }
+                case SpectraFileKind::Figure:
+                    if (!open_figure_file(path))
+                    {
+                        toasts.error("Could not open " + name, "The figure file is damaged");
+                        return false;
+                    }
+                    layout_session.recent().push(path);
+                    toasts.success("Opened " + name, ui::ToastQueue::folder_detail(path));
+                    return true;
+                case SpectraFileKind::Json:
+                    if (!open_json_layout(path))
+                    {
+                        toasts.error("Could not open " + name, "Not a valid Spectra layout");
+                        return false;
+                    }
+                    return true;
+                case SpectraFileKind::Unknown:
+                default:
+                    toasts.error("Could not open " + name, "Not a Spectra file");
+                    return false;
+            }
         });
+    document.set_open_fn(open_workspace_document);
 
     cmds.push_back({"file.open_layout",
                     "Open Layout...",
@@ -434,7 +785,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
 
     cmds.push_back(
         {"file.load_workspace",
-         "Load Workspace",
+         "Restore Session State",
          "",
          "File",
          static_cast<uint16_t>(ui::Icon::FolderOpen),
@@ -578,7 +929,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
          }});
 
     cmds.push_back({"file.save_figure",
-                    "Save Figure",
+                    "Save Active Figure As...",
                     "",
                     "File",
                     static_cast<uint16_t>(ui::Icon::Save),
@@ -598,7 +949,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     }});
 
     cmds.push_back({"file.load_figure",
-                    "Load Figure",
+                    "Replace Active Figure from File...",
                     "",
                     "File",
                     static_cast<uint16_t>(ui::Icon::FolderOpen),

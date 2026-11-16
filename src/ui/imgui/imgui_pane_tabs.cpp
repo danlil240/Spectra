@@ -1,6 +1,7 @@
 #ifdef SPECTRA_USE_IMGUI
 
     #include "imgui_integration_internal.hpp"
+    #include "ui/workspace/document_session.hpp"
 
     #include <format>
     #include <unordered_set>
@@ -404,7 +405,18 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 title.c_str());
             draw_list->PopClipRect();
 
-            float close_vis = tr.is_hovered ? 1.0f : (tr.is_active ? 0.24f : 0.0f);
+            // Unsaved changes: a dot where the close button sits until hovered.
+            const bool tab_modified =
+                document_ && document_->is_figure_modified(static_cast<FigureId>(tr.figure_index));
+            if (tab_modified && !tr.is_hovered)
+            {
+                draw_list->AddCircleFilled(
+                    ImVec2(tr.x + tr.w - CLOSE_SZ * 0.5f - 4.0f, tr.y + tr.h * 0.5f - lift * 0.2f),
+                    3.5f,
+                    to_col(theme.warning));
+            }
+
+            float close_vis = tr.is_hovered ? 1.0f : (tr.is_active && !tab_modified ? 0.24f : 0.0f);
             if (close_vis > 0.01f)
             {
                 float cx = tr.x + tr.w - CLOSE_SZ * 0.5f - 4.0f;

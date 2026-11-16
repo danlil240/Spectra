@@ -700,6 +700,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/imgui/imgui_selection.cpp
         src/ui/imgui/imgui_dialogs.cpp
         src/ui/imgui/imgui_preview.cpp
+        src/ui/imgui/imgui_file_model.cpp
     )
 
     # GCC 14 warns on an upstream ImGui backend memset pattern; keep -Werror for
@@ -736,6 +737,10 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/commands/series_transform.cpp
         src/ui/workspace/workspace.cpp
         src/ui/workspace/workspace_autosave.cpp
+        src/ui/workspace/workspace_document.cpp
+        src/ui/workspace/document_tracker.cpp
+        src/ui/workspace/document_session.cpp
+        src/ui/overlay/toast_queue.cpp
         src/ui/workspace/layout.cpp
         src/ui/workspace/layout_session.cpp
         src/ui/commands/shortcut_config.cpp

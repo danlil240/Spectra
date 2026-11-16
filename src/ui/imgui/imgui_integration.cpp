@@ -37,6 +37,8 @@
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
+    #include "../data_sidebar/builtin_providers.hpp"
+    #include "../data_sidebar/data_sidebar.hpp"
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
     #include "../workspace/layout_session.hpp"
@@ -622,6 +624,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_axes_context_menu(figure);
         draw_topic_drop_target(figure);
         draw_log_field_drop_target(figure);
+        draw_data_field_drop_target(figure);
     }
     if (canvas_visible_)
     {
@@ -1171,6 +1174,21 @@ void ImGuiIntegration::update_plot_cursor()
     }
     plot_cursor_ = plot_cursor_for(input_handler_->tool_mode(), over, panning);
 
+    // Axis gutters (tick labels): wheel / drag there acts on that axis only.
+    AxisGutter gutter = input_handler_->gutter_drag_axis();
+    if (gutter == AxisGutter::None && !panning && !over && ImGui::IsMousePosValid(&mouse)
+        && !wants_capture_mouse() && ImGui::GetMouseCursor() == ImGuiMouseCursor_Arrow)
+    {
+        gutter = input_handler_->hit_test_gutter(mouse.x, mouse.y);
+    }
+    if (gutter != AxisGutter::None)
+    {
+        plot_cursor_ = PlotCursor::Default;
+        ImGui::SetMouseCursor(gutter == AxisGutter::X ? ImGuiMouseCursor_ResizeEW
+                                                      : ImGuiMouseCursor_ResizeNS);
+        return;
+    }
+
     switch (plot_cursor_)
     {
         case PlotCursor::Default:
@@ -1533,6 +1551,9 @@ void ImGuiIntegration::load_csv_into_dialog(const std::string& path)
         settings_store_->add_recent_file(path);
     // Opened on failure too: the picker shows csv_error_ and disables "Plot".
     csv_dialog_open_ = true;
+    // Loaded files stay browsable in the Data sidebar.
+    if (csv_data_loaded_ && data_sidebar_ && data_sidebar_->csv_provider())
+        data_sidebar_->csv_provider()->add_file(csv_file_path_, csv_data_);
 }
 
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)

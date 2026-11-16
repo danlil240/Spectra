@@ -2,9 +2,11 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
+    #include <cstdint>
     #include <functional>
     #include <spectra/axes.hpp>
     #include <spectra/fwd.hpp>
+    #include <string>
 
     #include "ui/input/selection_context.hpp"
     #include "ui/viewmodel/figure_view_model.hpp"
@@ -50,6 +52,13 @@ class Inspector
     // Undo history for property edits (not owned; may be null).
     void         set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
     UndoManager* undo_manager() const { return undo_mgr_; }
+    // Axis range edited in the X / Y AXIS "Range" fields: @p ax already has
+    // its new limits, @p old_x / @p old_y are the previous ones.  Calls of one
+    // continuous edit (a drag) share @p edit_key.  ImGuiIntegration records
+    // it in the view history and moves linked axes along.
+    using AxesLimitsEditFn = std::function<
+        void(Axes& ax, AxisLimits old_x, AxisLimits old_y, const std::string& edit_key)>;
+    void set_on_axes_limits_edited(AxesLimitsEditFn fn) { on_limits_edited_ = std::move(fn); }
 
     /// Draw plugin status section (call from app context when plugin_mgr is available).
     void draw_plugin_status(const PluginManager& plugin_mgr);
@@ -94,6 +103,12 @@ class Inspector
     AxisStyleEdit    axis_style_edit_;
     SeriesClipboard* clipboard_ = nullptr;
     DeferRemovalFn   defer_removal_;
+    AxesLimitsEditFn on_limits_edited_;
+
+    // Axis range edit in progress (one key per drag / typed edit).
+    bool     xlim_edit_active_   = false;
+    bool     ylim_edit_active_   = false;
+    uint64_t limits_edit_serial_ = 0;
 
     // Collapsible section states
     bool sec_appearance_ = true;

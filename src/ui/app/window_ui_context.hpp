@@ -29,6 +29,7 @@
     #include "ui/figures/tab_drag_controller.hpp"
     #include "ui/animation/timeline_editor.hpp"
     #include "ui/commands/undo_manager.hpp"
+    #include "ui/data_sidebar/data_sidebar.hpp"
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
     #include "ui/workspace/layout_session.hpp"
@@ -104,6 +105,10 @@ struct WindowUIContext
     // Log browser (ULog / MCAP files).  Readers come from the app's
     // LogReaderRegistry when one is wired, else the built-in set.
     ui::logs::LogBrowserPanel log_browser_panel;
+
+    // Docked Data sidebar: log files, CSV files, topics and plugin sources in
+    // one searchable tree.  Declared after the panels its providers wrap.
+    ui::data_sidebar::DataSidebar data_sidebar;
 
     // Settings panel — owned by this context, wired to the process-scoped
     // SettingsStore during window_ui_context_builder.

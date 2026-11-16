@@ -144,6 +144,15 @@ if(SPECTRA_USE_WEBGPU AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_demo.cpp)
             "SHELL:--shell-file ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_shell.html"
         )
         set_target_properties(webgpu_demo PROPERTIES SUFFIX ".html")
+        # Static picture the page shows while the wasm module downloads and
+        # as the fallback without WebGPU (webgpu_shell.html, #poster).
+        add_custom_command(TARGET webgpu_demo POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_demo_poster.png
+                $<TARGET_FILE_DIR:webgpu_demo>/webgpu_demo.poster.png
+            VERBATIM)
+        set_property(TARGET webgpu_demo APPEND PROPERTY LINK_DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/webgpu_shell.html)
     endif()
 endif()
 

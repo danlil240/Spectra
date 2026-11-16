@@ -932,13 +932,25 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             auto xmax_f = static_cast<float>(xlim.max);
             if (widgets::drag_field2("Range", xmin_f, xmax_f, 0.01f, "%.3f"))
             {
+                const AxisLimits old_x = ax.x_limits();
+                const AxisLimits old_y = ax.y_limits();
                 if (figure_vm_)
                     figure_vm_->get_or_create_axes_vm(&ax).set_visual_xlim(
                         static_cast<double>(xmin_f),
                         static_cast<double>(xmax_f));
                 else
                     ax.xlim(static_cast<double>(xmin_f), static_cast<double>(xmax_f));
+                if (!xlim_edit_active_)
+                    ++limits_edit_serial_;
+                xlim_edit_active_ = true;
+                if (on_limits_edited_)
+                    on_limits_edited_(ax,
+                                      old_x,
+                                      old_y,
+                                      "inspector-xlim:" + std::to_string(limits_edit_serial_));
             }
+            if (!ImGui::IsItemActive())
+                xlim_edit_active_ = false;
             std::string xlabel = ax.get_xlabel();
             if (widgets::text_field("Label", xlabel))
             {
@@ -961,13 +973,25 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             auto ymax_f = static_cast<float>(ylim.max);
             if (widgets::drag_field2("Range", ymin_f, ymax_f, 0.01f, "%.3f"))
             {
+                const AxisLimits old_x = ax.x_limits();
+                const AxisLimits old_y = ax.y_limits();
                 if (figure_vm_)
                     figure_vm_->get_or_create_axes_vm(&ax).set_visual_ylim(
                         static_cast<double>(ymin_f),
                         static_cast<double>(ymax_f));
                 else
                     ax.ylim(static_cast<double>(ymin_f), static_cast<double>(ymax_f));
+                if (!ylim_edit_active_)
+                    ++limits_edit_serial_;
+                ylim_edit_active_ = true;
+                if (on_limits_edited_)
+                    on_limits_edited_(ax,
+                                      old_x,
+                                      old_y,
+                                      "inspector-ylim:" + std::to_string(limits_edit_serial_));
             }
+            if (!ImGui::IsItemActive())
+                ylim_edit_active_ = false;
             std::string ylabel = ax.get_ylabel();
             if (widgets::text_field("Label", ylabel))
             {

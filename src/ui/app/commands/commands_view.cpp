@@ -46,6 +46,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
     auto&  fig_mgr          = *ui_ctx.fig_mgr;
     auto&  input_handler    = ui_ctx.input_handler;
     auto&  anim_controller  = ui_ctx.anim_controller;
+    auto&  axis_link_mgr    = ui_ctx.axis_link_mgr;
 
     // ─── Reset View ──────────────────────────────────────────────────────
     cmds.push_back({"view.reset",
@@ -57,7 +58,13 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     {
                         if (!active_figure)
                             return;
-                        auto before = capture_figure_axes(*active_figure);
+                        // 2D: one view-history entry (and undo step) with the
+                        // animation targets; 3D: its own undo step, grouped.
+                        const ViewState before2d =
+                            InputHandler::capture_figure_view(*active_figure);
+                        ViewState after2d = before2d;
+                        auto      before  = capture_figure_axes(*active_figure);
+                        before.entries.clear();
                         for (auto& ax : active_figure->axes_mut())
                         {
                             if (!ax)
@@ -74,6 +81,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                                                                 target_y,
                                                                 0.25f,
                                                                 ease::ease_out);
+                            set_axes_view(after2d, ax.get(), target_x, target_y);
                         }
                         for (auto& ax_base : active_figure->all_axes_mut())
                         {
@@ -83,9 +91,17 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                                 ax3d->auto_fit();
                         }
                         auto after = capture_figure_axes(*active_figure);
-                        undo_mgr.push(UndoAction{"Reset view",
-                                                 [before]() { restore_figure_axes(before); },
-                                                 [after]() { restore_figure_axes(after); }});
+                        after.entries.clear();
+                        undo_mgr.begin_group("Reset view");
+                        input_handler.record_view_change(active_figure,
+                                                         "Reset view",
+                                                         before2d,
+                                                         std::move(after2d));
+                        if (!before.entries3d.empty())
+                            undo_mgr.push(UndoAction{"Reset 3D view",
+                                                     [before]() { restore_figure_axes(before); },
+                                                     [after]() { restore_figure_axes(after); }});
+                        undo_mgr.end_group();
                     }});
 
     // ─── Auto-Fit ────────────────────────────────────────────────────────
@@ -102,22 +118,13 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                         else if (auto* ax = input_handler.active_axes())
                         {
-                            auto old_x = ax->x_limits();
-                            auto old_y = ax->y_limits();
+                            auto before = input_handler.capture_view(ax);
                             ax->auto_fit();
-                            auto new_x = ax->x_limits();
-                            auto new_y = ax->y_limits();
-                            undo_mgr.push(UndoAction{"Auto-fit axes",
-                                                     [ax, old_x, old_y]()
-                                                     {
-                                                         ax->xlim(old_x.min, old_x.max);
-                                                         ax->ylim(old_y.min, old_y.max);
-                                                     },
-                                                     [ax, new_x, new_y]()
-                                                     {
-                                                         ax->xlim(new_x.min, new_x.max);
-                                                         ax->ylim(new_y.min, new_y.max);
-                                                     }});
+                            axis_link_mgr.propagate_limits(ax, ax->x_limits(), ax->y_limits());
+                            input_handler.record_view_change(nullptr,
+                                                             "Auto-fit axes",
+                                                             std::move(before),
+                                                             input_handler.capture_view(ax));
                         }
                     }});
 
@@ -262,45 +269,56 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
          }});
 
     // ─── Home ────────────────────────────────────────────────────────────
-    cmds.push_back({"view.home",
-                    "Home (Restore Original View)",
-                    "Home",
-                    "View",
-                    static_cast<uint16_t>(ui::Icon::Home),
-                    [&]()
-                    {
-                        if (!active_figure)
-                            return;
-                        auto  before    = capture_figure_axes(*active_figure);
-                        auto& active_vm = fig_mgr.active_state();
-                        for (auto& ax : active_figure->axes_mut())
-                        {
-                            if (!ax)
-                                continue;
-                            auto it = active_vm.home_limits().find(ax.get());
-                            if (it != active_vm.home_limits().end())
-                            {
-                                ax->xlim(it->second.x.min, it->second.x.max);
-                                ax->ylim(it->second.y.min, it->second.y.max);
-                            }
-                            else
-                            {
-                                ax->auto_fit();
-                            }
-                        }
-                        for (auto& ax_base : active_figure->all_axes_mut())
-                        {
-                            if (ax_base)
-                            {
-                                if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
-                                    ax3d->auto_fit();
-                            }
-                        }
-                        auto after = capture_figure_axes(*active_figure);
-                        undo_mgr.push(UndoAction{"Restore original view",
-                                                 [before]() { restore_figure_axes(before); },
-                                                 [after]() { restore_figure_axes(after); }});
-                    }});
+    cmds.push_back(
+        {"view.home",
+         "Home (Restore Original View)",
+         "Home",
+         "View",
+         static_cast<uint16_t>(ui::Icon::Home),
+         [&]()
+         {
+             if (!active_figure)
+                 return;
+             const ViewState before2d = InputHandler::capture_figure_view(*active_figure);
+             auto            before   = capture_figure_axes(*active_figure);
+             before.entries.clear();
+             auto& active_vm = fig_mgr.active_state();
+             for (auto& ax : active_figure->axes_mut())
+             {
+                 if (!ax)
+                     continue;
+                 auto it = active_vm.home_limits().find(ax.get());
+                 if (it != active_vm.home_limits().end())
+                 {
+                     ax->xlim(it->second.x.min, it->second.x.max);
+                     ax->ylim(it->second.y.min, it->second.y.max);
+                 }
+                 else
+                 {
+                     ax->auto_fit();
+                 }
+             }
+             for (auto& ax_base : active_figure->all_axes_mut())
+             {
+                 if (ax_base)
+                 {
+                     if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                         ax3d->auto_fit();
+                 }
+             }
+             auto after = capture_figure_axes(*active_figure);
+             after.entries.clear();
+             undo_mgr.begin_group("Restore original view");
+             input_handler.record_view_change(active_figure,
+                                              "Restore original view",
+                                              before2d,
+                                              InputHandler::capture_figure_view(*active_figure));
+             if (!before.entries3d.empty())
+                 undo_mgr.push(UndoAction{"Restore original 3D view",
+                                          [before]() { restore_figure_axes(before); },
+                                          [after]() { restore_figure_axes(after); }});
+             undo_mgr.end_group();
+         }});
 
     // ─── Zoom helper ─────────────────────────────────────────────────────
     // Zoom by `factor` (new span / old span) about the centre of the visible
@@ -319,47 +337,20 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
 
     // ─── Keyboard view change ────────────────────────────────────────────
     // Set ax's limits, move every axes linked to it the way a mouse drag does
-    // (AxisLinkManager), and push one undo entry restoring all of them.
-    auto& axis_link_mgr = ui_ctx.axis_link_mgr;
-    auto  set_view_limits =
-        [&undo_mgr, &axis_link_mgr](Axes& ax, AxisLimits new_x, AxisLimits new_y, const char* label)
+    // (AxisLinkManager), and record one view-history entry (and undo step)
+    // covering all of them.
+    auto set_view_limits =
+        [&input_handler,
+         &axis_link_mgr](Axes& ax, AxisLimits new_x, AxisLimits new_y, const char* label)
     {
-        struct Snapshot
-        {
-            Axes*      axes;
-            AxisLimits x;
-            AxisLimits y;
-        };
-        std::vector<Axes*> touched{&ax};
-        for (Axes* peer : axis_link_mgr.linked_peers(&ax))
-            if (peer && peer != &ax)
-                touched.push_back(peer);
-
-        auto capture = [&touched]()
-        {
-            std::vector<Snapshot> snap;
-            snap.reserve(touched.size());
-            for (Axes* a : touched)
-                snap.push_back({a, a->x_limits(), a->y_limits()});
-            return snap;
-        };
-        auto restore = [](const std::vector<Snapshot>& snap)
-        {
-            for (const auto& s : snap)
-            {
-                s.axes->xlim(s.x.min, s.x.max);
-                s.axes->ylim(s.y.min, s.y.max);
-            }
-        };
-
-        auto before = capture();
+        auto before = input_handler.capture_view(&ax);
         ax.xlim(new_x.min, new_x.max);
         ax.ylim(new_y.min, new_y.max);
         axis_link_mgr.propagate_limits(&ax, ax.x_limits(), ax.y_limits());
-        auto after = capture();
-        undo_mgr.push(UndoAction{label,
-                                 [before, restore]() { restore(before); },
-                                 [after, restore]() { restore(after); }});
+        input_handler.record_view_change(nullptr,
+                                         label,
+                                         std::move(before),
+                                         input_handler.capture_view(&ax));
     };
 
     // Pan by `fx` / `fy` of the visible span, in axis space: a log axis moves
@@ -446,6 +437,25 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
     cmds.push_back(
         {"view.pan_down", "Pan Down", "Down", "View", 0, [pan_view]() { pan_view(0.0, -0.1); }});
 
+    // ─── View history (Back / Forward) ───────────────────────────────────
+    // Walk the view states of the figure under the pointer (else the active
+    // one).  Not undo steps themselves; see ui/input/view_history.hpp.
+    auto history_figure = [&input_handler, &active_figure]() -> Figure*
+    { return input_handler.figure() ? input_handler.figure() : active_figure; };
+    cmds.push_back({"view.back",
+                    "Back (Previous View)",
+                    "Alt+Left",
+                    "View",
+                    static_cast<uint16_t>(ui::Icon::ArrowLeft),
+                    [&input_handler, history_figure]()
+                    { input_handler.view_back(history_figure()); }});
+    cmds.push_back({"view.forward",
+                    "Forward (Next View)",
+                    "Alt+Right",
+                    "View",
+                    static_cast<uint16_t>(ui::Icon::ArrowRight),
+                    [&input_handler, history_figure]()
+                    { input_handler.view_forward(history_figure()); }});
     // ─── Live follow ─────────────────────────────────────────────────────
     // End: every live (presented-buffer) axes of the figure follows new data
     // again, like clicking its "Paused" pill.

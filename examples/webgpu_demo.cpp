@@ -4,9 +4,9 @@
 //   1. Native desktop rendering via Dawn
 //   2. Browser-based rendering via Emscripten/wasm
 //
-// The example creates a simple line + scatter plot and renders it either
-// to an on-screen GLFW window (Dawn native) or to an HTML5 canvas
-// (Emscripten).  The same C++ code compiles to both targets.
+// The example creates a line plot and a scatter plot (two subplots of one
+// figure) and renders them either to an on-screen GLFW window (Dawn native)
+// or to an HTML5 canvas (Emscripten).  The same C++ code compiles to both targets.
 //
 // ── Build (native with Dawn) ─────────────────────────────────────────────────
 //
@@ -106,9 +106,12 @@ int main()
 
     spectra::App app(config);
 
-    // ── Figure 1: Line plot ─────────────────────────────────────────────
-    auto& fig1 = app.figure({.width = 800, .height = 600});
-    auto& ax1  = fig1.subplot(1, 1, 1);
+    // One figure with two subplots: the browser build has a single canvas and
+    // no tab bar, so a second figure would never be reachable there.
+    auto& fig = app.figure({.width = 800, .height = 900});
+
+    // ── Top: line plot ──────────────────────────────────────────────────
+    auto& ax1 = fig.subplot(2, 1, 1);
 
     // No explicit colors: series take the theme's data palette, as in the
     // native app.
@@ -121,9 +124,8 @@ int main()
     ax1.ylabel("Amplitude");
     ax1.grid(true);
 
-    // ── Figure 2: Scatter plot ──────────────────────────────────────────
-    auto& fig2 = app.figure({.width = 640, .height = 480});
-    auto& ax2  = fig2.subplot(1, 1, 1);
+    // ── Bottom: scatter plot ────────────────────────────────────────────
+    auto& ax2 = fig.subplot(2, 1, 2);
 
     // Lissajous curve as scatter data
     std::vector<float> sx(100), sy(100);

@@ -64,8 +64,8 @@ struct EmbedConfig
     // render_to_buffer().
     bool enable_vulkan_interop = false;
 
-    // DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
-    // Affects text size and tick length.
+    // DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI): framebuffer pixels
+    // per logical pixel.  Text, ticks, margins and line widths scale with it.
     float dpi_scale = 1.0f;
 
     // Background color alpha. Set to 0.0f for transparent background
@@ -363,10 +363,19 @@ class EmbedSurface
 
     uint32_t width() const;
     uint32_t height() const;
-    float    dpi_scale() const;
-    void     set_dpi_scale(float scale);
-    float    background_alpha() const;
-    void     set_background_alpha(float alpha);
+    // Framebuffer pixels per logical pixel.  Above 1 the figure is laid out at
+    // width/scale x height/scale and drawn scale times larger, so text, ticks
+    // and lines keep their apparent size and stay sharp (HiDPI).  Input
+    // coordinates stay in framebuffer pixels.
+    float dpi_scale() const;
+    void  set_dpi_scale(float scale);
+
+    // Data coordinates under the pointer (last inject_mouse_move / button),
+    // when it is over a 2D axes.  Returns false otherwise.
+    bool cursor_data(double& data_x, double& data_y) const;
+
+    float background_alpha() const;
+    void  set_background_alpha(float alpha);
 
     // Theme of this surface ("dark", "night", "light").  Applies to this
     // surface's own ThemeManager only — other surfaces are unaffected.

@@ -1,6 +1,8 @@
-// axes_format_state.hpp — Axis scales, date-time tick mode, legend position
-// bar category names and line draw styles between the core model and IPC (snapshot fields and
-// the SET_AXIS_SCALE / SET_LEGEND_POSITION / SET_SERIES_CATEGORIES diff ops).
+// axes_format_state.hpp — Axis scales, date-time tick mode, legend position,
+// figure layout (suptitle, constrained layout, shared axes), bar category
+// names and line draw styles between the core model and IPC (snapshot fields
+// and the SET_AXIS_SCALE / SET_LEGEND_POSITION / SET_FIGURE_SUPTITLE /
+// SET_FIGURE_LAYOUT / SET_SERIES_CATEGORIES / SET_SERIES_DRAW_STYLE diff ops).
 //
 // Header-only so the app, daemon, window agent and unit tests share one copy.
 // Values read from a peer are validated (an IPC peer is untrusted).
@@ -114,6 +116,77 @@ inline DiffOp make_legend_position_op(uint64_t figure_id, LegendPosition pos)
     op.figure_id = figure_id;
     op.f1        = legend_position_to_wire(pos);
     return op;
+}
+
+// ─── Figure layout (suptitle, constrained layout, shared axes) ───────────────
+
+inline ShareAxes share_axes_from_wire(double v)
+{
+    const int i = static_cast<int>(v);
+    if (!(v >= 0.0) || i > static_cast<int>(ShareAxes::Col))
+        return ShareAxes::None;
+    return static_cast<ShareAxes>(i);
+}
+
+inline void figure_layout_to_state(const Figure& fig, SnapshotFigureState& fs)
+{
+    fs.suptitle           = fig.suptitle();
+    fs.constrained_layout = fig.style().constrained_layout ? 1 : 0;
+    fs.share_x            = static_cast<uint8_t>(fig.share_x());
+    fs.share_y            = static_cast<uint8_t>(fig.share_y());
+}
+
+// Apply the layout of a snapshot to a live figure; call after its axes exist
+// (the share modes link the axes present).
+inline void apply_figure_layout_state(Figure& fig, const SnapshotFigureState& fs)
+{
+    fig.suptitle(fs.suptitle);
+    fig.style().constrained_layout = fs.constrained_layout != 0;
+    if (fig.share_x() != share_axes_from_wire(fs.share_x))
+        fig.share_x(share_axes_from_wire(fs.share_x));
+    if (fig.share_y() != share_axes_from_wire(fs.share_y))
+        fig.share_y(share_axes_from_wire(fs.share_y));
+}
+
+inline DiffOp make_figure_suptitle_op(uint64_t figure_id, const std::string& text)
+{
+    DiffOp op;
+    op.type      = DiffOp::Type::SET_FIGURE_SUPTITLE;
+    op.figure_id = figure_id;
+    op.str_val   = text;
+    return op;
+}
+
+inline DiffOp make_figure_layout_op(uint64_t figure_id, const SnapshotFigureState& fs)
+{
+    DiffOp op;
+    op.type      = DiffOp::Type::SET_FIGURE_LAYOUT;
+    op.figure_id = figure_id;
+    op.f1        = fs.constrained_layout != 0 ? 1.0 : 0.0;
+    op.f2        = fs.share_x;
+    op.f3        = fs.share_y;
+    return op;
+}
+
+// Apply a SET_FIGURE_SUPTITLE / SET_FIGURE_LAYOUT op to snapshot state.
+inline void apply_figure_layout_op(SnapshotFigureState& fs, const DiffOp& op)
+{
+    if (op.type == DiffOp::Type::SET_FIGURE_SUPTITLE)
+    {
+        fs.suptitle = op.str_val;
+    }
+    else if (op.type == DiffOp::Type::SET_FIGURE_LAYOUT)
+    {
+        fs.constrained_layout = op.f1 != 0.0 ? 1 : 0;
+        fs.share_x            = static_cast<uint8_t>(share_axes_from_wire(op.f2));
+        fs.share_y            = static_cast<uint8_t>(share_axes_from_wire(op.f3));
+    }
+}
+
+inline bool same_figure_layout(const SnapshotFigureState& a, const SnapshotFigureState& b)
+{
+    return a.constrained_layout == b.constrained_layout && a.share_x == b.share_x
+           && a.share_y == b.share_y;
 }
 
 // ─── Bar category names ─────────────────────────────────────────────────────

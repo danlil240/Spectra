@@ -76,6 +76,10 @@ enum ChunkTag : uint16_t
     // Box style (BoxStyle) of a 3D axes.  Version-free: older readers skip it
     // and keep the default box.
     TAG_AXES3D_BOX = 0x0050,
+    // Figure layout: constrained-layout flag, sharex / sharey modes and the
+    // suptitle.  Written after the axes chunks so loading can re-link the
+    // shared axes.  Version-free: older readers skip it.
+    TAG_FIGURE_LAYOUT = 0x0051,
     // Equal aspect ("axis equal") flag of a 3D axes.  Version-free: older
     // readers skip it and show the axes with independent ranges.
     TAG_AXES3D_EQUAL = 0x0060,
@@ -808,6 +812,16 @@ bool FigureSerializer::save(const std::string&     path,
             ++axes_idx;
             continue;
         }
+    }
+
+    // Figure layout (after the axes, see TAG_FIGURE_LAYOUT)
+    {
+        auto pos = w.begin_chunk(TAG_FIGURE_LAYOUT);
+        w.write_u8(static_cast<uint8_t>(figure.style().constrained_layout));
+        w.write_u8(static_cast<uint8_t>(figure.share_x()));
+        w.write_u8(static_cast<uint8_t>(figure.share_y()));
+        w.write_string(figure.suptitle());
+        w.end_chunk(pos);
     }
 
     // Write overlay state (if provided)
@@ -1861,6 +1875,24 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                                           : nullptr;
                 if (axes && r.good() && style <= static_cast<uint8_t>(BoxStyle::None))
                     axes->box_style(static_cast<BoxStyle>(style));
+                break;
+            }
+
+            case TAG_FIGURE_LAYOUT:
+            {
+                auto share_mode = [](uint8_t v) {
+                    return v <= static_cast<uint8_t>(ShareAxes::Col) ? static_cast<ShareAxes>(v)
+                                                                     : ShareAxes::None;
+                };
+                figure.style().constrained_layout = r.read_u8() != 0;
+                const ShareAxes sx                = share_mode(r.read_u8());
+                const ShareAxes sy                = share_mode(r.read_u8());
+                figure.suptitle(r.read_string());
+                if (r.good())
+                {
+                    figure.share_x(sx);
+                    figure.share_y(sy);
+                }
                 break;
             }
 

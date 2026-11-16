@@ -18,8 +18,10 @@ legend, xlim/ylim, xscale/yscale, grid, savefig, show, close, gcf/gca and the
 matching ``Axes`` methods.  Format strings ("r--o"), ``linestyle=`` and
 ``marker=`` are honoured.  Keyword arguments Spectra cannot honour (dash
 tuples, per-point colours, ``bbox_inches`` ...) are ignored with one
-``UserWarning`` per function and argument.  ``tight_layout`` is a no-op: the
-layout is always computed automatically.
+``UserWarning`` per function and argument.  Subplot spacing is fitted to the
+labels (constrained layout, on by default); ``tight_layout`` turns it back on.
+``subplots(sharex=..., sharey=...)`` links axis limits and ``suptitle`` draws
+a title above the subplot grid.
 """
 
 from __future__ import annotations
@@ -174,11 +176,14 @@ class Figure:
             _sp._state._current_fig = prev
 
     def suptitle(self, t: str, **kwargs) -> None:
+        """Title centred above all subplots of the figure."""
         _ignore("suptitle", kwargs)
-        self._fig.title = str(t)
+        self._fig.suptitle(str(t))
 
     def tight_layout(self, *args, **kwargs) -> None:
-        """No-op: Spectra lays subplots out automatically."""
+        """Fit the subplot spacing to the labels (constrained layout)."""
+        _ignore("tight_layout", kwargs)
+        self._fig.tight_layout()
 
     def show(self) -> None:
         show()
@@ -244,10 +249,13 @@ def subplots(nrows: int = 1, ncols: int = 1, figsize=None, dpi=None, squeeze: bo
 
     With ``squeeze`` a 1x1 grid gives one Axes, a single row/column a 1-D
     sequence and anything else a 2-D array (NumPy object array when NumPy is
-    installed, else a list of rows).
+    installed, else a list of rows).  ``sharex`` / ``sharey`` (True/"all",
+    "row", "col", False/"none") link axis limits and keep tick labels on the
+    outer axes only; ``layout="constrained"`` / ``constrained_layout`` choose
+    whether the spacing is fitted to the labels (on by default).
     """
-    if sharex or sharey:
-        _ignore("subplots", {"sharex" if sharex else "sharey": True})
+    layout = kwargs.pop("layout", None)
+    constrained = kwargs.pop("constrained_layout", None)
     _ignore("subplots", kwargs)
     fig = figure(figsize=figsize, dpi=dpi)
     grid = []
@@ -258,6 +266,11 @@ def subplots(nrows: int = 1, ncols: int = 1, figsize=None, dpi=None, squeeze: bo
             row.append(Axes(fig, _sp.subplot(nrows, ncols, index), (nrows, ncols, index)))
         grid.append(row)
     fig.axes = [a for row in grid for a in row]
+    if sharex or sharey:
+        _sp._share_axes(fig._fig, [a._ax for a in fig.axes], ncols, sharex, sharey)
+    if layout is not None or constrained is not None:
+        on = bool(constrained) if constrained is not None else layout in ("constrained", "tight")
+        fig._fig.set_layout(constrained=on)
     # The first axes is current, like matplotlib after subplots().
     grid[0][0]._activate()
     if squeeze and nrows == 1 and ncols == 1:
@@ -318,7 +331,8 @@ def show(*args, **kwargs) -> None:
 
 
 def tight_layout(*args, **kwargs) -> None:
-    """No-op: Spectra lays subplots out automatically."""
+    """Fit the subplot spacing of the current figure to its labels (constrained layout)."""
+    gcf().tight_layout(*args, **kwargs)
 
 
 def savefig(fname, dpi=None, format=None, **kwargs):

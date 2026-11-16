@@ -127,6 +127,13 @@ void Inspector::draw_figure_properties(Figure& fig)
     ImGui::PopStyleColor();
 
     widgets::section_spacing();
+    widgets::begin_group("fig_suptitle");
+    std::string suptitle = fig.suptitle();
+    if (widgets::text_field("Suptitle", suptitle))
+        fig.suptitle(suptitle);
+    widgets::end_group();
+
+    widgets::section_spacing();
     widgets::separator();
     widgets::section_spacing();
 
@@ -171,11 +178,16 @@ void Inspector::draw_figure_properties(Figure& fig)
     }
 
     // ── Margins section
-    if (widgets::section_header("MARGINS", &sec_margins_, font_heading_))
+    if (widgets::section_header("LAYOUT", &sec_margins_, font_heading_))
     {
-        if (widgets::begin_animated_section("MARGINS"))
+        if (widgets::begin_animated_section("LAYOUT"))
         {
             widgets::begin_group("margins");
+            widgets::checkbox_field("Fit Labels", sty.constrained_layout);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(
+                    "Constrained layout: margins and gaps grow so tick labels, axis labels\n"
+                    "and titles never overlap neighbouring subplots (values below are minimums)");
             widgets::drag_field("Top", sty.margin_top, 0.5f, 0.0f, 200.0f, "%.0f px");
             widgets::drag_field("Bottom", sty.margin_bottom, 0.5f, 0.0f, 200.0f, "%.0f px");
             widgets::drag_field("Left", sty.margin_left, 0.5f, 0.0f, 200.0f, "%.0f px");
@@ -189,6 +201,14 @@ void Inspector::draw_figure_properties(Figure& fig)
                                 0.0f,
                                 1000.0f,
                                 "%.0f px");
+            widgets::section_spacing();
+            static constexpr const char* SHARE_ITEMS[] = {"None", "All", "Row", "Column"};
+            int                          share_x       = static_cast<int>(fig.share_x());
+            if (widgets::combo_field("Share X", share_x, SHARE_ITEMS, 4))
+                fig.share_x(static_cast<ShareAxes>(share_x));
+            int share_y = static_cast<int>(fig.share_y());
+            if (widgets::combo_field("Share Y", share_y, SHARE_ITEMS, 4))
+                fig.share_y(static_cast<ShareAxes>(share_y));
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();

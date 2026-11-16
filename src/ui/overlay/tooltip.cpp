@@ -10,7 +10,10 @@
     #include <span>
     #include <string_view>
     #include <spectra/axes3d.hpp>
+    #include <spectra/series_image.hpp>
+    #include <spectra/series_stats.hpp>
 
+    #include "axis_readout.hpp"
     #include "overlay_text_fit.hpp"
     #include "readout_format.hpp"
     #include "ui/theme/design_tokens.hpp"
@@ -20,6 +23,90 @@ namespace spectra
 {
 
 namespace overlay_fit = ui::overlay_fit;
+
+std::vector<TooltipRow> tooltip_rows(const NearestPointResult& nearest)
+{
+    using ui::format_axis_value;
+    using ui::ReadoutAxis;
+    const Axes*             ax = nearest.axes;
+    std::vector<TooltipRow> rows;
+    const auto x_str = [&](double v) { return format_axis_value(ax, ReadoutAxis::X, v); };
+    const auto y_str = [&](double v) { return format_axis_value(ax, ReadoutAxis::Y, v); };
+
+    switch (nearest.kind)
+    {
+        case HoverHitKind::Vertex:
+        case HoverHitKind::Segment:
+            rows.push_back({"X", x_str(nearest.data_x)});
+            rows.push_back({nearest.kind == HoverHitKind::Segment ? "Y (interp.)" : "Y",
+                            y_str(nearest.data_y)});
+            if (nearest.dy_dx_valid)
+                rows.push_back({"dy/dx", std::format("{:.6g}", nearest.dy_dx)});
+            break;
+        case HoverHitKind::Bar:
+        {
+            const auto* bars = dynamic_cast<const BarSeries*>(nearest.series);
+            const bool  vert = !bars || bars->orientation() == BarOrientation::Vertical;
+            std::string pos  = vert ? x_str(nearest.data_x) : y_str(nearest.data_y);
+            if (bars && nearest.point_index < bars->categories().size()
+                && !bars->categories()[nearest.point_index].empty())
+                pos = bars->categories()[nearest.point_index];
+            rows.push_back({vert ? "X" : "Y", pos});
+            rows.push_back({"Value", ui::format_readout_value(nearest.value, 6)});
+            break;
+        }
+        case HoverHitKind::Bin:
+        {
+            const auto* hist  = dynamic_cast<const HistogramSeries*>(nearest.series);
+            const bool  last  = hist && nearest.point_index + 1 >= hist->bin_counts().size();
+            const char* label = "Count";
+            if (hist && hist->cumulative())
+                label = hist->density() ? "Cum. fraction" : "Cum. count";
+            else if (hist && hist->density())
+                label = "Density";
+            rows.push_back({"Bin",
+                            "[" + x_str(nearest.range_lo) + ", " + x_str(nearest.range_hi)
+                                + (last ? "]" : ")")});
+            rows.push_back({label, ui::format_readout_value(nearest.value, 6)});
+            break;
+        }
+        case HoverHitKind::Pixel:
+        {
+            const auto* img = dynamic_cast<const ImageSeries*>(nearest.series);
+            std::string xs  = x_str(nearest.data_x);
+            std::string ys  = y_str(nearest.data_y);
+            if (img && nearest.cell_col < img->x_categories().size())
+                xs = img->x_categories()[nearest.cell_col];
+            if (img && nearest.cell_row < img->y_categories().size())
+                ys = img->y_categories()[nearest.cell_row];
+            rows.push_back({"X", xs});
+            rows.push_back({"Y", ys});
+            if (nearest.has_value)
+            {
+                rows.push_back({"Value", ui::format_readout_value(nearest.value, 6)});
+            }
+            else if (img && img->is_rgba())
+            {
+                const auto   px = img->data();
+                const size_t ch = static_cast<size_t>(img->channels());
+                const size_t at = (nearest.cell_row * img->cols() + nearest.cell_col) * ch;
+                if (at + 2 < px.size())
+                    rows.push_back(
+                        {"RGB",
+                         std::format("{:.3g}, {:.3g}, {:.3g}", px[at], px[at + 1], px[at + 2])});
+            }
+            rows.push_back(
+                {"Cell", std::format("col {}, row {}", nearest.cell_col, nearest.cell_row)});
+            break;
+        }
+        case HoverHitKind::Contour:
+            rows.push_back({"Level", ui::format_readout_value(nearest.value, 6)});
+            rows.push_back({"X", x_str(nearest.data_x)});
+            rows.push_back({"Y", y_str(nearest.data_y)});
+            break;
+    }
+    return rows;
+}
 
 void Tooltip::set_fonts(ImFont* body, ImFont* heading)
 {
@@ -97,16 +184,8 @@ void Tooltip::draw(const NearestPointResult& nearest,
 
     const auto& colors = theme_mgr_->colors();
 
-    // Format coordinate strings.  Large values (epoch timestamps, big
-    // offsets) use fixed notation instead of lossy scientific form.
-    const std::string x_buf = ui::format_readout_value(nearest.data_x, 6);
-    const std::string y_buf = ui::format_readout_value(nearest.data_y, 6);
-
-    // Format dy/dx value (label rendered separately)
-    std::string dydx_value;
-    bool        show_dydx = nearest.dy_dx_valid;
-    if (show_dydx)
-        dydx_value = std::format("{:.6g}", nearest.dy_dx);
+    // Label / value rows (date-time aware, per hit kind).
+    const std::vector<TooltipRow> rows = tooltip_rows(nearest);
 
     const std::string series_name_str = tooltip_series_name(nearest);
     Color             series_color    = colors::gray;
@@ -123,37 +202,37 @@ void Tooltip::draw(const NearestPointResult& nearest,
     float   font_sz   = body_font->LegacySize;
     float   row_h     = font_sz + 4.0f;
 
-    // Format label/value pairs
-    const char* lbl_x    = "X";
-    const char* lbl_y    = "Y";
-    const char* lbl_dydx = "dy/dx";
-
     // Fit the content to the window: values keep their full width, labels and
     // the series name (wrapped) share what is left.
     const overlay_fit::MeasureFn measure = [&](std::string_view s)
     { return body_font->CalcTextSizeA(font_sz, FLT_MAX, 0.0f, s.data(), s.data() + s.size()).x; };
     const float name_prefix_w = swatch_r * 2.0f + 6.0f;
     const float max_content_w = window_width - 2.0f * overlay_fit::WINDOW_MARGIN - padding * 2.0f;
-    const std::string_view labels_in[] = {lbl_x, lbl_y, lbl_dydx};
-    const std::string_view values_in[] = {x_buf, y_buf, dydx_value};
-    const size_t           n_rows      = show_dydx ? 3 : 2;
-    const auto             fit         = overlay_fit::fit_tooltip_content(series_name_str,
+    std::vector<std::string_view> labels_in;
+    std::vector<std::string_view> values_in;
+    for (const auto& r : rows)
+    {
+        labels_in.emplace_back(r.label);
+        values_in.emplace_back(r.value);
+    }
+    const size_t n_rows    = rows.size();
+    const auto   fit       = overlay_fit::fit_tooltip_content(series_name_str,
                                                       name_prefix_w,
-                                                      std::span(labels_in, n_rows),
-                                                      std::span(values_in, n_rows),
+                                                      std::span(labels_in),
+                                                      std::span(values_in),
                                                       col_gap,
                                                       min_width,
                                                       max_content_w,
                                                       overlay_fit::MAX_NAME_LINES,
                                                       measure);
-    const float            lbl_w       = fit.label_w;
-    const float            content_w   = fit.content_w;
-    const int              name_rows   = static_cast<int>(fit.name_lines.size());
-    int                    data_rows   = static_cast<int>(n_rows);
-    float                  divider_h   = 6.0f;
-    float                  tooltip_w   = content_w + padding * 2.0f;
-    float tooltip_h = padding * 2.0f + row_h * static_cast<float>(name_rows)   // name rows
-                      + divider_h                                              // separator gap
+    const float  lbl_w     = fit.label_w;
+    const float  content_w = fit.content_w;
+    const int    name_rows = static_cast<int>(fit.name_lines.size());
+    int          data_rows = static_cast<int>(n_rows);
+    float        divider_h = 6.0f;
+    float        tooltip_w = content_w + padding * 2.0f;
+    float        tooltip_h = padding * 2.0f + row_h * static_cast<float>(name_rows)   // name rows
+                      + divider_h   // separator gap
                       + row_h * static_cast<float>(data_rows);
 
     // Position: above-right of the snap point, flipped/clamped to the window.
@@ -280,10 +359,8 @@ void Tooltip::draw(const NearestPointResult& nearest,
                         value);
         };
 
-        draw_data_row(0, fit.labels[0].c_str(), x_buf.c_str());
-        draw_data_row(1, fit.labels[1].c_str(), y_buf.c_str());
-        if (show_dydx)
-            draw_data_row(2, fit.labels[2].c_str(), dydx_value.c_str());
+        for (size_t i = 0; i < n_rows && i < fit.labels.size(); ++i)
+            draw_data_row(static_cast<int>(i), fit.labels[i].c_str(), rows[i].value.c_str());
     }
 
     // Draw triangular arrow pointer toward data point

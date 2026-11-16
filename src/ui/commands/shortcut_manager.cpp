@@ -368,6 +368,7 @@ void ShortcutManager::register_defaults()
     bind({KEY_A, KeyMod::None}, "view.autofit");
     bind({KEY_G, KeyMod::None}, "view.toggle_grid");
     bind({KEY_C, KeyMod::None}, "view.toggle_crosshair");
+    bind({KEY_C, KeyMod::Shift}, "view.toggle_compare_at_x");
     bind({KEY_F, KeyMod::None}, "view.fullscreen");
     bind({KEY_HOME, KeyMod::None}, "view.home");
     bind({KEY_END, KeyMod::None}, "view.follow_live");

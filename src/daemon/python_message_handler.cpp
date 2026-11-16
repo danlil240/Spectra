@@ -116,6 +116,18 @@ static bool apply_property_update(FigureModel&              fig_model,
     {
         diff.ops.push_back(fig_model.set_figure_title(figure_id, str_val));
     }
+    else if (property == "suptitle")
+    {
+        diff.ops.push_back(fig_model.set_figure_suptitle(figure_id, str_val));
+    }
+    else if (property == "figure_layout")
+    {
+        // f1 = constrained layout (0/1), f2 / f3 = sharex / sharey (spectra::ShareAxes).
+        diff.ops.push_back(fig_model.set_figure_layout(figure_id,
+                                                       f1 != 0.0,
+                                                       ipc::share_axes_from_wire(f2),
+                                                       ipc::share_axes_from_wire(f3)));
+    }
     else if (property == "grid")
     {
         diff.ops.push_back(fig_model.set_grid_visible(figure_id, axes_index, bool_val));
@@ -491,12 +503,13 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {
-        "color",       "color_letter",   "xlim",         "ylim",           "zlim",
-        "title",       "grid",           "visible",      "line_width",     "marker_size",
-        "opacity",     "xlabel",         "ylabel",       "axes_title",     "label",
-        "legend",      "legend_visible", "add_knob",     "annotation",     "clear_annotations",
-        "data_origin", "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
-        "categories",  "line_style",     "marker_style", "palette_index",  "draw_style"};
+        "color",         "color_letter",   "xlim",         "ylim",           "zlim",
+        "title",         "grid",           "visible",      "line_width",     "marker_size",
+        "opacity",       "xlabel",         "ylabel",       "axes_title",     "label",
+        "legend",        "legend_visible", "add_knob",     "annotation",     "clear_annotations",
+        "data_origin",   "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
+        "categories",    "line_style",     "marker_style", "palette_index",  "suptitle",
+        "figure_layout", "draw_style"};
     bool known = false;
     for (const auto* p : known_props)
     {

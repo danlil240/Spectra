@@ -493,6 +493,8 @@ void App::run_multiproc()
     std::unordered_map<AxisLimitsKey, ipc::SnapshotAxisState, AxisLimitsKeyHash, AxisLimitsKeyEq>
                                           sent_formats;
     std::unordered_map<uint64_t, uint8_t> sent_legend_pos;
+    // Last-sent suptitle / layout (constrained, share modes) per figure.
+    std::unordered_map<uint64_t, ipc::SnapshotFigureState> sent_layout;
     std::unordered_map<AxisLimitsKey, std::vector<std::string>, AxisLimitsKeyHash, AxisLimitsKeyEq>
         sent_categories;
     // Last-sent line draw style / dense mode per (figure, figure-wide series index).
@@ -510,6 +512,14 @@ void App::run_multiproc()
             sent_formats[key]     = fs.axes[ai];
         }
         sent_legend_pos[fs.figure_id] = fs.legend_position;
+        {
+            ipc::SnapshotFigureState lay;
+            lay.suptitle              = fs.suptitle;
+            lay.constrained_layout    = fs.constrained_layout;
+            lay.share_x               = fs.share_x;
+            lay.share_y               = fs.share_y;
+            sent_layout[fs.figure_id] = std::move(lay);
+        }
         for (size_t si = 0; si < fs.series.size(); ++si)
         {
             sent_categories[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(si)}] =
@@ -727,6 +737,22 @@ void App::run_multiproc()
                                 ipc::make_legend_position_op(reg_to_ipc[id],
                                                              fig->legend().position));
                             lp->second = pos;
+                        }
+                    }
+
+                    // Suptitle and layout (constrained layout, shared axes).
+                    {
+                        ipc::SnapshotFigureState now;
+                        ipc::figure_layout_to_state(*fig, now);
+                        auto [sl, inserted] = sent_layout.try_emplace(reg_to_ipc[id], now);
+                        if (!inserted)
+                        {
+                            if (sl->second.suptitle != now.suptitle)
+                                diff.ops.push_back(
+                                    ipc::make_figure_suptitle_op(reg_to_ipc[id], now.suptitle));
+                            if (!ipc::same_figure_layout(sl->second, now))
+                                diff.ops.push_back(ipc::make_figure_layout_op(reg_to_ipc[id], now));
+                            sl->second = std::move(now);
                         }
                     }
 

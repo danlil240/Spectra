@@ -488,7 +488,9 @@ static flatbuffers::Offset<fb::SnapshotFigureState> build_fb_figure(
     flatbuffers::FlatBufferBuilder& fbb,
     const SnapshotFigureState&      fig)
 {
-    auto title_off = fbb.CreateString(fig.title);
+    auto       title_off    = fbb.CreateString(fig.title);
+    const auto suptitle_off = fig.suptitle.empty() ? flatbuffers::Offset<flatbuffers::String>()
+                                                   : fbb.CreateString(fig.suptitle);
 
     std::vector<flatbuffers::Offset<fb::SnapshotAxisState>> axes_offsets;
     axes_offsets.reserve(fig.axes.size());
@@ -514,20 +516,30 @@ static flatbuffers::Offset<fb::SnapshotFigureState> build_fb_figure(
     b.add_series(series_off);
     b.add_live_fps(fig.live_fps);
     b.add_legend_position(fig.legend_position);
+    if (!fig.suptitle.empty())
+        b.add_suptitle(suptitle_off);
+    b.add_constrained_layout(fig.constrained_layout);
+    b.add_share_x(fig.share_x);
+    b.add_share_y(fig.share_y);
     return b.Finish();
 }
 
 static SnapshotFigureState read_fb_figure(const fb::SnapshotFigureState* fb)
 {
     SnapshotFigureState fig;
-    fig.figure_id       = fb->figure_id();
-    fig.width           = fb->width();
-    fig.height          = fb->height();
-    fig.grid_rows       = fb->grid_rows();
-    fig.grid_cols       = fb->grid_cols();
-    fig.window_group    = fb->window_group();
-    fig.live_fps        = fb->live_fps();
-    fig.legend_position = fb->legend_position();
+    fig.figure_id          = fb->figure_id();
+    fig.width              = fb->width();
+    fig.height             = fb->height();
+    fig.grid_rows          = fb->grid_rows();
+    fig.grid_cols          = fb->grid_cols();
+    fig.window_group       = fb->window_group();
+    fig.live_fps           = fb->live_fps();
+    fig.legend_position    = fb->legend_position();
+    fig.constrained_layout = fb->constrained_layout();
+    fig.share_x            = fb->share_x();
+    fig.share_y            = fb->share_y();
+    if (fb->suptitle())
+        fig.suptitle = fb->suptitle()->str();
     if (fb->title())
         fig.title = fb->title()->str();
     if (fb->axes())

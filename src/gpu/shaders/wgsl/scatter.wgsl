@@ -119,12 +119,13 @@ fn vs_colormap(
 
 @group(2) @binding(0) var lut_tex : texture_2d<f32>;
 
-// Nearest entry min(int(t * n), n - 1), as Colormap::sample().
-fn apply_colormap(t_in: f32) -> vec3<f32> {
+// Nearest entry min(int(t * n), n - 1), as Colormap::sample().  Alpha is the
+// table's (user colormaps may be translucent).
+fn apply_colormap(t_in: f32) -> vec4<f32> {
     let t   = clamp(t_in, 0.0, 1.0);
     let n   = i32(textureDimensions(lut_tex).x);
     let idx = clamp(i32(t * f32(n)), 0, n - 1);
-    return textureLoad(lut_tex, vec2<i32>(idx, 0), 0).rgb;
+    return textureLoad(lut_tex, vec2<i32>(idx, 0), 0);
 }
 
 // WGSL has no isnan/isinf; NaN fails every comparison with itself.
@@ -215,14 +216,14 @@ fn sdf_hexagon(p_in: vec2<f32>) -> f32 {
 // PipelineType::Scatter: one colour per series.
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return shade_marker(in, series_pc.color.rgb);
+    return shade_marker(in, series_pc.color);
 }
 
 // PipelineType::ScatterColormap: _pad2.x > 0.5 and dash_count > 0 map the
 // per-point value over dash_pattern[0..1] through the group 2 lookup table.
 @fragment
 fn fs_colormap(in: VertexOutput) -> @location(0) vec4<f32> {
-    var base_color = series_pc.color.rgb;
+    var base_color = series_pc.color;
     if series_pc._pad2.x > 0.5 && series_pc.dash_count > 0 && is_finite(in.v_color_value) {
         let value_min = series_pc.dash_pattern[0];
         let value_max = series_pc.dash_pattern[1];
@@ -231,13 +232,15 @@ fn fs_colormap(in: VertexOutput) -> @location(0) vec4<f32> {
         if abs(range) > 1e-20 {
             t = (in.v_color_value - value_min) / range;
         }
-        base_color = apply_colormap(t);
+        let lut    = apply_colormap(t);
+        base_color = vec4<f32>(lut.rgb, base_color.a * lut.a);
     }
     return shade_marker(in, base_color);
 }
 
-// Marker shape, antialiasing and default-dot rim around base_color_in.
-fn shade_marker(in: VertexOutput, base_color_in: vec3<f32>) -> vec4<f32> {
+// Marker shape, antialiasing and default-dot rim around base_color_in (rgb;
+// a = colour alpha before opacity and coverage).
+fn shade_marker(in: VertexOutput, base_color_in: vec4<f32>) -> vec4<f32> {
     let aa       = clamp(2.5 / series_pc.point_size, 0.01, 0.15);
     let stroke_w = clamp(4.0 / series_pc.point_size, 0.08, 0.25);
     let mt       = series_pc.marker_type;
@@ -281,7 +284,7 @@ fn shade_marker(in: VertexOutput, base_color_in: vec3<f32>) -> vec4<f32> {
 
     if alpha < 0.002 { discard; }
 
-    var base_color = base_color_in;
+    var base_color = base_color_in.rgb;
 
     // Default scatter dot: tint a ~1 px rim towards white (_pad2.y > 0) or
     // black (_pad2.y < 0) so dark or light colors stay visible on the canvas.
@@ -295,5 +298,5 @@ fn shade_marker(in: VertexOutput, base_color_in: vec3<f32>) -> vec4<f32> {
         base_color = mix(base_color, mix(base_color, edge_target, abs(series_pc._pad2.y)), rim);
     }
 
-    return vec4<f32>(base_color, series_pc.color.a * series_pc.opacity * alpha);
+    return vec4<f32>(base_color, base_color_in.a * series_pc.opacity * alpha);
 }

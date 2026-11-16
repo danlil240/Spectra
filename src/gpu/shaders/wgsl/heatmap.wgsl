@@ -87,14 +87,15 @@ fn vs_main(
 @group(2) @binding(0) var lut_tex : texture_2d<f32>;
 
 // Nearest entry min(int(t * n), n - 1), as Colormap::sample().
-fn apply_colormap(t_in: f32) -> vec3<f32> {
+fn apply_colormap(t_in: f32) -> vec4<f32> {
     let t   = clamp(t_in, 0.0, 1.0);
     let n   = i32(textureDimensions(lut_tex).x);
     let idx = clamp(i32(t * f32(n)), 0, n - 1);
-    return textureLoad(lut_tex, vec2<i32>(idx, 0), 0).rgb;
+    return textureLoad(lut_tex, vec2<i32>(idx, 0), 0);
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(apply_colormap(in.v_value), series_pc.opacity);
+    let lut = apply_colormap(in.v_value);
+    return vec4<f32>(lut.rgb, lut.a * series_pc.opacity);
 }

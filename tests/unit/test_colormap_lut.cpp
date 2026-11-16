@@ -280,6 +280,37 @@ TEST(ColormapLut, FromColorsInterpolates)
     EXPECT_TRUE(Colormap::from_colors({}).is_none());
 }
 
+TEST(ColormapLut, UserTableAlphaReachesTheLut)
+{
+    const std::vector<Color> stops = {{1.0f, 0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
+    const Colormap           cm    = Colormap::from_colors(stops);
+    EXPECT_TRUE(cm.has_transparency());
+    EXPECT_NEAR(cm.sample(0.0f).a, 0.0f, 1e-6f);
+    EXPECT_NEAR(cm.sample(1.0f).a, 1.0f, 1e-6f);
+    EXPECT_NEAR(cm.sample(0.5f).a, 128.0f / 255.0f, 1e-3f);
+
+    // The texture every shader reads carries the alpha (reversed too).
+    const auto lut = cm.rgba8();
+    EXPECT_EQ(lut[3], 0);
+    EXPECT_EQ(lut[(Colormap::LUT_SIZE - 1) * 4 + 3], 255);
+    const auto rev = cm.reversed(true).rgba8();
+    EXPECT_EQ(rev[3], 255);
+    EXPECT_EQ(rev[(Colormap::LUT_SIZE - 1) * 4 + 3], 0);
+    const auto img = image_colormap::build_lut(cm, {});
+    EXPECT_EQ(img[3], 0);
+
+    // Opaque tables are not transparent.
+    for (ColormapType type : builtin_colormaps())
+        EXPECT_FALSE(Colormap(type).has_transparency()) << colormap_name(type);
+    const std::vector<Color> opaque = {{1.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f, 1.0f}};
+    EXPECT_FALSE(Colormap::from_colors(opaque).has_transparency());
+
+    // A surface with a translucent colormap takes the transparent (sorted) path.
+    SurfaceSeries surface;
+    EXPECT_FALSE(surface.colormap(ColormapType::Viridis).is_transparent());
+    EXPECT_TRUE(surface.colormap(cm).is_transparent());
+}
+
 // One t gives one colour for scatter, surface, image, contour and the colorbar.
 TEST(ColormapLut, SameColourAcrossSeriesTypes)
 {

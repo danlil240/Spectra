@@ -373,7 +373,11 @@ class SurfaceSeries : public Series
         cmap_alpha_max_ = max_alpha;
     }
 
-    bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f || colormap_alpha_; }
+    bool is_transparent() const
+    {
+        return (color_.a * style_.opacity) < 0.99f || colormap_alpha_
+               || colormap_.has_transparency();
+    }
 
    private:
     std::vector<float> x_grid_;

@@ -145,6 +145,17 @@ Color Colormap::sample(float t) const
                  1.0f};
 }
 
+bool Colormap::has_transparency() const
+{
+    if (type_ != ColormapType::Custom || !custom_)
+        return false;
+    // The same 8-bit rounding as rgba8(): what the shader sees.
+    return std::any_of(custom_->begin(),
+                       custom_->end(),
+                       [](const Color& c)
+                       { return std::lround(std::clamp(c.a, 0.0f, 1.0f) * 255.0f) < 255; });
+}
+
 std::array<uint8_t, Colormap::LUT_SIZE * 4> Colormap::rgba8() const
 {
     std::array<uint8_t, LUT_SIZE * 4> out{};

@@ -304,8 +304,10 @@ void Renderer::render_series(Series&             series,
             auto* surface = static_cast<SurfaceSeries*>(&series);
             if (gpu.index_buffer)
             {
-                bool is_transparent =
-                    (pc.color[3] * pc.opacity) < 0.99f || surface->colormap_alpha();
+                // A translucent user colormap needs the sorted, no-depth-write pipeline too.
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f
+                                      || surface->colormap_alpha()
+                                      || surface->cmap().has_transparency();
                 // Colormap (see surface3d.frag): the lookup table is set 2, bound
                 // for every surface draw since the shader always declares it;
                 // dash_count = 1 enables it, dash_pattern[0..1] = data value

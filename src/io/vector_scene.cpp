@@ -759,7 +759,8 @@ void emit_markers(SceneContext&             c,
         if (i < colors.size())
         {
             VectorStyle own;
-            own.color = colors[i];
+            own.color   = colors[i];
+            own.opacity = clamp01(colors[i].a);   // translucent user colormap entries
             c.w.use_marker(8, id, px, py, own);
         }
         else
@@ -1026,7 +1027,8 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
             for (float v : vals)
             {
                 const float t = std::fabs(range) > 1e-20f ? (v - lo) / range : 0.5f;
-                per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->cmap(), t) : col);
+                per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->cmap(), t)
+                                                     : Color{col.r, col.g, col.b, 1.0f});
             }
         }
         // Same marker as the renderer; the colormap is drawn when the

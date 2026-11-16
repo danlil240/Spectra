@@ -60,7 +60,13 @@ class Colormap
     /// sample as gray.
     Color sample(float t) const;
 
-    /// The lookup table as LUT_SIZE RGBA8 entries (alpha 255), reversal applied.
+    /// True when some entry is not fully opaque (only user tables can be).
+    /// Colormapped surfaces then draw with the transparent pipeline.
+    bool has_transparency() const;
+
+    /// The lookup table as LUT_SIZE RGBA8 entries, reversal applied.  Alpha is
+    /// 255 for built-in maps and the colours' alpha for a user table; shaders
+    /// multiply it into the series opacity.
     std::array<uint8_t, LUT_SIZE * 4> rgba8() const;
 
     /// Name accepted by from_name(): "viridis", "RdBu_r", "custom".

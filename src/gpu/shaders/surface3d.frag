@@ -46,11 +46,13 @@ layout(set = 2, binding = 0) uniform sampler2D lut_tex;
 // mapped onto it (SurfaceSeries::colormap_min/max), dash_pattern[2] > 0.5
 // enables colormap alpha, dash_pattern[3..4] = alpha at the low / high end.
 // Nearest entry min(int(t * n), n - 1), as Colormap::sample() and image2d.frag.
-vec3 apply_colormap(float t) {
+// Alpha is the table's (user colormaps may be translucent); it multiplies the
+// series opacity and the colormap alpha ramp.
+vec4 apply_colormap(float t) {
     t       = clamp(t, 0.0, 1.0);
     int n   = textureSize(lut_tex, 0).x;
     int idx = clamp(int(t * float(n)), 0, n - 1);
-    return texelFetch(lut_tex, ivec2(idx, 0), 0).rgb;
+    return texelFetch(lut_tex, ivec2(idx, 0), 0);
 }
 
 void main() {
@@ -85,11 +87,13 @@ void main() {
     }
 
     // Determine base color: use colormap if dash_count > 0, else push constant color
-    vec3 base_color = color.rgb;
+    vec3  base_color = color.rgb;
+    float alpha      = color.a * opacity;
     if (dash_count > 0) {
-        base_color = apply_colormap(t);
+        vec4 lut   = apply_colormap(t);
+        base_color = lut.rgb;
+        alpha *= lut.a;
     }
-    float alpha = color.a * opacity;
     if (alpha_map) {
         alpha *= mix(dash_pattern[3], dash_pattern[4], t);
     }

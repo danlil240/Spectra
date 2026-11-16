@@ -29,11 +29,12 @@ layout(location = 0) out vec4 out_color;
 layout(set = 2, binding = 0) uniform sampler2D lut_tex;
 
 // Nearest entry min(int(t * n), n - 1), as Colormap::sample() and image2d.frag.
-vec3 apply_colormap(float t) {
+// Alpha is the table's (user colormaps may be translucent).
+vec4 apply_colormap(float t) {
     t       = clamp(t, 0.0, 1.0);
     int n   = textureSize(lut_tex, 0).x;
     int idx = clamp(int(t * float(n)), 0, n - 1);
-    return texelFetch(lut_tex, ivec2(idx, 0), 0).rgb;
+    return texelFetch(lut_tex, ivec2(idx, 0), 0);
 }
 #endif
 
@@ -238,7 +239,8 @@ void main() {
 
     if (alpha < 0.002) discard;
 
-    vec3 base_color = color.rgb;
+    vec3  base_color = color.rgb;
+    float base_alpha = color.a;
 #ifdef SPECTRA_COLORMAP_LUT
     // _pad2[0] > 0.5 and dash_count > 0: colormap on, dash_pattern[0..1] = value range.
     if (_pad2[0] > 0.5 && dash_count > 0 && !isnan(v_color_value) && !isinf(v_color_value)) {
@@ -246,7 +248,9 @@ void main() {
         float value_max = dash_pattern[1];
         float range = value_max - value_min;
         float t = abs(range) > 1e-20 ? (v_color_value - value_min) / range : 0.5;
-        base_color = apply_colormap(t);
+        vec4 lut   = apply_colormap(t);
+        base_color = lut.rgb;
+        base_alpha *= lut.a;
     }
 #endif
 
@@ -259,5 +263,5 @@ void main() {
         base_color = mix(base_color, mix(base_color, target, abs(_pad2[1])), rim);
     }
 
-    out_color = vec4(base_color, color.a * opacity * alpha);
+    out_color = vec4(base_color, base_alpha * opacity * alpha);
 }

@@ -229,7 +229,9 @@
             statusFailed = true;
             statusEl.textContent = "Error: " + msg;
             statusEl.className = "error";
-            if (!overlayEl.classList.contains("hidden"))
+            // Before the first frame: keep the poster, with this message
+            // unless a more specific one is already shown.
+            if (overlayEl.className === "")
                 showFallback("The live demo could not start. This is a static picture of it.");
         }
 
@@ -318,7 +320,9 @@
         // pinch: end the pan, then turn spread / squeeze into wheel steps at
         // the midpoint between the fingers.
         (function installPinchZoom(canvas) {
-            const STEP = Math.log(1.15);   // one wheel step per 15% spread change
+            // One wheel step zooms 1.25x (InputHandler::ZOOM_FACTOR): emit one
+            // per 25% change in finger spread, so the plot follows the fingers.
+            const STEP = Math.log(1.25);
             let lastDist = 0;
             let acc = 0;
 

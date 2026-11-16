@@ -235,21 +235,30 @@ class SurfaceSeries : public Series
     SurfaceSeries& colormap(const std::string& name);
     ColormapType   colormap_type() const { return colormap_; }
 
+    // Data values mapped onto the ends of the colormap.  Without an explicit
+    // range the surface's finite z min / max is used, so the colours stay tied
+    // to the data (zooming or panning the axes does not recolour the surface).
     SurfaceSeries& colormap_range(float min_val, float max_val)
     {
-        cmap_min_ = min_val;
-        cmap_max_ = max_val;
+        cmap_min_       = min_val;
+        cmap_max_       = max_val;
+        cmap_range_set_ = true;
         return *this;
     }
-    float colormap_min() const { return cmap_min_; }
-    float colormap_max() const { return cmap_max_; }
+    // Back to the automatic (data z min / max) range.
+    SurfaceSeries& clear_colormap_range()
+    {
+        cmap_range_set_ = false;
+        return *this;
+    }
+    bool colormap_range_set() const { return cmap_range_set_; }
+    // Effective range: the explicit one when set, else the data z range
+    // (0..1 for a surface without finite z values).
+    float colormap_min() const { return cmap_range_set_ ? cmap_min_ : z_min_; }
+    float colormap_max() const { return cmap_range_set_ ? cmap_max_ : z_max_; }
 
     // Deprecated alias
-    void set_colormap_range(float min_val, float max_val)
-    {
-        cmap_min_ = min_val;
-        cmap_max_ = max_val;
-    }
+    void set_colormap_range(float min_val, float max_val) { colormap_range(min_val, max_val); }
 
     static Color sample_colormap(ColormapType cm, float t);
 
@@ -315,8 +324,9 @@ class SurfaceSeries : public Series
     }
     bool wireframe() const { return wireframe_; }
 
-    // Per-vertex alpha from colormap: when enabled, the colormap also drives
-    // the alpha channel based on the Z value (low Z = transparent, high Z = opaque).
+    // Per-vertex alpha from colormap: when enabled, the colormap position also
+    // drives the alpha channel (colormap_min = colormap_alpha_min, colormap_max
+    // = colormap_alpha_max; by default low Z = transparent, high Z = opaque).
     SurfaceSeries& colormap_alpha(bool enabled)
     {
         colormap_alpha_ = enabled;
@@ -356,9 +366,12 @@ class SurfaceSeries : public Series
     bool        mesh_generated_           = false;
     bool        wireframe_mesh_generated_ = false;
 
-    ColormapType colormap_ = ColormapType::None;
-    float        cmap_min_ = 0.0f;
-    float        cmap_max_ = 1.0f;
+    ColormapType colormap_       = ColormapType::None;
+    float        cmap_min_       = 0.0f;
+    float        cmap_max_       = 1.0f;
+    bool         cmap_range_set_ = false;
+    float        z_min_          = 0.0f;   // finite data z range (set_data)
+    float        z_max_          = 1.0f;
 
     float ambient_   = 0.0f;   // 0 = shader default (0.15)
     float specular_  = 0.0f;   // 0 = shader default (0.3)

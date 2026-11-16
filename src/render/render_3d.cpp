@@ -10,6 +10,7 @@
 #include <spectra/camera.hpp>
 #include <spectra/logger.hpp>
 
+#include "core/axes3d_box.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -46,7 +47,10 @@ static void set_pc_color_3d(float dst[4], const ui::Color& src, const ui::ThemeM
 
 void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
 {
-    if (!axes.show_bounding_box())
+    // Box style Back keeps the edges of the three back panes plus the edges
+    // carrying ticks; Full all twelve; None nothing (core/axes3d_box.hpp).
+    const uint16_t edges = axes3d_box::edge_mask(axes.box_style(), axes3d_box::compute_faces(axes));
+    if (edges == 0)
         return;
 
     auto  xlim = axes.x_limits();
@@ -57,38 +61,36 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
     // Per-slot buffer: the previous in-flight frame may still read the other slot.
     const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
 
-    // Check if limits changed — skip regeneration if cached
+    // Check if limits or the edge selection changed — skip regeneration if cached
     auto& bc             = gpu.bbox_cache[slot];
     bool  limits_changed = !bc.valid || bc.xmin != xlim.min || bc.xmax != xlim.max
                           || bc.ymin != ylim.min || bc.ymax != ylim.max || bc.zmin != zlim.min
-                          || bc.zmax != zlim.max;
+                          || bc.zmax != zlim.max || bc.key != edges;
 
     if (limits_changed)
     {
-        vec3 min_corner = {static_cast<float>(xlim.min),
-                           static_cast<float>(ylim.min),
-                           static_cast<float>(zlim.min)};
-        vec3 max_corner = {static_cast<float>(xlim.max),
-                           static_cast<float>(ylim.max),
-                           static_cast<float>(zlim.max)};
+        const double lo[3] = {xlim.min, ylim.min, zlim.min};
+        const double hi[3] = {xlim.max, ylim.max, zlim.max};
 
-        Axes3DRenderer::BoundingBoxData bbox;
-        bbox.generate(min_corner, max_corner);
-
-        if (bbox.edge_vertices.empty())
-            return;
-
-        size_t bbox_floats = bbox.edge_vertices.size() * 3;
-        if (bbox_scratch_.size() < bbox_floats)
-            bbox_scratch_.resize(bbox_floats);
-        for (size_t i = 0; i < bbox.edge_vertices.size(); ++i)
+        size_t vertex_count = 0;
+        if (bbox_scratch_.size() < static_cast<size_t>(axes3d_box::EDGE_COUNT) * 6)
+            bbox_scratch_.resize(static_cast<size_t>(axes3d_box::EDGE_COUNT) * 6);
+        for (int e = 0; e < axes3d_box::EDGE_COUNT; ++e)
         {
-            bbox_scratch_[i * 3]     = bbox.edge_vertices[i].x;
-            bbox_scratch_[i * 3 + 1] = bbox.edge_vertices[i].y;
-            bbox_scratch_[i * 3 + 2] = bbox.edge_vertices[i].z;
+            if (!(edges & (1u << e)))
+                continue;
+            vec3 p[2];
+            axes3d_box::edge_endpoints(e, lo, hi, p[0], p[1]);
+            for (const vec3& v : p)
+            {
+                bbox_scratch_[vertex_count * 3]     = static_cast<float>(v.x);
+                bbox_scratch_[vertex_count * 3 + 1] = static_cast<float>(v.y);
+                bbox_scratch_[vertex_count * 3 + 2] = static_cast<float>(v.z);
+                ++vertex_count;
+            }
         }
 
-        size_t byte_size = bbox_floats * sizeof(float);
+        size_t byte_size = vertex_count * 3 * sizeof(float);
         if (!gpu.bbox_buffer[slot] || gpu.bbox_capacity[slot] < byte_size)
         {
             if (gpu.bbox_buffer[slot])
@@ -97,7 +99,8 @@ void Renderer::render_bounding_box(Axes3D& axes, const Rect& /*viewport*/)
             gpu.bbox_capacity[slot] = byte_size;
         }
         backend_.upload_buffer(gpu.bbox_buffer[slot], bbox_scratch_.data(), byte_size);
-        gpu.bbox_vertex_count[slot] = static_cast<uint32_t>(bbox.edge_vertices.size());
+        gpu.bbox_vertex_count[slot] = static_cast<uint32_t>(vertex_count);
+        bc.key                      = edges;
         bc.xmin                     = xlim.min;
         bc.xmax                     = xlim.max;
         bc.ymin                     = ylim.min;
@@ -134,35 +137,35 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
     // Per-slot buffer: the previous in-flight frame may still read the other slot.
     const uint32_t slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
 
-    // Check if limits changed — skip regeneration if cached
+    // Tick marks sit on the same box edges as the tick labels (the near side
+    // of the back panes; the vertical axis on the leftmost corner).
+    const axes3d_box::BoxFaces faces    = axes3d_box::compute_faces(axes);
+    const axes3d_box::TickEdge edges[3] = {axes3d_box::tick_edge(faces, 0),
+                                           axes3d_box::tick_edge(faces, 1),
+                                           axes3d_box::tick_edge(faces, 2)};
+    int                        tick_key = 0;
+    for (int a = 0; a < 3; ++a)
+        for (int i = 0; i < 3; ++i)
+            tick_key |= (edges[a].corner_hi[static_cast<size_t>(i)] ? 1 : 0) << (a * 3 + i);
+
+    // Check if limits or tick edges changed — skip regeneration if cached
     auto& tc             = gpu.tick_cache[slot];
     bool  limits_changed = !tc.valid || tc.xmin != xlim.min || tc.xmax != xlim.max
                           || tc.ymin != ylim.min || tc.ymax != ylim.max || tc.zmin != zlim.min
-                          || tc.zmax != zlim.max;
+                          || tc.zmax != zlim.max || tc.key != tick_key;
 
     if (limits_changed)
     {
-        vec3 min_corner = {static_cast<float>(xlim.min),
-                           static_cast<float>(ylim.min),
-                           static_cast<float>(zlim.min)};
-        vec3 max_corner = {static_cast<float>(xlim.max),
-                           static_cast<float>(ylim.max),
-                           static_cast<float>(zlim.max)};
+        const double lo[3] = {xlim.min, ylim.min, zlim.min};
+        const double hi[3] = {xlim.max, ylim.max, zlim.max};
 
-        // Tick length: ~2% of axis range
-        auto x_tick_len = static_cast<float>((ylim.max - ylim.min) * 0.02);
-        auto y_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
-        auto z_tick_len = static_cast<float>((xlim.max - xlim.min) * 0.02);
-
-        Axes3DRenderer::TickMarkData x_data;
-        x_data.generate_x_ticks(axes, min_corner, max_corner);
-        Axes3DRenderer::TickMarkData y_data;
-        y_data.generate_y_ticks(axes, min_corner, max_corner);
-        Axes3DRenderer::TickMarkData z_data;
-        z_data.generate_z_ticks(axes, min_corner, max_corner);
+        // Tick length: ~2% of the range of the axis the mark points along.
+        const TickResult ticks[3] = {axes.compute_x_ticks(),
+                                     axes.compute_y_ticks(),
+                                     axes.compute_z_ticks()};
 
         size_t total_ticks =
-            x_data.positions.size() + y_data.positions.size() + z_data.positions.size();
+            ticks[0].positions.size() + ticks[1].positions.size() + ticks[2].positions.size();
         if (total_ticks == 0)
             return;
 
@@ -171,32 +174,23 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
             tick_scratch_.resize(floats_needed);
         size_t wi = 0;
 
-        for (const auto& pos : x_data.positions)
+        for (int a = 0; a < 3; ++a)
         {
-            tick_scratch_[wi++] = pos.x;
-            tick_scratch_[wi++] = pos.y;
-            tick_scratch_[wi++] = pos.z;
-            tick_scratch_[wi++] = pos.x;
-            tick_scratch_[wi++] = pos.y - x_tick_len;
-            tick_scratch_[wi++] = pos.z;
-        }
-        for (const auto& pos : y_data.positions)
-        {
-            tick_scratch_[wi++] = pos.x;
-            tick_scratch_[wi++] = pos.y;
-            tick_scratch_[wi++] = pos.z;
-            tick_scratch_[wi++] = pos.x - y_tick_len;
-            tick_scratch_[wi++] = pos.y;
-            tick_scratch_[wi++] = pos.z;
-        }
-        for (const auto& pos : z_data.positions)
-        {
-            tick_scratch_[wi++] = pos.x;
-            tick_scratch_[wi++] = pos.y;
-            tick_scratch_[wi++] = pos.z;
-            tick_scratch_[wi++] = pos.x - z_tick_len;
-            tick_scratch_[wi++] = pos.y;
-            tick_scratch_[wi++] = pos.z;
+            const axes3d_box::TickEdge& te  = edges[a];
+            const int                   out = te.out_axis;
+            const double len = (hi[out] - lo[out]) * 0.02 * (te.out_positive ? 1.0 : -1.0);
+            for (double v : ticks[a].positions)
+            {
+                double p[3];
+                for (int i = 0; i < 3; ++i)
+                    p[i] = te.corner_hi[static_cast<size_t>(i)] ? hi[i] : lo[i];
+                p[a] = v;
+                for (int i = 0; i < 3; ++i)
+                    tick_scratch_[wi++] = static_cast<float>(p[i]);
+                p[out] += len;
+                for (int i = 0; i < 3; ++i)
+                    tick_scratch_[wi++] = static_cast<float>(p[i]);
+            }
         }
 
         size_t byte_size = wi * sizeof(float);
@@ -209,6 +203,7 @@ void Renderer::render_tick_marks(Axes3D& axes, const Rect& /*viewport*/)
         }
         backend_.upload_buffer(gpu.tick_buffer[slot], tick_scratch_.data(), byte_size);
         gpu.tick_vertex_count[slot] = static_cast<uint32_t>(wi / 3);
+        tc.key                      = tick_key;
         tc.xmin                     = xlim.min;
         tc.xmax                     = xlim.max;
         tc.ymin                     = ylim.min;

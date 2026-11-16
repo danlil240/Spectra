@@ -38,11 +38,15 @@ layout(location = 1) in vec3 in_normal;
 layout(location = 0) out vec3 v_world_pos;
 layout(location = 1) out vec3 v_normal;
 layout(location = 2) out vec3 v_view_dir;
+// Data-space value the colormap maps (the vertex z, before the box transform),
+// so zooming or panning the axes does not recolour the surface.
+layout(location = 3) out float v_value;
 
 void main() {
     vec3 pos = in_position + vec3(data_offset_x, data_offset_y, 0.0);
     vec4 world_pos = model * vec4(pos, 1.0);
     v_world_pos = world_pos.xyz;
+    v_value     = in_position.z;
 
     // Transform normal by the normal matrix (inverse-transpose of model).
     // For non-uniform scale, mat3(model) distorts normals incorrectly.

@@ -488,7 +488,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
             dst_ax3d.title(src_ax3d->get_title());
         dst_ax3d.grid(src_ax3d->grid_enabled());
         dst_ax3d.grid_planes(src_ax3d->grid_planes());
-        dst_ax3d.show_bounding_box(src_ax3d->show_bounding_box());
+        dst_ax3d.box_style(src_ax3d->box_style());
         dst_ax3d.light_dir(src_ax3d->light_dir());
         dst_ax3d.lighting_enabled(src_ax3d->lighting_enabled());
 
@@ -541,7 +541,8 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                     dup.label(sf->label());
                 dup.visible(sf->visible());
                 dup.colormap(sf->colormap_type());
-                dup.colormap_range(sf->colormap_min(), sf->colormap_max());
+                if (sf->colormap_range_set())
+                    dup.colormap_range(sf->colormap_min(), sf->colormap_max());
                 dup.ambient(sf->ambient());
                 dup.specular(sf->specular());
                 dup.shininess(sf->shininess());

@@ -4,6 +4,8 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include <istream>
+#include <ostream>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
@@ -92,7 +94,7 @@ enum ChunkTag : uint16_t
 class BinaryWriter
 {
    public:
-    explicit BinaryWriter(std::ofstream& f) : f_(f) {}
+    explicit BinaryWriter(std::ostream& f) : f_(f) {}
 
     void write_u16(uint16_t v) { f_.write(reinterpret_cast<const char*>(&v), 2); }
     void write_u32(uint32_t v) { f_.write(reinterpret_cast<const char*>(&v), 4); }
@@ -179,14 +181,14 @@ class BinaryWriter
     [[nodiscard]] bool good() const { return f_.good(); }
 
    private:
-    std::ofstream& f_;
+    std::ostream& f_;
 };
 
 // ─── Reader helper ──────────────────────────────────────────────────────────
 class BinaryReader
 {
    public:
-    explicit BinaryReader(std::ifstream& f) : f_(f) {}
+    explicit BinaryReader(std::istream& f) : f_(f) {}
 
     uint16_t read_u16()
     {
@@ -277,7 +279,7 @@ class BinaryReader
     [[nodiscard]] bool good() const { return f_.good(); }
 
    private:
-    std::ifstream& f_;
+    std::istream& f_;
 };
 
 // ─── Colormap byte ──────────────────────────────────────────────────────────
@@ -708,7 +710,11 @@ bool FigureSerializer::save(const std::string&     path,
     std::ofstream f(path, std::ios::binary);
     if (!f.is_open())
         return false;
+    return save(f, figure, overlay) && f.good();
+}
 
+bool FigureSerializer::save(std::ostream& f, const Figure& figure, const OverlaySnapshot* overlay)
+{
     BinaryWriter w(f);
 
     // Header
@@ -857,7 +863,11 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
     std::ifstream f(path, std::ios::binary);
     if (!f.is_open())
         return false;
+    return load(f, figure, overlay);
+}
 
+bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* overlay)
+{
     BinaryReader r(f);
 
     // Verify header
@@ -1977,6 +1987,15 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
     }
 
     return r.good() || f.eof();
+}
+
+bool FigureSerializer::has_figure_magic(std::string_view head)
+{
+    if (head.size() < sizeof(uint32_t))
+        return false;
+    uint32_t magic = 0;
+    std::memcpy(&magic, head.data(), sizeof(magic));
+    return magic == MAGIC;
 }
 
 // ─── Dialog wrappers ────────────────────────────────────────────────────────

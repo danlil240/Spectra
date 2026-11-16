@@ -307,11 +307,12 @@ class Workspace
     // Delete the autosave file.
     static void clear_autosave();
 
-   private:
-    // JSON serialization helpers (minimal, no external dependency)
+    // JSON form of save()/load() (also embedded in workspace documents,
+    // workspace_document.hpp).
     static std::string serialize_json(const WorkspaceData& data);
     static bool        deserialize_json(const std::string& json, WorkspaceData& data);
 
+   private:
     // Simple JSON value parser
     static std::string read_string_value(const std::string& json, const std::string& key);
     static double      read_number_value(const std::string& json,

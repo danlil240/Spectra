@@ -213,6 +213,7 @@ set(SPECTRA_UNIT_TESTS
     test_shell_nav_rail
     test_shell_app_shell
     test_ui_shell_fixes
+    test_file_model
     test_interaction_fixes
     test_view_history
     test_live_measure

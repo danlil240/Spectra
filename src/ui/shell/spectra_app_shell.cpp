@@ -1,11 +1,13 @@
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/shell/spectra_app_shell.hpp"
 
+    #include <algorithm>
     #include <spectra/figure.hpp>
 
     #include "imgui.h"
     #include "io/export_registry.hpp"
     #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/welcome_actions.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/data_sidebar/data_sidebar.hpp"
     #include "ui/imgui/imgui_integration.hpp"
@@ -17,6 +19,7 @@
     #include "ui/overlay/marker_actions.hpp"
     #include "ui/overlay/readout_format.hpp"
     #include "ui/settings/settings_panel.hpp"
+    #include "ui/settings/settings_store.hpp"
     #include "ui/shell/panel.hpp"
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
@@ -977,26 +980,41 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     auto panel_visible = [hooks](std::string_view id)
     { return hooks.panel_visible && hooks.panel_visible(id); };
 
+    // File: one save concept (the window's .spectra file); everything that
+    // writes another format lives under Export.
     auto& file = bar.menu("File");
     file.add(command("New Figure", "figure.new"));
-    file.add(command("Open File...", "file.open"));
+    file.add(command("Open...", "file.open"));
     file.add(command("Open Log...", "file.open_log"));
+    {
+        MenuAction recent;
+        recent.label   = RECENT_LAYOUTS_MENU;   // filled by sync_recent_layouts_menu()
+        recent.icon    = static_cast<uint16_t>(Icon::Clock);
+        recent.cascade = true;
+        recent.submenu.push_back({.label = "No Recent Files", .enabled = []() { return false; }});
+        file.add(std::move(recent));
+    }
     file.add_separator();
-    file.add(command("Export PNG", "file.export_png"));
-    file.add(command("Export SVG", "file.export_svg"));
-    file.add(command("Export PDF", "file.export_pdf"));
+    file.add(command("Save", "file.save"));
+    file.add(command("Save As...", "file.save_as"));
+    {
+        MenuAction exp;
+        exp.label   = EXPORT_MENU;
+        exp.icon    = static_cast<uint16_t>(Icon::Export);
+        exp.cascade = true;
+        exp.submenu.push_back(command("PNG Image...", "file.export_png"));
+        exp.submenu.push_back(command("SVG Image...", "file.export_svg"));
+        exp.submenu.push_back(command("PDF Document...", "file.export_pdf"));
+        exp.submenu.push_back(command("CSV Data...", "file.export_csv"));
+        exp.submenu.push_back({.separator = true});
+        exp.submenu.push_back(command("Layout (bindings only)...", "file.save_layout"));
+        file.add(std::move(exp));
+    }
     file.add(command("Copy as Image", "file.copy_to_clipboard"));
-    file.add(command("Save Workspace", "file.save_workspace"));
-    file.add(command("Load Workspace", "file.load_workspace"));
     file.add_separator();
-    file.add(command("Save Layout...", "file.save_layout"));
-    file.add(command("Open Layout...", "file.open_layout"));
-    file.add({.label = RECENT_LAYOUTS_MENU});   // submenu: sync_recent_layouts_menu()
     file.add(command("Data Bindings", "file.data_bindings"));
     file.add_separator();
-    file.add(command("Save Figure...", "file.save_figure"));
-    file.add(command("Load Figure...", "file.load_figure"));
-    file.add_separator();
+    file.add(command("Close Figure", "figure.close"));
     file.add(command("Exit", "app.quit"));
 
     auto& edit = bar.menu("Edit");
@@ -1240,27 +1258,46 @@ void SpectraAppShell::sync_recent_layouts_menu(MenuBar& bar, spectra::ImGuiInteg
 {
     if (!imgui || !bar.has_menu("File"))
         return;
-    spectra::LayoutSession* session = imgui->layout_session();
+    spectra::LayoutSession*               session = imgui->layout_session();
+    spectra::ui::settings::SettingsStore* store   = imgui->settings_store();
+
+    // The start page's list: recent data files, then .spectra workspaces and
+    // layouts (opened, saved or restored).
+    static const std::vector<std::string>         none;
+    const std::vector<spectra::WelcomeRecentItem> recent =
+        spectra::build_welcome_recent(store ? store->data().recent_files : none,
+                                      session ? session->recent().entries() : none);
 
     std::vector<MenuAction> items;
-    if (!session || session->recent().empty())
+    if (recent.empty())
     {
-        items.push_back({.label = "No Recent Layouts", .enabled = []() { return false; }});
+        items.push_back({.label = "No Recent Files", .enabled = []() { return false; }});
     }
     else
     {
-        for (const std::string& path : session->recent().entries())
+        for (const auto& item : recent)
         {
-            const std::filesystem::path p(path);
-            items.push_back({.label    = p.filename().string(),
-                             .shortcut = p.parent_path().filename().string(),
-                             .icon     = static_cast<uint16_t>(Icon::Clock),
-                             // Deferred: opening edits the recent list this menu is built from.
-                             .on_click = [session, path]() { session->request_open(path); }});
+            const std::string path = item.path;
+            // Deferred: opening edits the recent lists this menu is built from.
+            std::function<void()> open =
+                item.layout && session
+                    ? std::function<void()>([session, path]() { session->request_open(path); })
+                    : std::function<void()>([imgui, path]() { imgui->request_open_path(path); });
+            items.push_back(
+                {.label    = item.name,
+                 .shortcut = item.folder,
+                 .icon     = static_cast<uint16_t>(item.layout ? Icon::Layout : Icon::FileText),
+                 .on_click = std::move(open)});
         }
         items.push_back({.separator = true});
-        items.push_back({.label    = "Clear Recent Layouts",
-                         .on_click = [session]() { session->recent().clear(); }});
+        items.push_back({.label    = "Clear Recent",
+                         .on_click = [session, store]()
+                         {
+                             if (session)
+                                 session->recent().clear();
+                             if (store)
+                                 store->clear_recent_files();
+                         }});
     }
 
     for (auto& action : bar.menu("File").items_mut())
@@ -1280,6 +1317,26 @@ void SpectraAppShell::sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegr
 
     auto& file = bar.menu("File");
     file.remove_submenu("##plugin_exports");
+
+    // Plugin formats go at the end of File > Export (or, in a File menu
+    // without one, into their own section).
+    MenuAction* export_menu = nullptr;
+    for (auto& action : file.items_mut())
+    {
+        if (action.label == EXPORT_MENU)
+            export_menu = &action;
+    }
+    if (export_menu)
+    {
+        auto& sub = export_menu->submenu;
+        sub.erase(std::remove_if(sub.begin(),
+                                 sub.end(),
+                                 [](const MenuAction& a) {
+                                     return a.label == "##plugin_exports"
+                                            || a.command_id.rfind("file.export_plugin.", 0) == 0;
+                                 }),
+                  sub.end());
+    }
     if (!imgui->export_format_registry_)
         return;
 
@@ -1287,21 +1344,31 @@ void SpectraAppShell::sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegr
     if (formats.empty())
         return;
 
-    MenuAction plugin_parent;
-    plugin_parent.label = "##plugin_exports";
+    std::vector<MenuAction> plugin_items;
     for (const auto& fmt : formats)
     {
-        const std::string label = "Export " + fmt.name + " (." + fmt.extension + ")";
         const std::string name  = fmt.name;
-        plugin_parent.submenu.push_back({.label      = label,
-                                         .command_id = "file.export_plugin." + name,
-                                         .on_click   = [imgui, name]()
-                                         {
-                                             if (imgui->command_registry_)
-                                                 imgui->command_registry_->execute(
-                                                     "file.export_plugin." + name);
-                                         }});
+        const std::string label = export_menu ? fmt.name + " (." + fmt.extension + ")..."
+                                              : "Export " + fmt.name + " (." + fmt.extension + ")";
+        plugin_items.push_back({.label      = label,
+                                .command_id = "file.export_plugin." + name,
+                                .on_click   = [imgui, name]()
+                                {
+                                    if (imgui->command_registry_)
+                                        imgui->command_registry_->execute("file.export_plugin."
+                                                                          + name);
+                                }});
     }
+    if (export_menu)
+    {
+        export_menu->submenu.push_back({.label = "##plugin_exports", .separator = true});
+        for (auto& item : plugin_items)
+            export_menu->submenu.push_back(std::move(item));
+        return;
+    }
+    MenuAction plugin_parent;
+    plugin_parent.label   = "##plugin_exports";
+    plugin_parent.submenu = std::move(plugin_items);
     file.add(std::move(plugin_parent));
 }
 

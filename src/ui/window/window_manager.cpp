@@ -280,11 +280,15 @@ void WindowManager::sync_window_title(WindowContext& wctx)
 #ifdef SPECTRA_USE_IMGUI
     if (wctx.is_preview || wctx.is_panel || !wctx.ui_ctx || !wctx.ui_ctx->fig_mgr)
         return;
-    auto*          fm     = wctx.ui_ctx->fig_mgr;
-    const FigureId active = fm->active_index();
-    if (active == INVALID_FIGURE_ID)
-        return;
-    set_window_title(wctx, window_title_for_figure(fm->get_title(active)));
+    auto*                  fm     = wctx.ui_ctx->fig_mgr;
+    const FigureId         active = fm->active_index();
+    const DocumentSession& doc    = wctx.ui_ctx->document;
+    const std::string      fig_title =
+        active == INVALID_FIGURE_ID ? std::string() : fm->get_title(active);
+    set_window_title(wctx,
+                     window_title_for_document(fig_title,
+                                               doc.path().empty() ? "" : doc.display_name(),
+                                               doc.is_modified()));
 #else
     (void)wctx;
 #endif

@@ -1067,16 +1067,25 @@ void App::init_runtime()
                 return &fig->subplot(1, 1, 1);
             });
 
-        // Wire OS drag-and-drop through ImGuiIntegration::open_path():
-        // CSV/TSV/TXT files trigger the Load from CSV flow, log files the
-        // registry recognizes (ULog, MCAP) open in the log browser and
-        // .spectra layouts open like File > Open Layout.
+        // Wire OS drag-and-drop: the window the file was dropped on opens it
+        // like File > Open (WindowUIContext::open_file_fn): .spectra
+        // workspaces/figures/layouts, CSV/TSV/TXT (Load from CSV), ULog/MCAP
+        // (log browser).  Without one, ImGuiIntegration::open_path() routes it.
         auto* imgui_ui_ptr = imgui_ui.get();
         if (rt.window_mgr)
         {
+            auto* wm = rt.window_mgr.get();
             rt.window_mgr->set_file_drop_handler(
-                [imgui_ui_ptr](uint32_t /*window_id*/, const std::string& path)
-                { imgui_ui_ptr->open_path(path); });
+                [imgui_ui_ptr, wm](uint32_t window_id, const std::string& path)
+                {
+                    WindowContext* target = wm->find_window(window_id);
+                    if (target && target->ui_ctx && target->ui_ctx->open_file_fn)
+                    {
+                        target->ui_ctx->open_file_fn(path);
+                        return;
+                    }
+                    imgui_ui_ptr->open_path(path);
+                });
         }
 
         // `spectra data.csv flight.ulg`: opened like a drop on the first window.

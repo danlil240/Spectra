@@ -2121,6 +2121,9 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     const Color label_col = axis_color_is_set(as.label_color) ? as.label_color : st.text_secondary;
     const auto  axes_label_width = [&tm](const std::string& t, LabelFont f)
     { return measure_text_width(t, tm.font_px(f)); };
+    // The title is fitted at sizes no larger than its own (AxisTextMetrics::title_font_px).
+    const auto title_width = [&tm](const std::string& t, LabelFont f)
+    { return measure_text_width(t, tm.title_font_px(f)); };
     const auto x_ticks = axes.compute_x_ticks();
     const auto y_ticks = axes.compute_y_ticks();
     {
@@ -2293,20 +2296,21 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     if (!axes.get_title().empty())
     {
         const FittedLabel fit =
-            fit_axes_title(axes.get_title(), vp.w, y_offset_reserve, axes_label_width);
+            fit_axes_title(axes.get_title(), vp.w, y_offset_reserve, title_width);
         const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
         const float             cx =
-            centered_label_x(vp.x, vp.w, slot, axes_label_width(fit.text, fit.font) * fit.scale);
-        emit_fitted_label(c.w,
-                          fit,
-                          tm.font_px(fit.font),
-                          axes.get_title(),
-                          cx,
-                          std::max(2.0f, vp.y - tm.font_px(fit.font) * fit.scale - tick_padding),
-                          st.text_primary,
-                          "middle",
-                          VAlign::Top,
-                          TextExtra{true});
+            centered_label_x(vp.x, vp.w, slot, title_width(fit.text, fit.font) * fit.scale);
+        emit_fitted_label(
+            c.w,
+            fit,
+            tm.title_font_px(fit.font),
+            axes.get_title(),
+            cx,
+            std::max(2.0f, vp.y - tm.title_font_px(fit.font) * fit.scale - tick_padding),
+            st.text_primary,
+            "middle",
+            VAlign::Top,
+            TextExtra{true});
     }
 
     // ShapeSeries text annotations (data-space labels).
@@ -3020,14 +3024,14 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
     const Color           tick_col3         = axis_color_is_set(axes.axis_style().tick_color)
                                                   ? axes.axis_style().tick_color
                                                   : st.tick_label;
-    const auto            axes3_label_width = [&tm3](const std::string& t, LabelFont f)
-    { return measure_text_width(t, tm3.font_px(f)); };
+    const auto            axes3_title_width = [&tm3](const std::string& t, LabelFont f)
+    { return measure_text_width(t, tm3.title_font_px(f)); };
     std::vector<Box2> placed;
     if (!axes.get_title().empty())
     {
-        const FittedLabel fit     = fit_axes3d_title(axes.get_title(), vp.w, axes3_label_width);
-        const float       font_px = tm3.font_px(fit.font) * fit.scale;
-        const float       tw      = axes3_label_width(fit.text, fit.font) * fit.scale;
+        const FittedLabel fit     = fit_axes3d_title(axes.get_title(), vp.w, axes3_title_width);
+        const float       font_px = tm3.title_font_px(fit.font) * fit.scale;
+        const float       tw      = axes3_title_width(fit.text, fit.font) * fit.scale;
         const float       cx      = vp.x + vp.w * 0.5f;
         // Above the viewport, in the cell's top margin (as in the raster export).
         const float ty = std::max(vp.y - font_px - tm3.px(5.0f), 2.0f);
@@ -3035,7 +3039,7 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             placed.push_back({cx - tw * 0.5f, ty, cx + tw * 0.5f, ty + font_px});
         emit_fitted_label(c.w,
                           fit,
-                          tm3.font_px(fit.font),
+                          tm3.title_font_px(fit.font),
                           axes.get_title(),
                           cx,
                           ty,

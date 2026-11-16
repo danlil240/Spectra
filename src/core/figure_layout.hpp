@@ -46,12 +46,14 @@ struct AxisTextMetrics;
 /// Sizes come from the axes' AxisStyle and text scale (core/axis_text_style).
 float left_label_extent(const Axes& axes);
 
-/// Pixels a 2D axes needs below its plot area (tick marks, x tick labels,
-/// x axis label) with the text sizes @p m.
+/// Pixels a 2D axes needs below its plot area (tick marks, x tick labels, and
+/// the row holding the x axis label and/or the x tick offset annotation) with
+/// the text sizes @p m.
 float bottom_label_extent(const Axes& axes, const AxisTextMetrics& m);
 
-/// Pixels a 2D axes needs above its plot area (title, or the y tick offset
-/// label) with the text sizes @p m; 0 when nothing is drawn there.
+/// Pixels a 2D axes needs above its plot area (the row holding the title
+/// and/or the y tick offset label) with the text sizes @p m; 0 when nothing is
+/// drawn there.
 float top_label_extent(const Axes& axes, const AxisTextMetrics& m);
 
 /// Set the viewports of @p fig's axes from @p rects (row-major, one per grid

@@ -9,6 +9,7 @@
 // renderer's font atlas is baked at).  Every size and padding is multiplied by
 // the axes' text scale (the UI scale setting on screen, 1 for exports).
 
+#include <algorithm>
 #include <cmath>
 #include <spectra/axes.hpp>
 
@@ -55,6 +56,12 @@ struct AxisTextMetrics
         }
         return title_px;
     }
+
+    /// Font size of a tier when fitting a title: font_px() capped at the title size.
+    /// The title fitter steps down from Title to Label; when the label size is larger
+    /// than the title size, an over-long title must not grow to it (the top margin is
+    /// sized for the title), so it stays at the title size and is ellipsized there.
+    float title_font_px(LabelFont f) const { return std::min(font_px(f), title_px); }
 };
 
 /// A requested font size, or `theme_px` when it is unset (<= 0 or not finite).

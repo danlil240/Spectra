@@ -51,18 +51,26 @@ float left_label_extent(const Axes& axes)
 float bottom_label_extent(const Axes& axes, const AxisTextMetrics& m)
 {
     float need = m.tick_length + m.px(TICK_PADDING) + m.tick_px * PLOT_TEXT_LINE_FACTOR;
+    // Row under the tick labels: the X label and/or the X tick offset / multiplier
+    // annotation (drawn at the tick size on the same row, render_plot_text()).
+    float row_h = 0.0f;
     if (!axes.xlabel().empty())
-        need += m.px(XLABEL_ROW_GAP) + m.label_px * PLOT_TEXT_LINE_FACTOR;
+        row_h = m.label_px * PLOT_TEXT_LINE_FACTOR;
+    if (!axes.compute_x_ticks().offset_label.empty())
+        row_h = std::max(row_h, m.tick_px * PLOT_TEXT_LINE_FACTOR);
+    if (row_h > 0.0f)
+        need += m.px(XLABEL_ROW_GAP) + row_h;
     return need + m.px(VERTICAL_OUTER);
 }
 
 float top_label_extent(const Axes& axes, const AxisTextMetrics& m)
 {
+    // The title and the Y tick offset annotation share the row above the plot.
     float need = 0.0f;
     if (!axes.title().empty())
         need = m.title_px * PLOT_TEXT_LINE_FACTOR + m.px(TITLE_PADDING);
-    else if (!axes.compute_y_ticks().offset_label.empty())
-        need = m.tick_px * PLOT_TEXT_LINE_FACTOR + m.px(OFFSET_ROW_GAP);
+    if (!axes.compute_y_ticks().offset_label.empty())
+        need = std::max(need, m.tick_px * PLOT_TEXT_LINE_FACTOR + m.px(OFFSET_ROW_GAP));
     return need > 0.0f ? need + m.px(VERTICAL_OUTER) : 0.0f;
 }
 

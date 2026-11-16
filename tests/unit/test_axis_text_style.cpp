@@ -106,6 +106,32 @@ TEST(AxisTextStyle, CustomSizesAndScaleMultiply)
     EXPECT_EQ(c.title_px, AXIS_FONT_MAX_PX);
 }
 
+TEST(AxisTextStyle, TitleFitNeverExceedsTheTitleSize)
+{
+    AxisStyle s;
+    s.title_size            = 18.0f;
+    s.label_size            = 48.0f;
+    const AxisTextMetrics m = axis_text_metrics(s);
+    EXPECT_FLOAT_EQ(m.title_font_px(LabelFont::Title), 18.0f);
+    EXPECT_FLOAT_EQ(m.title_font_px(LabelFont::Label), 18.0f);   // capped, not 48
+    EXPECT_FLOAT_EQ(m.font_px(LabelFont::Label), 48.0f);         // x/y labels unchanged
+
+    // An over-long title in a 100 px budget is ellipsized at 18 px, not at the
+    // (larger) label size.
+    const LabelWidthFn measure = [&m](const std::string& t, LabelFont f)
+    { return static_cast<float>(t.size()) * 0.6f * m.title_font_px(f); };
+    const FittedLabel fit =
+        fit_axes_title("A very long plot title that cannot fit", 100.0f, 0.0f, measure);
+    EXPECT_TRUE(fit.truncated);
+    EXPECT_FLOAT_EQ(m.title_font_px(fit.font) * fit.scale, 18.0f);
+    EXPECT_LE(measure(fit.text, fit.font) * fit.scale, 100.0f);
+
+    // A label size below the title size still lets the title shrink smoothly.
+    s.label_size             = 12.0f;
+    const AxisTextMetrics m2 = axis_text_metrics(s);
+    EXPECT_FLOAT_EQ(m2.title_font_px(LabelFont::Label), 12.0f);
+}
+
 // ─── Layout ─────────────────────────────────────────────────────────────────
 
 TEST(AxisTextStyleLayout, DefaultStyleKeepsThePlainCell)
@@ -205,6 +231,30 @@ TEST(AxisTextStyleLayout, RowSharesTheGrowth)
     EXPECT_FLOAT_EQ(left.viewport().y, right.viewport().y);
     EXPECT_FLOAT_EQ(left.viewport().h, right.viewport().h);
     EXPECT_GT(left.viewport().y, fig.style().margin_top);
+}
+
+TEST(AxisTextStyleLayout, BottomMarginHoldsTheXOffsetWithoutXLabel)
+{
+    Figure fig({.width = 800, .height = 900});
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.plot(std::vector<float>{0, 1}, std::vector<float>{0, 1});
+    ax.xlim(1720000000.0, 1720000001.2);   // epoch seconds: "+1.72e9"-style offset
+    ax.ylim(0.0, 1.0);
+    ax.axis_style().tick_size = 48.0f;
+    fig.compute_layout();
+    ASSERT_TRUE(ax.xlabel().empty());
+    ASSERT_FALSE(ax.compute_x_ticks().offset_label.empty());
+
+    const AxisTextMetrics m = axis_text_metrics(ax);
+    // Tick marks + tick labels + the offset row under them (same rows as the renderer).
+    const float with_offset = m.tick_length + m.px(5.0f) + m.tick_px * PLOT_TEXT_LINE_FACTOR
+                              + m.px(4.0f) + m.tick_px * PLOT_TEXT_LINE_FACTOR + m.px(6.0f);
+    EXPECT_GE(bottom_label_extent(ax, m) + 0.5f, with_offset);
+    EXPECT_GE(900.0f - (ax.viewport().y + ax.viewport().h) + 0.5f, with_offset);
+
+    // Without an offset (small limits) the row is not reserved.
+    ax.xlim(0.0, 10.0);
+    EXPECT_LT(bottom_label_extent(ax, m), with_offset - m.tick_px);
 }
 
 // ─── SVG / PDF ──────────────────────────────────────────────────────────────
@@ -331,6 +381,35 @@ TEST(AxisTextStyleUndo, OneStepRestoresTheWholeStyle)
     // No-op edits push nothing.
     undoable_axis_style(&undo, ax, ax.axis_style(), ax.axis_style());
     EXPECT_EQ(undo.undo_count(), 1u);
+}
+
+TEST(AxisTextStyleSvg, LongTitleKeepsTheTitleSizeWhenLabelsAreLarger)
+{
+    const std::string long_title = "An extremely long title that cannot possibly fit here";
+    {
+        Figure fig({.width = 220, .height = 400});
+        auto&  ax = plot_axes(fig);
+        ax.title(long_title);
+        ax.axis_style().title_size = 18.0f;
+        ax.axis_style().label_size = 48.0f;
+        fig.compute_layout();
+        const std::string svg = SvgExporter::to_string(fig);
+        // Ellipsized title ("An …"), drawn at 18 px rather than at the 48 px label size.
+        EXPECT_FLOAT_EQ(svg_font_size(svg, "An[^<]*\xE2\x80\xA6"), 18.0f);
+    }
+    {
+        Figure fig({.width = 220, .height = 400});
+        auto&  ax = fig.subplot3d(1, 1, 1);
+        ax.xlim(0.0, 1.0);
+        ax.ylim(0.0, 1.0);
+        ax.zlim(0.0, 1.0);
+        ax.title(long_title);
+        ax.axis_style().title_size = 18.0f;
+        ax.axis_style().label_size = 48.0f;
+        fig.compute_layout();
+        const std::string svg = SvgExporter::to_string(fig);
+        EXPECT_FLOAT_EQ(svg_font_size(svg, "An[^<]*\xE2\x80\xA6"), 18.0f);
+    }
 }
 
 }   // namespace spectra

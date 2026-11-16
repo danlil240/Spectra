@@ -221,6 +221,12 @@ void Renderer::render_plot_text(Figure& figure)
             const auto sf = TextRenderer::scaled_font(tm.font_px(f));
             return text_renderer_.measure_text(t, sf.preset, sf.scale).width;
         };
+        // The title is fitted at sizes no larger than its own (AxisTextMetrics::title_font_px).
+        const LabelWidthFn title_measure = [&](const std::string& t, LabelFont f)
+        {
+            const auto sf = TextRenderer::scaled_font(tm.title_font_px(f));
+            return text_renderer_.measure_text(t, sf.preset, sf.scale).width;
+        };
 
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
@@ -394,9 +400,10 @@ void Renderer::render_plot_text(Figure& figure)
             const FittedLabel       fit  = fit_axes_title(axes.get_title(),
                                                    vp.w,
                                                    y_offset_reserve,
-                                                   axes_label_measure,
+                                                   title_measure,
                                                    label_ellipsis);
-            const auto              sf   = label_font(fit);
+            auto                    sf   = TextRenderer::scaled_font(tm.title_font_px(fit.font));
+            sf.scale *= fit.scale;
             auto  ext = text_renderer_.measure_text(fit.text, sf.preset, sf.scale);
             float cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
             float py  = vp.y - ext.height - pad;
@@ -585,7 +592,7 @@ void Renderer::render_plot_text(Figure& figure)
                                                    : tick_col;
         const LabelWidthFn    title3_measure = [&](const std::string& t, LabelFont f)
         {
-            const auto sf = TextRenderer::scaled_font(tm3.font_px(f));
+            const auto sf = TextRenderer::scaled_font(tm3.title_font_px(f));
             return text_renderer_.measure_text(t, sf.preset, sf.scale).width;
         };
 
@@ -784,7 +791,7 @@ void Renderer::render_plot_text(Figure& figure)
         {
             const FittedLabel fit3 =
                 fit_axes3d_title(axes3d->get_title(), vp.w, title3_measure, label_ellipsis);
-            const auto sf3      = TextRenderer::scaled_font(tm3.font_px(fit3.font));
+            const auto sf3      = TextRenderer::scaled_font(tm3.title_font_px(fit3.font));
             title_fit.text      = fit3.text;
             title_fit.size      = sf3.preset;
             title_fit.scale     = sf3.scale * fit3.scale;

@@ -133,6 +133,9 @@ sudo apt-get install -y xvfb
 export VK_ICD_FILENAMES=$(find /usr/share/vulkan/icd.d -name '*lvp*' | head -1)
 export LIBGL_ALWAYS_SOFTWARE=1
 xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure
+# Baselines resolve to <source>/tests/golden/baseline (absolute, set by CMake), so ctest and
+# direct runs compare against the same files. A missing baseline fails the test; set
+# SPECTRA_GOLDEN_STRICT=0 to skip instead. Regenerate with SPECTRA_UPDATE_BASELINES=1.
 
 # Run a single test binary directly
 ./build/tests/unit_test_easy_api
@@ -639,7 +642,9 @@ CMake's incremental build only recompiles changed files. No need to reconfigure 
 CMakeLists.txt or feature flags change.
 
 ### QA_Regression / QA_Design
-Golden image tests require lavapipe and xvfb (Section 14). Set:
+Golden image tests require lavapipe and xvfb (Section 14). Baseline and output directories
+default to `tests/golden/baseline` and `tests/golden/output` in the source tree (absolute paths
+compiled in); override them with:
 ```bash
 export SPECTRA_GOLDEN_BASELINE_DIR=$PWD/tests/golden/baseline
 export SPECTRA_GOLDEN_OUTPUT_DIR=$PWD/tests/golden/output

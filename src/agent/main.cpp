@@ -161,6 +161,22 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             if (op.series_index < fig.series.size())
                 fig.series[op.series_index].marker_size = op.f1;
             break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_LINE_STYLE:
+        {
+            const uint8_t v =
+                spectra::ipc::style_wire_from_double(op.f1, spectra::ipc::LINE_STYLE_WIRE_MAX);
+            if (op.series_index < fig.series.size() && v != spectra::ipc::SERIES_STYLE_UNSET)
+                fig.series[op.series_index].line_style = v;
+            break;
+        }
+        case spectra::ipc::DiffOp::Type::SET_SERIES_MARKER_STYLE:
+        {
+            const uint8_t v =
+                spectra::ipc::style_wire_from_double(op.f1, spectra::ipc::MARKER_STYLE_WIRE_MAX);
+            if (op.series_index < fig.series.size() && v != spectra::ipc::SERIES_STYLE_UNSET)
+                fig.series[op.series_index].marker_style = v;
+            break;
+        }
         case spectra::ipc::DiffOp::Type::SET_OPACITY:
             if (op.series_index < fig.series.size())
                 fig.series[op.series_index].opacity = op.f1;
@@ -453,6 +469,29 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                     s->marker_size(static_cast<float>(op.f1));
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_LINE_STYLE:
+        {
+            spectra::LineStyle ls{};
+            auto*              s = find_live_series();
+            if (s
+                && spectra::ipc::line_style_from_wire(
+                    spectra::ipc::style_wire_from_double(op.f1, spectra::ipc::LINE_STYLE_WIRE_MAX),
+                    ls))
+                s->line_style(ls);
+            break;
+        }
+        case spectra::ipc::DiffOp::Type::SET_SERIES_MARKER_STYLE:
+        {
+            spectra::MarkerStyle ms{};
+            auto*                s = find_live_series();
+            if (s
+                && spectra::ipc::marker_style_from_wire(
+                    spectra::ipc::style_wire_from_double(op.f1,
+                                                         spectra::ipc::MARKER_STYLE_WIRE_MAX),
+                    ms))
+                s->marker_style(ms);
+            break;
+        }
         case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
             if (ax2d)
                 ax2d->xlabel(op.str_val);

@@ -26,10 +26,12 @@ namespace spectra
 // Mouse button constants (matching GLFW)
 namespace
 {
-constexpr int MOUSE_BUTTON_LEFT  = 0;
-constexpr int MOUSE_BUTTON_RIGHT = 1;
-constexpr int ACTION_PRESS       = 1;
-constexpr int ACTION_RELEASE     = 0;
+constexpr int MOUSE_BUTTON_LEFT    = 0;
+constexpr int MOUSE_BUTTON_RIGHT   = 1;
+constexpr int MOUSE_BUTTON_BACK    = 3;   // GLFW_MOUSE_BUTTON_4 / SDL X1
+constexpr int MOUSE_BUTTON_FORWARD = 4;   // GLFW_MOUSE_BUTTON_5 / SDL X2
+constexpr int ACTION_PRESS         = 1;
+constexpr int ACTION_RELEASE       = 0;
 }   // anonymous namespace
 
 // ─── Tool mode ──────────────────────────────────────────────────────────────
@@ -89,6 +91,8 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
 
 bool InputHandler::has_active_gesture() const
 {
+    if (gutter_drag_ != AxisGutter::None)
+        return true;
     if (box_zoom_.active || ctrl_box_zoom_active_ || select_rect_active_ || region_dragging_)
         return true;
     if (measure_dragging_ || measure_click_state_ == 1)
@@ -101,6 +105,13 @@ bool InputHandler::has_active_gesture() const
 bool InputHandler::cancel_active_gesture()
 {
     bool cancelled = false;
+
+    // Axis gutter drag: put the axis back where the drag started.
+    if (gutter_drag_ != AxisGutter::None)
+    {
+        end_gutter_drag(false);
+        cancelled = true;
+    }
 
     // Box zoom drag (BoxZoom tool, or Ctrl+drag in Pan): drop the rectangle.
     if (box_zoom_.active || ctrl_box_zoom_active_)
@@ -317,6 +328,22 @@ void InputHandler::set_axes_ylim(Axes* ax, double min, double max)
 
 void InputHandler::clear_figure_cache(Figure* fig)
 {
+    // The figure is going away: drop its view history (undo steps that
+    // reach it hold only a weak reference and become no-ops).
+    if (fig)
+        view_history_.forget(fig);
+    if (fig == nullptr || pending_view_figure_ == fig)
+    {
+        pending_view_entry_  = nullptr;
+        pending_view_figure_ = nullptr;
+    }
+    if (fig == nullptr || view_gesture_figure_ == fig)
+    {
+        view_gesture_open_   = false;
+        view_gesture_figure_ = nullptr;
+        view_gesture_before_.clear();
+    }
+
     if (!fig || figure_ == fig)
     {
         // Cancel any in-flight animations that hold raw Axes* pointers
@@ -348,6 +375,7 @@ void InputHandler::clear_figure_cache(Figure* fig)
         mode_              = InteractionMode::Idle;
         is_3d_orbit_drag_  = false;
         is_3d_pan_drag_    = false;
+        gutter_drag_       = AxisGutter::None;
     }
 }
 
@@ -364,6 +392,27 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
                           std::to_string(button),
                           "ok",
                           std::format("x={:.0f} y={:.0f}", x, y));
+    }
+
+    // Mouse back / forward buttons step through the view history.
+    if (button == MOUSE_BUTTON_BACK || button == MOUSE_BUTTON_FORWARD)
+    {
+        if (action == ACTION_PRESS)
+        {
+            if (button == MOUSE_BUTTON_BACK)
+                view_back();
+            else
+                view_forward();
+        }
+        return;
+    }
+
+    // Axis gutter drag in progress: only its own button's release ends it.
+    if (gutter_drag_ != AxisGutter::None)
+    {
+        if (action == ACTION_RELEASE && button == gutter_drag_button_)
+            end_gutter_drag(true);
+        return;
     }
 
     // Validate cached axes pointers still belong to the current figure.
@@ -440,9 +489,19 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         }
 
         // Plot pan/zoom/tools only start from a press inside the axes viewport
-        // (the inner data area — not title/label gutters or other chrome).
+        // (the inner data area).  A left or middle press on an axis gutter
+        // (tick labels) pans that axis only.
         if (action == ACTION_PRESS && !hit_base)
+        {
+            Axes*            gutter_axes = nullptr;
+            const AxisGutter gutter      = hit_test_gutter(x, y, &gutter_axes);
+            if (gutter != AxisGutter::None && gutter_axes
+                && (button == MOUSE_BUTTON_LEFT || button == MOUSE_BUTTON_MIDDLE))
+            {
+                handle_gutter_press(gutter, gutter_axes, button, x, y);
+            }
             return;
+        }
     }
 
     // Handle 3D axes camera interaction
@@ -554,6 +613,13 @@ void InputHandler::on_mouse_move(double x, double y)
     SPECTRA_LOG_TRACE(
         "input",
         "Mouse move event - pos: (" + std::to_string(x) + ", " + std::to_string(y) + ")");
+
+    // Axis gutter drag: pan that axis only
+    if (gutter_drag_ != AxisGutter::None)
+    {
+        handle_gutter_move(x, y);
+        return;
+    }
 
     // Handle 3D camera drag (orbit or pan)
     if (is_3d_orbit_drag_ || is_3d_pan_drag_)
@@ -713,10 +779,23 @@ void InputHandler::on_mouse_move(double x, double y)
 
 // ─── Scroll ─────────────────────────────────────────────────────────────────
 
-void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor_x, double cursor_y)
+void InputHandler::on_scroll(double x_offset,
+                             double y_offset,
+                             double cursor_x,
+                             double cursor_y,
+                             int    mods)
 {
     if (!point_in_interaction_rect(cursor_x, cursor_y))
         return;
+
+    // Some platforms (macOS) turn Shift+wheel into a horizontal step: keep it
+    // a zoom so Shift+wheel zooms X everywhere.
+    if ((mods & VIEW_MOD_SHIFT) && y_offset == 0.0 && x_offset != 0.0)
+    {
+        y_offset = x_offset;
+        x_offset = 0.0;
+    }
+    ViewAxes wheel_axes = wheel_zoom_axes(mods);
 
     // Validate cached axes pointers still belong to the current figure.
     // They can become dangling when figures are closed or moved between windows.
@@ -758,8 +837,19 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
 
     // Hit-test all axes (including 3D) for scroll zoom — cursor must be over the
     // plot data viewport, not a stale axes from a prior hover.
-    AxesBase* hit_base = hit_test_all_axes(cursor_x, cursor_y);
-    if (hit_base)
+    AxesBase*  hit_base    = hit_test_all_axes(cursor_x, cursor_y);
+    Axes*      gutter_axes = nullptr;
+    AxisGutter gutter      = AxisGutter::None;
+    if (!hit_base)
+        gutter = hit_test_gutter(cursor_x, cursor_y, &gutter_axes);
+    if (gutter != AxisGutter::None && gutter_axes)
+    {
+        // Over the tick labels: zoom / pan that axis only.
+        active_axes_base_ = gutter_axes;
+        active_axes_      = gutter_axes;
+        wheel_axes        = gutter == AxisGutter::X ? ViewAxes::X : ViewAxes::Y;
+    }
+    else if (hit_base)
     {
         active_axes_base_ = hit_base;
         active_axes_      = nullptr;
@@ -794,11 +884,12 @@ void InputHandler::on_scroll(double /*x_offset*/, double y_offset, double cursor
     // Handle 3D zoom by scaling axis limits (box stays fixed visual size)
     if (auto* axes3d = dynamic_cast<Axes3D*>(active_axes_base_))
     {
-        handle_scroll_3d(axes3d, y_offset);
+        if (y_offset != 0.0)   // a horizontal step must not zoom out
+            handle_scroll_3d(axes3d, y_offset);
         return;
     }
 
-    handle_scroll_2d(y_offset, cursor_x, cursor_y);
+    handle_scroll_2d(x_offset, y_offset, cursor_x, cursor_y, wheel_axes);
 }
 
 // ─── Keyboard ───────────────────────────────────────────────────────────────
@@ -840,6 +931,9 @@ void InputHandler::on_key(int key, int action, int mods)
         // all_axes() (3D only). Both must be iterated.
         if (figure_)
         {
+            finalize_pending_view();
+            const ViewState before = capture_figure_view(*figure_);
+            ViewState       after  = before;
             for (auto& axes_ptr : figure_->axes())
             {
                 if (!axes_ptr)
@@ -853,6 +947,7 @@ void InputHandler::on_key(int key, int action, int mods)
                     AxisLimits target_y = axes_ptr->y_limits();
                     set_axes_xlim(axes_ptr.get(), old_xlim.min, old_xlim.max);
                     set_axes_ylim(axes_ptr.get(), old_ylim.min, old_ylim.max);
+                    set_axes_view(after, axes_ptr.get(), target_x, target_y);
                     if (transition_engine_)
                     {
                         transition_engine_->animate_limits(*axes_ptr,
@@ -873,8 +968,13 @@ void InputHandler::on_key(int key, int action, int mods)
                 else
                 {
                     axes_ptr->auto_fit();
+                    set_axes_view(after,
+                                  axes_ptr.get(),
+                                  axes_ptr->x_limits(),
+                                  axes_ptr->y_limits());
                 }
             }
+            record_view_change(figure_, "Reset view", before, std::move(after));
             for (auto& axes_base_ptr : figure_->all_axes())
             {
                 if (!axes_base_ptr)
@@ -966,7 +1066,10 @@ void InputHandler::on_key(int key, int action, int mods)
         // Animated auto-fit active axes only
         if (active_axes_)
         {
-            if (transition_engine_)
+            finalize_pending_view();
+            const ViewState before = capture_view(active_axes_);
+            ViewState       after  = before;
+            if (transition_engine_ || anim_ctrl_)
             {
                 auto old_xlim = active_axes_->x_limits();
                 auto old_ylim = active_axes_->y_limits();
@@ -975,31 +1078,29 @@ void InputHandler::on_key(int key, int action, int mods)
                 AxisLimits target_y = active_axes_->y_limits();
                 set_axes_xlim(active_axes_, old_xlim.min, old_xlim.max);
                 set_axes_ylim(active_axes_, old_ylim.min, old_ylim.max);
-                transition_engine_->animate_limits(*active_axes_,
-                                                   target_x,
-                                                   target_y,
-                                                   AUTOFIT_ANIM_DURATION,
-                                                   ease::ease_out);
-            }
-            else if (anim_ctrl_)
-            {
-                auto old_xlim = active_axes_->x_limits();
-                auto old_ylim = active_axes_->y_limits();
-                active_axes_->auto_fit();
-                AxisLimits target_x = active_axes_->x_limits();
-                AxisLimits target_y = active_axes_->y_limits();
-                set_axes_xlim(active_axes_, old_xlim.min, old_xlim.max);
-                set_axes_ylim(active_axes_, old_ylim.min, old_ylim.max);
-                anim_ctrl_->animate_axis_limits(*active_axes_,
-                                                target_x,
-                                                target_y,
-                                                AUTOFIT_ANIM_DURATION,
-                                                ease::ease_out);
+                if (transition_engine_)
+                    transition_engine_->animate_limits(*active_axes_,
+                                                       target_x,
+                                                       target_y,
+                                                       AUTOFIT_ANIM_DURATION,
+                                                       ease::ease_out);
+                else
+                    anim_ctrl_->animate_axis_limits(*active_axes_,
+                                                    target_x,
+                                                    target_y,
+                                                    AUTOFIT_ANIM_DURATION,
+                                                    ease::ease_out);
+                set_axes_view(after, active_axes_, target_x, target_y);
             }
             else
             {
                 active_axes_->auto_fit();
+                set_axes_view(after,
+                              active_axes_,
+                              active_axes_->x_limits(),
+                              active_axes_->y_limits());
             }
+            record_view_change(figure_, "Auto-fit", before, std::move(after));
         }
         return;
     }
@@ -1045,16 +1146,24 @@ void InputHandler::apply_box_zoom()
     double ymin = std::min(d_y0, d_y1);
     double ymax = std::max(d_y0, d_y1);
 
-    // Only apply if the selection is large enough (avoid accidental clicks)
-    constexpr float MIN_SELECTION_PIXELS = 5.0f;
-    auto            dx_screen = static_cast<float>(std::abs(box_zoom_.x1 - box_zoom_.x0));
-    auto            dy_screen = static_cast<float>(std::abs(box_zoom_.y1 - box_zoom_.y0));
+    // A click is ignored; a thin, nearly horizontal / vertical band zooms
+    // only the axis along it (instead of being dropped).
+    const BoxZoomKind kind =
+        classify_box_zoom(box_zoom_.x1 - box_zoom_.x0, box_zoom_.y1 - box_zoom_.y0);
 
-    if (dx_screen > MIN_SELECTION_PIXELS && dy_screen > MIN_SELECTION_PIXELS)
+    if (kind != BoxZoomKind::None)
     {
-        // Animated box zoom transition
+        finalize_pending_view();
+        const ViewState before = capture_view(active_axes_);
+
         AxisLimits target_x{xmin, xmax};
         AxisLimits target_y{ymin, ymax};
+        if (kind == BoxZoomKind::X)
+            target_y = active_axes_->y_limits();
+        else if (kind == BoxZoomKind::Y)
+            target_x = active_axes_->x_limits();
+
+        // Animated box zoom transition
         if (transition_engine_)
         {
             transition_engine_->animate_limits(*active_axes_,
@@ -1073,8 +1182,8 @@ void InputHandler::apply_box_zoom()
         }
         else
         {
-            set_axes_xlim(active_axes_, xmin, xmax);
-            set_axes_ylim(active_axes_, ymin, ymax);
+            set_axes_xlim(active_axes_, target_x.min, target_x.max);
+            set_axes_ylim(active_axes_, target_y.min, target_y.max);
         }
 
         // Propagate box zoom to linked axes
@@ -1082,6 +1191,13 @@ void InputHandler::apply_box_zoom()
         {
             axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
         }
+
+        ViewState after = capture_view(active_axes_);
+        set_axes_view(after, active_axes_, target_x, target_y);
+        const char* label = kind == BoxZoomKind::X   ? "Zoom X"
+                            : kind == BoxZoomKind::Y ? "Zoom Y"
+                                                     : "Box zoom";
+        record_view_change(figure_, label, before, std::move(after));
     }
 
     box_zoom_.active = false;
@@ -1152,6 +1268,10 @@ void InputHandler::update(float dt)
     {
         anim_ctrl_->update(dt);
     }
+    // An animated view change (inertia, box zoom, auto-fit) has settled:
+    // its history entry gets the final limits.
+    if (pending_view_entry_ && !has_active_animations())
+        finalize_pending_view();
 }
 
 // ─── Animation query ────────────────────────────────────────────────────────

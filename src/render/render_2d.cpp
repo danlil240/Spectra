@@ -24,6 +24,7 @@
 #include "core/axis_scale.hpp"
 #include "render/line_geometry.hpp"
 #include "render/scatter_marker.hpp"
+#include "render/stat_fill_style.hpp"
 #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -70,6 +71,38 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
         r.pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
     }
     return r;
+}
+
+// Flat stat fill (bars, histograms, box plots, violins) at the series' fill
+// alpha, then the first `outline_points` outline points as a thin edge in the
+// style's edge colour (by default a theme-aware shade of the fill).
+void Renderer::draw_stat_fill(SeriesGpuData&             gpu,
+                              const SeriesPushConstants& pc,
+                              const StatFillStyle&       style,
+                              size_t                     outline_points)
+{
+    if (gpu.fill_buffer && gpu.fill_vertex_count > 0 && style.fill_alpha > 0.0f)
+    {
+        backend_.bind_pipeline(stat_fill_pipeline_);
+        SeriesPushConstants fill_pc = pc;
+        fill_pc.color[3] *= style.fill_alpha;
+        backend_.push_constants(fill_pc);
+        backend_.bind_buffer(gpu.fill_buffer, 0);
+        backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+    }
+    if (style.edge_width > 0.0f && outline_points > 1)
+    {
+        const Color         edge    = stat_edge_color(style,
+                                           Color{pc.color[0], pc.color[1], pc.color[2]},
+                                           plot_colors().bg_canvas.luminance());
+        SeriesPushConstants edge_pc = pc;
+        edge_pc.color[0]            = edge.r;
+        edge_pc.color[1]            = edge.g;
+        edge_pc.color[2]            = edge.b;
+        edge_pc.color[3]            = pc.color[3] * edge.a;
+        edge_pc.line_width          = style.edge_width;
+        draw_polyline(edge_pc, gpu, 0, static_cast<uint32_t>(outline_points) - 1);
+    }
 }
 
 void Renderer::draw_polyline(SeriesPushConstants pc,
@@ -407,22 +440,26 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::BoxPlot2D:
         {
-            auto* bp = static_cast<BoxPlotSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            auto*        bp     = static_cast<BoxPlotSeries*>(&series);
+            const size_t n_pts  = bp->point_count();
+            const size_t med_at = std::min(bp->median_first_point(), n_pts);
+            draw_stat_fill(gpu, pc, bp->fill_style(), med_at);
+            // Median on top, in an ink colour that contrasts with the fill.
+            if (n_pts > med_at + 1)
             {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.45f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (bp->point_count() > 1)
-            {
-                pc.line_width = 1.5f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(bp->point_count()) - 1);
+                const auto& bg  = plot_colors().bg_canvas;
+                const Color ink = stat_median_color(Color{pc.color[0], pc.color[1], pc.color[2]},
+                                                    bp->fill_alpha(),
+                                                    Color{bg.r, bg.g, bg.b});
+                SeriesPushConstants med_pc = pc;
+                med_pc.color[0]            = ink.r;
+                med_pc.color[1]            = ink.g;
+                med_pc.color[2]            = ink.b;
+                med_pc.line_width          = stat_median_width(bp->edge_width());
+                draw_polyline(med_pc,
+                              gpu,
+                              static_cast<uint32_t>(med_at),
+                              static_cast<uint32_t>(n_pts - med_at) - 1);
             }
             // Render outliers as scatter points (using persistent buffer from upload)
             if (gpu.outlier_buffer && gpu.outlier_count > 0)
@@ -439,64 +476,19 @@ void Renderer::render_series(Series&             series,
         case SeriesType::Violin2D:
         {
             auto* vn = static_cast<ViolinSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
-            {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.40f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (vn->point_count() > 1)
-            {
-                pc.line_width = 1.5f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(vn->point_count()) - 1);
-            }
+            draw_stat_fill(gpu, pc, vn->fill_style(), vn->point_count());
             break;
         }
         case SeriesType::Histogram2D:
         {
             auto* hist = static_cast<HistogramSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
-            {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.65f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (hist->point_count() > 1)
-            {
-                pc.line_width = 1.0f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(hist->point_count()) - 1);
-            }
+            draw_stat_fill(gpu, pc, hist->fill_style(), hist->point_count());
             break;
         }
         case SeriesType::Bar2D:
         {
             auto* bs = static_cast<BarSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
-            {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.75f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (bs->point_count() > 1)
-            {
-                pc.line_width = 1.5f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(bs->point_count()) - 1);
-            }
+            draw_stat_fill(gpu, pc, bs->fill_style(), bs->point_count());
             break;
         }
         case SeriesType::Band2D:

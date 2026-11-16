@@ -183,8 +183,22 @@ class SnapshotSeriesState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
         return o == 0
 
+    # SnapshotSeriesState
+    def LineStyle(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
+    # SnapshotSeriesState
+    def MarkerStyle(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(18)
+    builder.StartObject(20)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -308,6 +322,18 @@ def SnapshotSeriesStateStartCategoriesVector(builder, numElems):
 
 def StartCategoriesVector(builder, numElems):
     return SnapshotSeriesStateStartCategoriesVector(builder, numElems)
+
+def SnapshotSeriesStateAddLineStyle(builder, lineStyle):
+    builder.PrependUint8Slot(18, lineStyle, 255)
+
+def AddLineStyle(builder, lineStyle):
+    SnapshotSeriesStateAddLineStyle(builder, lineStyle)
+
+def SnapshotSeriesStateAddMarkerStyle(builder, markerStyle):
+    builder.PrependUint8Slot(19, markerStyle, 255)
+
+def AddMarkerStyle(builder, markerStyle):
+    SnapshotSeriesStateAddMarkerStyle(builder, markerStyle)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

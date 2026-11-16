@@ -83,6 +83,29 @@ foreach(SHADER_SRC ${SHADER_SOURCES})
     list(APPEND SPIRV_OUTPUTS ${SPIRV_OUT})
 endforeach()
 
+# Variants: one GLSL source compiled again with extra defines.
+#   scatter_colormap.frag — scatter.frag with the colormap lookup table (set 2),
+#   used by PipelineType::ScatterColormap.
+set(SHADER_VARIANTS
+    "scatter_colormap.frag|scatter.frag|-DSPECTRA_COLORMAP_LUT"
+)
+foreach(VARIANT ${SHADER_VARIANTS})
+    string(REPLACE "|" ";" VARIANT_PARTS "${VARIANT}")
+    list(GET VARIANT_PARTS 0 VARIANT_NAME)
+    list(GET VARIANT_PARTS 1 VARIANT_SOURCE)
+    list(GET VARIANT_PARTS 2 VARIANT_DEFINES)
+    set(SPIRV_OUT ${SHADER_OUTPUT_DIR}/${VARIANT_NAME}.spv)
+    add_custom_command(
+        OUTPUT ${SPIRV_OUT}
+        COMMAND ${GLSLANG_VALIDATOR} -V --target-env vulkan1.2 ${VARIANT_DEFINES}
+                -o ${SPIRV_OUT} ${SHADER_SOURCE_DIR}/${VARIANT_SOURCE}
+        DEPENDS ${SHADER_SOURCE_DIR}/${VARIANT_SOURCE}
+        COMMENT "Compiling shader variant: ${VARIANT_NAME}"
+        VERBATIM
+    )
+    list(APPEND SPIRV_OUTPUTS ${SPIRV_OUT})
+endforeach()
+
 # Generate C++ header embedding all SPIR-V bytecode.
 # The DEPENDS on all SPIRV_OUTPUTS ensures every .spv must exist before this runs.
 add_custom_command(

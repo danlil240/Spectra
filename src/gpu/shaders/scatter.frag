@@ -22,46 +22,21 @@ layout(location = 1) flat in float v_color_value;
 
 layout(location = 0) out vec4 out_color;
 
-vec3 apply_colormap(int cm_type, float t) {
-    t = clamp(t, 0.0, 1.0);
-    if (cm_type == 1) { // Viridis
-        vec3 c0 = vec3(0.267, 0.005, 0.329);
-        vec3 c1 = vec3(0.128, 0.567, 0.551);
-        vec3 c2 = vec3(0.993, 0.906, 0.144);
-        return t < 0.5 ? mix(c0, c1, t * 2.0) : mix(c1, c2, (t - 0.5) * 2.0);
-    }
-    if (cm_type == 2) { // Plasma
-        vec3 c0 = vec3(0.050, 0.030, 0.528);
-        vec3 c1 = vec3(0.798, 0.280, 0.470);
-        vec3 c2 = vec3(0.940, 0.975, 0.131);
-        return t < 0.5 ? mix(c0, c1, t * 2.0) : mix(c1, c2, (t - 0.5) * 2.0);
-    }
-    if (cm_type == 3) { // Inferno
-        vec3 c0 = vec3(0.001, 0.000, 0.014);
-        vec3 c1 = vec3(0.735, 0.216, 0.330);
-        vec3 c2 = vec3(0.988, 0.998, 0.645);
-        return t < 0.5 ? mix(c0, c1, t * 2.0) : mix(c1, c2, (t - 0.5) * 2.0);
-    }
-    if (cm_type == 4) { // Magma
-        vec3 c0 = vec3(0.001, 0.000, 0.014);
-        vec3 c1 = vec3(0.716, 0.215, 0.475);
-        vec3 c2 = vec3(0.987, 0.991, 0.750);
-        return t < 0.5 ? mix(c0, c1, t * 2.0) : mix(c1, c2, (t - 0.5) * 2.0);
-    }
-    if (cm_type == 5) { // Jet
-        return clamp(vec3(1.5) - abs(4.0 * t - vec3(3.0, 2.0, 1.0)), 0.0, 1.0);
-    }
-    if (cm_type == 6) { // Coolwarm
-        vec3 cool = vec3(0.230, 0.299, 0.754);
-        vec3 mid = vec3(0.865, 0.865, 0.865);
-        vec3 warm = vec3(0.706, 0.016, 0.150);
-        return t < 0.5 ? mix(cool, mid, t * 2.0) : mix(mid, warm, (t - 0.5) * 2.0);
-    }
-    if (cm_type == 7) { // Grayscale
-        return vec3(t);
-    }
-    return color.rgb;
+#ifdef SPECTRA_COLORMAP_LUT
+// Colormap lookup table: Colormap::rgba8() (src/core/colormap.cpp), n x 1
+// RGBA8.  Built as scatter_colormap.frag (PipelineType::ScatterColormap) with
+// SPECTRA_COLORMAP_LUT defined; plain scatter.frag has no set 2.
+layout(set = 2, binding = 0) uniform sampler2D lut_tex;
+
+// Nearest entry min(int(t * n), n - 1), as Colormap::sample() and image2d.frag.
+// Alpha is the table's (user colormaps may be translucent).
+vec4 apply_colormap(float t) {
+    t       = clamp(t, 0.0, 1.0);
+    int n   = textureSize(lut_tex, 0).x;
+    int idx = clamp(int(t * float(n)), 0, n - 1);
+    return texelFetch(lut_tex, ivec2(idx, 0), 0);
 }
+#endif
 
 // ─── SDF helpers ─────────────────────────────────────────────────────────────
 // All shapes are centered at origin, fitting within the -1..1 UV quad.
@@ -264,14 +239,20 @@ void main() {
 
     if (alpha < 0.002) discard;
 
-    vec3 base_color = color.rgb;
+    vec3  base_color = color.rgb;
+    float base_alpha = color.a;
+#ifdef SPECTRA_COLORMAP_LUT
+    // _pad2[0] > 0.5 and dash_count > 0: colormap on, dash_pattern[0..1] = value range.
     if (_pad2[0] > 0.5 && dash_count > 0 && !isnan(v_color_value) && !isinf(v_color_value)) {
         float value_min = dash_pattern[0];
         float value_max = dash_pattern[1];
         float range = value_max - value_min;
         float t = abs(range) > 1e-20 ? (v_color_value - value_min) / range : 0.5;
-        base_color = apply_colormap(dash_count, t);
+        vec4 lut   = apply_colormap(t);
+        base_color = lut.rgb;
+        base_alpha *= lut.a;
     }
+#endif
 
     // Default scatter dot: tint a ~1 px rim towards white (_pad2[1] > 0) or
     // black (_pad2[1] < 0) so dark or light colors stay visible on the canvas.
@@ -282,5 +263,5 @@ void main() {
         base_color = mix(base_color, mix(base_color, target, abs(_pad2[1])), rim);
     }
 
-    out_color = vec4(base_color, color.a * opacity * alpha);
+    out_color = vec4(base_color, base_alpha * opacity * alpha);
 }

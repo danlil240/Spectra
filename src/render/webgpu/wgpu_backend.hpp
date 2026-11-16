@@ -68,6 +68,8 @@ namespace spectra
 //     - pl_ssbo_   : group 0 (FrameUBO + SeriesPC) + group 1 (storage buffer)
 //     - pl_vertex_ : group 0 only  (vertex-attribute shaders: grid, stat_fill)
 //     - pl_texture_: group 0 + group 1 (texture + sampler)  (text shaders)
+//     - pl_ssbo_texture_: pl_ssbo_ + group 2 (colormap lookup table texture)
+//       (colormapped scatter, heatmap)
 //  • Bind groups are created lazily per buffer/texture and cached by ID.
 //  • FrameUBO uses a dynamic-offset bind group; the offset is set when
 //    bind_buffer is called for a Uniform buffer.
@@ -228,9 +230,10 @@ class WebGPUBackend : public Backend
     WGPUBindGroupLayout bgl_group1_texture_ = nullptr;   // texture + sampler
 
     // ── Pipeline layouts ────────────────────────────────────────────────────
-    WGPUPipelineLayout pl_ssbo_    = nullptr;   // group0 + group1_ssbo
-    WGPUPipelineLayout pl_vertex_  = nullptr;   // group0 only
-    WGPUPipelineLayout pl_texture_ = nullptr;   // group0 + group1_texture
+    WGPUPipelineLayout pl_ssbo_         = nullptr;   // group0 + group1_ssbo
+    WGPUPipelineLayout pl_vertex_       = nullptr;   // group0 only
+    WGPUPipelineLayout pl_texture_      = nullptr;   // group0 + group1_texture
+    WGPUPipelineLayout pl_ssbo_texture_ = nullptr;   // group0 + group1_ssbo + group2 texture
 
     // ── Per-frame uniform buffers ────────────────────────────────────────────
     // frame_ubo_ring_: large ring buffer for FrameUBO slots (dynamic offset)

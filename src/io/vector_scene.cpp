@@ -287,47 +287,10 @@ float baseline_offset(VAlign v, float font_px)
 
 // ─── Colormaps ──────────────────────────────────────────────────────────────
 
-// Same three-stop ramps as apply_colormap() in scatter.frag.
-Color scatter_colormap(ColormapType cm, float t)
+// The colormap lookup table the GPU shaders read (Colormap::sample).
+Color scatter_colormap(const Colormap& cm, float t)
 {
-    using RGB = std::array<float, 3>;
-    t         = clamp01(t);
-    auto mix  = [](const RGB& a, const RGB& b, float u)
-    { return Color{a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u}; };
-    auto three = [&](const RGB& c0, const RGB& c1, const RGB& c2)
-    { return t < 0.5f ? mix(c0, c1, t * 2.0f) : mix(c1, c2, (t - 0.5f) * 2.0f); };
-    switch (cm)
-    {
-        case ColormapType::Viridis:
-            return three({0.267f, 0.005f, 0.329f},
-                         {0.128f, 0.567f, 0.551f},
-                         {0.993f, 0.906f, 0.144f});
-        case ColormapType::Plasma:
-            return three({0.050f, 0.030f, 0.528f},
-                         {0.798f, 0.280f, 0.470f},
-                         {0.940f, 0.975f, 0.131f});
-        case ColormapType::Inferno:
-            return three({0.001f, 0.000f, 0.014f},
-                         {0.735f, 0.216f, 0.330f},
-                         {0.988f, 0.998f, 0.645f});
-        case ColormapType::Magma:
-            return three({0.001f, 0.000f, 0.014f},
-                         {0.716f, 0.215f, 0.475f},
-                         {0.987f, 0.991f, 0.750f});
-        case ColormapType::Jet:
-            return Color{clamp01(1.5f - std::fabs(4.0f * t - 3.0f)),
-                         clamp01(1.5f - std::fabs(4.0f * t - 2.0f)),
-                         clamp01(1.5f - std::fabs(4.0f * t - 1.0f))};
-        case ColormapType::Coolwarm:
-            return three({0.230f, 0.299f, 0.754f},
-                         {0.865f, 0.865f, 0.865f},
-                         {0.706f, 0.016f, 0.150f});
-        case ColormapType::Grayscale:
-            return Color{t, t, t};
-        case ColormapType::None:
-        default:
-            return Color{0.5f, 0.5f, 0.5f};
-    }
+    return cm.sample(clamp01(t));
 }
 
 // ─── Export context ─────────────────────────────────────────────────────────
@@ -804,7 +767,8 @@ void emit_markers(SceneContext&             c,
         if (i < colors.size())
         {
             VectorStyle own;
-            own.color = colors[i];
+            own.color   = colors[i];
+            own.opacity = clamp01(colors[i].a);   // translucent user colormap entries
             c.w.use_marker(8, id, px, py, own);
         }
         else
@@ -1071,7 +1035,8 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
             for (float v : vals)
             {
                 const float t = std::fabs(range) > 1e-20f ? (v - lo) / range : 0.5f;
-                per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->colormap(), t) : col);
+                per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->cmap(), t)
+                                                     : Color{col.r, col.g, col.b, 1.0f});
             }
         }
         // Same marker as the renderer; the colormap is drawn when the
@@ -1400,7 +1365,7 @@ std::vector<uint8_t> rasterize_image(const ImageSeries& img,
     const auto           data = img.data();
     const bool           rgba = img.is_rgba();
     const auto           lut =
-        rgba ? std::vector<uint8_t>{} : image_colormap::build_lut(img.colormap(), img.levels());
+        rgba ? std::vector<uint8_t>{} : image_colormap::build_lut(img.cmap(), img.levels());
     const size_t lut_n  = lut.size() / 4;
     const bool   banded = !img.levels().empty();
     const bool   nodes  = img.node_aligned();
@@ -1519,7 +1484,7 @@ void emit_image_series(SceneContext& c, const ImageSeries& img, const DataToSvg&
     const double cell_h = sh / static_cast<double>(img.rows());
     if (!(cell_w >= 12.0) || !(cell_h >= TICK_FONT_PX + 2.0))
         return;
-    const auto lut  = image_colormap::build_lut(img.colormap(), img.levels());
+    const auto lut  = image_colormap::build_lut(img.cmap(), img.levels());
     const auto vals = img.data();
     for (size_t r = 0; r < img.rows(); ++r)
     {
@@ -1656,7 +1621,7 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
         e.marker      = legend_scatter_marker(style.marker_style, st);
         e.marker_size = sc->size();
         if (sc->has_colormap())
-            e.color = scatter_colormap(sc->colormap(), 0.5f);
+            e.color = scatter_colormap(sc->cmap(), 0.5f);
     }
     else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
     {
@@ -1672,7 +1637,7 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
     else if (auto* surf = dynamic_cast<const SurfaceSeries*>(&s))
     {
         if (surf->colormap_type() != ColormapType::None)
-            e.color = SurfaceSeries::sample_colormap(surf->colormap_type(), 0.5f);
+            e.color = surf->cmap().sample(0.5f);
         if (surf->wireframe())
         {
             e.kind       = SwatchKind::Line;
@@ -2796,7 +2761,8 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             const auto uc   = static_cast<size_t>(std::max(cols, 0));
             if (ur < 2 || uc < 2 || xg.size() < uc || yg.size() < ur || zv.size() < ur * uc)
                 continue;
-            const ColormapType cm = surf->colormap_type();
+            const Colormap&    cmap_def = surf->cmap();
+            const ColormapType cm       = cmap_def.type();
             // Colormap t follows surface3d.frag: the data z over the series'
             // effective colormap range (0.5 for a flat range).
             const double c_lo    = surf->colormap_min();
@@ -2811,7 +2777,7 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             {
                 if (cm == ColormapType::None)
                     return col;
-                return SurfaceSeries::sample_colormap(cm, cmap_t(dz));
+                return cmap_def.sample(cmap_t(dz));
             };
             // Colormap alpha (surface3d.frag): alpha_min..alpha_max over the range.
             const bool cmap_alpha = surf->colormap_alpha();

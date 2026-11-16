@@ -115,6 +115,13 @@ TEST(StartupTheme, LoadedSettingsFileFeedsResolver)
 
 // ─── Recent data files (start page) ──────────────────────────────────────────
 
+// What push_recent_file stores for @p p: absolute and lexically normal.  On
+// Windows "/d/a.csv" gains the current drive, so tests compare against this.
+static std::string stored_path(const std::string& p)
+{
+    return std::filesystem::absolute(std::filesystem::path(p)).lexically_normal().string();
+}
+
 TEST(RecentFiles, PushMovesToFrontAndDeduplicates)
 {
     std::vector<std::string> list;
@@ -122,8 +129,8 @@ TEST(RecentFiles, PushMovesToFrontAndDeduplicates)
     spectra::ui::settings::push_recent_file(list, "/d/b.ulg");
     spectra::ui::settings::push_recent_file(list, "/d/./a.csv");
     ASSERT_EQ(list.size(), 2u);
-    EXPECT_EQ(list[0], std::filesystem::path("/d/a.csv").lexically_normal().string());
-    EXPECT_EQ(list[1], std::filesystem::path("/d/b.ulg").string());
+    EXPECT_EQ(list[0], stored_path("/d/a.csv"));
+    EXPECT_EQ(list[1], stored_path("/d/b.ulg"));
 }
 
 TEST(RecentFiles, CappedAndIgnoresEmptyPaths)
@@ -133,7 +140,7 @@ TEST(RecentFiles, CappedAndIgnoresEmptyPaths)
         spectra::ui::settings::push_recent_file(list, "/d/f" + std::to_string(i) + ".csv");
     spectra::ui::settings::push_recent_file(list, "");
     ASSERT_EQ(list.size(), spectra::ui::settings::MAX_RECENT_FILES);
-    EXPECT_EQ(list.front(), std::filesystem::path("/d/f19.csv").string());
+    EXPECT_EQ(list.front(), stored_path("/d/f19.csv"));
 }
 
 TEST(RecentFiles, RelativePathsAreStoredAbsolute)
@@ -164,8 +171,8 @@ TEST(RecentFiles, StoreNotifiesAndRoundTrips)
     SettingsStore loaded;
     ASSERT_TRUE(loaded.load(path.string()));
     ASSERT_EQ(loaded.data().recent_files.size(), 2u);
-    EXPECT_EQ(loaded.data().recent_files[0], "/data/b.mcap");
-    EXPECT_EQ(loaded.data().recent_files[1], "/data/with \"quote\".csv");
+    EXPECT_EQ(loaded.data().recent_files[0], stored_path("/data/b.mcap"));
+    EXPECT_EQ(loaded.data().recent_files[1], stored_path("/data/with \"quote\".csv"));
     EXPECT_EQ(loaded.data().default_theme, "light");
 
     loaded.forget_recent_file("/data/b.mcap");

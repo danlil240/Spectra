@@ -295,6 +295,8 @@ class _EasyState:
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
         self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
         self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
+        self._axes_bars: dict = {}  # (figure_id, axes_index) -> [(x, heights, bottom, horizontal)]
+        self._axes_sticky: dict = {}  # (figure_id, axes_index) -> ([x sticky], [y sticky])
         self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
         self._pending_knobs: List[dict] = []
@@ -396,6 +398,8 @@ class _EasyState:
         self._axes_bounds.clear()
         self._errorbar_counts.clear()
         self._axes_scales.clear()
+        self._axes_bars.clear()
+        self._axes_sticky.clear()
         self._datetime_axes.clear()
         self._subplot_cache.clear()
         self._shutting_down = False
@@ -828,6 +832,7 @@ def bar(
     bottom: float = 0.0,
     horizontal: bool = False,
     width: Optional[float] = None,
+    stacked: Optional[bool] = None,
 ):
     """Bar chart drawn by the native bar series (filled bars, legend swatch).
 
@@ -836,10 +841,15 @@ def bar(
     ``bar_width`` (matplotlib's name); ``bottom`` is the bars' baseline and
     ``horizontal=True`` draws bars along x (like ``barh``).
 
+    Several bar series at the same positions are drawn side by side
+    (grouped).  ``stacked=True`` stacks them on top of each other instead
+    (negative values stack downwards); it applies to the whole axes.
+
     Usage::
 
         sp.bar([1, 2, 3], [10, 20, 15])
         sp.bar(["a", "b", "c"], [3, 5, 2], color="g")
+        sp.bar(["a", "b", "c"], [1, 2, 1], stacked=True)
     """
     bw = float(width) if width is not None else float(bar_width)
     names = None
@@ -854,11 +864,16 @@ def bar(
 
     ax = _state._ensure_axes()
     series = ax.bar(names if names is not None else xv, hv, width=bw, bottom=float(bottom),
-                    horizontal=horizontal, label=label)
+                    horizontal=horizontal, label=label, stacked=stacked)
     _apply_color(series, color)
     hw = bw / 2.0
     pos = [v - hw for v in xv] + [v + hw for v in xv]
-    ext = list(hv) + [float(bottom)]
+    ax_key = (ax._figure_id, ax._index)
+    bars = _state._axes_bars.setdefault(ax_key, [])
+    bars.append((xv, hv, float(bottom), bool(horizontal)))
+    ext, origin = _bar_value_extent(bars, ax.bar_mode, bool(horizontal))
+    # Bars grow from the baseline: autoscale keeps no margin below it.
+    _state._axes_sticky.setdefault(ax_key, ([], []))[0 if horizontal else 1].append(origin)
     if horizontal:
         _auto_fit_axes(ax, ext, pos)
     else:
@@ -868,6 +883,35 @@ def bar(
     return series
 
 
+def _bar_value_extent(bars, mode: str, horizontal: bool):
+    """Values a bar axes must show and the value the bars grow from.
+
+    Mirrors Axes::sync_bar_layout(): stacked bars (two or more series of one
+    orientation) stack from the first series' bottom, positives and
+    negatives separately; otherwise each bar spans bottom .. height.
+    """
+    same = [b for b in bars if b[3] == horizontal]
+    if mode != "stacked" or len(same) < 2:
+        _, hv, bottom, _ = same[-1]
+        return list(hv) + [bottom], bottom
+    origin = same[0][2]
+    tops: dict = {}
+    ext = [origin]
+    for xv, hv, _, _ in same:
+        for p, h in zip(xv, hv):
+            if not (math.isfinite(p) and math.isfinite(h)):
+                continue
+            pos_top, neg_top = tops.get(p, (origin, origin))
+            if h >= 0:
+                pos_top += h
+                ext.append(pos_top)
+            else:
+                neg_top += h
+                ext.append(neg_top)
+            tops[p] = (pos_top, neg_top)
+    return ext, origin
+
+
 def barh(
     y: ArrayLike,
     widths: ArrayLike,
@@ -875,10 +919,11 @@ def barh(
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
     left: float = 0.0,
+    stacked: Optional[bool] = None,
 ):
     """Horizontal bar chart (``bar(..., horizontal=True)``)."""
     return bar(y, widths, bar_width=height, color=color, label=label, bottom=left,
-               horizontal=True)
+               horizontal=True, stacked=stacked)
 
 
 def fill_between(
@@ -1472,6 +1517,20 @@ def _fit_range(lo: float, hi: float, pos_lo: float, scale: str):
     return lo_out, hi_out
 
 
+def _stick(rng, lo: float, hi: float, sticky: List[float]):
+    """Clip the padding of ``rng`` at sticky values (bar baselines) that are
+    also the edge of all the data [lo, hi], like the C++ autoscale."""
+    if rng is None or not sticky or not hi > lo:
+        return rng
+    out_lo, out_hi = rng
+    s_lo, s_hi = min(sticky), max(sticky)
+    if lo >= s_lo and out_lo < s_lo:
+        out_lo = s_lo
+    if hi <= s_hi and out_hi > s_hi:
+        out_hi = s_hi
+    return out_lo, out_hi
+
+
 def _apply_fit(ax) -> None:
     """Set the axes limits from the accumulated data bounds and its scales."""
     ax_key = (ax._figure_id, ax._index)
@@ -1481,6 +1540,12 @@ def _apply_fit(ax) -> None:
     xscale, yscale = _state._axes_scales.get(ax_key, ("linear", "linear"))
     xr = _fit_range(b[0], b[1], b[4], xscale)
     yr = _fit_range(b[2], b[3], b[5], yscale)
+    sticky = _state._axes_sticky.get(ax_key)
+    if sticky is not None:
+        if xscale == "linear":
+            xr = _stick(xr, b[0], b[1], sticky[0])
+        if yscale == "linear":
+            yr = _stick(yr, b[2], b[3], sticky[1])
     try:
         if xr is not None:
             ax.set_xlim(*xr)

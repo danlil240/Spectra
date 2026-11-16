@@ -260,6 +260,7 @@ set(SPECTRA_UNIT_TESTS
     test_log_readers
     test_log_browser_panel
     test_series_stats
+    test_bar_layout
     test_double_precision_data
     test_series_clipboard
     test_clipboard_export

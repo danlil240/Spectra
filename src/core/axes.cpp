@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <format>
 #include <limits>
+#include <map>
 #include <optional>
+#include <set>
+#include <utility>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
@@ -729,11 +732,11 @@ static void data_extent_with_mode(const AxisExtent& x,
     if (!pad)
         return;
 
-    // Sticky edges of grid-valued series (sx/sy): padding stops at an image
-    // edge that is also the edge of all the data.
+    // Sticky edges of grid-valued series and bar baselines (sx/sy): padding
+    // stops at an image edge or baseline that is also the edge of all the data.
     auto stick = [](AxisLimits& lim, const AxisExtent& all, const AxisExtent& sticky, ScaleType sc)
     {
-        if (sc != ScaleType::Linear || !sticky.valid() || !all.valid())
+        if (sc != ScaleType::Linear || !sticky.valid() || !all.valid() || !(all.max > all.min))
             return;
         if (all.min >= sticky.min && lim.min < sticky.min)
             lim.min = sticky.min;
@@ -913,8 +916,147 @@ static AxisExtent to_extent(const double (&v)[3])
     return e;
 }
 
+// ─── Bar layout (Axes::bar_mode()) ──────────────────────────────────────────
+
+// Gap between neighbouring bars of a group, as a fraction of a slot.
+static constexpr float BAR_GROUP_GAP = 0.1f;
+
+// Side-by-side layout of the series that share a bar position with another
+// series; the others keep the plain layout.
+static void layout_grouped_bars(const std::vector<BarSeries*>& bars)
+{
+    std::map<float, int> users;   // position -> number of series with a bar there
+    for (const BarSeries* b : bars)
+    {
+        std::set<float> own;
+        for (float p : b->bar_positions())
+            if (std::isfinite(p))
+                own.insert(p);
+        for (float p : own)
+            ++users[p];
+    }
+
+    std::vector<BarSeries*> group;
+    for (BarSeries* b : bars)
+    {
+        const bool shared = std::any_of(b->bar_positions().begin(),
+                                        b->bar_positions().end(),
+                                        [&](float p)
+                                        {
+                                            const auto it = users.find(p);
+                                            return it != users.end() && it->second > 1;
+                                        });
+        if (shared)
+            group.push_back(b);
+        else
+            b->reset_layout();
+    }
+    if (group.size() < 2)
+    {
+        for (BarSeries* b : group)
+            b->reset_layout();
+        return;
+    }
+
+    float width = 0.0f;
+    for (const BarSeries* b : group)
+        width = std::max(width, b->bar_width());
+    const float slot = width / static_cast<float>(group.size());
+    for (size_t k = 0; k < group.size(); ++k)
+    {
+        const float offset = -0.5f * width + slot * (static_cast<float>(k) + 0.5f);
+        group[k]->set_layout(offset, slot * (1.0f - BAR_GROUP_GAP), {}, false, std::nullopt);
+    }
+}
+
+// Stacked layout: each bar starts where the bars of the earlier series at the
+// same position end.  Positive and negative values stack separately, both
+// from the first series' baseline.
+static void layout_stacked_bars(const std::vector<BarSeries*>& bars)
+{
+    if (bars.size() < 2)
+    {
+        for (BarSeries* b : bars)
+            b->reset_layout();
+        return;
+    }
+    const float                                origin = bars.front()->baseline();
+    std::map<float, std::pair<double, double>> tops;   // position -> {positive, negative} top
+    for (BarSeries* b : bars)
+    {
+        const auto&        pos = b->bar_positions();
+        const auto&        h   = b->bar_heights();
+        const size_t       n   = std::min(pos.size(), h.size());
+        std::vector<float> bases(n, origin);
+        for (size_t i = 0; i < n; ++i)
+        {
+            if (!std::isfinite(pos[i]))
+                continue;
+            auto& top = tops.try_emplace(pos[i], origin, origin).first->second;
+            if (!std::isfinite(h[i]))
+            {
+                bases[i] = static_cast<float>(top.first);
+                continue;
+            }
+            double& acc = h[i] >= 0.0f ? top.first : top.second;
+            bases[i]    = static_cast<float>(acc);
+            acc += static_cast<double>(h[i]);
+        }
+        b->set_layout(0.0f, -1.0f, std::move(bases), true, origin);
+    }
+}
+
+static void apply_bar_layout(BarMode mode, const std::vector<BarSeries*>& bars)
+{
+    for (BarOrientation o : {BarOrientation::Vertical, BarOrientation::Horizontal})
+    {
+        std::vector<BarSeries*> shown;
+        for (BarSeries* b : bars)
+        {
+            if (b->orientation() != o)
+                continue;
+            if (b->visible() && mode != BarMode::Overlay)
+                shown.push_back(b);
+            else
+                b->reset_layout();
+        }
+        if (mode == BarMode::Grouped)
+            layout_grouped_bars(shown);
+        else if (mode == BarMode::Stacked)
+            layout_stacked_bars(shown);
+    }
+}
+
+void Axes::sync_bar_layout() const
+{
+    std::lock_guard         lock(bar_layout_mutex_);
+    std::vector<BarSeries*> bars;
+    auto                    make_key = [&]()
+    {
+        std::vector<std::uint64_t> key{static_cast<std::uint64_t>(bar_mode_)};
+        for (const BarSeries* b : bars)
+        {
+            key.push_back(reinterpret_cast<std::uintptr_t>(b));
+            key.push_back(b->change_generation());
+            key.push_back(b->visible() ? 1 : 0);
+        }
+        return key;
+    };
+    for (const auto& s : series_)
+        if (auto* b = dynamic_cast<BarSeries*>(s.get()))
+            bars.push_back(b);
+    if (bars.empty() && bar_layout_key_.size() <= 1)
+        return;
+    if (make_key() == bar_layout_key_)
+        return;
+    apply_bar_layout(bar_mode_, bars);
+    // Keyed after applying: set_layout() bumps the generation of what it changed.
+    bar_layout_key_ = make_key();
+}
+
 const Axes::DataExtentCache& Axes::data_extent_cached() const
 {
+    sync_bar_layout();
     std::vector<std::uint64_t> key;
     key.reserve(series_.size() * 3);
     for (const auto& s : series_)
@@ -933,8 +1075,18 @@ const Axes::DataExtentCache& Axes::data_extent_cached() const
     AxisExtent sy;
     for (const auto& s : series_)
     {
-        if (s && !s->excluded_from_autoscale())
-            consume_grid_extent(*s, sx, sy);
+        if (!s || s->excluded_from_autoscale())
+            continue;
+        consume_grid_extent(*s, sx, sy);
+        // Bars grow from their baseline: like matplotlib's sticky edges, the
+        // padding stops there when all the data lie on one side of it.
+        if (const auto* bar = dynamic_cast<const BarSeries*>(s.get()); bar && bar->point_count())
+        {
+            if (bar->orientation() == BarOrientation::Vertical)
+                consume_finite_value(bar->value_origin(), sy, s->y_offset());
+            else
+                consume_finite_value(bar->value_origin(), sx, s->x_offset());
+        }
     }
     extent_cache_.key   = std::move(key);
     extent_cache_.x[0]  = x.min;

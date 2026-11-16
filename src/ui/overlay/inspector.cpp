@@ -13,6 +13,7 @@
     #include <spectra/camera.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <spectra/series_stats.hpp>
     #include <vector>
 
     #include "ui/commands/series_clipboard.hpp"
@@ -1016,6 +1017,27 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             if (widgets::button_field("Auto-fit Now"))
             {
                 ax.auto_fit();
+            }
+            widgets::end_group();
+            widgets::end_animated_section();
+        }
+    }
+
+    // ── Bars: how several bar series share a position
+    const bool has_bars = std::any_of(
+        ax.series().begin(),
+        ax.series().end(),
+        [](const auto& s) { return dynamic_cast<const BarSeries*>(s.get()) != nullptr; });
+    if (has_bars && widgets::section_header("BARS", &sec_bars_, font_heading_))
+    {
+        if (widgets::begin_animated_section("BARS"))
+        {
+            widgets::begin_group("bars");
+            const char* modes[] = {"Grouped", "Stacked", "Overlay"};
+            int         mode    = static_cast<int>(ax.bar_mode());
+            if (widgets::combo_field("Mode", mode, modes, 3))
+            {
+                ax.bar_mode(static_cast<BarMode>(mode));
             }
             widgets::end_group();
             widgets::end_animated_section();

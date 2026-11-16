@@ -87,6 +87,12 @@ class FigureModel
                                          int          y_datetime,
                                          ipc::DiffOp* op_out);
 
+    // Change how the bar series of a 2D axes share a position (spectra::BarMode
+    // wire value: 0 grouped, 1 stacked, 2 overlay).  Same contract as
+    // set_axis_format(): false on a bad figure / axes / value, otherwise
+    // *op_out holds the SET_AXIS_SCALE diff with the axes' full format state.
+    bool set_bar_mode(uint64_t figure_id, uint32_t axes_index, int bar_mode, ipc::DiffOp* op_out);
+
     // --- Text annotations (2D axes) ---
     // Each returns false (no change, no revision bump) when the figure, axes or
     // annotation index does not exist; on success *op_out holds the diff.

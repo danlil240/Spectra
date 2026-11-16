@@ -804,52 +804,84 @@ BarSeries& BarSeries::set_data(std::span<const float> positions, std::span<const
     return *this;
 }
 
+float BarSeries::bar_base(size_t i) const
+{
+    return i < layout_bases_.size() ? layout_bases_[i] : baseline_;
+}
+
+float BarSeries::bar_top(size_t i) const
+{
+    if (i >= heights_.size())
+        return bar_base(i);
+    return layout_stacked_ ? bar_base(i) + heights_[i] : heights_[i];
+}
+
+bool BarSeries::set_layout(float                offset,
+                           float                width,
+                           std::vector<float>   bases,
+                           bool                 stacked,
+                           std::optional<float> origin)
+{
+    if (offset == layout_offset_ && width == layout_width_ && stacked == layout_stacked_
+        && origin == layout_origin_ && bases == layout_bases_)
+        return false;
+    layout_offset_  = offset;
+    layout_width_   = width;
+    layout_bases_   = std::move(bases);
+    layout_stacked_ = stacked;
+    layout_origin_  = origin;
+    dirty_          = true;
+    rebuild_geometry();
+    return true;
+}
+
 void BarSeries::rebuild_geometry()
 {
     line_x_.clear();
     line_y_.clear();
     fill_verts_.clear();
 
-    float  hw = bar_width_ * 0.5f;
+    float  hw = drawn_width() * 0.5f;
     size_t n  = std::min(positions_.size(), heights_.size());
 
     for (size_t i = 0; i < n; ++i)
     {
-        float pos = positions_[i];
-        float h   = heights_[i];
+        float pos  = positions_[i] + layout_offset_;
+        float base = bar_base(i);
+        float h    = bar_top(i);
 
         if (orientation_ == BarOrientation::Vertical)
         {
             // ── Fill: solid bar rectangle ──
-            emit_filled_quad(fill_verts_, pos - hw, baseline_, pos + hw, h, gradient_);
+            emit_filled_quad(fill_verts_, pos - hw, base, pos + hw, h, gradient_);
 
             // ── Outline: rectangle border ──
             line_x_.push_back(pos - hw);
-            line_y_.push_back(baseline_);
+            line_y_.push_back(base);
             line_x_.push_back(pos - hw);
             line_y_.push_back(h);
             line_x_.push_back(pos + hw);
             line_y_.push_back(h);
             line_x_.push_back(pos + hw);
-            line_y_.push_back(baseline_);
+            line_y_.push_back(base);
             line_x_.push_back(pos - hw);
-            line_y_.push_back(baseline_);
+            line_y_.push_back(base);
         }
         else
         {
             // ── Fill: horizontal bar ──
-            emit_filled_quad_ygrad(fill_verts_, baseline_, pos - hw, h, pos + hw, gradient_);
+            emit_filled_quad_ygrad(fill_verts_, base, pos - hw, h, pos + hw, gradient_);
 
             // ── Outline: horizontal bar border ──
-            line_x_.push_back(baseline_);
+            line_x_.push_back(base);
             line_y_.push_back(pos - hw);
             line_x_.push_back(h);
             line_y_.push_back(pos - hw);
             line_x_.push_back(h);
             line_y_.push_back(pos + hw);
-            line_x_.push_back(baseline_);
+            line_x_.push_back(base);
             line_y_.push_back(pos + hw);
-            line_x_.push_back(baseline_);
+            line_x_.push_back(base);
             line_y_.push_back(pos - hw);
         }
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <span>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
@@ -521,6 +522,35 @@ class BarSeries : public Series
     const std::vector<float>& bar_positions() const { return positions_; }
     const std::vector<float>& bar_heights() const { return heights_; }
 
+    // ── Layout from the owning axes (Axes::bar_mode()) ──
+    // Set by Axes::sync_bar_layout(): a grouped series is shifted along the
+    // category axis and drawn narrower, a stacked series starts each bar on
+    // the bars below it.  The bar values (bar_heights()) never change.
+
+    /// Shift of every bar along the category axis.  0 unless grouped.
+    float layout_offset() const { return layout_offset_; }
+    /// Width the bars are drawn with: bar_width(), or the slot width when grouped.
+    float drawn_width() const { return layout_width_ >= 0.0f ? layout_width_ : bar_width_; }
+    /// Where bar @p i starts on the value axis (its baseline or stack base).
+    float bar_base(size_t i) const;
+    /// Where bar @p i ends on the value axis: its height, or base + height
+    /// when stacked.  bar_heights()[i] stays the bar's own value.
+    float bar_top(size_t i) const;
+    /// Value the bars grow from (baseline(), or the stack origin when
+    /// stacked).  Autoscale keeps it at the edge of the axis (sticky).
+    float value_origin() const { return layout_origin_.value_or(baseline_); }
+
+    /// Apply a layout (used by Axes::sync_bar_layout()).  @p bases empty means
+    /// every bar starts at baseline(); @p stacked makes each bar end at
+    /// base + height.  Returns true when the layout changed.
+    bool set_layout(float                offset,
+                    float                width,
+                    std::vector<float>   bases,
+                    bool                 stacked,
+                    std::optional<float> origin);
+    /// Back to the plain layout (no offset, full width, baseline()).
+    bool reset_layout() { return set_layout(0.0f, -1.0f, {}, false, std::nullopt); }
+
     /// Category names, one per bar in set_data() order.  The bar axis then gets
     /// one tick per labelled bar, showing its name, instead of numeric ticks.
     BarSeries& categories(std::vector<std::string> labels)
@@ -560,6 +590,13 @@ class BarSeries : public Series
     float                    baseline_    = 0.0f;
     BarOrientation           orientation_ = BarOrientation::Vertical;
     bool                     gradient_    = true;
+
+    // Layout (see set_layout())
+    float                layout_offset_ = 0.0f;
+    float                layout_width_  = -1.0f;   // < 0: bar_width_
+    std::vector<float>   layout_bases_;            // empty: baseline_
+    bool                 layout_stacked_ = false;
+    std::optional<float> layout_origin_;
 
     // Generated geometry
     std::vector<float> line_x_;

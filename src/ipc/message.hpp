@@ -268,6 +268,8 @@ struct SnapshotAxisState
     uint8_t y_scale    = 0;
     bool    x_datetime = false;
     bool    y_datetime = false;
+    // How bar series share a position (spectra::BarMode).
+    uint8_t bar_mode = 0;
 };
 
 // Serialized series metadata within a figure snapshot.
@@ -369,7 +371,8 @@ struct DiffOp
         ADD_ANNOTATION    = 26,   // append to axes_index
         SET_ANNOTATION    = 27,   // replace annotation series_index of axes_index
         CLEAR_ANNOTATIONS = 28,   // remove every annotation of axes_index
-        // f1=x scale, f2=y scale (spectra::ScaleType), f3=x date-time, f4=y date-time (0/1)
+        // f1=x scale, f2=y scale (spectra::ScaleType), f3=x date-time, f4=y date-time (0/1),
+        // series_index=bar mode (spectra::BarMode)
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F

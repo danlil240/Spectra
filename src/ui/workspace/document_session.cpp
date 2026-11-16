@@ -55,7 +55,10 @@ constexpr const char* SPECTRA_EXT = ".spectra";
 
 // ─── UnsavedChangesPrompt ────────────────────────────────────────────────────
 
-bool UnsavedChangesPrompt::request(Reason reason, bool modified, std::function<void()> proceed)
+bool UnsavedChangesPrompt::request(Reason                reason,
+                                   bool                  modified,
+                                   std::function<void()> proceed,
+                                   std::string           subject)
 {
     if (open_)
         return false;
@@ -68,6 +71,7 @@ bool UnsavedChangesPrompt::request(Reason reason, bool modified, std::function<v
     open_    = true;
     reason_  = reason;
     proceed_ = std::move(proceed);
+    subject_ = std::move(subject);
     return false;
 }
 

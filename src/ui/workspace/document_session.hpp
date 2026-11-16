@@ -47,10 +47,16 @@ class UnsavedChangesPrompt
     // Runs @p proceed right away when @p modified is false (returns true);
     // otherwise opens the prompt and returns false.  A request while the
     // prompt is already open is ignored (returns false).
-    bool request(Reason reason, bool modified, std::function<void()> proceed);
+    // @p subject names what closes in the headline, e.g. "\"Run 7\"" or
+    // "3 figures" (empty: the active figure).
+    bool request(Reason                reason,
+                 bool                  modified,
+                 std::function<void()> proceed,
+                 std::string           subject = {});
 
-    bool   is_open() const { return open_; }
-    Reason reason() const { return reason_; }
+    bool               is_open() const { return open_; }
+    Reason             reason() const { return reason_; }
+    const std::string& subject() const { return subject_; }
 
     // Save: runs @p save; proceeds only if it returns true (a cancelled
     // Save As dialog or a failed write keeps everything as it was).
@@ -62,6 +68,7 @@ class UnsavedChangesPrompt
     bool                  open_   = false;
     Reason                reason_ = Reason::Quit;
     std::function<void()> proceed_;
+    std::string           subject_;
 };
 
 class DocumentSession

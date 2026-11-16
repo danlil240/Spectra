@@ -602,6 +602,10 @@ FrameState SessionRuntime::tick(FrameScheduler&  scheduler,
                 }
             }
 
+            // Runs whether or not this window renders this tick.
+            if (wctx->ui_ctx)
+                WindowRuntime::background_tick(*wctx->ui_ctx);
+
             if (not should_render_tick)
             {
     #ifdef SPECTRA_USE_IMGUI

@@ -329,13 +329,17 @@ void ImGuiIntegration::draw_unsaved_changes_prompt()
     {
         case UnsavedChangesPrompt::Reason::CloseFigure:
         {
-            const FigureId id =
-                dock_system_ ? dock_system_->active_figure_index() : INVALID_FIGURE_ID;
-            const std::string fn = get_figure_title_ && id != INVALID_FIGURE_ID
-                                       ? get_figure_title_(id)
-                                       : std::string("This figure");
-            headline             = "Close \"" + fn + "\" without saving?";
-            body = "It has changes that are not saved in " + document_->display_name()
+            std::string what = prompt.subject();
+            if (what.empty())
+            {
+                const FigureId id =
+                    dock_system_ ? dock_system_->active_figure_index() : INVALID_FIGURE_ID;
+                what = get_figure_title_ && id != INVALID_FIGURE_ID
+                           ? "\"" + get_figure_title_(id) + "\""
+                           : std::string("this figure");
+            }
+            headline = "Close " + what + " without saving?";
+            body     = "It has changes that are not saved in " + document_->display_name()
                    + ". Save the workspace first, or close it and lose them.";
             break;
         }

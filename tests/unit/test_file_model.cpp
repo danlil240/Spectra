@@ -23,6 +23,7 @@
     #include "render/backend.hpp"
     #include "render/renderer.hpp"
     #include "ui/app/session_runtime.hpp"
+    #include "ui/app/window_runtime.hpp"
     #include "ui/app/window_ui_context.hpp"
     #include "ui/app/window_ui_context_builder.hpp"
     #include "ui/commands/command_registry.hpp"
@@ -30,6 +31,7 @@
     #include "ui/data/clipboard_export.hpp"
     #include "ui/figures/figure_manager.hpp"
     #include "ui/imgui/imgui_integration.hpp"
+    #include "ui/overlay/data_interaction.hpp"
     #include "ui/overlay/toast_queue.hpp"
     #include "ui/shell/menu_bar.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
@@ -40,11 +42,26 @@
     #include "ui/workspace/figure_serializer.hpp"
     #include "ui/workspace/workspace_document.hpp"
 
+    #ifdef _WIN32
+        #include <process.h>
+    #else
+        #include <unistd.h>
+    #endif
+
 using namespace spectra;
 namespace fs = std::filesystem;
 
 namespace
 {
+
+int64_t own_pid()
+{
+    #ifdef _WIN32
+    return static_cast<int64_t>(_getpid());
+    #else
+    return static_cast<int64_t>(::getpid());
+    #endif
+}
 
 fs::path fresh_dir(const std::string& name)
 {
@@ -433,8 +450,11 @@ TEST(DocumentSession, RecoveryOffersOrphansOfDeadProcessesOnly)
     const fs::path dir   = fresh_dir("recovery");
     const auto     write = [&](const std::string& name)
     { std::ofstream(dir / name, std::ios::binary) << WorkspaceDocument::encode({"{}", {}}); };
-    write("autosave-999999-aaaa.spectra");     // dead
-    write("autosave-1-bbbb.spectra");          // "alive" (see is_alive below)
+    write("autosave-999999-aaaa.spectra");   // dead
+    // This test process is alive on every platform (pid 1 is not on Windows).
+    const int64_t     self       = own_pid();
+    const std::string alive_name = "autosave-" + std::to_string(self) + "-bbbb.spectra";
+    write(alive_name);
     write("recovering-888888-cccc.spectra");   // claimed by a process that died too
     write("notes.txt");
     write("autosave-x-dddd.spectra");   // malformed
@@ -446,7 +466,8 @@ TEST(DocumentSession, RecoveryOffersOrphansOfDeadProcessesOnly)
     EXPECT_EQ(DocumentSession::autosave_pid("notes.txt"), -1);
 
     const auto orphans =
-        DocumentSession::find_orphan_autosaves(dir.string(), [](int64_t pid) { return pid == 1; });
+        DocumentSession::find_orphan_autosaves(dir.string(),
+                                               [self](int64_t pid) { return pid == self; });
     EXPECT_EQ(orphans.size(), 2u);
 
     // Restore: each claimed file is opened, marked unsaved and deleted.
@@ -464,7 +485,7 @@ TEST(DocumentSession, RecoveryOffersOrphansOfDeadProcessesOnly)
             return true;
         });
     doc.enable_autosave(dir.string());
-    // pid 1 (init) is alive, so only the two dead ones are claimed.
+    // This process is alive, so only the two dead ones are claimed.
     EXPECT_TRUE(doc.check_recovery());
     EXPECT_EQ(doc.recovery_files().size(), 2u);
     EXPECT_TRUE(doc.check_recovery());   // checked once; stays pending
@@ -478,7 +499,7 @@ TEST(DocumentSession, RecoveryOffersOrphansOfDeadProcessesOnly)
     for (const auto& f : opened)
         EXPECT_FALSE(fs::exists(f));
     EXPECT_EQ(toasts.toasts().back().kind, ui::ToastKind::Success);
-    EXPECT_TRUE(fs::exists(dir / "autosave-1-bbbb.spectra"));
+    EXPECT_TRUE(fs::exists(dir / alive_name));
     fs::remove_all(dir);
 }
 
@@ -574,13 +595,16 @@ TEST(ExportFigureCsv, WritesLineSeriesAndRefusesEmptyFigures)
     fig->axes()[0]->series()[0]->label("a,b");
     std::string error;
     ASSERT_TRUE(export_figure_csv(*fig, (dir / "d.csv").string(), &error)) << error;
-    std::ifstream in(dir / "d.csv");
-    std::string   header;
-    std::getline(in, header);
-    EXPECT_EQ(header, "\"a,b_x\",\"a,b_y\"");
-    std::string row;
-    std::getline(in, row);
-    EXPECT_EQ(row, "0,1");
+    {
+        // Scoped: Windows cannot remove the folder while the file is open.
+        std::ifstream in(dir / "d.csv");
+        std::string   header;
+        std::getline(in, header);
+        EXPECT_EQ(header, "\"a,b_x\",\"a,b_y\"");
+        std::string row;
+        std::getline(in, row);
+        EXPECT_EQ(row, "0,1");
+    }
 
     Figure empty;
     empty.subplot(1, 1, 1);
@@ -904,6 +928,150 @@ TEST_F(FileModelFixture, CloseLastFigureLeavesStartPageNotQuit)
     ui.document.detect_changes();
     EXPECT_FALSE(ui.document.is_modified());
     EXPECT_TRUE(ui.document.confirm_close_window({}));
+}
+
+// ─── Review fixes: idle autosave, tab close, overlays ────────────────────────
+
+TEST_F(FileModelFixture, AutosaveRunsWhileTheWindowIsIdle)
+{
+    const FigureId id  = registry_.register_figure(figure_with_line());
+    auto&          ui  = build(id);
+    const fs::path dir = fresh_dir("idle_autosave");
+    ui.document.enable_autosave(dir.string());
+    ui.document.autosave().set_debounce(std::chrono::seconds(0));
+    ui.document.autosave().set_interval(std::chrono::seconds(0));
+    ui.document.detect_changes();   // baseline
+
+    // An edit seen by the last rendered frame, then the loop goes idle:
+    // update() no longer runs, only the per-iteration background tick.
+    registry_.get(id)->axes()[0]->title("edited");
+    ui.document.detect_changes();
+    const std::string path = ui.document.autosave().autosave_path();
+    EXPECT_FALSE(fs::exists(path));
+    WindowRuntime::background_tick(ui);
+    EXPECT_TRUE(fs::exists(path));
+
+    ui.document.discard_autosave();
+    fs::remove_all(dir);
+}
+
+TEST_F(FileModelFixture, PaneTabCloseAsksForModifiedFigures)
+{
+    const FigureId id = registry_.register_figure(figure_with_line());
+    auto&          ui = build(id, true);
+    ASSERT_NE(ui.imgui_ui, nullptr);
+    const auto& close_tab = ui.imgui_ui->pane_tab_close_cb();
+    ASSERT_TRUE(close_tab);
+    ui.fig_mgr->queue_create();
+    ui.fig_mgr->process_pending();
+    ASSERT_EQ(ui.fig_mgr->count(), 2u);
+    const FigureId other = ui.fig_mgr->figure_ids()[1];
+    ui.document.detect_changes();
+    ASSERT_TRUE(ui.document.save_to((config_dir_ / "review.spectra").string()));
+
+    // Unmodified tab: closes without asking.
+    close_tab(other);
+    ui.fig_mgr->process_pending();
+    EXPECT_FALSE(ui.document.prompt().is_open());
+    EXPECT_EQ(ui.fig_mgr->count(), 1u);
+
+    // Modified tab (close button / middle click / menu): asks first, and the
+    // prompt names the tab being closed.
+    registry_.get(id)->axes()[0]->title("edited");
+    ui.document.detect_changes();
+    close_tab(id);
+    ui.fig_mgr->process_pending();
+    ASSERT_TRUE(ui.document.prompt().is_open());
+    EXPECT_EQ(ui.document.prompt().subject(), "\"" + ui.fig_mgr->get_title(id) + "\"");
+    EXPECT_EQ(ui.fig_mgr->count(), 1u);
+    ui.document.resolve_prompt(UnsavedChangesPrompt::Choice::Cancel);
+    ui.fig_mgr->process_pending();
+    EXPECT_EQ(ui.fig_mgr->count(), 1u);
+
+    // Don't Save closes it; the last tab leaves the start page, not the app.
+    close_tab(id);
+    ui.document.resolve_prompt(UnsavedChangesPrompt::Choice::DontSave);
+    ui.fig_mgr->process_pending();
+    EXPECT_EQ(ui.fig_mgr->count(), 0u);
+    EXPECT_EQ(window_close_requests_, 0);
+}
+
+TEST(OverlaySnapshot, CaptureKeepsOnlyTheFiguresOwnOverlays)
+{
+    ui::ThemeManager theme;   // annotations pick their colour from the theme
+    ui::ThemeManager::set_current(&theme);
+    theme.ensure_initialized();
+    struct ResetTheme
+    {
+        ~ResetTheme() { ui::ThemeManager::set_current(nullptr); }
+    } reset_theme;
+
+    auto fig_a = figure_with_line();
+    auto fig_b = figure_with_line();
+    fig_b->subplot(1, 1, 1);
+    const Axes*   ax_a = fig_a->axes()[0].get();
+    const Axes*   ax_b = fig_b->axes()[0].get();
+    const Series* s_a  = ax_a->series()[0].get();
+    const Series* s_b  = ax_b->series()[0].get();
+
+    DataInteraction di;
+    di.add_marker(1.0, 2.0, s_a, 1, ax_a);
+    di.add_marker(3.0, 4.0, s_b, 3, ax_b);
+    di.add_marker(5.0, 6.0, s_b, 5, ax_b);
+    di.annotations().add(1.0f, 1.0f, ax_a);
+    di.annotations().annotations_mut().back().text = "peak A";
+    di.annotations().add(2.0f, 2.0f, ax_b);
+    di.annotations().annotations_mut().back().text = "peak B";
+    for (auto& a : di.annotations().annotations_mut())
+        a.editing = false;
+
+    const OverlaySnapshot a = di.capture_overlay_snapshot(*fig_a);
+    const OverlaySnapshot b = di.capture_overlay_snapshot(*fig_b);
+    ASSERT_EQ(a.markers.size(), 1u);
+    EXPECT_DOUBLE_EQ(a.markers[0].data_x, 1.0);
+    ASSERT_EQ(b.markers.size(), 2u);
+    ASSERT_EQ(a.annotations.size(), 1u);
+    EXPECT_EQ(a.annotations[0].text, "peak A");
+    ASSERT_EQ(b.annotations.size(), 1u);
+    EXPECT_EQ(b.annotations[0].text, "peak B");
+
+    // Opening a two-figure workspace appends each figure's overlays.
+    DataInteraction opened;
+    opened.append_overlay_snapshot(a, *fig_a);
+    opened.append_overlay_snapshot(b, *fig_b);
+    EXPECT_EQ(opened.capture_overlay_snapshot(*fig_a).markers.size(), 1u);
+    EXPECT_EQ(opened.capture_overlay_snapshot(*fig_b).markers.size(), 2u);
+    EXPECT_EQ(opened.capture_overlay_snapshot(*fig_b).annotations.size(), 1u);
+}
+
+TEST_F(FileModelFixture, EditingDataTipsAndAnnotationsMarksTheDocument)
+{
+    const FigureId id = registry_.register_figure(figure_with_line());
+    auto&          ui = build(id);
+    ASSERT_TRUE(ui.data_interaction);
+    ui.document.detect_changes();   // baseline
+    ASSERT_FALSE(ui.document.is_modified());
+
+    Figure*       fig = registry_.get(id);
+    const Axes*   ax  = fig->axes()[0].get();
+    const Series* s   = ax->series()[0].get();
+    ui.data_interaction->add_marker(1.0, 2.0, s, 1, ax);
+    ui.document.detect_changes();
+    EXPECT_TRUE(ui.document.is_figure_modified(id));
+
+    ASSERT_TRUE(ui.document.save_to((config_dir_ / "review.spectra").string()));
+    ASSERT_FALSE(ui.document.is_modified());
+    ui.data_interaction->annotations().add(1.0f, 1.0f, ax);
+    auto& ann   = ui.data_interaction->annotations().annotations_mut().back();
+    ann.text    = "note";
+    ann.editing = false;
+    ui.document.detect_changes();
+    EXPECT_TRUE(ui.document.is_modified());
+
+    // A save writes them, so the saved document is clean again.
+    ASSERT_TRUE(ui.document.save_to((config_dir_ / "review.spectra").string()));
+    ui.document.detect_changes();
+    EXPECT_FALSE(ui.document.is_modified());
 }
 
 #endif   // SPECTRA_USE_IMGUI

@@ -415,7 +415,8 @@ class ImGuiIntegration
 
     void set_pane_tab_duplicate_cb(PaneTabCallback cb) { pane_tab_duplicate_cb_ = std::move(cb); }
     void set_pane_tab_close_cb(PaneTabCallback cb) { pane_tab_close_cb_ = std::move(cb); }
-    void set_pane_tab_split_right_cb(PaneTabCallback cb)
+    const PaneTabCallback& pane_tab_close_cb() const { return pane_tab_close_cb_; }
+    void                   set_pane_tab_split_right_cb(PaneTabCallback cb)
     {
         pane_tab_split_right_cb_ = std::move(cb);
     }

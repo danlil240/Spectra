@@ -231,6 +231,16 @@ class DataInteraction
     // Restore overlay state from a snapshot. Resolves axes indices back to
     // pointers using the given figure. Clears existing markers/annotations first.
     void restore_overlay_snapshot(const OverlaySnapshot& snapshot, Figure& figure);
+    // Adds the snapshot's markers and annotations for @p figure, keeping those
+    // of other figures (opening a multi-figure workspace).
+    void append_overlay_snapshot(const OverlaySnapshot& snapshot, Figure& figure);
+
+    // Hash of @p figure's markers and annotations as a save would write them:
+    // part of the document fingerprint, so editing them marks it modified.
+    uint64_t overlay_fingerprint(const Figure& figure) const;
+
+    static bool marker_belongs_to(const DataMarker& m, const Figure& figure);
+    static bool annotation_belongs_to(const Annotation& a, const Figure& figure);
 
    private:
     // Dispatch series/point callbacks from current nearest_ selection.

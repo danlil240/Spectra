@@ -944,7 +944,17 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     ui_ctx.document.detect_changes();
     for (FigureId id : fig_mgr.figure_ids())
         fig_mgr.mark_modified(id, ui_ctx.document.is_figure_modified(id));
+#endif
+}
+
+void WindowRuntime::background_tick(WindowUIContext& ui_ctx)
+{
+#ifdef SPECTRA_USE_IMGUI
+    // The idle loop skips update() but still wakes at least every 100 ms, so
+    // the autosave debounce fires after the last edit.
     ui_ctx.document.tick_autosave();
+#else
+    (void)ui_ctx;
 #endif
 }
 

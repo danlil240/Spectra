@@ -420,7 +420,14 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                 h                       = (h ^ static_cast<uint64_t>(id)) * 1099511628211ULL;
                 h                       = (h ^ std::hash<std::string>{}(title)) * 1099511628211ULL;
                 if (Figure* fig = registry.get(id))
-                    snap.figures.emplace_back(id, figure_fingerprint(*fig));
+                {
+                    // Data tips and annotations live in DataInteraction, not
+                    // the Figure, but are saved with it: editing them counts.
+                    uint64_t fp = figure_fingerprint(*fig);
+                    if (data_interaction)
+                        fp = (fp ^ data_interaction->overlay_fingerprint(*fig)) * 1099511628211ULL;
+                    snap.figures.emplace_back(id, fp);
+                }
             }
             snap.structure = h;
             return snap;
@@ -633,8 +640,10 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
             fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
             if (i < data.figures.size() && !data.figures[i].custom_tab_title.empty())
                 fig_mgr.set_title(id, data.figures[i].custom_tab_title);
+            // Append: each figure's overlays join those of the figures
+            // already open (and of the previous blobs).
             if (data_interaction)
-                data_interaction->restore_overlay_snapshot(snap, *registry.get(id));
+                data_interaction->append_overlay_snapshot(snap, *registry.get(id));
             new_ids.push_back(id);
         }
         if (new_ids.empty())
@@ -690,7 +699,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
         fig_mgr.add_figure(id, FigureState(id, registry.get(id)));
         fig_mgr.set_title(id, std::filesystem::path(path).stem().string());
         if (data_interaction)
-            data_interaction->restore_overlay_snapshot(snap, *registry.get(id));
+            data_interaction->append_overlay_snapshot(snap, *registry.get(id));
         fig_mgr.queue_switch(id);
         return true;
     };

@@ -2,6 +2,7 @@
 
 #include <spectra/figure_registry.hpp>
 
+#include "commands/command_groups.hpp"
 #include "register_commands.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
@@ -194,6 +195,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
             }
             *guard_ptr = false;
         });
+    // TabBar is not drawn (pane tabs are); FigureManager::close_figure()
+    // calls remove_tab(), which lands here for a figure already closing.
     ui->figure_tabs->set_tab_close_callback(
         [fig_mgr_ptr](size_t index)
         {
@@ -333,8 +336,11 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     {
         ui->imgui_ui->set_pane_tab_duplicate_cb([fig_mgr_ptr](FigureId index)
                                                 { fig_mgr_ptr->duplicate_figure(index); });
-        ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)
-                                            { fig_mgr_ptr->queue_close(index); });
+        // Close button, middle click and "Close" in the tab menu: same
+        // unsaved-changes prompt as Ctrl+W.
+        ui->imgui_ui->set_pane_tab_close_cb(
+            [fig_mgr_ptr, doc_ptr = &ui->document](FigureId index)
+            { request_close_figure(*fig_mgr_ptr, *doc_ptr, index); });
         ui->imgui_ui->set_pane_tab_split_right_cb(
             [dock_ptr](FigureId index)
             {

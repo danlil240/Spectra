@@ -13,6 +13,7 @@ summarise the main changes rather than listing every commit.
 
 ### Changed
 
+- The start page now offers New figure, Open file (CSV/TSV, ULog, MCAP, layouts), Open layout and Topics with their shortcuts, lists recent files and layouts, and hints that files can be dropped anywhere; empty axes show a "Drop a file here" hint (never in exports); `spectra data.csv flight.ulg` opens files given on the command line like a drop, unknown options print a warning, and dropped `.spectra` layouts open.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed

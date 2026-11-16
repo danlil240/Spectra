@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace spectra::ui
 {
@@ -20,7 +22,21 @@ struct SettingsData
     bool        timeline_visible     = false;
     // App UI scale (1.0 = 100%); clamped to ThemeManager::UI_SCALE_MIN..MAX.
     float ui_scale = 1.0f;
+    // Data files (CSV, ULog, MCAP, ...) opened or dropped most recently, newest
+    // first, absolute paths; shown on the start page.  See push_recent_file().
+    std::vector<std::string> recent_files;
 };
+
+// Longest SettingsData::recent_files list.
+inline constexpr size_t MAX_RECENT_FILES = 8;
+
+// Moves @p path (made absolute and lexically normal) to the front of @p list,
+// dropping duplicates and anything beyond @p max_entries.  Empty paths are ignored.
+void push_recent_file(std::vector<std::string>& list,
+                      const std::string&        path,
+                      size_t                    max_entries = MAX_RECENT_FILES);
+// Removes @p path (as given or normalized) from @p list.
+void remove_recent_file(std::vector<std::string>& list, const std::string& path);
 
 // Theme and data palette an App starts with.
 struct StartupTheme
@@ -94,6 +110,12 @@ class SettingsStore
     SettingsData&       data_mut() { return data_; }
 
     void apply_to(ui::ThemeManager& tm) const;
+
+    // Recent data files (start page).  Each change notifies listeners, which
+    // save the file in windowed apps.
+    void add_recent_file(const std::string& path);
+    void forget_recent_file(const std::string& path);
+    void clear_recent_files();
 
     static std::string default_path();
 

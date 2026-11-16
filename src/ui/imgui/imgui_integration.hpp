@@ -63,7 +63,8 @@ class LogBrowserPanel;
 namespace settings
 {
 class SettingsPanel;
-}
+class SettingsStore;
+}   // namespace settings
 }   // namespace spectra::ui
 
 namespace spectra
@@ -358,6 +359,19 @@ class ImGuiIntegration
     // Native "Open Log" dialog (File > Open Log...); opens the chosen file in
     // the log browser.  No-op without a log browser or native dialogs.
     void open_log_with_dialog();
+
+    // Native "Open File" dialog (File > Open File..., start page): CSV/TSV,
+    // ULog, MCAP and .spectra layouts, routed by open_path().
+    void open_file_with_dialog();
+
+    // Opens @p path as if it were dropped on the window (classify_open_file()):
+    // CSV/TSV -> column picker, ULog/MCAP -> log browser, .spectra/.json ->
+    // layout.  Data files are added to the recent-files list.  Returns false
+    // (and logs why) for unsupported or missing files.
+    bool open_path(const std::string& path);
+
+    // Recent data files (start page) live in the settings store.
+    void set_settings_store(ui::settings::SettingsStore* s) { settings_store_ = s; }
 
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
@@ -808,6 +822,7 @@ class ImGuiIntegration
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
+    ui::settings::SettingsStore* settings_store_ = nullptr;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;
@@ -1005,6 +1020,17 @@ class ImGuiIntegration
     void load_logo_textures(VulkanBackend& backend);
     void destroy_logo_textures();
     void draw_welcome_screen(float display_w, float display_h, float dt);
+    // Runs a welcome-screen action (registry command or WELCOME_*_ID pseudo id).
+    void run_welcome_action(const std::string& id);
+    // Shows the Topics panel (start page "Topics / connect...").
+    void show_topics_panel();
+    // In-canvas "drop a file" hint over each empty axes of @p figure.
+    void draw_empty_axes_hints(Figure& figure);
+    // Opens the deferred CSV dialog request and queued CSV files (drops,
+    // command line).  Called from build_ui() and build_empty_ui().
+    void process_pending_opens();
+    // Opens @p path in the log browser and records it as a recent file.
+    bool open_log_file(const std::string& path);
 
     // Native "Open CSV" dialog; on success parses the file and opens the column picker.
     // Shared by Data > Load from CSV, the canvas welcome button and the empty-app welcome.

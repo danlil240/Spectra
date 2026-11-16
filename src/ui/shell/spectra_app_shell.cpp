@@ -710,6 +710,7 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
 
     auto& file = bar.menu("File");
     file.add(command("New Figure", "figure.new"));
+    file.add(command("Open File...", "file.open"));
     file.add(command("Open Log...", "file.open_log"));
     file.add_separator();
     file.add(command("Export PNG", "file.export_png"));

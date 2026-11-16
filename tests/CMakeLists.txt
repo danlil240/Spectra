@@ -191,6 +191,7 @@ set(SPECTRA_UNIT_TESTS
     test_r2b_followups
     test_settings_appearance
     test_theme_toggle_commands
+    test_theme_registry
     test_sequential_palette
     test_marker_actions
     test_settings_layout
@@ -221,10 +222,13 @@ set(SPECTRA_UNIT_TESTS
     test_math3d
     test_3d_pipelines
     test_camera
+    test_3d_camera_views
+    test_scatter3d_selection_gpu
     test_axes3d_fit
     test_axes3d_render_helpers
     test_axes3d_box
     test_3d_lighting
+    test_cvd_preview_gpu
     test_shape3d_first_frame
     test_shape2d_first_frame
     # test_axes3d  # Not a proper GTEST file, uses plain functions with assert
@@ -262,6 +266,7 @@ set(SPECTRA_UNIT_TESTS
     test_text_renderer
     test_text_fit
     test_label_layout
+    test_mathtext
     test_overlay_text_fit
     test_font_fallback
     test_eigen_support
@@ -500,7 +505,9 @@ set(SPECTRA_GPU_TESTS
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_scatter3d_selection_gpu
     test_3d_lighting
+    test_cvd_preview_gpu
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
     test_window_export_extent
@@ -636,7 +643,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|scatter3d_selection_gpu|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

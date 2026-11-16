@@ -13,17 +13,23 @@ int main()
     auto& ax = fig.subplot3d(1, 1, 1);
 
     // Generate a 3D spiral
-    std::vector<float> x, y, z;
+    std::vector<float> x, y, z, sizes;
     for (int i = 0; i < 200; ++i)
     {
         float t = static_cast<float>(i) * 0.1f;
         x.push_back(std::cos(t));
         y.push_back(std::sin(t));
         z.push_back(t * 0.1f);
+        sizes.push_back(3.0f + 7.0f * static_cast<float>(i) / 199.0f);   // grows along the spiral
     }
 
-    // Plot as 3D scatter
-    ax.scatter3d(x, y, z).color(colors::blue).size(4.0f);
+    // Plot as 3D scatter, coloured by height through a colormap (with a
+    // colorbar) and with per-point marker sizes
+    ax.scatter3d(x, y, z).color_values(z).colormap(ColormapType::Viridis).sizes(sizes);
+    ax.show_colorbar(true);
+
+    // One data unit has the same length on every axis ("axis equal")
+    ax.equal_aspect(true);
 
     // Auto-fit axes to data bounds
     ax.auto_fit();
@@ -34,7 +40,9 @@ int main()
     ax.ylabel("Y Axis");
     ax.zlabel("Z Axis");
 
-    // Configure camera (auto_fit already positions camera appropriately)
+    // Configure camera (auto_fit already positions camera appropriately).
+    // In the window: Alt+1..7 (or the view cube) switch to front / back /
+    // left / right / top / bottom / isometric views, Alt+0 toggles ortho.
     ax.camera().set_azimuth(45.0f).set_elevation(30.0f);
 
     app.run();

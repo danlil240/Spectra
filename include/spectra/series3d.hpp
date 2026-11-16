@@ -181,12 +181,95 @@ class ScatterSeries3D : public Series
 
     bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
 
+    // ── Per-point colour (colormap) ─────────────────────────────────────
+    // One value per point, mapped through colormap() to the point colours,
+    // as ScatterSeries::color_values() does in 2D.  Both a colormap and one
+    // value per point are needed; a NaN / infinite value keeps the series
+    // colour.  An empty span drops the per-point colours.
+    ScatterSeries3D& color_values(std::span<const float> values);
+    // Colormap type (keeps colormap_reversed()).
+    ScatterSeries3D& colormap(ColormapType cm)
+    {
+        colormap_ = Colormap(cm, colormap_.is_reversed());
+        dirty_    = true;
+        return *this;
+    }
+    // Built-in, reversed or user colormap (Colormap::from_colors).
+    ScatterSeries3D& colormap(const Colormap& cm)
+    {
+        colormap_ = cm;
+        dirty_    = true;
+        return *this;
+    }
+    // Colormap by matplotlib name ("viridis", "RdBu_r"); unknown names give None.
+    ScatterSeries3D& colormap(const std::string& name)
+    {
+        return colormap(Colormap::from_name(name).value_or(Colormap{}));
+    }
+    ColormapType    colormap() const { return colormap_.type(); }
+    const Colormap& cmap() const { return colormap_; }
+    // Reverse the colormap (high values take the low end).
+    ScatterSeries3D& colormap_reversed(bool reversed)
+    {
+        colormap_ = colormap_.reversed(reversed);
+        dirty_    = true;
+        return *this;
+    }
+    bool colormap_reversed() const { return colormap_.is_reversed(); }
+
+    // Values mapped onto the ends of the colormap (clamped outside).  Without
+    // an explicit range the finite min / max of color_values() is used.
+    ScatterSeries3D& colormap_range(float min_val, float max_val)
+    {
+        colormap_min_ = min_val;
+        colormap_max_ = max_val;
+        colormap_set_ = true;
+        dirty_        = true;
+        return *this;
+    }
+    ScatterSeries3D& clear_colormap_range();
+    bool             colormap_range_set() const { return colormap_set_; }
+    float            colormap_min() const { return colormap_min_; }
+    float            colormap_max() const { return colormap_max_; }
+
+    std::span<const float> color_values_data() const { return color_values_; }
+    bool                   has_colormap() const
+    {
+        return !colormap_.is_none() && !color_values_.empty()
+               && color_values_.size() == point_count();
+    }
+
+    // ── Per-point size ──────────────────────────────────────────────────
+    // Marker diameter in pixels for each point (one per point); empty, or a
+    // count that does not match the points, falls back to size().
+    ScatterSeries3D&       sizes(std::span<const float> sizes);
+    std::span<const float> sizes_data() const { return sizes_; }
+    bool has_sizes() const { return !sizes_.empty() && sizes_.size() == point_count(); }
+
+    // Colour of point i: its colormapped value when has_colormap() (and the
+    // value is finite), else the series colour.  Alpha is the series colour's
+    // times the colormap entry's (only user tables are translucent).
+    Color point_color(size_t i) const;
+    // Marker diameter of point i in pixels (sizes() when has_sizes()).
+    float point_size(size_t i) const;
+    // Largest marker diameter of any point.
+    float max_point_size() const;
+
    private:
+    void recompute_colormap_range();
+
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
     float              point_size_ = 6.0f;   // default marker diameter in pixels
     BlendMode          blend_mode_ = BlendMode::Alpha;
+    // Per-point attributes
+    std::vector<float> color_values_;
+    std::vector<float> sizes_;
+    Colormap           colormap_;
+    float              colormap_min_ = 0.0f;
+    float              colormap_max_ = 1.0f;
+    bool               colormap_set_ = false;
 };
 
 struct SurfaceMesh

@@ -2,6 +2,7 @@
 #include <array>
 #include <atomic>
 #include <cmath>
+#include <limits>
 #include <spectra/series3d.hpp>
 
 namespace spectra
@@ -145,6 +146,74 @@ void ScatterSeries3D::append(float x, float y, float z)
     y_.push_back(y);
     z_.push_back(z);
     dirty_ = true;
+}
+
+ScatterSeries3D& ScatterSeries3D::color_values(std::span<const float> values)
+{
+    color_values_.assign(values.begin(), values.end());
+    if (!colormap_set_)
+        recompute_colormap_range();
+    dirty_ = true;
+    return *this;
+}
+
+ScatterSeries3D& ScatterSeries3D::clear_colormap_range()
+{
+    colormap_set_ = false;
+    recompute_colormap_range();
+    dirty_ = true;
+    return *this;
+}
+
+void ScatterSeries3D::recompute_colormap_range()
+{
+    // Missing samples (NaN / inf) must not poison the range of every point.
+    float lo = std::numeric_limits<float>::infinity();
+    float hi = -std::numeric_limits<float>::infinity();
+    for (float v : color_values_)
+    {
+        if (!std::isfinite(v))
+            continue;
+        lo = std::min(lo, v);
+        hi = std::max(hi, v);
+    }
+    colormap_min_ = lo <= hi ? lo : 0.0f;
+    colormap_max_ = lo <= hi ? hi : 1.0f;
+}
+
+ScatterSeries3D& ScatterSeries3D::sizes(std::span<const float> sizes)
+{
+    sizes_.assign(sizes.begin(), sizes.end());
+    dirty_ = true;
+    return *this;
+}
+
+Color ScatterSeries3D::point_color(size_t i) const
+{
+    if (!has_colormap() || i >= color_values_.size() || !std::isfinite(color_values_[i]))
+        return color_;
+    const float range = colormap_max_ - colormap_min_;
+    const float t = std::abs(range) > 1e-20f ? (color_values_[i] - colormap_min_) / range : 0.5f;
+    Color       c = colormap_.sample(t);
+    c.a *= color_.a;
+    return c;
+}
+
+float ScatterSeries3D::point_size(size_t i) const
+{
+    if (!has_sizes() || i >= sizes_.size() || !std::isfinite(sizes_[i]))
+        return point_size_;
+    return std::max(0.0f, sizes_[i]);
+}
+
+float ScatterSeries3D::max_point_size() const
+{
+    if (!has_sizes())
+        return point_size_;
+    float m = 0.0f;
+    for (size_t i = 0; i < sizes_.size(); ++i)
+        m = std::max(m, point_size(i));
+    return m;
 }
 
 vec3 ScatterSeries3D::compute_centroid() const

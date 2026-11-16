@@ -142,6 +142,22 @@ float inter_text_width(std::string_view text, float font_px)
     return em * font_px;
 }
 
+float inter_mathtext_layout(std::string_view text, float font_px, std::vector<mathtext::Run>& runs)
+{
+    runs = mathtext::parse(text);
+    return mathtext::layout(runs,
+                            [font_px](std::string_view run, float scale)
+                            { return inter_text_width(run, font_px * scale); });
+}
+
+float inter_mathtext_width(std::string_view text, float font_px)
+{
+    if (!mathtext::has_markup(text))
+        return inter_text_width(text, font_px);
+    std::vector<mathtext::Run> runs;
+    return inter_mathtext_layout(text, font_px, runs);
+}
+
 bool inter_covers(std::string_view text)
 {
     const InterMetrics& m = inter_metrics();

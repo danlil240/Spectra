@@ -735,49 +735,26 @@ class PdfPageWriter final : public VectorWriter
     {
         if (t.text.empty() || !(t.font_px > 0.0f))
             return;
-        res_.note_text_used();
-        std::string shown;
-        if (inter_metrics_available())
-        {
-            shown = "<";
-            for (const uint32_t cp : utf8_codepoints(t.text))
-            {
-                const uint16_t g = inter_glyph_index(cp);
-                res_.note_glyph(g, cp);
-                put_hex4(shown, g);
-            }
-            shown += ">";
-        }
+        // Mathtext ($...$) is drawn run by run, each at its own size and baseline.
+        std::vector<mathtext::Run> runs;
+        double                     width = 0.0;
+        if (mathtext::has_markup(t.text))
+            width = inter_mathtext_layout(t.text, t.font_px, runs);
         else
         {
-            // Helvetica fallback (no embedded font): ASCII only.
-            shown = "(";
-            for (const uint32_t cp : utf8_codepoints(t.text))
-            {
-                const char ch = cp >= 0x20 && cp < 0x7F ? static_cast<char>(cp) : '?';
-                if (ch == '(' || ch == ')' || ch == '\\')
-                    shown += '\\';
-                shown += ch;
-            }
-            shown += ")";
+            runs.push_back(mathtext::Run{mathtext::Run::Kind::Text, std::string(t.text)});
+            width = inter_text_width(t.text, t.font_px);
         }
+        if (runs.empty())
+            return;
+        res_.note_text_used();
 
-        const double width = inter_text_width(t.text, t.font_px);
         const double off   = t.anchor == VectorAnchor::Middle ? width * 0.5
                              : t.anchor == VectorAnchor::End  ? width
                                                               : 0.0;
         const double theta = t.rotated ? t.rot_deg * 3.14159265358979323846 / 180.0 : 0.0;
         const double c     = std::cos(theta);
         const double s     = std::sin(theta);
-        double       x     = t.x - off;
-        double       y     = t.y;
-        if (t.rotated)
-        {
-            const double dx = x - t.rot_x;
-            const double dy = y - t.rot_y;
-            x               = t.rot_x + c * dx - s * dy;
-            y               = t.rot_y + s * dx + c * dy;
-        }
 
         set_fill(t.color);
         if (t.medium_weight)
@@ -792,16 +769,30 @@ class PdfPageWriter final : public VectorWriter
         out_ += "BT\n";
         if (t.medium_weight)
             out_ += "2 Tr\n";
-        out_ += "/F1 ";
-        put_pdf_num(out_, t.font_px, 3);
-        out_ += " Tf\n";
-        for (const double v : {c, s, s, -c})
+        for (const mathtext::Run& r : runs)
         {
-            put_pdf_num(out_, v, 4);
-            out_ += ' ';
+            if (r.kind != mathtext::Run::Kind::Text || r.text.empty())
+                continue;
+            double x = t.x - off + r.x;
+            double y = t.y - static_cast<double>(r.shift) * t.font_px;
+            if (t.rotated)
+            {
+                const double dx = x - t.rot_x;
+                const double dy = y - t.rot_y;
+                x               = t.rot_x + c * dx - s * dy;
+                y               = t.rot_y + s * dx + c * dy;
+            }
+            out_ += "/F1 ";
+            put_pdf_num(out_, static_cast<double>(t.font_px) * r.scale, 3);
+            out_ += " Tf\n";
+            for (const double v : {c, s, s, -c})
+            {
+                put_pdf_num(out_, v, 4);
+                out_ += ' ';
+            }
+            put_xy(out_, x, y);
+            out_ += " Tm\n" + shown_string(r.text) + " Tj\n";
         }
-        put_xy(out_, x, y);
-        out_ += " Tm\n" + shown + " Tj\n";
         if (t.medium_weight)
             out_ += "0 Tr\n";
         out_ += "ET\n";
@@ -812,6 +803,35 @@ class PdfPageWriter final : public VectorWriter
     [[nodiscard]] const char* format_name() const override { return "PDF"; }
 
    private:
+    // A PDF string operand for `text`: Inter glyph ids (hex) when the font is embedded,
+    // else a Helvetica literal string (ASCII only).
+    std::string shown_string(std::string_view text)
+    {
+        std::string shown;
+        if (inter_metrics_available())
+        {
+            shown = "<";
+            for (const uint32_t cp : utf8_codepoints(text))
+            {
+                const uint16_t g = inter_glyph_index(cp);
+                res_.note_glyph(g, cp);
+                put_hex4(shown, g);
+            }
+            shown += ">";
+            return shown;
+        }
+        shown = "(";
+        for (const uint32_t cp : utf8_codepoints(text))
+        {
+            const char ch = cp >= 0x20 && cp < 0x7F ? static_cast<char>(cp) : '?';
+            if (ch == '(' || ch == ')' || ch == '\\')
+                shown += '\\';
+            shown += ch;
+        }
+        shown += ")";
+        return shown;
+    }
+
     // Graphics state the content stream last set (to skip redundant operators).
     struct GState
     {

@@ -26,9 +26,12 @@ struct SettingsWindowLimits
 };
 
 // Design values in unscaled UI units; multiplied by the UI/DPI scale.
-inline constexpr float k_settings_min_width  = 420.0f;
+inline constexpr float k_settings_min_width  = 520.0f;   // fits 4 theme previews per row
 inline constexpr float k_settings_max_height = 900.0f;
 inline constexpr float k_settings_margin     = 24.0f;
+// Below this maximum window height (unscaled) the search box is hidden so the
+// tab body keeps its room.
+inline constexpr float k_settings_search_min_height = 400.0f;
 
 inline float sanitize_settings_scale(float scale)
 {

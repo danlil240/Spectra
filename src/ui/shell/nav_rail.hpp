@@ -18,12 +18,16 @@ class PanelRegistry;
 
 struct NavItem
 {
-    Icon                  icon = Icon::WindowIcon;
-    std::string           label;
-    std::string           id;   // stable ImGui id (panel id); empty for section headers
-    std::string           tooltip;
-    std::string           section;
-    bool                  is_section_header = false;
+    Icon        icon = Icon::WindowIcon;
+    std::string label;
+    std::string id;   // stable ImGui id (panel id); empty for section headers
+    std::string tooltip;
+    std::string section;
+    bool        is_section_header = false;
+    // Spectra rail grouping: tool-mode buttons share a tray (exactly one is
+    // active); pinned items sit at the bottom of the rail.
+    bool                  tool_mode  = false;
+    bool                  pin_bottom = false;
     std::function<bool()> is_active;
     std::function<void()> on_click;
 };

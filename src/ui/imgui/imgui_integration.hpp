@@ -212,8 +212,6 @@ class ImGuiIntegration
     // Interaction state getters
     bool     should_reset_view() const { return reset_view_; }
     void     clear_reset_view() { reset_view_ = false; }
-    bool     should_reset_live_view() const { return reset_live_view_; }
-    void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
     // The active tool.  ImGuiIntegration owns it (nav rail, tool commands and
     // shortcuts all set it here) and mirrors it to the input handler.
@@ -632,6 +630,8 @@ class ImGuiIntegration
     // Rail tooltip for a tool button: "Pan (P)" when the tool's command has a
     // key bound, else just the label.
     std::string tool_tooltip(const char* label, ToolMode mode) const;
+    // One MenuItem per tool (with its key), checked on the active one.
+    void draw_tool_menu_items();
 
     ImFont* icon_font() const { return font_icon_; }
     ImFont* heading_font() const { return font_heading_; }
@@ -669,6 +669,10 @@ class ImGuiIntegration
     void draw_plot_overlay_dialog();
 
     void draw_plot_overlays(Figure& figure);
+    // Measure tool: line, Δx/Δy legs, snap rings and the readout label.
+    void draw_measure_overlay();
+    // Live pill of one presented-buffer axes (live_index: its order among them).
+    void draw_live_pill(Figure& figure, Axes& axes, size_t live_index);
     void draw_topic_drop_target(Figure& figure);
     void draw_topic_drop_target_welcome();
     void draw_log_field_drop_target(Figure& figure);
@@ -752,7 +756,6 @@ class ImGuiIntegration
 
     // Interaction state
     bool     reset_view_       = false;
-    bool     reset_live_view_  = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
 
     // Plot-area cursor (see plot_cursor()).  The GLFW crosshair cursor is

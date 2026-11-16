@@ -582,6 +582,10 @@ def _load_lib() -> ctypes.CDLL:
         ctypes.c_float,
     ]
     _lib.spectra_series_set_colormap_range.restype = None
+    _lib.spectra_series_set_colormap_name.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    _lib.spectra_series_set_colormap_name.restype = ctypes.c_int
+    _lib.spectra_series_set_colormap_reversed.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    _lib.spectra_series_set_colormap_reversed.restype = None
 
     # ── Phase 1E: Legend control ──────────────────────────────────────────
     _lib.spectra_axes_show_legend.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -762,7 +766,8 @@ _MARKER_STYLES = {
 BAR_VERTICAL = 0
 BAR_HORIZONTAL = 1
 
-# Colormaps (spectra::ColormapType)
+# Colormaps (spectra::ColormapType / SPECTRA_CMAP_*).  Names are resolved by
+# the library (spectra::Colormap::from_name), which also accepts a "_r" suffix.
 _COLORMAPS = {
     "none": 0,
     "viridis": 1,
@@ -773,7 +778,31 @@ _COLORMAPS = {
     "coolwarm": 6,
     "grayscale": 7,
     "gray": 7,
+    "grey": 7,
+    "cividis": 8,
+    "turbo": 9,
+    "twilight": 10,
+    "rdbu": 11,
+    "puor": 12,
+    "hot": 13,
 }
+
+# Colormap names for docs / completion (each also has a "<name>_r" reversed form).
+COLORMAP_NAMES = (
+    "viridis",
+    "plasma",
+    "inferno",
+    "magma",
+    "cividis",
+    "gray",
+    "coolwarm",
+    "RdBu",
+    "PuOr",
+    "twilight",
+    "turbo",
+    "jet",
+    "hot",
+)
 
 # Legend positions (spectra::LegendPosition)
 _LEGEND_POSITIONS = {
@@ -965,11 +994,24 @@ class EmbedSeries:
         zp, zn = _to_float_ptr(z)
         self._lib.spectra_series_set_z(self._handle, zp, zn)
 
+    def _set_colormap_name(self, name: str) -> None:
+        if not self._lib.spectra_series_set_colormap_name(
+            self._handle, name.strip().encode("utf-8")
+        ):
+            raise ValueError(f"Unknown colormap: {name!r}")
+
     def set_colormap(self, colormap) -> "EmbedSeries":
-        """Set the colormap (name like 'viridis' or int code)."""
-        self._lib.spectra_series_set_colormap(
-            self._handle, _resolve(colormap, _COLORMAPS, "colormap")
-        )
+        """Set the colormap: a matplotlib name ('viridis', 'cividis', 'turbo',
+        'twilight', 'RdBu', 'PuOr', ...; '<name>_r' reverses) or an int code."""
+        if isinstance(colormap, str):
+            self._set_colormap_name(colormap)
+        else:
+            self._lib.spectra_series_set_colormap(self._handle, int(colormap))
+        return self
+
+    def set_colormap_reversed(self, reversed_: bool = True) -> "EmbedSeries":
+        """Reverse the colormap (high values take the low end), like '<name>_r'."""
+        self._lib.spectra_series_set_colormap_reversed(self._handle, 1 if reversed_ else 0)
         return self
 
     def set_colormap_range(self, min_val: float, max_val: float) -> "EmbedSeries":
@@ -991,10 +1033,12 @@ class EmbedSeries:
         return self
 
     def set_scatter_colormap(self, colormap) -> "EmbedSeries":
-        """Set the colormap for scatter per-point colors (name or int code)."""
-        self._lib.spectra_series_set_scatter_colormap(
-            self._handle, _resolve(colormap, _COLORMAPS, "colormap")
-        )
+        """Set the colormap for scatter per-point colors (name such as
+        'viridis' or 'RdBu_r', or an int code)."""
+        if isinstance(colormap, str):
+            self._set_colormap_name(colormap)
+        else:
+            self._lib.spectra_series_set_scatter_colormap(self._handle, int(colormap))
         return self
 
     def set_scatter_colormap_range(
@@ -1040,7 +1084,7 @@ class EmbedAxes:
             x, y: Data arrays (lists, numpy arrays).
             label: Optional legend label.
             c: Optional per-point color values for colormap coloring.
-            cmap: Colormap name (e.g., 'viridis', 'plasma'). Default: 'viridis'.
+            cmap: Colormap name (e.g., 'viridis', 'cividis', 'RdBu_r'). Default: 'viridis'.
         """
         xp, n = _to_float_ptr(x)
         yp, yn = _to_float_ptr(y)

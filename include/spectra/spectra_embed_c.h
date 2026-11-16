@@ -84,7 +84,13 @@ extern "C"
         SPECTRA_CMAP_MAGMA     = 4,
         SPECTRA_CMAP_JET       = 5,
         SPECTRA_CMAP_COOLWARM  = 6,
-        SPECTRA_CMAP_GRAYSCALE = 7
+        SPECTRA_CMAP_GRAYSCALE = 7,
+        SPECTRA_CMAP_CIVIDIS   = 8,
+        SPECTRA_CMAP_TURBO     = 9,
+        SPECTRA_CMAP_TWILIGHT  = 10,
+        SPECTRA_CMAP_RDBU      = 11,
+        SPECTRA_CMAP_PUOR      = 12,
+        SPECTRA_CMAP_HOT       = 13
     };
 
     /* Legend position (spectra::LegendPosition) */
@@ -283,6 +289,15 @@ extern "C"
 
     /* Set colormap value range — applies to surface series. */
     void spectra_series_set_colormap_range(SpectraSeries* s, float min_val, float max_val);
+
+    /* Set the colormap by matplotlib name ("viridis", "cividis", "RdBu", "turbo_r",
+     * ...; case-insensitive, "_r" reverses) on a scatter, surface, image or
+     * contour series.  Returns 1 on success, 0 for an unknown name or series. */
+    int spectra_series_set_colormap_name(SpectraSeries* s, const char* name);
+
+    /* Reverse (1) or restore (0) the colormap of a scatter, surface, image or
+     * contour series. */
+    void spectra_series_set_colormap_reversed(SpectraSeries* s, int reversed);
 
     /* ── Rendering ─────────────────────────────────────────────────────────── */
 

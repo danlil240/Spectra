@@ -7,6 +7,10 @@ namespace spectra
 
 // ─── Colormap type ──────────────────────────────────────────────────────────
 
+// Built-in colormaps: 256-entry lookup tables generated from matplotlib's
+// (src/core/colormap_tables.hpp).  The numeric values are stored in workspace
+// files and the C API (SPECTRA_CMAP_*): append new maps, never reorder.
+// See spectra::Colormap (colormap.hpp) for reversed and user-defined maps.
 enum class ColormapType
 {
     None = 0,
@@ -16,7 +20,14 @@ enum class ColormapType
     Magma,
     Jet,
     Coolwarm,
-    Grayscale,
+    Grayscale,   // matplotlib "gray"
+    Cividis,
+    Turbo,
+    Twilight,   // cyclic
+    RdBu,       // diverging red - white - blue
+    PuOr,       // diverging orange - white - purple
+    Hot,
+    Custom,   // user lookup table (Colormap::from_colors)
 };
 
 struct Color

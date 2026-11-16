@@ -12,6 +12,8 @@
     #include <unordered_map>
     #include <vector>
 
+    #include "legend_solo.hpp"
+
 struct ImFont;
 struct ImVec2;
 
@@ -84,6 +86,17 @@ class LegendInteraction
 
     // Check if a series is toggled visible by the user.
     bool is_series_visible(const Series* series) const;
+
+    // Series whose legend row the pointer was over at the last draw (nullptr
+    // when none).  Its axes' other visible series are dimmed by the renderer
+    // while it is hovered (dimmed_series()).
+    const Series*              hovered_series() const { return hovered_series_; }
+    std::vector<const Series*> dimmed_series(const Figure& figure) const;
+
+    // Double-click solo state (double-click a row: only that series; again:
+    // restore).
+    LegendSolo&       solo() { return solo_; }
+    const LegendSolo& solo() const { return solo_; }
 
     // ─── Configuration ──────────────────────────────────────────────────
 
@@ -208,6 +221,14 @@ class LegendInteraction
     // Returns the window slot of (figure, axes); `fresh` is set when the slot
     // was just (re)assigned, so stale ImGui window state must be reset.
     size_t window_slot(uintptr_t figure_id, size_t axes_index, bool& fresh);
+
+    // Hover emphasis and double-click solo
+    const Series* hovered_this_frame_ = nullptr;   // set while drawing rows
+    const Series* hovered_series_     = nullptr;   // last complete frame
+    const Series* last_toggled_       = nullptr;   // first click of a possible double-click
+    const Series* suppress_click_     = nullptr;   // second release of a double-click
+    AxesBase*     drawing_axes_       = nullptr;   // axes of the legend being drawn
+    LegendSolo    solo_;
 
     // Drag state
     bool   dragging_        = false;

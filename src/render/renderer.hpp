@@ -15,6 +15,7 @@
 namespace spectra
 {
 class Axes3D;
+struct StatFillStyle;
 class FigureViewModel;
 }   // namespace spectra
 
@@ -222,6 +223,12 @@ class Renderer
     // using the same GPU pipeline — no ImGui overlay needed.
     void set_selected_series(const std::vector<const Series*>& selected);
     void clear_selected_series();
+
+    // Series drawn faded (alpha × DIMMED_SERIES_ALPHA) so another one stands
+    // out, e.g. while its legend entry is hovered.  Empty: none.  Interactive
+    // only; exports do not set it.
+    void                   set_dimmed_series(std::vector<const Series*> dimmed);
+    static constexpr float DIMMED_SERIES_ALPHA = 0.2f;
 
     // Set the series type registry for custom plugin series types.
     // The Renderer subscribes to the registry's unregister notifications so a
@@ -528,6 +535,8 @@ class Renderer
         TextureHandle image_texture;
         TextureHandle lut_texture;
         uint64_t      lut_generation = 0;
+        // Scatter / surface: the colormap lut_texture was built from.
+        Colormap lut_colormap;
         // Plugin custom series type fields
         std::string custom_type_name;   // Links to SeriesTypeRegistry entry
         // Opaque per-series state owned by the plugin.  The plugin allocates it
@@ -555,8 +564,32 @@ class Renderer
         // (render_pass_serial_) it was prepared for; used only within it.
         int      sorted_ready_slot   = -1;
         uint64_t sorted_ready_serial = 0;
+
+        // Dashed 2D lines: CPU copy of the uploaded vec2 points and, per frame
+        // slot, an (x, y, dash phase) buffer for the line pipeline, rebuilt
+        // when the data, the zoom or the dash period changes.
+        std::vector<float> line_points;
+        uint64_t           line_points_serial = 0;
+        struct DashPhaseKey
+        {
+            uint64_t serial                                = 0;
+            double   px_x                                  = 0.0;
+            double   px_y                                  = 0.0;
+            double   period                                = 0.0;
+            bool     operator==(const DashPhaseKey&) const = default;
+        };
+        BufferHandle dash_phase_buffer[FRAME_BUFFER_SLOTS];
+        size_t       dash_phase_capacity[FRAME_BUFFER_SLOTS] = {};
+        DashPhaseKey dash_phase_key[FRAME_BUFFER_SLOTS];
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Flat fill + thin outline of a bar / histogram / box / violin series
+    // (render_2d.cpp).
+    void draw_stat_fill(SeriesGpuData&             gpu,
+                        const SeriesPushConstants& pc,
+                        const StatFillStyle&       style,
+                        size_t                     outline_points);
     // Incremented by begin_render_pass(); tags per-pass state such as
     // SeriesGpuData::sorted_ready_serial.
     uint64_t render_pass_serial_ = 0;
@@ -596,6 +629,19 @@ class Renderer
     // Uploads gpu.sorted_indices into this frame slot's sorted index buffer
     // (when that slot is out of date) and marks it ready for this pass.
     void upload_sorted_indices(SeriesGpuData& gpu);
+    // (x, y, dash phase) buffer for a dashed 2D line drawn this frame, or a
+    // null handle when the series has no CPU point copy (see line_points).
+    BufferHandle prepare_dash_phase_buffer(SeriesGpuData& gpu, float dash_total);
+    // Draw segments [first_seg, first_seg + seg_count) of the series' point
+    // buffer with the line pipeline as one joined polyline (a dashed one with
+    // a continuous dash phase).
+    void draw_polyline(SeriesPushConstants pc,
+                       SeriesGpuData&      gpu,
+                       uint32_t            first_seg,
+                       uint32_t            seg_count);
+    // Keep (or drop) the CPU copy of a 2D line's uploaded points that dashed
+    // lines need for their phase buffer.
+    void store_line_points(SeriesGpuData& gpu, const Series& series, const float* xy, size_t n);
     void prepare_shape3d_sorted_indices(SeriesGpuData&       gpu,
                                         const ShapeSeries3D& series,
                                         const mat4&          model,
@@ -606,6 +652,10 @@ class Renderer
     // (Re)create the value texture / colormap LUT of an image whose grid or
     // colormap changed since the last upload.  Render thread only.
     void upload_image_textures(const ImageSeries& image, SeriesGpuData& gpu);
+    // Colormap lookup table (Colormap::rgba8, LUT_SIZE x 1) of a scatter or
+    // surface series, rebuilt when the colormap changes; read by
+    // scatter_colormap.frag and surface3d.frag as set 2.  Invalid on failure.
+    TextureHandle colormap_lut(SeriesGpuData& gpu, const Colormap& cm);
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);
@@ -613,10 +663,17 @@ class Renderer
 
     // Currently selected series for GPU-rendered highlight.
     std::vector<const Series*> selected_series_;
+    // Series faded behind an emphasised one (legend hover).
+    std::vector<const Series*> dimmed_series_;
 
     // Reusable scratch buffer for interleaving series data before GPU upload.
     // Avoids per-frame heap allocations for animated/streaming series.
     std::vector<float> upload_scratch_;
+    std::vector<float> dash_phase_scratch_;
+    // Logical px per axis-space unit of the 2D axes being drawn (set with its
+    // projection in render_axes); used for dash phases.
+    double line_px_per_unit_x_ = 1.0;
+    double line_px_per_unit_y_ = 1.0;
 
     // Reusable scratch buffers for per-frame vertex generation.
     // Avoids heap allocations in render_grid, render_bounding_box, render_tick_marks.

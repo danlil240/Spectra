@@ -399,7 +399,7 @@ void Renderer::render_plot_text(Figure& figure)
                     text_renderer_.set_clip_rect(vp.x, vp.y, vp.x + vp.w, vp.y + vp.h);
                     clipped = true;
                 }
-                const auto lut  = image_colormap::build_lut(img->colormap(), img->levels());
+                const auto lut  = image_colormap::build_lut(img->cmap(), img->levels());
                 const auto vals = img->data();
                 for (size_t r = 0; r < img->rows(); ++r)
                 {
@@ -898,7 +898,8 @@ void Renderer::render_plot_text(Figure& figure)
 void Renderer::bind_screen_space_ubo(float fw, float fh)
 {
     // Screen coordinates are Y-down (0=top, h=bottom).
-    FrameUBO ubo = screen_space_ubo(fw, fh, backend_.clip_y_down());
+    FrameUBO ubo    = screen_space_ubo(fw, fh, backend_.clip_y_down());
+    ubo.pixel_scale = backend_.pixel_scale();
     backend_.set_viewport(0, 0, fw, fh);
     backend_.set_scissor(0, 0, static_cast<uint32_t>(fw), static_cast<uint32_t>(fh));
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));

@@ -165,13 +165,16 @@ class TestParseColor:
         assert _parse_color([1.0, 0.0, 0.0]) == (1.0, 0.0, 0.0, 1.0)
 
     def test_unknown_name(self):
-        assert _parse_color("notacolor") is None
+        with pytest.raises(ValueError):
+            _parse_color("notacolor")
 
     def test_empty_string(self):
-        assert _parse_color("") is None
+        with pytest.raises(ValueError):
+            _parse_color("")
 
     def test_bad_hex(self):
-        assert _parse_color("#ZZ") is None
+        with pytest.raises(ValueError):
+            _parse_color("#ZZ")
 
 
 # ─── _parse_xy_args ──────────────────────────────────────────────────────────

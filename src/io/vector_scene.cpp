@@ -50,6 +50,7 @@
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/scatter_marker.hpp"
+#include "render/stat_fill_style.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
 namespace spectra
@@ -286,47 +287,10 @@ float baseline_offset(VAlign v, float font_px)
 
 // ─── Colormaps ──────────────────────────────────────────────────────────────
 
-// Same three-stop ramps as apply_colormap() in scatter.frag.
-Color scatter_colormap(ColormapType cm, float t)
+// The colormap lookup table the GPU shaders read (Colormap::sample).
+Color scatter_colormap(const Colormap& cm, float t)
 {
-    using RGB = std::array<float, 3>;
-    t         = clamp01(t);
-    auto mix  = [](const RGB& a, const RGB& b, float u)
-    { return Color{a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u}; };
-    auto three = [&](const RGB& c0, const RGB& c1, const RGB& c2)
-    { return t < 0.5f ? mix(c0, c1, t * 2.0f) : mix(c1, c2, (t - 0.5f) * 2.0f); };
-    switch (cm)
-    {
-        case ColormapType::Viridis:
-            return three({0.267f, 0.005f, 0.329f},
-                         {0.128f, 0.567f, 0.551f},
-                         {0.993f, 0.906f, 0.144f});
-        case ColormapType::Plasma:
-            return three({0.050f, 0.030f, 0.528f},
-                         {0.798f, 0.280f, 0.470f},
-                         {0.940f, 0.975f, 0.131f});
-        case ColormapType::Inferno:
-            return three({0.001f, 0.000f, 0.014f},
-                         {0.735f, 0.216f, 0.330f},
-                         {0.988f, 0.998f, 0.645f});
-        case ColormapType::Magma:
-            return three({0.001f, 0.000f, 0.014f},
-                         {0.716f, 0.215f, 0.475f},
-                         {0.987f, 0.991f, 0.750f});
-        case ColormapType::Jet:
-            return Color{clamp01(1.5f - std::fabs(4.0f * t - 3.0f)),
-                         clamp01(1.5f - std::fabs(4.0f * t - 2.0f)),
-                         clamp01(1.5f - std::fabs(4.0f * t - 1.0f))};
-        case ColormapType::Coolwarm:
-            return three({0.230f, 0.299f, 0.754f},
-                         {0.865f, 0.865f, 0.865f},
-                         {0.706f, 0.016f, 0.150f});
-        case ColormapType::Grayscale:
-            return Color{t, t, t};
-        case ColormapType::None:
-        default:
-            return Color{0.5f, 0.5f, 0.5f};
-    }
+    return cm.sample(clamp01(t));
 }
 
 // ─── Export context ─────────────────────────────────────────────────────────
@@ -724,15 +688,22 @@ std::string polyline_path(std::span<const float> x,
     return d;
 }
 
-// Dash lengths matching get_dash_pattern() (flat-ended dashes in line.frag).
+// Dash array for a round-capped stroke matching get_dash_pattern() as
+// line.frag draws it: pattern lengths are visual, the round caps (one width
+// across) sit inside each dash, so every dash shrinks by one width and every
+// gap grows by as much.  A dash no longer than the width becomes a dot.
 std::vector<float> dash_array(LineStyle ls, float width)
 {
     if (ls == LineStyle::Solid || ls == LineStyle::None)
         return {};
     const DashPattern  dp = get_dash_pattern(ls, width);
     std::vector<float> out;
-    for (int i = 0; i < dp.count && i < 8; ++i)
-        out.push_back(dp.segments[i]);
+    for (int i = 0; i + 1 < dp.count && i < 8; i += 2)
+    {
+        const float on = std::max(dp.segments[i] - width, 0.0f);
+        out.push_back(on);
+        out.push_back(dp.segments[i + 1] + (dp.segments[i] - on));
+    }
     return out;
 }
 
@@ -755,7 +726,7 @@ void emit_stroke_path(SceneContext&      c,
     s.fill        = VectorPaint::none();
     s.join        = VectorLineJoin::Round;
     s.dash        = dash_array(ls, width);
-    s.cap         = s.dash.empty() ? VectorLineCap::Round : VectorLineCap::Butt;
+    s.cap         = VectorLineCap::Round;
     c.w.path(6, d, s);
 }
 
@@ -796,7 +767,8 @@ void emit_markers(SceneContext&             c,
         if (i < colors.size())
         {
             VectorStyle own;
-            own.color = colors[i];
+            own.color   = colors[i];
+            own.opacity = clamp01(colors[i].a);   // translucent user colormap entries
             c.w.use_marker(8, id, px, py, own);
         }
         else
@@ -1029,6 +1001,32 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
             emit_stroke_path(c, polyline_path(lx, ly, m, xoff, yoff), cls, col, alpha, outline_w);
     };
 
+    // Flat stat fill + thin outline (render_2d.cpp: Renderer::draw_stat_fill).
+    // Only the first `outline_points` outline points form the edge.
+    const float bg_luma   = stat_relative_luminance(st.background);
+    auto        stat_fill = [&](std::span<const float> fill,
+                         std::span<const float> lx,
+                         std::span<const float> ly,
+                         size_t                 outline_points,
+                         const StatFillStyle&   fs,
+                         const char*            cls)
+    {
+        if (fs.fill_alpha > 0.0f)
+            emit_fill(c, fill, m, xoff, yoff, col, alpha * fs.fill_alpha, cls);
+        outline_points = std::min({outline_points, lx.size(), ly.size()});
+        if (fs.edge_width > 0.0f && outline_points > 1)
+        {
+            const Color edge = stat_edge_color(fs, col, bg_luma);
+            emit_stroke_path(
+                c,
+                polyline_path(lx.first(outline_points), ly.first(outline_points), m, xoff, yoff),
+                cls,
+                Color{edge.r, edge.g, edge.b, col.a},
+                alpha * edge.a,
+                fs.edge_width);
+        }
+    };
+
     if (auto* ls = dynamic_cast<const LineSeries*>(&s))
     {
         if (style.has_line() && ls->point_count() >= 2)
@@ -1063,7 +1061,8 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
             for (float v : vals)
             {
                 const float t = std::fabs(range) > 1e-20f ? (v - lo) / range : 0.5f;
-                per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->colormap(), t) : col);
+                per_point.push_back(std::isfinite(v) ? scatter_colormap(sc->cmap(), t)
+                                                     : Color{col.r, col.g, col.b, 1.0f});
             }
         }
         // Same marker as the renderer; the colormap is drawn when the
@@ -1086,7 +1085,22 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
     {
         std::unique_ptr<BoxPlotSeries> bp_copy;
         const BoxPlotSeries*           bp = fresh_geometry(bp_src, bp_copy);
-        fill_and_outline(bp->fill_verts(), bp->x_data(), bp->y_data(), 0.45f, 1.5f, "box");
+        const size_t med_at               = std::min(bp->median_first_point(), bp->point_count());
+        stat_fill(bp->fill_verts(), bp->x_data(), bp->y_data(), med_at, bp->fill_style(), "box");
+        if (bp->point_count() > med_at + 1)
+        {
+            const Color ink = stat_median_color(col, bp->fill_alpha(), st.background);
+            emit_stroke_path(c,
+                             polyline_path(bp->x_data().subspan(med_at),
+                                           bp->y_data().subspan(med_at),
+                                           m,
+                                           xoff,
+                                           yoff),
+                             "box-median",
+                             ink,
+                             alpha,
+                             stat_median_width(bp->edge_width()));
+        }
         if (bp->outlier_count() > 0)
             emit_markers(c,
                          bp->outlier_x(),
@@ -1103,19 +1117,34 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
     {
         std::unique_ptr<ViolinSeries> vn_copy;
         const ViolinSeries*           vn = fresh_geometry(vn_src, vn_copy);
-        fill_and_outline(vn->fill_verts(), vn->x_data(), vn->y_data(), 0.40f, 1.5f, "violin");
+        stat_fill(vn->fill_verts(),
+                  vn->x_data(),
+                  vn->y_data(),
+                  vn->point_count(),
+                  vn->fill_style(),
+                  "violin");
     }
     else if (auto* hs_src = dynamic_cast<const HistogramSeries*>(&s))
     {
         std::unique_ptr<HistogramSeries> hs_copy;
         const HistogramSeries*           hs = fresh_geometry(hs_src, hs_copy);
-        fill_and_outline(hs->fill_verts(), hs->x_data(), hs->y_data(), 0.65f, 1.0f, "histogram");
+        stat_fill(hs->fill_verts(),
+                  hs->x_data(),
+                  hs->y_data(),
+                  hs->point_count(),
+                  hs->fill_style(),
+                  "histogram");
     }
     else if (auto* bs_src = dynamic_cast<const BarSeries*>(&s))
     {
         std::unique_ptr<BarSeries> bs_copy;
         const BarSeries*           bs = fresh_geometry(bs_src, bs_copy);
-        fill_and_outline(bs->fill_verts(), bs->x_data(), bs->y_data(), 0.75f, 1.5f, "bar");
+        stat_fill(bs->fill_verts(),
+                  bs->x_data(),
+                  bs->y_data(),
+                  bs->point_count(),
+                  bs->fill_style(),
+                  "bar");
     }
     else if (auto* band_src = dynamic_cast<const BandSeries*>(&s))
     {
@@ -1392,7 +1421,7 @@ std::vector<uint8_t> rasterize_image(const ImageSeries& img,
     const auto           data = img.data();
     const bool           rgba = img.is_rgba();
     const auto           lut =
-        rgba ? std::vector<uint8_t>{} : image_colormap::build_lut(img.colormap(), img.levels());
+        rgba ? std::vector<uint8_t>{} : image_colormap::build_lut(img.cmap(), img.levels());
     const size_t lut_n  = lut.size() / 4;
     const bool   banded = !img.levels().empty();
     const bool   nodes  = img.node_aligned();
@@ -1511,7 +1540,7 @@ void emit_image_series(SceneContext& c, const ImageSeries& img, const DataToSvg&
     const double cell_h = sh / static_cast<double>(img.rows());
     if (!(cell_w >= 12.0) || !(cell_h >= TICK_FONT_PX + 2.0))
         return;
-    const auto lut  = image_colormap::build_lut(img.colormap(), img.levels());
+    const auto lut  = image_colormap::build_lut(img.cmap(), img.levels());
     const auto vals = img.data();
     for (size_t r = 0; r < img.rows(); ++r)
     {
@@ -1648,7 +1677,7 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
         e.marker      = legend_scatter_marker(style.marker_style, st);
         e.marker_size = sc->size();
         if (sc->has_colormap())
-            e.color = scatter_colormap(sc->colormap(), 0.5f);
+            e.color = scatter_colormap(sc->cmap(), 0.5f);
     }
     else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
     {
@@ -1664,21 +1693,21 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
     else if (auto* surf = dynamic_cast<const SurfaceSeries*>(&s))
     {
         if (surf->colormap_type() != ColormapType::None)
-            e.color = SurfaceSeries::sample_colormap(surf->colormap_type(), 0.5f);
+            e.color = surf->cmap().sample(0.5f);
         if (surf->wireframe())
         {
             e.kind       = SwatchKind::Line;
             e.line_width = 1.5f;
         }
     }
-    else if (dynamic_cast<const BarSeries*>(&s))
-        e.fill_alpha = 0.75f;
-    else if (dynamic_cast<const HistogramSeries*>(&s))
-        e.fill_alpha = 0.65f;
-    else if (dynamic_cast<const BoxPlotSeries*>(&s))
-        e.fill_alpha = 0.45f;
-    else if (dynamic_cast<const ViolinSeries*>(&s))
-        e.fill_alpha = 0.40f;
+    else if (auto* bar = dynamic_cast<const BarSeries*>(&s))
+        e.fill_alpha = bar->fill_alpha();
+    else if (auto* hist = dynamic_cast<const HistogramSeries*>(&s))
+        e.fill_alpha = hist->fill_alpha();
+    else if (auto* box = dynamic_cast<const BoxPlotSeries*>(&s))
+        e.fill_alpha = box->fill_alpha();
+    else if (auto* violin = dynamic_cast<const ViolinSeries*>(&s))
+        e.fill_alpha = violin->fill_alpha();
     else if (dynamic_cast<const ShapeSeries*>(&s))
         e.fill_alpha = 0.50f;
     return e;
@@ -1838,6 +1867,7 @@ void emit_legend(SceneContext&       c,
                 const float lw = std::clamp(e.line_width, 1.0f, 4.0f);
                 VectorStyle s  = stroke_style(e.color, lw, e.alpha);
                 s.dash         = dash_array(e.line_style, std::min(lw, 1.5f));
+                s.cap          = VectorLineCap::Round;
                 c.w.line(6, ex, ey, ex + swatch_w, ey, s);
                 if (e.marker != MarkerStyle::None)
                     swatch_use(e, 4.0f, 10.0f, cx, ey);
@@ -2785,7 +2815,8 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             const auto uc   = static_cast<size_t>(std::max(cols, 0));
             if (ur < 2 || uc < 2 || xg.size() < uc || yg.size() < ur || zv.size() < ur * uc)
                 continue;
-            const ColormapType cm = surf->colormap_type();
+            const Colormap&    cmap_def = surf->cmap();
+            const ColormapType cm       = cmap_def.type();
             // Colormap t follows surface3d.frag: the data z over the series'
             // effective colormap range (0.5 for a flat range).
             const double c_lo    = surf->colormap_min();
@@ -2800,7 +2831,7 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             {
                 if (cm == ColormapType::None)
                     return col;
-                return SurfaceSeries::sample_colormap(cm, cmap_t(dz));
+                return cmap_def.sample(cmap_t(dz));
             };
             // Colormap alpha (surface3d.frag): alpha_min..alpha_max over the range.
             const bool cmap_alpha = surf->colormap_alpha();

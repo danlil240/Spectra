@@ -158,9 +158,20 @@ class InputHandler
     InteractionMode mode() const { return mode_; }
     void            set_mode(InteractionMode new_mode) { mode_ = new_mode; }
 
-    // Current tool mode (selected by toolbar)
+    // Current tool mode.  With the ImGui UI, ImGuiIntegration owns the tool
+    // (ImGuiIntegration::set_interaction_mode) and mirrors it here.
     ToolMode tool_mode() const { return tool_mode_; }
     void     set_tool_mode(ToolMode new_tool);
+
+    // Esc handling, in order.  cancel_active_gesture() aborts the gesture in
+    // progress: a box-zoom (or Ctrl+drag) / select / ROI drag, a measurement
+    // still being placed, an annotation drag (restored to where it started) or
+    // a pending annotation.  dismiss_tool_results() clears finished results
+    // that stay on screen (a measurement, an ROI selection).  Each returns
+    // true when it changed something.
+    bool cancel_active_gesture();
+    bool dismiss_tool_results();
+    bool has_active_gesture() const;
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }
@@ -169,6 +180,7 @@ class InputHandler
     const BoxZoomRect& box_zoom_rect() const { return box_zoom_; }
 
     // Measure tool state (for overlay rendering)
+    bool  is_tip_dragging() const { return tip_dragging_; }
     bool  is_measure_dragging() const { return measure_dragging_; }
     bool  has_measure_result() const { return measure_click_state_ >= 1; }
     Axes* measure_axes() const { return measure_axes_; }
@@ -178,7 +190,15 @@ class InputHandler
     const BoxZoomRect& select_rect() const { return select_rect_; }
 
     // Middle-mouse pan state (for callback passthrough)
-    bool   is_middle_pan_dragging() const { return middle_pan_dragging_; }
+    bool is_middle_pan_dragging() const { return middle_pan_dragging_; }
+    bool measure_start_snapped() const { return measure_start_snapped_; }
+    bool measure_end_snapped() const { return measure_end_snapped_; }
+    // Snap radius of the Measure tool, in screen pixels.
+    static constexpr double MEASURE_SNAP_PX = 12.0;
+    // Data point under screen (x, y) in the measure axes (or the active one):
+    // the nearest sample within MEASURE_SNAP_PX unless Alt is held, else the
+    // free position.  Returns true when it snapped.
+    bool   measure_point_at(double x, double y, double& data_x, double& data_y) const;
     double measure_start_data_x() const { return measure_start_data_x_; }
     double measure_start_data_y() const { return measure_start_data_y_; }
     double measure_end_data_x() const { return measure_end_data_x_; }
@@ -349,6 +369,13 @@ class InputHandler
     double measure_end_data_x_     = 0.0;
     double measure_end_data_y_     = 0.0;
     bool   crosshair_was_active_   = false;   // to restore crosshair state when leaving Measure
+    bool   measure_start_snapped_  = false;   // endpoints snapped to a data sample
+    bool   measure_end_snapped_    = false;
+
+    // Pan tool: a data tip is being dragged along its series (not a pan).
+    bool tip_dragging_ = false;
+    // Pan drag started on a live (following) axes: a plain click resumes it.
+    bool drag_start_following_ = false;
 
     // Annotate tool state
     bool   annotate_dragging_     = false;

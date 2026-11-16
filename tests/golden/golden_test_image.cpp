@@ -37,14 +37,14 @@ static fs::path baseline_dir()
 {
     if (const char* env = std::getenv("SPECTRA_GOLDEN_BASELINE_DIR"))
         return fs::path(env);
-    return fs::path(__FILE__).parent_path() / "baseline";
+    return fs::path(SPECTRA_GOLDEN_BASELINE_DIR_DEFAULT);
 }
 
 static fs::path output_dir()
 {
     if (const char* env = std::getenv("SPECTRA_GOLDEN_OUTPUT_DIR"))
         return fs::path(env);
-    return fs::path(__FILE__).parent_path() / "output";
+    return fs::path(SPECTRA_GOLDEN_OUTPUT_DIR_DEFAULT);
 }
 
 static bool update_baselines()

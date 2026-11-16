@@ -39,6 +39,7 @@ struct DataMarker
     float         dy_dx       = 0.0f;      // finite-difference derivative
     bool          dy_dx_valid = false;     // true when derivative was computed
     bool          is_3d       = false;
+    bool          selected    = false;   // picked for arrow-key stepping / delta readout
 };
 
 // Manages a collection of persistent data markers.
@@ -57,6 +58,8 @@ class DataMarkerManager
              bool          dy_dx_valid = false);
     void remove(size_t marker_index);
     void clear();
+    // Insert @p marker at @p marker_index (clamped to the end), e.g. to undo a removal.
+    void insert(size_t marker_index, DataMarker marker);
 
     // Remove all markers that reference the given series (call before series is destroyed)
     void remove_for_series(const Series* series);
@@ -85,7 +88,19 @@ class DataMarkerManager
                           const Axes3D* axes3d);
 
     const std::vector<DataMarker>& markers() const { return markers_; }
-    size_t                         count() const { return markers_.size(); }
+    DataMarker* marker(size_t idx) { return idx < markers_.size() ? &markers_[idx] : nullptr; }
+
+    // Selection (2D tips): a plain click selects one tip, Shift+click adds
+    // or removes one, Esc clears.  Two selected tips show a delta readout.
+    void   select_only(size_t idx);
+    void   toggle_selected(size_t idx);
+    bool   clear_selection();   // true when something was selected
+    size_t selected_count() const;
+
+    // Move tip @p idx to sample @p point_index of its series (drag / arrow
+    // keys).  Returns false when the tip or the sample does not exist.
+    bool   move_to_point(size_t idx, size_t point_index);
+    size_t count() const { return markers_.size(); }
 
     // Draw all markers. Converts data coords to screen coords through @p map
     // (viewport, limits and axis scales of the owning axes).

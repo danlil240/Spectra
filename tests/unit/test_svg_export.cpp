@@ -402,10 +402,12 @@ TEST(SvgExport, LineStylesEmitRendererDashPatterns)
     fig.compute_layout();
     std::string svg = SvgExporter::to_string(fig);
 
-    // get_dash_pattern() at width 2: dashed 8w/4w, dotted 2w/4w, dash-dot 8w/3.5w/2w/3.5w
-    EXPECT_NE(svg.find("stroke-dasharray=\"16,8\""), std::string::npos);
-    EXPECT_NE(svg.find("stroke-dasharray=\"4,8\""), std::string::npos);
-    EXPECT_NE(svg.find("stroke-dasharray=\"16,7,4,7\""), std::string::npos);
+    // get_dash_pattern() at width 2: dashed 8w/4w, dotted 1w/2w, dash-dot 8w/4w/1w/4w,
+    // drawn with round caps inside each dash: dashes shrink by w, gaps grow by w.
+    EXPECT_NE(svg.find("stroke-dasharray=\"14,10\""), std::string::npos);
+    EXPECT_NE(svg.find("stroke-dasharray=\"0,6\""), std::string::npos);
+    EXPECT_NE(svg.find("stroke-dasharray=\"14,10,0,10\""), std::string::npos);
+    EXPECT_NE(svg.find("stroke-linecap=\"round\""), std::string::npos);
     // Solid line has no dash array: 3 dashed series in the plot (+3 legend swatches would
     // need labels, there are none)
     EXPECT_EQ(count_of(svg, "stroke-dasharray"), 3);
@@ -476,12 +478,47 @@ TEST(SvgExport, BarsEmitFillAndOutline)
     h.bar(p, hh).orientation(BarOrientation::Horizontal).label("horizontal");
     fig.compute_layout();
     std::string svg = SvgExporter::to_string(fig);
-    // Gradient fills (one per bar) + one outline path per series.
-    EXPECT_GE(count_of(svg, "<path class=\"bar\" d=\"M"), 2 + 2 * 3);
-    EXPECT_GE(count_of(svg, "<linearGradient"), 6);
-    EXPECT_NE(svg.find("fill=\"url(#fg"), std::string::npos);
+    // Flat fills (merged into one path per series) + one outline path per series.
+    EXPECT_GE(count_of(svg, "<path class=\"bar\" d=\"M"), 2 * 2);
+    EXPECT_EQ(count_of(svg, "<linearGradient"), 0);
+    EXPECT_NE(svg.find("fill-opacity=\"0.88\""), std::string::npos);
     // Legend swatch is a filled rectangle for bars.
     EXPECT_EQ(count_of(svg, "class=\"swatch-fill\""), 2);
+}
+
+TEST(SvgExport, BarGradientIsOptIn)
+{
+    Figure             fig({.width = 800, .height = 600});
+    std::vector<float> p = {1.0f, 2.0f, 3.0f}, hh = {3.0f, 1.0f, 2.0f};
+    fig.subplot(1, 1, 1).bar(p, hh).gradient(true);
+    fig.compute_layout();
+    std::string svg = SvgExporter::to_string(fig);
+    // Gradient fills (one per bar) + one outline path.
+    EXPECT_GE(count_of(svg, "<path class=\"bar\" d=\"M"), 3 + 1);
+    EXPECT_GE(count_of(svg, "<linearGradient"), 3);
+    EXPECT_NE(svg.find("fill=\"url(#fg"), std::string::npos);
+}
+
+TEST(SvgExport, StatEdgesFollowTheFillStyle)
+{
+    Figure             fig({.width = 800, .height = 600});
+    std::vector<float> p = {1.0f, 2.0f}, hh = {3.0f, 1.0f};
+    fig.subplot(1, 2, 1)
+        .bar(p, hh)
+        .color(Color{0.2f, 0.4f, 0.8f})
+        .edge_color(Color{1.0f, 0.0f, 0.0f})
+        .edge_width(3.0f)
+        .fill_alpha(0.5f);
+    std::vector<float> vals(100);
+    for (size_t i = 0; i < vals.size(); ++i)
+        vals[i] = static_cast<float>(i % 17);
+    fig.subplot(1, 2, 2).box_plot().add_box(1.0f, vals);
+    fig.compute_layout();
+    std::string svg = SvgExporter::to_string(fig);
+    EXPECT_NE(svg.find("stroke=\"#ff0000\""), std::string::npos);
+    EXPECT_NE(svg.find("fill-opacity=\"0.5\""), std::string::npos);
+    // The box median is its own, contrasting stroke.
+    EXPECT_NE(svg.find("<path class=\"box-median\" d=\"M"), std::string::npos);
 }
 
 TEST(SvgExport, StatisticalSeriesAreNotEmpty)

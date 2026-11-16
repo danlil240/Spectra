@@ -311,47 +311,15 @@ struct AnnotationBuilder
         return idx;
     }
 
-    // Append a line-pipeline segment A→B and return its segment index.
-    // line.vert derives the dash phase from the summed length of up to 512
-    // preceding segments in the buffer, which here belong to other swatches.
-    // A padding point Q (A + detour along the incoming direction) is inserted
-    // so that summed length is a whole number of pattern repeats and every
-    // dashed swatch starts with a full dash.
-    uint32_t dash_aligned_segment(float ax, float ay, float bx, float by, float pattern_total)
+    // Append a line-pipeline segment A→B and return its segment index.  The
+    // annotation draws leave the polyline range unset, so line.vert treats
+    // every segment as isolated and its dash pattern starts with a full dash
+    // at A.
+    uint32_t segment(float ax, float ay, float bx, float by)
     {
-        const uint32_t n = point_count();
-        if (n == 0 || !(pattern_total > 0.0f))
-        {
-            const uint32_t idx = point(ax, ay);
-            point(bx, by);
-            return idx;
-        }
-        constexpr uint32_t WALK_LIMIT = 512;     // must match line.vert
-        const uint32_t     a_idx      = n + 1;   // after the padding point
-        const uint32_t     walk_from  = a_idx > WALK_LIMIT ? a_idx - WALK_LIMIT : 0;
-        auto               seg_len    = [this](uint32_t i)
-        {
-            const float dx = points[2 * (i + 1)] - points[2 * i];
-            const float dy = points[2 * (i + 1) + 1] - points[2 * i + 1];
-            return std::sqrt(dx * dx + dy * dy);
-        };
-        float walked = 0.0f;   // existing segments inside the walk window
-        for (uint32_t i = walk_from; i + 1 < n; ++i)
-            walked += seg_len(i);
-        const float px     = points[2 * (n - 1)];
-        const float py     = points[2 * (n - 1) + 1];
-        const float dx     = ax - px;
-        const float dy     = ay - py;
-        const float direct = std::sqrt(dx * dx + dy * dy);
-        const float extra =
-            std::fmod(pattern_total - std::fmod(walked + direct, pattern_total), pattern_total);
-        // Q lies extra/2 beyond A on the P→A line: |PQ| + |QA| = direct + extra.
-        const float ux = direct > 1e-4f ? dx / direct : 1.0f;
-        const float uy = direct > 1e-4f ? dy / direct : 0.0f;
-        point(ax + ux * extra * 0.5f, ay + uy * extra * 0.5f);
-        point(ax, ay);
+        const uint32_t idx = point(ax, ay);
         point(bx, by);
-        return a_idx;
+        return idx;
     }
 };
 
@@ -505,7 +473,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
         const float vis_alpha = s.visible() ? 1.0f : HIDDEN_ALPHA;
         Color       sc        = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
         if (const auto* scat = dynamic_cast<const ScatterSeries*>(&s); scat && scat->has_colormap())
-            sc = colorbar_layout::sample(scat->colormap(), colorbar_layout::Mapping::Scatter, 0.6f);
+            sc = colorbar_layout::sample(scat->cmap(), colorbar_layout::Mapping::Scatter, 0.6f);
         sc.a *= s.opacity() * vis_alpha;
 
         const auto&         st = s.plot_style();
@@ -529,7 +497,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
                     pc.dash_total = dp.total;
                     pc.dash_count = dp.count;
                 }
-                const uint32_t seg = b.dash_aligned_segment(x, cy, x + SWATCH_W, cy, pc.dash_total);
+                const uint32_t seg = b.segment(x, cy, x + SWATCH_W, cy);
                 add(AnnotationDraw::Kind::Segment, seg, 2, pc);
                 if (st.has_marker())
                 {

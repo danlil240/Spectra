@@ -56,6 +56,7 @@ from typing import (
     Union,
 )
 
+from . import _colors
 from ._protocol import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 
 # Type alias for data that can be list, tuple, or numpy array
@@ -195,49 +196,12 @@ def _mark_datetime_x(ax, is_datetime: bool) -> None:
 
 
 def _parse_color(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, float, float, float]]:
-    """Parse color from name, hex, or tuple."""
-    if color is None:
-        return None
-    if isinstance(color, (tuple, list)):
-        if len(color) == 3:
-            return (float(color[0]), float(color[1]), float(color[2]), 1.0)
-        elif len(color) == 4:
-            return (float(color[0]), float(color[1]), float(color[2]), float(color[3]))
-    if isinstance(color, str):
-        _NAMED = {
-            "red": (1.0, 0.2, 0.2, 1.0),
-            "r": (1.0, 0.2, 0.2, 1.0),
-            "green": (0.2, 0.8, 0.2, 1.0),
-            "g": (0.2, 0.8, 0.2, 1.0),
-            "blue": (0.2, 0.4, 1.0, 1.0),
-            "b": (0.2, 0.4, 1.0, 1.0),
-            "yellow": (1.0, 0.9, 0.1, 1.0),
-            "y": (1.0, 0.9, 0.1, 1.0),
-            "cyan": (0.0, 0.9, 0.9, 1.0),
-            "c": (0.0, 0.9, 0.9, 1.0),
-            "magenta": (0.9, 0.1, 0.9, 1.0),
-            "m": (0.9, 0.1, 0.9, 1.0),
-            "white": (1.0, 1.0, 1.0, 1.0),
-            "w": (1.0, 1.0, 1.0, 1.0),
-            "black": (0.0, 0.0, 0.0, 1.0),
-            "k": (0.0, 0.0, 0.0, 1.0),
-            "orange": (1.0, 0.5, 0.0, 1.0),
-            "purple": (0.6, 0.2, 0.9, 1.0),
-            "pink": (1.0, 0.4, 0.7, 1.0),
-            "gray": (0.5, 0.5, 0.5, 1.0),
-            "grey": (0.5, 0.5, 0.5, 1.0),
-        }
-        lower = color.lower().strip()
-        if lower in _NAMED:
-            return _NAMED[lower]
-        # Hex color
-        if lower.startswith("#") and len(lower) in (7, 9):
-            r = int(lower[1:3], 16) / 255.0
-            g = int(lower[3:5], 16) / 255.0
-            b = int(lower[5:7], 16) / 255.0
-            a = int(lower[7:9], 16) / 255.0 if len(lower) == 9 else 1.0
-            return (r, g, b, a)
-    return None
+    """Parse a colour (name, ``C<n>``, ``tab:*``, hex, CSS4, grey level or tuple) to RGBA.
+
+    ``None`` stays ``None``; an unknown or malformed colour raises ValueError
+    with a "did you mean" suggestion.  See spectra._colors for the full list.
+    """
+    return _colors.to_rgba(color)
 
 
 # Named colours that map to a MATLAB colour letter.  These are sent as the
@@ -262,6 +226,35 @@ def _color_letter(color: Union[str, Tuple, List, None]) -> Optional[str]:
     return None
 
 
+def _edge_rgba(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, ...]]:
+    """RGBA of an edge colour argument (None keeps the theme-aware default)."""
+    if color is None:
+        return None
+    c = _parse_color(color)
+    if not c:
+        raise ValueError(f"unknown edge colour {color!r}")
+    return tuple(c)
+
+
+def _stat_style_kwargs(fill_alpha: Optional[float], edge_width: Optional[float],
+                       edge_color: Union[str, Tuple, List, None]) -> dict:
+    """Fill-style keywords for Axes.bar / Axes.histogram (only those given)."""
+    out: dict = {}
+    if fill_alpha is not None:
+        out["fill_alpha"] = float(fill_alpha)
+    if edge_width is not None:
+        out["edge_width"] = float(edge_width)
+    if edge_color is not None:
+        out["edge_color"] = _edge_rgba(edge_color)
+    return out
+
+
+def _check_color(color: Any) -> None:
+    """Raise ValueError for an invalid colour before anything is created."""
+    if color is not None and _color_letter(color) is None:
+        _parse_color(color)
+
+
 def _apply_color(series: Any, color: Union[str, Tuple, List, None]) -> None:
     """Colour a series: named letter colours stay theme-aware, others are RGB."""
     if series is None or color is None:
@@ -269,6 +262,11 @@ def _apply_color(series: Any, color: Union[str, Tuple, List, None]) -> None:
     letter = _color_letter(color)
     if letter is not None and hasattr(series, "set_color_letter"):
         series.set_color_letter(letter)
+        return
+    slot = _colors.palette_index(color)
+    if slot is not None and hasattr(series, "set_palette_index"):
+        # "C<n>": the window resolves palette slot n for its theme and palette.
+        series.set_palette_index(slot)
         return
     c = _parse_color(color)
     if c:
@@ -293,10 +291,11 @@ class _EasyState:
         self._live_stop_events: List[threading.Event] = []
         self._shutting_down = False
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
+        # (fig, axes) -> [sx_lo, sx_hi, sy_lo, sy_hi]: sticky edges (bar baselines)
+        self._axes_sticky: dict = {}
         self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
         self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
         self._axes_bars: dict = {}  # (figure_id, axes_index) -> [(x, h, bottom, horiz, width)]
-        self._axes_sticky: dict = {}  # (figure_id, axes_index) -> ([x sticky], [y sticky])
         self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
         self._pending_knobs: List[dict] = []
@@ -396,10 +395,10 @@ class _EasyState:
         self._current_axes3d = None
         self._figures.clear()
         self._axes_bounds.clear()
+        self._axes_sticky.clear()
         self._errorbar_counts.clear()
         self._axes_scales.clear()
         self._axes_bars.clear()
-        self._axes_sticky.clear()
         self._datetime_axes.clear()
         self._subplot_cache.clear()
         self._shutting_down = False
@@ -536,6 +535,7 @@ def plot(
 
     Returns the Series object for further customization.
     """
+    _check_color(color)
     if len(args) == 1 and _is_dataframe(args[0]):
         return _plot_dataframe(args[0], color=color, width=width, label=label, **kwargs)
     x, y = _parse_xy_args(args)
@@ -610,6 +610,7 @@ def scatter(
 
     Returns the Series object.
     """
+    _check_color(color)
     x, y = _parse_xy_args(args)
     ax = _state._ensure_axes()
     series = ax.scatter(x, y, label=label)
@@ -637,6 +638,7 @@ def stem(
         sp.stem(y)
         sp.stem(x, y, color="r", baseline=0.5)
     """
+    _check_color(color)
     x, y = _parse_xy_args(args)
     ax = _state._ensure_axes()
     series = ax.stem(x, y, baseline=float(baseline),
@@ -644,7 +646,7 @@ def stem(
                      show_heads=show_heads, label=label)
     _apply_color(series, color)
     _mark_datetime_x(ax, _xy_args_datetime(args))
-    _auto_fit_axes(ax, x, y + [float(baseline)])
+    _auto_fit_axes(ax, x, y + [float(baseline)], sticky_y=[float(baseline)])
     _state._show_if_pending()
     return series
 
@@ -704,6 +706,7 @@ def errorbar(
     Returns ``(data_series, bar_series)``; ``data_series`` is ``None`` when
     ``fmt="none"``.
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     if len(xv) != len(yv):
@@ -792,18 +795,24 @@ def hist(
     label: str = "",
     density: bool = False,
     cumulative: bool = False,
+    fill_alpha: Optional[float] = None,
+    edge_width: Optional[float] = None,
+    edge_color: Union[str, Tuple, List, None] = None,
 ):
     """Histogram of ``data`` with ``bins`` equal-width bins over its range.
 
-    Drawn by the native histogram series (filled bins, legend swatch).
-    ``density=True`` normalises to a probability density; ``cumulative=True``
-    accumulates the bins (a CDF when combined with ``density``).
+    Drawn by the native histogram series (flat filled bins with thin edges,
+    legend swatch).  ``density=True`` normalises to a probability density;
+    ``cumulative=True`` accumulates the bins (a CDF when combined with
+    ``density``).  ``fill_alpha`` (default 0.88), ``edge_width`` (pixels,
+    default 1) and ``edge_color`` (default: a shade of the fill) style the bins.
 
     Usage::
 
         sp.hist(data)
         sp.hist(data, bins=50, color="orange", density=True)
     """
+    _check_color(color)
     if not isinstance(bins, int) or isinstance(bins, bool):
         raise TypeError("bins must be an int (number of equal-width bins)")
     if bins < 1:
@@ -815,10 +824,10 @@ def hist(
 
     ax = _state._ensure_axes()
     series = ax.histogram(values, bins=bins, density=density, cumulative=cumulative,
-                          label=label)
+                          label=label, **_stat_style_kwargs(fill_alpha, edge_width, edge_color))
     _apply_color(series, color)
     _mark_datetime_x(ax, _is_datetime_like(data))
-    _auto_fit_axes(ax, [lo, hi], [0.0, max(counts)])
+    _auto_fit_axes(ax, [lo, hi], [0.0, max(counts)], sticky_y=[0.0])
     _state._show_if_pending()
     return series
 
@@ -832,6 +841,9 @@ def bar(
     bottom: float = 0.0,
     horizontal: bool = False,
     width: Optional[float] = None,
+    fill_alpha: Optional[float] = None,
+    edge_width: Optional[float] = None,
+    edge_color: Union[str, Tuple, List, None] = None,
     stacked: Optional[bool] = None,
 ):
     """Bar chart drawn by the native bar series (filled bars, legend swatch).
@@ -839,7 +851,9 @@ def bar(
     ``x`` holds bar centres, or category names (strings): bar ``i`` then sits
     at x = i and the axis shows the names.  ``width`` is an alias of
     ``bar_width`` (matplotlib's name); ``bottom`` is the bars' baseline and
-    ``horizontal=True`` draws bars along x (like ``barh``).
+    ``horizontal=True`` draws bars along x (like ``barh``).  ``fill_alpha``
+    (default 0.88), ``edge_width`` (pixels, default 1) and ``edge_color``
+    (default: a shade of the fill) style the bars.
 
     Several bar series at the same positions are drawn side by side
     (grouped).  ``stacked=True`` stacks them on top of each other instead
@@ -851,6 +865,7 @@ def bar(
         sp.bar(["a", "b", "c"], [3, 5, 2], color="g")
         sp.bar(["a", "b", "c"], [1, 2, 1], stacked=True)
     """
+    _check_color(color)
     bw = float(width) if width is not None else float(bar_width)
     names = None
     if not isinstance(x, str):
@@ -864,7 +879,8 @@ def bar(
 
     ax = _state._ensure_axes()
     series = ax.bar(names if names is not None else xv, hv, width=bw, bottom=float(bottom),
-                    horizontal=horizontal, label=label, stacked=stacked)
+                    horizontal=horizontal, label=label, stacked=stacked,
+                    **_stat_style_kwargs(fill_alpha, edge_width, edge_color))
     _apply_color(series, color)
     ax_key = (ax._figure_id, ax._index)
     _state._axes_bars.setdefault(ax_key, []).append(
@@ -916,7 +932,6 @@ def _refit_bars(ax) -> None:
     bars = _state._axes_bars.get(ax_key)
     if not bars:
         return
-    sticky = _state._axes_sticky.setdefault(ax_key, ([], []))
     mode = getattr(ax, "bar_mode", "grouped")
     for horizontal in (False, True):
         same = [b for b in bars if b[3] == horizontal]
@@ -924,12 +939,10 @@ def _refit_bars(ax) -> None:
             continue
         ext, origins = _bar_value_extent(same, mode)
         pos = [p + d * b[4] / 2.0 for b in same for p in b[0] for d in (-1.0, 1.0)]
-        axis = sticky[0 if horizontal else 1]
-        axis.extend(o for o in origins if o not in axis)
         if horizontal:
-            _auto_fit_axes(ax, ext, pos)
+            _auto_fit_axes(ax, ext, pos, sticky_x=origins)
         else:
-            _auto_fit_axes(ax, pos, ext)
+            _auto_fit_axes(ax, pos, ext, sticky_y=origins)
 
 
 def barh(
@@ -940,10 +953,15 @@ def barh(
     label: str = "",
     left: float = 0.0,
     stacked: Optional[bool] = None,
+    **style,
 ):
-    """Horizontal bar chart (``bar(..., horizontal=True)``)."""
+    """Horizontal bar chart (``bar(..., horizontal=True)``).
+
+    ``style`` takes ``fill_alpha``, ``edge_width`` and ``edge_color`` as in
+    :func:`bar`.
+    """
     return bar(y, widths, bar_width=height, color=color, label=label, bottom=left,
-               horizontal=True, stacked=stacked)
+               horizontal=True, stacked=stacked, **style)
 
 
 def fill_between(
@@ -966,6 +984,7 @@ def fill_between(
         sp.fill_between(x, lower, upper, alpha=0.3)
         sp.fill_between(x, y)          # down to 0
     """
+    _check_color(color)
     xv = _to_list(x)
     a = _to_list(y1)
     if isinstance(y2, (int, float)):
@@ -981,7 +1000,9 @@ def fill_between(
                      show_edges=edges, label=label)
     _apply_color(series, color)
     _mark_datetime_x(ax, _is_datetime_like(x))
-    _auto_fit_axes(ax, xv + xv, lower + upper)
+    # A constant edge (fill down to a baseline) is sticky, like a bar baseline.
+    sticky = [e[0] for e in (lower, upper) if e and all(v == e[0] for v in e)]
+    _auto_fit_axes(ax, xv + xv, lower + upper, sticky_y=sticky)
     _state._show_if_pending()
     return series
 
@@ -1004,6 +1025,7 @@ def boxplot(
     Each dataset is a list/array of values. Statistics (median, Q1, Q3,
     whiskers, outliers) are computed automatically.
     """
+    _check_color(color)
     import math
 
     if positions is None:
@@ -1108,6 +1130,7 @@ def violin_plot(
 
     Draws a mirrored kernel density estimate for each dataset.
     """
+    _check_color(color)
     import math
 
     if positions is None:
@@ -1205,6 +1228,7 @@ def hline(
 
     Set ``interactive=True`` (or use ``ihline``) to drag a slider that moves the line.
     """
+    _check_color(color)
     if interactive:
         return ihline(y, ymin, ymax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
@@ -1228,6 +1252,7 @@ def vline(
 
     Set ``interactive=True`` (or use ``ivline``) to drag a slider that moves the line.
     """
+    _check_color(color)
     if interactive:
         return ivline(x, xmin, xmax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
@@ -1265,6 +1290,7 @@ def fplot(
   Set ``interactive=True`` with *params* ``[(name, value, min, max), ...]`` to
   expose sliders for each coefficient (or use ``ifplot``).
     """
+    _check_color(color)
     if interactive:
         return ifplot(func, xmin, xmax, n=n, color=color, width=width, label=label,
                       params=params or [], **kwargs)
@@ -1479,6 +1505,7 @@ def ifplot(
         sp.ifplot(lambda x, a, b: a * x * x + b, -3, 3,
                   params=[("a", 0.2, -1, 1), ("b", 0, -2, 2)])
     """
+    _check_color(color)
     param_specs = params or []
     ax = _state._ensure_axes()
 
@@ -1537,18 +1564,22 @@ def _fit_range(lo: float, hi: float, pos_lo: float, scale: str):
     return lo_out, hi_out
 
 
-def _stick(rng, lo: float, hi: float, sticky: List[float]):
-    """Clip the padding of ``rng`` at sticky values (bar baselines) that are
-    also the edge of all the data [lo, hi], like the C++ autoscale."""
-    if rng is None or not sticky or not hi > lo:
+def _stick(rng, lo: float, hi: float, s_lo, s_hi, scale: str):
+    """Stop linear padding at a sticky edge (bar baseline) that bounds the data.
+
+    Matches the native autoscale (src/core/axes.cpp): bars and histograms
+    stand on their baseline instead of floating above it.
+    """
+    if rng is None or scale != "linear" or s_lo is None:
         return rng
-    out_lo, out_hi = rng
-    s_lo, s_hi = min(sticky), max(sticky)
-    if lo >= s_lo and out_lo < s_lo:
-        out_lo = s_lo
-    if hi <= s_hi and out_hi > s_hi:
-        out_hi = s_hi
-    return out_lo, out_hi
+    r_lo, r_hi = rng
+    if lo >= s_lo and r_lo < s_lo:
+        r_lo = s_lo
+    # Data constant at the sticky value (e.g. all-zero bars): sticking both
+    # sides would collapse the range, so only the lower side sticks.
+    if hi <= s_hi and r_hi > s_hi and s_hi > r_lo:
+        r_hi = s_hi
+    return r_lo, r_hi
 
 
 def _apply_fit(ax) -> None:
@@ -1560,12 +1591,10 @@ def _apply_fit(ax) -> None:
     xscale, yscale = _state._axes_scales.get(ax_key, ("linear", "linear"))
     xr = _fit_range(b[0], b[1], b[4], xscale)
     yr = _fit_range(b[2], b[3], b[5], yscale)
-    sticky = _state._axes_sticky.get(ax_key)
-    if sticky is not None:
-        if xscale == "linear":
-            xr = _stick(xr, b[0], b[1], sticky[0])
-        if yscale == "linear":
-            yr = _stick(yr, b[2], b[3], sticky[1])
+    st = _state._axes_sticky.get(ax_key)
+    if st is not None:
+        xr = _stick(xr, b[0], b[1], st[0], st[1], xscale)
+        yr = _stick(yr, b[2], b[3], st[2], st[3], yscale)
     try:
         if xr is not None:
             ax.set_xlim(*xr)
@@ -1575,13 +1604,25 @@ def _apply_fit(ax) -> None:
         pass
 
 
-def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
+def _auto_fit_axes(ax, x: List[float], y: List[float],
+                   sticky_x: Optional[List[float]] = None,
+                   sticky_y: Optional[List[float]] = None) -> None:
     """Set axis limits to fit ALL series data with 5% padding, ignoring NaN values.
 
     Accumulates bounds across multiple plot() calls on the same axes so that
     earlier series are not pushed out of frame by later ones.  Log-scaled
-    axes fit the positive data only.
+    axes fit the positive data only.  ``sticky_x`` / ``sticky_y`` are sticky
+    edges (bar baselines, which are part of the data): padding never grows the
+    limits past one that is also the edge of all the data.
     """
+    ax_key = (ax._figure_id, ax._index)
+    if sticky_x or sticky_y:
+        st = _state._axes_sticky.setdefault(ax_key, [None, None, None, None])
+        for vals, i in ((sticky_x, 0), (sticky_y, 2)):
+            vals = [float(v) for v in (vals or []) if v == v and abs(v) < 1e11]
+            if vals:
+                st[i] = min(vals) if st[i] is None else min(st[i], min(vals))
+                st[i + 1] = max(vals) if st[i + 1] is None else max(st[i + 1], max(vals))
     finite_x = [v for v in x if v == v and abs(v) < 1e11]  # filter NaN and sentinel hlines/vlines
     finite_y = [v for v in y if v == v and abs(v) < 1e11]
     if not finite_x or not finite_y:
@@ -1592,7 +1633,6 @@ def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
            min(pos_x) if pos_x else None, min(pos_y) if pos_y else None]
 
     # Accumulate with existing bounds for this axes
-    ax_key = (ax._figure_id, ax._index)
     prev = _state._axes_bounds.get(ax_key)
     if prev is not None:
         def _min_opt(a, b):
@@ -1645,6 +1685,7 @@ def plot3(
         sp.plot3(x, y, z)
         sp.plot3(x, y, z, color="red", label="helix")
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)
@@ -1671,6 +1712,7 @@ def scatter3(
         sp.scatter3(x, y, z)
         sp.scatter3(x, y, z, color="blue", size=3)
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)
@@ -1697,6 +1739,7 @@ def surf(
         Z = np.sin(X) * np.cos(Y)
         sp.surf(X, Y, Z)
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)

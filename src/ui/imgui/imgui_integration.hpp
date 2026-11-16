@@ -20,6 +20,7 @@
 
     #include "ui/docking/dock_system.hpp"
     #include "ui/input/input.hpp"
+    #include "ui/input/plot_cursor.hpp"
     #include "ui/overlay/custom_transform_dialog.hpp"
     #include "ui/overlay/plot_overlay_dialog.hpp"
     #include "ui/overlay/data_editor.hpp"
@@ -211,10 +212,16 @@ class ImGuiIntegration
     // Interaction state getters
     bool     should_reset_view() const { return reset_view_; }
     void     clear_reset_view() { reset_view_ = false; }
-    bool     should_reset_live_view() const { return reset_live_view_; }
-    void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
-    bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
+    // The active tool.  ImGuiIntegration owns it (nav rail, tool commands and
+    // shortcuts all set it here) and mirrors it to the input handler.
+    void set_interaction_mode(ToolMode mode);
+    // Cursor the plot area asks for this frame (set by build_ui).  Hosts that
+    // have no ImGui platform backend (Qt, embed) map it to their own cursors.
+    PlotCursor plot_cursor() const { return plot_cursor_; }
+    // Cursor the ImGui widgets requested this frame, as a toolkit-free value.
+    WidgetCursor widget_cursor() const;
+    bool         is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
     // Open the custom transform dialog on the current figure, as the nav
     // rail's Transform button does (automation / design review).
     void open_transform_dialog();
@@ -283,7 +290,12 @@ class ImGuiIntegration
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
     // Input handler (for right-click context menu hit-testing)
-    void          set_input_handler(InputHandler* ih) { input_handler_ = ih; }
+    void set_input_handler(InputHandler* ih)
+    {
+        input_handler_ = ih;
+        if (ih)
+            ih->set_tool_mode(interaction_mode_);
+    }
     InputHandler* input_handler() const { return input_handler_; }
 
     // Programmatically open the pane tab context menu (for QA agent testing)
@@ -612,7 +624,14 @@ class ImGuiIntegration
                                 ImFont*     icon_font,
                                 ImFont*     label_font,
                                 float       width,
-                                float       scale = 1.0f);
+                                float       scale   = 1.0f,
+                                const char* tooltip = nullptr);
+
+    // Rail tooltip for a tool button: "Pan (P)" when the tool's command has a
+    // key bound, else just the label.
+    std::string tool_tooltip(const char* label, ToolMode mode) const;
+    // One MenuItem per tool (with its key), checked on the active one.
+    void draw_tool_menu_items();
 
     ImFont* icon_font() const { return font_icon_; }
     ImFont* heading_font() const { return font_heading_; }
@@ -650,6 +669,10 @@ class ImGuiIntegration
     void draw_plot_overlay_dialog();
 
     void draw_plot_overlays(Figure& figure);
+    // Measure tool: line, Δx/Δy legs, snap rings and the readout label.
+    void draw_measure_overlay();
+    // Live pill of one presented-buffer axes (live_index: its order among them).
+    void draw_live_pill(Figure& figure, Axes& axes, size_t live_index);
     void draw_topic_drop_target(Figure& figure);
     void draw_topic_drop_target_welcome();
     void draw_log_field_drop_target(Figure& figure);
@@ -733,8 +756,18 @@ class ImGuiIntegration
 
     // Interaction state
     bool     reset_view_       = false;
-    bool     reset_live_view_  = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
+
+    // Plot-area cursor (see plot_cursor()).  The GLFW crosshair cursor is
+    // applied by hand since ImGui has no crosshair; crosshair_applied_ tracks
+    // whether it is currently set on the window.
+    void       update_plot_cursor();
+    void       apply_os_cursor_before_backend();
+    void       apply_os_cursor_after_backend();
+    PlotCursor plot_cursor_       = PlotCursor::Default;
+    void*      crosshair_cursor_  = nullptr;   // GLFWcursor*, owned
+    void*      arrow_cursor_      = nullptr;   // GLFWcursor*, owned (restores)
+    bool       crosshair_applied_ = false;
 
     // Status bar data
     double cursor_data_x_     = 0.0;
@@ -952,6 +985,15 @@ class ImGuiIntegration
     void set_figure_ptr_callback(std::function<Figure*(FigureId)> cb)
     {
         get_figure_ptr_ = std::move(cb);
+    }
+
+    // Reverse lookup Figure* -> FigureId (0 / INVALID_FIGURE_ID when unknown).
+    // With get_figure_ptr_ it lets undo entries re-resolve a figure by id
+    // instead of keeping a pointer that dies when its tab is closed.
+    std::function<FigureId(const Figure*)> get_figure_id_;
+    void set_figure_id_callback(std::function<FigureId(const Figure*)> cb)
+    {
+        get_figure_id_ = std::move(cb);
     }
 
    private:

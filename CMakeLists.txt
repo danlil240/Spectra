@@ -326,6 +326,7 @@ foreach(_ui_src
     src/ui/overlay/plot_overlay_dialog.cpp
     src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
+    src/ui/overlay/measure_math.cpp
     src/adapters/data_source_registry.cpp
     src/adapters/data_source_topics.cpp
     src/embed/embed_surface.cpp
@@ -722,6 +723,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/overlay/tooltip.cpp
         src/ui/overlay/crosshair.cpp
         src/ui/overlay/data_marker.cpp
+        src/ui/overlay/marker_actions.cpp
         src/ui/overlay/annotation.cpp
         src/ui/overlay/data_interaction.cpp
         src/ui/input/region_select.cpp

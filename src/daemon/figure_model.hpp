@@ -145,6 +145,11 @@ class FigureModel
     // leaves the series unchanged (the op then carries its current colour).
     ipc::DiffOp set_series_color_letter(uint64_t figure_id, uint32_t series_index, char letter);
 
+    // Give a series data-palette slot @p slot ("C<n>" colours, theme-aware):
+    // records it as the auto colour index and returns a SET_SERIES_COLOR op
+    // with str_val ipc::palette_slot_tag(slot).  A negative slot is ignored.
+    ipc::DiffOp set_series_palette_index(uint64_t figure_id, uint32_t series_index, int32_t slot);
+
     // Set series visibility. Returns a DiffOp.
     ipc::DiffOp set_series_visible(uint64_t figure_id, uint32_t series_index, bool visible);
 

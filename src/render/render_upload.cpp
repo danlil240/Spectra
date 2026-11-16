@@ -56,11 +56,24 @@ void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gp
     {
         if (gpu.lut_texture)
             backend_.destroy_texture(gpu.lut_texture);
-        const auto lut = image_colormap::build_lut(image.colormap(), image.levels());
+        const auto lut = image_colormap::build_lut(image.cmap(), image.levels());
         gpu.lut_texture =
             backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
         gpu.lut_generation = image.lut_generation();
     }
+}
+
+TextureHandle Renderer::colormap_lut(SeriesGpuData& gpu, const Colormap& cm)
+{
+    if (gpu.lut_texture && gpu.lut_colormap == cm)
+        return gpu.lut_texture;
+    if (gpu.lut_texture)
+        backend_.destroy_texture(gpu.lut_texture);   // deferred by the backend
+    const auto lut = cm.rgba8();
+    gpu.lut_texture =
+        backend_.create_texture(static_cast<uint32_t>(Colormap::LUT_SIZE), 1, lut.data());
+    gpu.lut_colormap = cm;
+    return gpu.lut_texture;
 }
 
 void Renderer::upload_series_data(Series& series)
@@ -315,6 +328,8 @@ void Renderer::upload_series_data(Series&   series,
         gpu.origin_y       = origin_y;
         gpu.upload_xscale  = xscale;
         gpu.upload_yscale  = yscale;
+        if (line || contour)
+            store_line_points(gpu, series, upload_scratch_.data(), count);
 
         // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
         std::span<const float> fill_verts;
@@ -489,6 +504,7 @@ void Renderer::upload_series_data(Series&   series,
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
+        store_line_points(gpu, series, upload_scratch_.data(), count);
         gpu.uploaded_count  = count;
         gpu.origin_x        = origin_x;
         gpu.origin_y        = origin_y;

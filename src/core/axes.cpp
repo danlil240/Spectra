@@ -796,7 +796,9 @@ static void data_extent_with_mode(const AxisExtent& x,
             return;
         if (all.min >= sticky.min && lim.min < sticky.min)
             lim.min = sticky.min;
-        if (all.max <= sticky.max && lim.max > sticky.max)
+        // Data constant at the sticky value (e.g. all-zero bars): sticking both
+        // sides would collapse the range, so only the lower side sticks.
+        if (all.max <= sticky.max && lim.max > sticky.max && sticky.max > lim.min)
             lim.max = sticky.max;
     };
     stick(x_lim, x, sx, x_scale);

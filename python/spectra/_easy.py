@@ -1527,7 +1527,9 @@ def _stick(rng, lo: float, hi: float, s_lo, s_hi, scale: str):
     r_lo, r_hi = rng
     if lo >= s_lo and r_lo < s_lo:
         r_lo = s_lo
-    if hi <= s_hi and r_hi > s_hi:
+    # Data constant at the sticky value (e.g. all-zero bars): sticking both
+    # sides would collapse the range, so only the lower side sticks.
+    if hi <= s_hi and r_hi > s_hi and s_hi > r_lo:
         r_hi = s_hi
     return r_lo, r_hi
 

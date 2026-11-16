@@ -278,6 +278,16 @@ TEST(StatStickyBaseline, NegativeBarsHangFromTheirBaseline)
     EXPECT_LT(y.min, -5.0);
 }
 
+TEST(StatStickyBaseline, ConstantBarsAtBaselineKeepASpan)
+{
+    Axes               ax;
+    std::vector<float> pos{1, 2}, h{0, 0};
+    ax.bar(pos, h);
+    const auto y = ax.y_limits();
+    EXPECT_DOUBLE_EQ(y.min, 0.0);
+    EXPECT_GT(y.max, 0.0);
+}
+
 TEST(StatStickyBaseline, MixedSignBarsArePaddedBothWays)
 {
     Axes               ax;

@@ -503,6 +503,13 @@ def test_fill_between_to_constant_is_sticky(fake):
     assert ax.limits[1][0] == 0
 
 
+def test_sticky_baseline_keeps_span_for_constant_data(fake):
+    ax, _ = fake
+    sp.bar([1, 2], [0, 0])  # all bars at their baseline
+    lo, hi = ax.limits[1]
+    assert lo == 0 and hi > 0
+
+
 def test_stat_style_trailer_layout():
     from spectra._axes import _stat_style
 

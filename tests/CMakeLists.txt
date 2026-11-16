@@ -938,6 +938,21 @@ if(SPECTRA_BUILD_GOLDEN_TESTS)
                 RESOURCE_LOCK gpu)
         endforeach()
     endif()
+
+    # Resolve baselines against the source tree with absolute paths. Relying on
+    # __FILE__ broke under ctest: with ccache's base_dir __FILE__ is relative to the
+    # build dir, ctest runs the binaries from build/tests, so no baseline was found
+    # and every scene was skipped. Missing baselines now fail (image_diff.hpp).
+    foreach(_golden_target
+            golden_image_tests golden_image_tests_phase2 golden_image_tests_phase3
+            golden_image_tests_3d_phase3 golden_image_tests_3d
+            golden_image_tests_image_light golden_image_tests_image_dark)
+        if(TARGET ${_golden_target})
+            target_compile_definitions(${_golden_target} PRIVATE
+                SPECTRA_GOLDEN_BASELINE_DIR_DEFAULT="${CMAKE_CURRENT_SOURCE_DIR}/golden/baseline"
+                SPECTRA_GOLDEN_OUTPUT_DIR_DEFAULT="${CMAKE_CURRENT_SOURCE_DIR}/golden/output")
+        endif()
+    endforeach()
 endif()
 
 # Benchmarks

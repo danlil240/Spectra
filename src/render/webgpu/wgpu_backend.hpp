@@ -169,6 +169,23 @@ class WebGPUBackend : public Backend
     // Bind group 0 at the current FrameUBO and SeriesPC ring offsets.
     void bind_frame_group();
 
+    // ── Surface format ───────────────────────────────────────────────────────
+    // Format the surface wants (UNORM preferred), from its capabilities.
+    // Returns 0 (WGPUTextureFormat_Undefined) when the query fails.
+    uint32_t query_surface_format() const;
+    // Switch the colour-target format.  Windowed pipelines are rebuilt in
+    // place (handles stay valid) so they always match the swapchain format;
+    // a mismatch fails every render pass.
+    void set_surface_format(uint32_t format);
+    void rebuild_pipelines();
+
+    // ── First-frame health check (windowed) ──────────────────────────────────
+    // Until one frame completes without a validation error, each frame runs
+    // inside an error scope; the first clean frame is reported to the host
+    // page (Module.spectraOnFirstFrame) and errors to Module.spectraOnError.
+    void begin_frame_error_scope();
+    void end_frame_error_scope();
+
     // ── Readback helper (headless / offscreen) ───────────────────────────────
     bool do_readback(uint8_t* out_rgba, uint32_t width, uint32_t height) const;
 
@@ -193,6 +210,12 @@ class WebGPUBackend : public Backend
     uint32_t        offscreen_height_     = 0;
 
     bool headless_ = false;
+
+    // First-frame health check state (see begin_frame_error_scope()).
+    bool first_frame_ok_        = false;
+    bool frame_scope_open_      = false;   // pushed in begin_frame, not yet popped
+    bool frame_scope_in_flight_ = false;   // popped, callback pending
+    int  frame_scope_failures_  = 0;
 
     float pixel_scale_ = 1.0f;   // framebuffer px per logical px
 
@@ -226,6 +249,7 @@ class WebGPUBackend : public Backend
     // ── Pipeline registry ────────────────────────────────────────────────────
     struct PipelineEntry
     {
+        PipelineType       type     = PipelineType::Line;
         WGPURenderPipeline pipeline = nullptr;
         WGPUPipelineLayout layout   = nullptr;   // weak ref (owned by pl_*_ above)
     };

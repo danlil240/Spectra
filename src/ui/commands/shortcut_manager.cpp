@@ -52,6 +52,7 @@ constexpr int KEY_C = 67;
 constexpr int KEY_D = 68;
 constexpr int KEY_F = 70;
 constexpr int KEY_G = 71;
+constexpr int KEY_I = 73;
 constexpr int KEY_K = 75;
 constexpr int KEY_L = 76;
 constexpr int KEY_M = 77;
@@ -435,6 +436,8 @@ void ShortcutManager::register_defaults()
     bind({KEY_S, KeyMod::None}, "tool.select");
     bind({KEY_Z, KeyMod::None}, "tool.box_zoom");
     bind({KEY_M, KeyMod::None}, "tool.measure");
+    bind({KEY_N, KeyMod::None}, "tool.annotate");   // N = note
+    bind({KEY_I, KeyMod::None}, "tool.roi");        // I = region of interest
 
     // Legend/border
     bind({KEY_L, KeyMod::None}, "view.toggle_legend");

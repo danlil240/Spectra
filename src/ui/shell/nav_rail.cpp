@@ -253,7 +253,8 @@ void NavRail::draw()
                                                                 imgui_chrome_->icon_font(),
                                                                 imgui_chrome_->heading_font(),
                                                                 btn_w,
-                                                                scale);
+                                                                scale,
+                                                                item.tooltip.c_str());
             }
             else
             {

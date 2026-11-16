@@ -126,10 +126,20 @@ ImageSeries& ImageSeries::extent(double x0, double x1, double y0, double y1)
 
 ImageSeries& ImageSeries::colormap(ColormapType cm)
 {
+    return colormap(Colormap(cm, colormap_.is_reversed()));
+}
+
+ImageSeries& ImageSeries::colormap(const Colormap& cm)
+{
     colormap_       = cm;
     lut_generation_ = next_generation();
     dirty_          = true;
     return *this;
+}
+
+ImageSeries& ImageSeries::colormap_reversed(bool reversed)
+{
+    return colormap(colormap_.reversed(reversed));
 }
 
 ImageSeries& ImageSeries::colormap_range(float vmin, float vmax)
@@ -378,9 +388,19 @@ ContourSeries& ContourSeries::levels(std::vector<float> values)
 
 ContourSeries& ContourSeries::colormap(ColormapType cm)
 {
+    return colormap(Colormap(cm, colormap_.is_reversed()));
+}
+
+ContourSeries& ContourSeries::colormap(const Colormap& cm)
+{
     colormap_ = cm;
     dirty_    = true;
     return *this;
+}
+
+ContourSeries& ContourSeries::colormap_reversed(bool reversed)
+{
+    return colormap(colormap_.reversed(reversed));
 }
 
 ContourSeries& ContourSeries::colormap_range(float vmin, float vmax)

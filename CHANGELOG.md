@@ -11,6 +11,10 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+### Added
+
+- 3D camera views: commands and shortcuts for front / back / left / right / top / bottom / isometric (Alt+1..7) and a perspective/orthographic toggle (Alt+0), plus a clickable view cube in the corner of every 3D axes; axis views switch to orthographic so ticks stay evenly spaced, and all camera moves are undoable. `Axes3D::equal_aspect()` ("axis equal", Inspector checkbox, saved in workspaces), and 3D scatter per-point colours (`ScatterSeries3D::color_values()` + `colormap()`, with colorbar) and sizes (`sizes()`).
+
 ### Changed
 
 - 3D surfaces map their colormap over the data z range (or `SurfaceSeries::colormap_range()` when set), so zooming or panning no longer recolours them, and `colormap_alpha()` now works; the colorbar and SVG/PDF export use the same range. 3D grid panes sit on the faces farthest from the camera and are depth-tested, and the new `Axes3D::box_style(BoxStyle::Back | Full | None)` (default Back) drops the box edges that crossed in front of the data.

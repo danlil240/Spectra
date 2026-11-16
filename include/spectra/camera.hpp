@@ -29,6 +29,22 @@ class Camera
         PositiveZ
     };
 
+    // Standard named views.  With the default Z-up axis, Front looks from -Y
+    // toward +Y (X to the right, Z up), Right looks from +X, Top looks down
+    // from +Z (X to the right, Y up).  With Y-up, Front looks from +Z and Top
+    // from +Y.  Isometric looks from the (+X, +Y, +Z) octant (Z-up) at
+    // equal angles to the three axes.
+    enum class ViewPreset
+    {
+        Front,
+        Back,
+        Left,
+        Right,
+        Top,
+        Bottom,
+        Isometric
+    };
+
     // Z-up by default (MATLAB convention): surf/plot3/scatter3 put the third
     // coordinate on the vertical axis.  Use set_up_axis(UpAxis::Y) for Y-up.
     // The default position is the orbit position for azimuth/elevation/distance.
@@ -110,6 +126,22 @@ class Camera
 
     // Snap orbit angles so the camera looks along +X, +Y, or +Z (perpendicular 2D view).
     Camera& align_view_to_axis(AxisView view);
+
+    // Orbit to a standard view (sets azimuth / elevation, keeps distance,
+    // target and projection).  Top / Bottom stop a hair short of the pole so
+    // a following orbit keeps a stable screen orientation.
+    Camera& set_view_preset(ViewPreset preset);
+
+    // True for the six axis-aligned presets (all but Isometric).
+    static constexpr bool is_axis_view(ViewPreset preset)
+    {
+        return preset != ViewPreset::Isometric;
+    }
+
+    // Orthographic half-height that shows the plane through `target` at the
+    // same size as the perspective projection does (distance * tan(fov / 2)),
+    // so switching projection keeps the framing.
+    float perspective_matched_ortho_size() const;
 
     void update_position_from_orbit();
 

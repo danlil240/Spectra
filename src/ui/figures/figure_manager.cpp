@@ -491,6 +491,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         dst_ax3d.box_style(src_ax3d->box_style());
         dst_ax3d.light_dir(src_ax3d->light_dir());
         dst_ax3d.lighting_enabled(src_ax3d->lighting_enabled());
+        dst_ax3d.equal_aspect(src_ax3d->equal_aspect());
 
         // Copy camera state
         dst_ax3d.camera().target          = src_ax3d->camera().target;
@@ -532,6 +533,11 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.plot_style(ss3->plot_style());
                 dup.blend_mode(ss3->blend_mode());
                 dup.opacity(ss3->opacity());
+                dup.colormap(ss3->colormap());
+                dup.color_values(ss3->color_values_data());
+                if (ss3->colormap_range_set())
+                    dup.colormap_range(ss3->colormap_min(), ss3->colormap_max());
+                dup.sizes(ss3->sizes_data());
             }
             else if (auto* sf = dynamic_cast<const SurfaceSeries*>(s.get()))
             {

@@ -31,13 +31,18 @@ layout(push_constant) uniform SeriesPC {
     float _pad2[2];
 };
 
-// Point positions via SSBO (set 1, binding 0) — 3D points stored as vec4 (xyz + padding)
+// Point positions via SSBO (set 1, binding 0).  Plain series: one vec4 per
+// point (xyz + padding).  Per-point attributes (_pad2[0] > 0.5, see
+// ScatterSeries3D::color_values / sizes): two vec4 per point,
+// (xyz, marker diameter) and (rgb, 1 = use this colour / 0 = series colour).
 layout(std430, set = 1, binding = 0) readonly buffer VertexData {
     vec4 points[];
 };
 
 layout(location = 0) out vec2 v_uv;
 layout(location = 1) out vec3 v_model_pos;
+layout(location = 2) flat out float v_point_size;
+layout(location = 3) flat out vec4 v_point_color;
 
 void main() {
     // Instanced rendering: each instance is a point from the SSBO.
@@ -47,8 +52,14 @@ void main() {
     int corner_map[6] = int[6](0, 1, 2, 2, 1, 3);
     int corner = corner_map[tri_vert];
 
+    bool per_point = _pad2[0] > 0.5;
+    vec4 p0 = points[per_point ? point_index * 2 : point_index];
+    float size = per_point ? max(p0.w, 0.0) : point_size;
+    v_point_size = size;
+    v_point_color = per_point ? points[point_index * 2 + 1] : vec4(0.0);
+
     vec3 data_offset = vec3(data_offset_x, data_offset_y, 0.0);
-    vec3 center = points[point_index].xyz + data_offset;
+    vec3 center = p0.xyz + data_offset;
 
     // Transform to model space (pass to fragment for box clipping)
     vec4 model_pos = model * vec4(center, 1.0);
@@ -59,7 +70,7 @@ void main() {
     vec2 screen_center = (ndc_center * 0.5 + 0.5) * viewport_size;
 
     // Expand quad in screen space: half size + 1px AA margin
-    float half_size = point_size * 0.5 + 1.0;
+    float half_size = size * 0.5 + 1.0;
 
     // Corner offsets: 0=(-1,-1), 1=(1,-1), 2=(-1,1), 3=(1,1)
     vec2 offset = vec2(

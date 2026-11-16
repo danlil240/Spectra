@@ -10,10 +10,12 @@
 #include "gesture_recognizer.hpp"
 #include "ui/animation/animation_controller.hpp"
 #include "ui/animation/transition_engine.hpp"
+#include "ui/camera/view_presets.hpp"
 #include "ui/commands/undo_manager.hpp"
 #include "ui/data/axis_link.hpp"
 #include "ui/overlay/axes3d_axis_pick.hpp"
 #include "ui/overlay/data_interaction.hpp"
+#include "ui/overlay/view_cube.hpp"
 
 namespace spectra
 {
@@ -51,13 +53,17 @@ void InputHandler::update_axes3d_arrow_hover(AxesBase* hit_base, double x, doubl
     axes3d->set_hovered_axis_arrow(axis_pick_to_hover(pick));
 }
 
-void InputHandler::snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView axis_view)
+void InputHandler::animate_axes3d_camera(Axes3D*       axes3d,
+                                         const Camera& target,
+                                         const char*   undo_label)
 {
     Camera&      cam    = axes3d->camera();
     const Camera before = cam;
 
-    Camera target = cam;
-    target.align_view_to_axis(axis_view);
+    // Going to perspective switches now, so the move itself is seen in
+    // perspective; going to orthographic switches when the move ends.
+    if (target.projection_mode == Camera::ProjectionMode::Perspective)
+        cam.projection_mode = Camera::ProjectionMode::Perspective;
 
     if (transition_engine_)
     {
@@ -78,7 +84,7 @@ void InputHandler::snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView axis_v
     if (undo_mgr_)
     {
         Axes3D* ax = axes3d;
-        undo_mgr_->push(UndoAction{"Align 3D axis view",
+        undo_mgr_->push(UndoAction{undo_label,
                                    [ax, before]()
                                    {
                                        ax->camera() = before;
@@ -92,6 +98,87 @@ void InputHandler::snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView axis_v
     }
 }
 
+void InputHandler::snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView axis_view)
+{
+    Camera target = axes3d->camera();
+    target.align_view_to_axis(axis_view);
+    animate_axes3d_camera(axes3d, target, "Align 3D axis view");
+}
+
+bool InputHandler::axes3d_auto_ortho(const Axes3D* axes3d) const
+{
+    return std::find(auto_ortho_axes_.begin(), auto_ortho_axes_.end(), axes3d)
+           != auto_ortho_axes_.end();
+}
+
+void InputHandler::set_axes3d_auto_ortho(const Axes3D* axes3d, bool on)
+{
+    std::erase(auto_ortho_axes_, axes3d);
+    if (on)
+        auto_ortho_axes_.push_back(axes3d);
+}
+
+void InputHandler::apply_axes3d_view_preset(Axes3D* axes3d, Camera::ViewPreset preset)
+{
+    if (!axes3d)
+        return;
+    const ViewPresetPlan plan =
+        plan_view_preset(axes3d->camera(), preset, axes3d_auto_ortho(axes3d));
+    set_axes3d_auto_ortho(axes3d, plan.auto_ortho);
+    animate_axes3d_camera(axes3d, plan.target, "3D view preset");
+}
+
+void InputHandler::toggle_axes3d_projection(Axes3D* axes3d)
+{
+    if (!axes3d)
+        return;
+    if (transition_engine_)
+        transition_engine_->cancel_for_camera(&axes3d->camera());
+    Camera&      cam    = axes3d->camera();
+    const Camera before = cam;
+    const Camera after  = toggled_projection(cam);
+    cam.projection_mode = after.projection_mode;
+    cam.ortho_size      = after.ortho_size;
+    // An explicit choice: presets keep it, orbiting does not undo it.
+    set_axes3d_auto_ortho(axes3d, false);
+    if (undo_mgr_)
+    {
+        Axes3D* ax = axes3d;
+        undo_mgr_->push(UndoAction{after.projection_mode == Camera::ProjectionMode::Orthographic
+                                       ? "Orthographic projection"
+                                       : "Perspective projection",
+                                   [ax, before]()
+                                   {
+                                       ax->camera().projection_mode = before.projection_mode;
+                                       ax->camera().ortho_size      = before.ortho_size;
+                                   },
+                                   [ax, after]()
+                                   {
+                                       ax->camera().projection_mode = after.projection_mode;
+                                       ax->camera().ortho_size      = after.ortho_size;
+                                   }});
+    }
+}
+
+bool InputHandler::handle_view_cube_click(Axes3D* axes3d, double x, double y)
+{
+    const view_cube::Hit hit =
+        view_cube::hit_test(*axes3d, static_cast<float>(x), static_cast<float>(y));
+    switch (hit.kind)
+    {
+        case view_cube::HitKind::Face:
+            SPECTRA_LOG_DEBUG("input", "View cube click — snap to preset view");
+            apply_axes3d_view_preset(axes3d, hit.preset);
+            return true;
+        case view_cube::HitKind::ProjectionToggle:
+            toggle_axes3d_projection(axes3d);
+            return true;
+        case view_cube::HitKind::None:
+            break;
+    }
+    return false;
+}
+
 // ─── 3D camera interaction (orbit, right-click zoom, middle-pan) ────────────
 
 void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
@@ -102,6 +189,14 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
 {
     if (button == MOUSE_BUTTON_LEFT && action == ACTION_PRESS)
     {
+        if (handle_view_cube_click(axes3d, x, y))
+        {
+            is_3d_orbit_drag_ = false;
+            mode_             = InteractionMode::Idle;
+            drag3d_axes_      = nullptr;
+            return;
+        }
+
         if (gesture_ && gesture_->on_click(x, y))
         {
             is_3d_orbit_drag_ = false;
@@ -688,6 +783,13 @@ void InputHandler::handle_mouse_move_3d_drag(double x, double y)
                 transition_engine_->cancel_for_camera(&cam);
             else if (anim_ctrl_)
                 anim_ctrl_->cancel_all();
+            // A view preset switched to orthographic; orbiting away from the
+            // axis view returns to perspective (an explicit choice is kept).
+            // The mark stays: a click that undoes jitter restores the
+            // orthographic preset camera, which should still count as automatic.
+            if (cam.projection_mode == Camera::ProjectionMode::Orthographic
+                && axes3d_auto_ortho(axes3d) && (dx != 0.0f || dy != 0.0f))
+                cam.projection_mode = Camera::ProjectionMode::Perspective;
             cam.orbit(dx * ORBIT_SENSITIVITY, -dy * ORBIT_SENSITIVITY);
         }
         else if (is_3d_pan_drag_)

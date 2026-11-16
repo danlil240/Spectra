@@ -816,6 +816,8 @@ inline Color swatch_color(const Series& s)
     if (const auto* surf = dynamic_cast<const SurfaceSeries*>(&s);
         surf && surf->colormap_type() != ColormapType::None)
         return SurfaceSeries::sample_colormap(surf->colormap_type(), 0.5f);
+    if (const auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s); s3 && s3->has_colormap())
+        return SurfaceSeries::sample_colormap(s3->colormap(), 0.5f);
     return s.color();
 }
 

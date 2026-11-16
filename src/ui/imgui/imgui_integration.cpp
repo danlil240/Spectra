@@ -29,6 +29,7 @@
 
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme_imgui.hpp"
+    #include "ui/overlay/view_cube.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
@@ -548,6 +549,94 @@ void ImGuiIntegration::new_frame_headless(const HeadlessFrameInput& input)
     update_layout(input.display_w, input.display_h, io.DeltaTime);
 }
 
+namespace
+{
+
+// The view cube of every 3D axes of `figure` (geometry: ui/overlay/view_cube.hpp;
+// clicks are handled by InputHandler::handle_view_cube_click).
+void draw_view_cubes(Figure& figure, ImDrawList* dl, ImFont* font)
+{
+    if (!dl)
+        return;
+    const auto&  c     = ui::theme();
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    ImFont*      f     = font ? font : ImGui::GetFont();
+    for (auto& ax_base : figure.all_axes_mut())
+    {
+        const auto* ax3d = dynamic_cast<const Axes3D*>(ax_base.get());
+        if (!ax3d)
+            continue;
+        const view_cube::Layout layout = view_cube::compute_layout(*ax3d);
+        if (!layout.valid)
+            continue;
+        const view_cube::Hit hit = view_cube::hit_test(layout, mouse.x, mouse.y);
+
+        for (int i = 0; i < layout.visible_count; ++i)
+        {
+            const view_cube::Face& face =
+                layout.faces[static_cast<size_t>(layout.order[static_cast<size_t>(i)])];
+            const bool hovered = hit.kind == view_cube::HitKind::Face && hit.preset == face.preset;
+            ImVec2     pts[4];
+            for (int k = 0; k < 4; ++k)
+                pts[k] = ImVec2(face.x[static_cast<size_t>(k)], face.y[static_cast<size_t>(k)]);
+            // Faces turned away from the viewer are drawn fainter.
+            const float shade = 0.55f + 0.45f * std::clamp(face.facing, 0.0f, 1.0f);
+            const auto  fill  = hovered ? c.accent_muted.with_alpha(0.6f)
+                                        : c.bg_elevated.lerp(c.bg_tertiary, 1.0f - shade);
+            dl->AddConvexPolyFilled(pts, 4, ui::to_imu32(fill, hovered ? 0.6f : 0.88f));
+            dl->AddPolyline(pts,
+                            4,
+                            ui::to_imu32(hovered ? c.accent : c.border_strong, 0.9f),
+                            ImDrawFlags_Closed,
+                            1.0f);
+
+            // Label faces seen head-on enough to fit the word.
+            if (face.facing > 0.35f)
+            {
+                const float  size = 11.0f * std::clamp(face.facing, 0.8f, 1.0f);
+                const ImVec2 ts   = f->CalcTextSizeA(size, FLT_MAX, 0.0f, face.label);
+                dl->AddText(f,
+                            size,
+                            ImVec2(face.center_x - ts.x * 0.5f, face.center_y - ts.y * 0.5f),
+                            ui::to_imu32(hovered ? c.text_primary : c.text_secondary,
+                                         0.35f + 0.65f * face.facing),
+                            face.label);
+            }
+        }
+
+        // Projection toggle under the cube.
+        const Rect&  t       = layout.toggle;
+        const bool   t_hover = hit.kind == view_cube::HitKind::ProjectionToggle;
+        const bool   ortho = ax3d->camera().projection_mode == Camera::ProjectionMode::Orthographic;
+        const char*  text  = ortho ? "ORTHO" : "PERSP";
+        const ImVec2 t0(t.x + t.w * 0.2f, t.y);
+        const ImVec2 t1(t.x + t.w * 0.8f, t.y + t.h);
+        dl->AddRectFilled(t0,
+                          t1,
+                          ui::to_imu32(t_hover ? c.accent_muted : c.bg_elevated, 0.88f),
+                          4.0f);
+        dl->AddRect(t0,
+                    t1,
+                    ui::to_imu32(t_hover ? c.accent : c.border_default, 0.9f),
+                    4.0f,
+                    0,
+                    1.0f);
+        const float  size = 9.5f;
+        const ImVec2 ts   = f->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+        dl->AddText(f,
+                    size,
+                    ImVec2(t.x + (t.w - ts.x) * 0.5f, t.y + (t.h - ts.y) * 0.5f),
+                    ui::to_imu32(t_hover ? c.text_primary : c.text_secondary),
+                    text);
+        if (t_hover)
+            ImGui::SetTooltip("%s",
+                              ortho ? "Orthographic projection (click for perspective)"
+                                    : "Perspective projection (click for orthographic)");
+    }
+}
+
+}   // namespace
+
 void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 {
     if (!initialized_)
@@ -768,6 +857,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     {
         ImGuiIO& io = ImGui::GetIO();
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure, overlay_dl);
+        draw_view_cubes(figure, overlay_dl, font_heading_);
 
         // In split mode, draw_overlays only draws legends for the active figure.
         // Draw the legend of every other pane's *visible* figure as well — not
@@ -782,7 +872,10 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                     continue;
                 Figure* fig = get_figure_ptr_(pane->figure_index());
                 if (fig && fig != &figure)
+                {
                     data_interaction_->draw_legend_for_figure(*fig);
+                    draw_view_cubes(*fig, overlay_dl, font_heading_);
+                }
             }
         }
     }

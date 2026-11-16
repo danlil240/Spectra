@@ -5,7 +5,7 @@
 //
 // A colorbar is shown for an axes when AxesBase::colorbar_visible() is set
 // and the axes holds a visible colormapped series: a ScatterSeries with
-// per-point color values + colormap, a SurfaceSeries with a colormap, a
+// per-point color values + colormap (2D or 3D), a SurfaceSeries with a colormap, a
 // scalar ImageSeries (imshow / heatmap / contourf) or a ContourSeries whose
 // lines are coloured by level.
 // It sits in a strip carved out of the right side of the axes layout cell,
@@ -75,6 +75,17 @@ inline std::optional<Source> find_source(const AxesBase& axes)
                           Mapping::Scatter,
                           sc->colormap_min(),
                           sc->colormap_max(),
+                          {}};
+        }
+        if (const auto* s3 = dynamic_cast<const ScatterSeries3D*>(sp.get()))
+        {
+            if (!s3->has_colormap())
+                continue;
+            // ScatterSeries3D::point_color samples SurfaceSeries::sample_colormap.
+            return Source{s3->colormap(),
+                          Mapping::Surface,
+                          s3->colormap_min(),
+                          s3->colormap_max(),
                           {}};
         }
         if (const auto* sf = dynamic_cast<const SurfaceSeries*>(sp.get()))

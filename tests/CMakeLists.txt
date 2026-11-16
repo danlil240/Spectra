@@ -212,6 +212,7 @@ set(SPECTRA_UNIT_TESTS
     test_math3d
     test_3d_pipelines
     test_camera
+    test_3d_camera_views
     test_axes3d_fit
     test_axes3d_render_helpers
     test_axes3d_box

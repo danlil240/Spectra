@@ -275,6 +275,10 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             fig.legend_position = spectra::ipc::legend_position_to_wire(
                 spectra::ipc::legend_position_from_wire(op.f1));
             break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+            spectra::ipc::apply_figure_layout_op(fig, op);
+            break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {
             std::vector<std::string> names;
@@ -520,6 +524,17 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
         case spectra::ipc::DiffOp::Type::SET_LEGEND_POSITION:
             fig.legend().position = spectra::ipc::legend_position_from_wire(op.f1);
             break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+            fig.suptitle(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+        {
+            spectra::ipc::SnapshotFigureState fs;
+            spectra::ipc::apply_figure_layout_op(fs, op);
+            fs.suptitle = fig.suptitle();
+            spectra::ipc::apply_figure_layout_state(fig, fs);
+            break;
+        }
         case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
             fig.anim_.live_streaming = op.bool_val;
             if (op.f1 > 0.0)

@@ -865,6 +865,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (data_interaction_)
     {
         ImGuiIO& io = ImGui::GetIO();
+        // Measure turns the crosshair on for its own readout: no compare tooltip.
+        data_interaction_->set_compare_suppressed(
+            input_handler_ && input_handler_->tool_mode() == ToolMode::Measure);
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure, overlay_dl);
         draw_view_cubes(figure, overlay_dl, font_heading_);
 

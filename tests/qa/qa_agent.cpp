@@ -4981,6 +4981,10 @@ class QAAgent
                                      c.expect(f && f->legend().visible, "legend visible");
                                      c.expect(hovered, "pointer moved over the plot");
                                      expect_crosshair_at(c, hx, hy);
+                                     // Compare-at-X readout lists the four series.
+                                     c.expect(ui->data_interaction
+                                                  && ui->data_interaction->compare_readout_drawn(),
+                                              "compare-at-X readout drawn");
                                  });
                 // Restore defaults
                 if (ui->data_interaction)

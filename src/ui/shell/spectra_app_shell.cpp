@@ -1010,6 +1010,58 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     view.add(command("Next View", "view.forward"));
     view.add(command("Toggle Grid", "view.toggle_grid"));
     view.add(command("Toggle Legend", "view.toggle_legend"));
+    // Crosshair readouts: the compare-at-X tooltip and how it reads the series.
+    view.add(make_toggle_action(
+        "Crosshair",
+        [imgui]()
+        { return imgui->data_interaction_ && imgui->data_interaction_->crosshair_active(); },
+        [imgui]()
+        {
+            if (imgui->data_interaction_)
+                imgui->data_interaction_->toggle_crosshair();
+        },
+        Icon::Crosshair));
+    view.add(make_toggle_action(
+        "Compare at X",
+        [imgui]()
+        {
+            return imgui->data_interaction_ && imgui->data_interaction_->crosshair_active()
+                   && imgui->data_interaction_->compare_enabled();
+        },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.toggle_compare_at_x");
+        },
+        Icon::ChartLine));
+    view.add(make_toggle_action(
+        "Compare: Nearest Sample",
+        [imgui]()
+        {
+            return imgui->data_interaction_
+                   && imgui->data_interaction_->compare_mode()
+                          == spectra::probe::ProbeMode::Nearest;
+        },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.compare_toggle_nearest");
+        },
+        Icon::LineDotted));
+    view.add(make_toggle_action(
+        "Compare: Sort by Value",
+        [imgui]()
+        {
+            return imgui->data_interaction_
+                   && imgui->data_interaction_->compare_sort()
+                          == spectra::probe::CompareSort::ValueDescending;
+        },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.compare_toggle_sort");
+        },
+        Icon::List));
     // Undoable, like "Clear all" in the nav rail's data-tip popover.
     view.add({.label = "Remove All Data Tips",
               .on_click =

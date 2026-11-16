@@ -83,6 +83,48 @@ static void pump_events(WGPUInstance instance)
     wgpuInstanceProcessEvents(instance);
 }
 
+// ─── Host page notifications (browser) ────────────────────────────────────────
+
+// The demo shell (examples/webgpu_shell.html) defines these hooks to turn the
+// status line red on a GPU error and green once a frame has rendered.  Pages
+// that don't define them are unaffected.  No-ops on native builds.
+static void notify_page_error(const std::string& message)
+{
+    #ifdef __EMSCRIPTEN__
+    // clang-format off
+    EM_ASM({
+        if (typeof Module.spectraOnError === "function")
+            Module.spectraOnError(UTF8ToString($0));
+    }, message.c_str());
+    // clang-format on
+    #else
+    (void)message;
+    #endif
+}
+
+static void notify_page_first_frame()
+{
+    #ifdef __EMSCRIPTEN__
+    // clang-format off
+    EM_ASM({
+        if (typeof Module.spectraOnFirstFrame === "function")
+            Module.spectraOnFirstFrame();
+    });
+    // clang-format on
+    #endif
+}
+
+static std::string to_string(WGPUStringView s)
+{
+    if (!s.data)
+        return {};
+    return s.length == WGPU_STRLEN ? std::string(s.data) : std::string(s.data, s.length);
+}
+
+// Stop scoping frames after this many failed ones: the uncaptured-error
+// callback still logs and reports later errors.
+static constexpr int WGPU_MAX_FRAME_SCOPE_FAILURES = 8;
+
 // ─── Construction / destruction ───────────────────────────────────────────────
 
 WebGPUBackend::WebGPUBackend() = default;
@@ -290,6 +332,7 @@ bool WebGPUBackend::request_adapter()
         WGPUAdapter adapter = nullptr;
         bool        done    = false;
         bool        ok      = false;
+        std::string message;
     } result;
 
     WGPURequestAdapterOptions opts{};
@@ -300,13 +343,14 @@ bool WebGPUBackend::request_adapter()
     cb_info.mode     = WGPUCallbackMode_AllowSpontaneous;
     cb_info.callback = [](WGPURequestAdapterStatus status,
                           WGPUAdapter              adapter,
-                          WGPUStringView /*msg*/,
-                          void* userdata1,
+                          WGPUStringView           msg,
+                          void*                    userdata1,
                           void* /*userdata2*/)
     {
         auto* r    = static_cast<Result*>(userdata1);
         r->ok      = (status == WGPURequestAdapterStatus_Success);
         r->adapter = adapter;
+        r->message = to_string(msg);
         r->done    = true;
     };
     cb_info.userdata1 = &result;
@@ -318,7 +362,11 @@ bool WebGPUBackend::request_adapter()
 
     if (!result.ok || !result.adapter)
     {
-        SPECTRA_LOG_ERROR("webgpu", "wgpuInstanceRequestAdapter failed");
+        std::string text = "No WebGPU adapter available";
+        if (!result.message.empty())
+            text += ": " + result.message;
+        SPECTRA_LOG_ERROR("webgpu", "wgpuInstanceRequestAdapter failed: {}", text);
+        notify_page_error(text);
         return false;
     }
     adapter_ = result.adapter;
@@ -329,9 +377,10 @@ bool WebGPUBackend::request_device()
 {
     struct Result
     {
-        WGPUDevice device = nullptr;
-        bool       done   = false;
-        bool       ok     = false;
+        WGPUDevice  device = nullptr;
+        bool        done   = false;
+        bool        ok     = false;
+        std::string message;
     } result;
 
     WGPUDeviceDescriptor desc{};
@@ -345,10 +394,9 @@ bool WebGPUBackend::request_device()
                                                    void* /*userdata1*/,
                                                    void* /*userdata2*/)
     {
-        SPECTRA_LOG_ERROR("webgpu",
-                          "Dawn error type={}: {}",
-                          static_cast<int>(type),
-                          std::string(message.data, message.length));
+        const std::string text = to_string(message);
+        SPECTRA_LOG_ERROR("webgpu", "Dawn error type={}: {}", static_cast<int>(type), text);
+        notify_page_error("WebGPU error: " + text);
     };
 
     desc.deviceLostCallbackInfo.mode     = WGPUCallbackMode_AllowSpontaneous;
@@ -358,24 +406,30 @@ bool WebGPUBackend::request_device()
                                               void* /*userdata1*/,
                                               void* /*userdata2*/)
     {
+        const std::string text = to_string(message);
         SPECTRA_LOG_ERROR("webgpu",
                           "Dawn device lost reason={}: {}",
                           static_cast<int>(reason),
-                          std::string(message.data, message.length));
+                          text);
+        // Destroyed / cancelled are our own shutdown, not a failure.
+        if (reason != WGPUDeviceLostReason_Destroyed
+            && reason != WGPUDeviceLostReason_CallbackCancelled)
+            notify_page_error("WebGPU device lost: " + text);
     };
 
     WGPURequestDeviceCallbackInfo cb_info{};
     cb_info.mode     = WGPUCallbackMode_AllowSpontaneous;
     cb_info.callback = [](WGPURequestDeviceStatus status,
                           WGPUDevice              device,
-                          WGPUStringView /*msg*/,
-                          void* userdata1,
+                          WGPUStringView          msg,
+                          void*                   userdata1,
                           void* /*userdata2*/)
     {
-        auto* r   = static_cast<Result*>(userdata1);
-        r->ok     = (status == WGPURequestDeviceStatus_Success);
-        r->device = device;
-        r->done   = true;
+        auto* r    = static_cast<Result*>(userdata1);
+        r->ok      = (status == WGPURequestDeviceStatus_Success);
+        r->device  = device;
+        r->message = to_string(msg);
+        r->done    = true;
     };
     cb_info.userdata1 = &result;
 
@@ -386,7 +440,11 @@ bool WebGPUBackend::request_device()
 
     if (!result.ok || !result.device)
     {
-        SPECTRA_LOG_ERROR("webgpu", "wgpuAdapterRequestDevice failed");
+        std::string text = "WebGPU device request failed";
+        if (!result.message.empty())
+            text += ": " + result.message;
+        SPECTRA_LOG_ERROR("webgpu", "wgpuAdapterRequestDevice failed: {}", text);
+        notify_page_error(text);
         return false;
     }
     device_ = result.device;
@@ -601,7 +659,64 @@ bool WebGPUBackend::create_surface(void* native_window)
         #endif   // SPECTRA_USE_GLFW
     #endif       // __EMSCRIPTEN__
 
-    return surface_ != nullptr;
+    if (!surface_)
+        return false;
+
+    // Pick the colour format now so pipelines created from here on already
+    // match the swapchain; create_swapchain() rebuilds any made earlier.
+    set_surface_format(query_surface_format());
+    return true;
+}
+
+uint32_t WebGPUBackend::query_surface_format() const
+{
+    if (!surface_ || !adapter_)
+        return WGPUTextureFormat_Undefined;
+
+    WGPUSurfaceCapabilities caps{};
+    if (wgpuSurfaceGetCapabilities(surface_, adapter_, &caps) != WGPUStatus_Success)
+        return WGPUTextureFormat_Undefined;
+
+    const WGPUTextureFormat format = webgpu_pick_surface_format<WGPUTextureFormat>(
+        std::span<const WGPUTextureFormat>(caps.formats, caps.formatCount),
+        WGPUTextureFormat_RGBA8Unorm,
+        WGPUTextureFormat_BGRA8Unorm,
+        WGPUTextureFormat_Undefined);
+    wgpuSurfaceCapabilitiesFreeMembers(caps);
+    return static_cast<uint32_t>(format);
+}
+
+void WebGPUBackend::set_surface_format(uint32_t format)
+{
+    if (format == WGPUTextureFormat_Undefined || format == surface_format_)
+        return;
+    SPECTRA_LOG_DEBUG("webgpu", "surface format 0x{:x} -> 0x{:x}", surface_format_, format);
+    surface_format_ = format;
+    if (!headless_)
+        rebuild_pipelines();
+}
+
+void WebGPUBackend::rebuild_pipelines()
+{
+    // Pipelines bake in the colour-target format, so recreate every one for
+    // the new format.  Handles keep their ids; the old objects are released
+    // (WebGPU keeps them alive while submitted command buffers use them).
+    for (auto& [id, entry] : pipelines_)
+    {
+        WGPURenderPipeline fresh = create_pipeline_for_type(entry.type);
+        if (!fresh)
+        {
+            SPECTRA_LOG_ERROR("webgpu",
+                              "rebuilding pipeline type {} for the surface format failed",
+                              static_cast<int>(entry.type));
+            continue;
+        }
+        if (entry.pipeline)
+            wgpuRenderPipelineRelease(entry.pipeline);
+        entry.pipeline = fresh;
+    }
+    current_pipeline_        = nullptr;
+    current_pipeline_layout_ = nullptr;
 }
 
 bool WebGPUBackend::create_swapchain(uint32_t width, uint32_t height)
@@ -609,27 +724,12 @@ bool WebGPUBackend::create_swapchain(uint32_t width, uint32_t height)
     if (!device_ || !surface_ || width == 0 || height == 0)
         return false;
 
-    // Query surface capabilities to find the preferred format.
-    WGPUSurfaceCapabilities caps{};
-    WGPUStatus              cap_status     = wgpuSurfaceGetCapabilities(surface_, adapter_, &caps);
-    WGPUTextureFormat       surface_format = WGPUTextureFormat_BGRA8Unorm;   // fallback
-    if (cap_status == WGPUStatus_Success && caps.formatCount > 0)
-    {
-        // Prefer a UNORM format so theme colours pass through 1:1, like the
-        // Vulkan swapchain.  An sRGB format would gamma-encode the output and
-        // wash the theme out; native Dawn often lists one first.
-        surface_format = caps.formats[0];
-        for (size_t i = 0; i < caps.formatCount; ++i)
-        {
-            if (caps.formats[i] == WGPUTextureFormat_BGRA8Unorm
-                || caps.formats[i] == WGPUTextureFormat_RGBA8Unorm)
-            {
-                surface_format = caps.formats[i];
-                break;
-            }
-        }
-        wgpuSurfaceCapabilitiesFreeMembers(caps);
-    }
+    // Query surface capabilities for the format (UNORM preferred, see
+    // webgpu_pick_surface_format).  Any pipeline built for another format is
+    // rebuilt here, so the render pass and the pipelines always agree, also
+    // after a resize or reconfigure.
+    set_surface_format(query_surface_format());
+    const auto surface_format = static_cast<WGPUTextureFormat>(surface_format_);
 
     // Unconfigure any previous surface configuration.
     if (sc_width_ > 0 && sc_height_ > 0)
@@ -643,9 +743,6 @@ bool WebGPUBackend::create_swapchain(uint32_t width, uint32_t height)
     config.height      = height;
     config.presentMode = WGPUPresentMode_Fifo;
     config.alphaMode   = WGPUCompositeAlphaMode_Auto;
-
-    // Store for pipeline creation
-    surface_format_ = static_cast<uint32_t>(surface_format);
 
     wgpuSurfaceConfigure(surface_, &config);
 
@@ -998,7 +1095,7 @@ PipelineHandle WebGPUBackend::create_pipeline(PipelineType type)
 
     PipelineHandle h;
     h.id             = next_pipeline_id_++;
-    pipelines_[h.id] = {pipeline, layout_for_type(type)};
+    pipelines_[h.id] = {type, pipeline, layout_for_type(type)};
     return h;
 }
 
@@ -1231,9 +1328,61 @@ bool WebGPUBackend::begin_frame(FrameProfiler* /*profiler*/)
             encoder_ = nullptr;
             return false;
         }
+        begin_frame_error_scope();
     }
 
     return true;
+}
+
+void WebGPUBackend::begin_frame_error_scope()
+{
+    if (first_frame_ok_ || frame_scope_open_ || frame_scope_in_flight_
+        || frame_scope_failures_ >= WGPU_MAX_FRAME_SCOPE_FAILURES)
+        return;
+    wgpuDevicePushErrorScope(device_, WGPUErrorFilter_Validation);
+    frame_scope_open_ = true;
+}
+
+void WebGPUBackend::end_frame_error_scope()
+{
+    if (!frame_scope_open_)
+        return;
+    frame_scope_open_      = false;
+    frame_scope_in_flight_ = true;
+
+    // AllowProcessEvents: the callback runs inside wgpuInstanceProcessEvents()
+    // on this (render) thread, which end_frame() pumps every frame.  Native
+    // Dawn may run AllowSpontaneous callbacks on another thread, which would
+    // race with begin_frame_error_scope() on the frame-scope fields.
+    WGPUPopErrorScopeCallbackInfo cb{};
+    cb.mode      = WGPUCallbackMode_AllowProcessEvents;
+    cb.userdata1 = this;
+    cb.callback  = [](WGPUPopErrorScopeStatus status,
+                     WGPUErrorType           type,
+                     WGPUStringView          message,
+                     void*                   userdata1,
+                     void* /*userdata2*/)
+    {
+        auto* self                   = static_cast<WebGPUBackend*>(userdata1);
+        self->frame_scope_in_flight_ = false;
+        if (status != WGPUPopErrorScopeStatus_Success)
+            return;   // device gone or shutting down
+        if (type == WGPUErrorType_NoError)
+        {
+            if (!self->first_frame_ok_)
+            {
+                self->first_frame_ok_ = true;
+                SPECTRA_LOG_DEBUG("webgpu", "first frame rendered without errors");
+                notify_page_first_frame();
+            }
+            return;
+        }
+        ++self->frame_scope_failures_;
+        const std::string text = to_string(message);
+        SPECTRA_LOG_ERROR("webgpu", "frame error type={}: {}", static_cast<int>(type), text);
+        notify_page_error("WebGPU error: " + text);
+    };
+    wgpuDevicePopErrorScope(device_, cb);
 }
 
 void WebGPUBackend::end_frame(FrameProfiler* /*profiler*/)
@@ -1248,6 +1397,8 @@ void WebGPUBackend::end_frame(FrameProfiler* /*profiler*/)
     wgpuCommandBufferRelease(cmds);
     wgpuCommandEncoderRelease(encoder_);
     encoder_ = nullptr;
+
+    end_frame_error_scope();
 
     #ifndef __EMSCRIPTEN__
     // Browsers present the canvas automatically when control returns to the

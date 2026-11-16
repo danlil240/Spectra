@@ -63,6 +63,7 @@ class LogBrowserPanel;
 namespace settings
 {
 class SettingsPanel;
+class SettingsStore;
 }
 }   // namespace spectra::ui
 
@@ -103,7 +104,8 @@ class ImGuiIntegration
         std::function<void()> callback;   // null = disabled item
         std::string           shortcut;   // right-aligned hint, e.g. "Ctrl+Shift+T"
         std::function<bool()> checked;    // set = checkable; returns the current state
-        uint16_t              icon = 0;   // ui::Icon codepoint (0 = none)
+        uint16_t              icon      = 0;       // ui::Icon codepoint (0 = none)
+        bool                  keep_open = false;   // clicking does not close the menu
         MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
         {
         }
@@ -215,13 +217,18 @@ class ImGuiIntegration
     bool     is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
     // Open the custom transform dialog on the current figure, as the nav
     // rail's Transform button does (automation / design review).
-    void open_transform_dialog()
-    {
-        if (custom_transform_dialog_.is_open())
-            return;
-        custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
-        custom_transform_dialog_.open(current_figure_);
-    }
+    void open_transform_dialog();
+
+    // Transforms menu / dialog: overwrite the series (true) or add a
+    // transformed copy (false, default).  Persisted in the settings store.
+    bool transform_overwrite() const { return transform_overwrite_; }
+    void set_transform_overwrite(bool overwrite);
+    // Applies a TransformRegistry transform to the current targets (selected
+    // series, else all visible series of the current plot) as one undoable step.
+    void                 apply_menu_transform(const std::string& name);
+    SeriesTransformHooks series_transform_hooks();
+    // Plot the Transforms menu targets when nothing is selected.
+    Axes* transform_current_plot() const;
     void close_transform_dialog() { custom_transform_dialog_.close(); }
     bool is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
@@ -361,6 +368,8 @@ class ImGuiIntegration
 
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
+    // Settings store — owned externally; supplies persisted UI choices.
+    void                         set_settings_store(ui::settings::SettingsStore* store);
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
 
     // Tab bar (owned externally by App)
@@ -808,6 +817,10 @@ class ImGuiIntegration
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
+
+    // Settings store — not owned.
+    ui::settings::SettingsStore* settings_store_      = nullptr;
+    bool                         transform_overwrite_ = false;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;

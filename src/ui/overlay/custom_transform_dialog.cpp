@@ -9,6 +9,7 @@
     #include <spectra/series.hpp>
     #include <algorithm>
     #include <cstring>
+    #include <memory>
 
     #include "math/data_transform.hpp"
     #include "math/expression_eval.hpp"
@@ -388,6 +389,20 @@ void CustomTransformDialog::draw_formula_input()
     ImGui::SameLine();
     ImGui::Checkbox("Output to X", &apply_to_x_);
 
+    {
+        bool overwrite = get_overwrite_ ? get_overwrite_() : local_overwrite_;
+        if (ImGui::Checkbox("Overwrite current series", &overwrite))
+        {
+            if (set_overwrite_)
+                set_overwrite_(overwrite);
+            else
+                local_overwrite_ = overwrite;
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Off: add the result as a new series next to each source.\n"
+                              "On: replace the series data.  Either way Ctrl+Z undoes it.");
+    }
+
     // Validate on change
     if (formula_changed_)
     {
@@ -758,17 +773,109 @@ void CustomTransformDialog::validate_formula()
     validation_error_.clear();
 }
 
-void CustomTransformDialog::apply_transform()
+void CustomTransformDialog::set_formula(const std::string& formula)
+{
+    std::memset(formula_buf_, 0, sizeof(formula_buf_));
+    std::strncpy(formula_buf_, formula.c_str(), sizeof(formula_buf_) - 1);
+    validate_formula();
+    formula_changed_ = false;
+}
+
+void CustomTransformDialog::preselect(const SeriesTransformTargets& targets)
+{
+    if (!figure_ || targets.targets.empty())
+        return;
+
+    auto axes_index = [this](const Axes* ax) -> int
+    {
+        const auto& axes = figure_->axes();
+        for (size_t i = 0; i < axes.size(); ++i)
+        {
+            if (axes[i].get() == ax)
+                return static_cast<int>(i);
+        }
+        return -1;
+    };
+
+    const auto& first = targets.targets.front();
+    const int   ai    = axes_index(first.axes);
+    if (ai < 0)
+        return;
+    target_axes_   = ai;
+    target_series_ = -1;
+    if (targets.from_selection && targets.targets.size() == 1)
+    {
+        const auto& sv = first.axes->series();
+        for (size_t si = 0; si < sv.size(); ++si)
+        {
+            if (sv[si].get() != first.series)
+                continue;
+            for (size_t k = 0; k < series_info_.size(); ++k)
+            {
+                if (series_info_[k].axes_index == ai
+                    && series_info_[k].series_index == static_cast<int>(si))
+                    target_series_ = static_cast<int>(k);
+            }
+        }
+    }
+}
+
+std::vector<SeriesTransformTarget> CustomTransformDialog::current_targets() const
+{
+    std::vector<SeriesTransformTarget> out;
+    if (!figure_)
+        return out;
+    auto&     axes  = figure_->axes_mut();
+    const int n_ax  = static_cast<int>(axes.size());
+    auto      is_xy = [](const Series* s)
+    {
+        return dynamic_cast<const LineSeries*>(s) != nullptr
+               || dynamic_cast<const ScatterSeries*>(s) != nullptr;
+    };
+
+    // One series picked in the selector (indices into series_info_).
+    if (target_series_ >= 0 && target_series_ < static_cast<int>(series_info_.size()))
+    {
+        const auto& info = series_info_[target_series_];
+        if (info.axes_index < n_ax && axes[info.axes_index])
+        {
+            auto& sv = axes[info.axes_index]->series_mut();
+            if (info.series_index < static_cast<int>(sv.size()) && sv[info.series_index]
+                && is_xy(sv[info.series_index].get()))
+                out.push_back({axes[info.axes_index].get(), sv[info.series_index].get()});
+        }
+        return out;
+    }
+
+    // All visible series of the chosen axes (or of every axes).
+    const int ax_start = target_axes_ >= 0 ? target_axes_ : 0;
+    const int ax_end   = target_axes_ >= 0 ? std::min(target_axes_ + 1, n_ax) : n_ax;
+    for (int ai = ax_start; ai < ax_end; ++ai)
+    {
+        if (!axes[ai])
+            continue;
+        for (auto& sp : axes[ai]->series_mut())
+        {
+            if (sp && sp->visible() && is_xy(sp.get()))
+                out.push_back({axes[ai].get(), sp.get()});
+        }
+    }
+    return out;
+}
+
+bool CustomTransformDialog::apply()
 {
     if (!figure_ || !formula_valid_)
-        return;
+        return false;
 
     ExpressionParser parser;
-    auto             ast = parser.parse(formula_buf_);
+    std::shared_ptr<const ExprNode> ast(parser.parse(formula_buf_).release());
     if (!ast)
-        return;
+        return false;
 
-    // Build series references for the evaluation context
+    // Every series is a variable of the formula.  The spans stay valid while
+    // the outputs are computed: apply_series_transform() computes all of
+    // them before it changes any series.
     std::vector<ExprContext::SeriesRef> all_series_refs;
     for (auto& ax : figure_->axes())
     {
@@ -785,120 +892,67 @@ void CustomTransformDialog::apply_transform()
                 ref.y     = l->y_data();
                 ref.label = l->label();
             }
-            else if (auto* s = dynamic_cast<const ScatterSeries*>(sp.get()))
+            else if (auto* sc = dynamic_cast<const ScatterSeries*>(sp.get()))
             {
-                ref.x     = s->x_data();
-                ref.y     = s->y_data();
-                ref.label = s->label();
+                ref.x     = sc->x_data();
+                ref.y     = sc->y_data();
+                ref.label = sc->label();
             }
             all_series_refs.push_back(ref);
         }
     }
 
-    // Apply to target series
-    int ax_start = (target_axes_ >= 0) ? target_axes_ : 0;
-    int ax_end = (target_axes_ >= 0) ? target_axes_ + 1 : static_cast<int>(figure_->axes().size());
-
-    int series_applied = 0;
-    int global_si      = 0;
-
-    for (int ai = ax_start; ai < ax_end; ++ai)
+    const bool          to_x = apply_to_x_;
+    SeriesTransformSpec spec;
+    spec.fn = [ast, refs = std::move(all_series_refs), to_x](std::span<const float> x_data,
+                                                             std::span<const float> y_data,
+                                                             std::vector<float>&    result_x,
+                                                             std::vector<float>&    result_y)
     {
-        if (ai >= static_cast<int>(figure_->axes().size()) || !figure_->axes()[ai])
-            continue;
-
-        auto& ax = figure_->axes_mut()[ai];
-        for (auto& sp : ax->series_mut())
+        const size_t n = std::min(x_data.size(), y_data.size());
+        ExprContext  ctx;
+        ctx.n           = n;
+        ctx.series_data = refs;
+        result_x.resize(n);
+        result_y.resize(n);
+        for (size_t i = 0; i < n; ++i)
         {
-            if (!sp)
-            {
-                ++global_si;
-                continue;
-            }
-
-            // Filter by target_series_ if set
-            if (target_series_ >= 0 && global_si != target_series_)
-            {
-                ++global_si;
-                continue;
-            }
-
-            // Skip invisible series when applying to all
-            if (target_series_ < 0 && !sp->visible())
-            {
-                ++global_si;
-                continue;
-            }
-
-            std::span<const float> x_data;
-            std::span<const float> y_data;
-            auto*                  ls = dynamic_cast<LineSeries*>(sp.get());
-            auto*                  sc = dynamic_cast<ScatterSeries*>(sp.get());
-
-            if (ls)
-            {
-                x_data = ls->x_data();
-                y_data = ls->y_data();
-            }
-            else if (sc)
-            {
-                x_data = sc->x_data();
-                y_data = sc->y_data();
-            }
-            else
-            {
-                ++global_si;
-                continue;
-            }
-
-            const size_t n = std::min(x_data.size(), y_data.size());
-
-            ExprContext ctx;
-            ctx.n           = n;
-            ctx.series_data = all_series_refs;
-
-            std::vector<float> result_x(n);
-            std::vector<float> result_y(n);
-
-            for (size_t i = 0; i < n; ++i)
-            {
-                ctx.x = x_data[i];
-                ctx.y = y_data[i];
-                ctx.t = x_data[i];
-                ctx.i = i;
-
-                float result = evaluate(*ast, ctx);
-
-                if (apply_to_x_)
-                {
-                    result_x[i] = result;
-                    result_y[i] = y_data[i];
-                }
-                else
-                {
-                    result_x[i] = x_data[i];
-                    result_y[i] = result;
-                }
-            }
-
-            if (ls)
-                ls->set_x(result_x).set_y(result_y);
-            else if (sc)
-                sc->set_x(result_x).set_y(result_y);
-
-            ++series_applied;
-            ++global_si;
+            ctx.x              = x_data[i];
+            ctx.y              = y_data[i];
+            ctx.t              = x_data[i];
+            ctx.i              = i;
+            const float result = evaluate(*ast, ctx);
+            result_x[i]        = to_x ? result : x_data[i];
+            result_y[i]        = to_x ? y_data[i] : result;
         }
-        ax->auto_fit();
-    }
+    };
 
-    std::string formula_desc = formula_buf_;
+    std::string formula = formula_buf_;
+    std::string suffix  = name_buf_[0] != '\0' ? std::string(name_buf_) : formula;
+    if (suffix.size() > 24)
+        suffix = suffix.substr(0, 23) + "\xE2\x80\xA6";   // ellipsis
+    spec.suffix      = suffix;
+    spec.description = "Transform: " + formula;
+
+    const bool overwrite = get_overwrite_ ? get_overwrite_() : local_overwrite_;
+    const auto result    = apply_series_transform(
+        current_targets(),
+        spec,
+        overwrite ? SeriesTransformMode::Overwrite : SeriesTransformMode::Copy,
+        undo_manager_,
+        hooks_);
     SPECTRA_LOG_INFO("transform",
-                     "Applied custom transform '{}' to {} series",
-                     formula_desc,
-                     series_applied);
+                     "Applied custom transform '{}' to {} series ({})",
+                     formula,
+                     result.applied,
+                     overwrite ? "overwrite" : "copy");
+    return result.applied > 0;
+}
 
-    close();
+void CustomTransformDialog::apply_transform()
+{
+    if (apply())
+        close();
 }
 
 }   // namespace spectra::ui

@@ -11,6 +11,9 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+### Added
+- Matplotlib-style mathtext in plot text (titles, axis labels, legend entries, annotations): `$\alpha_1 = 10^{-3}$ s` renders Greek letters, common symbols, function names and sub/superscripts (70% size, baseline-shifted, stacked as in `x_i^2`) on screen and in SVG/PDF export, and text measurement uses the same layout; `\$` is a literal dollar and strings with an odd number of `$` stay plain.
+
 ### Changed
 - Small UX fixes: the nav rail "Markers" button opens a data-tip list (go to / remove / clear all, undoable) instead of deleting every tip; "Toggle Dark/Light Theme" switches between the last-used dark and light themes (remembered in settings) and the command palette lists every theme and data palette; Python colours accept `C0`-`C9`, `tab:*`, short hex and CSS4 names and raise `ValueError` with a suggestion for unknown names; sequential palettes (viridis, monochrome) spread a few auto-coloured series across the ramp.
 

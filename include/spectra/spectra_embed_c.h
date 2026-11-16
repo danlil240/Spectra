@@ -336,12 +336,18 @@ extern "C"
 
     /* ── Display configuration ────────────────────────────────────────────── */
 
-    /* Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI).
-     * Affects text size, tick length, and line widths. */
+    /* Set DPI scale factor (1.0 = 96 DPI, 2.0 = Retina/HiDPI): framebuffer
+     * pixels per logical pixel.  The plot is laid out at width/scale x
+     * height/scale and drawn scale times larger, so text, tick length and line
+     * widths scale with it.  Input coordinates stay in framebuffer pixels. */
     void spectra_embed_set_dpi_scale(SpectraEmbed* s, float scale);
 
     /* Get current DPI scale factor. */
     float spectra_embed_get_dpi_scale(const SpectraEmbed* s);
+
+    /* Data coordinates under the pointer (last mouse move/button), when it is
+     * over a 2D axes.  Returns 1 and writes *x / *y, else returns 0. */
+    int spectra_embed_get_cursor_data(const SpectraEmbed* s, double* x, double* y);
 
     /* ── Theme & UI chrome ────────────────────────────────────────────────── */
 

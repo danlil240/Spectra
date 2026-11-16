@@ -407,6 +407,102 @@ TEST(EmbedSurface, DpiScale)
     EXPECT_FLOAT_EQ(surface.dpi_scale(), 1.5f);
 }
 
+// dpi_scale is framebuffer pixels per logical pixel: an 800x600 surface at 2x
+// lays the figure out like a 400x300 one and draws it twice as large, so text
+// and margins keep their apparent size (HiDPI, e.g. a notebook on Retina).
+TEST(EmbedSurface, DpiScaleLaysOutInLogicalPixels)
+{
+    const std::vector<float> x = {0, 1, 2, 3};
+    const std::vector<float> y = {0, 1, 4, 9};
+
+    EmbedConfig lo;
+    lo.width  = 400;
+    lo.height = 300;
+    EmbedSurface s1(lo);
+    auto&        ax1 = s1.figure().subplot(1, 1, 1);
+    ax1.line(x, y);
+    std::vector<uint8_t> px1(400 * 300 * 4);
+    ASSERT_TRUE(s1.render_to_buffer(px1.data()));
+
+    EmbedConfig hi;
+    hi.width     = 800;
+    hi.height    = 600;
+    hi.dpi_scale = 2.0f;
+    EmbedSurface s2(hi);
+    auto&        fig2 = s2.figure();
+    auto&        ax2  = fig2.subplot(1, 1, 1);
+    ax2.line(x, y);
+    std::vector<uint8_t> px2(800 * 600 * 4);
+    ASSERT_TRUE(s2.render_to_buffer(px2.data()));
+
+    EXPECT_EQ(fig2.width(), 400u);
+    EXPECT_EQ(fig2.height(), 300u);
+    EXPECT_NEAR(ax2.viewport().x, ax1.viewport().x, 0.5f);
+    EXPECT_NEAR(ax2.viewport().y, ax1.viewport().y, 0.5f);
+    EXPECT_NEAR(ax2.viewport().w, ax1.viewport().w, 0.5f);
+    EXPECT_NEAR(ax2.viewport().h, ax1.viewport().h, 0.5f);
+
+    // Drawn at 2x, the plot area reaches across the whole framebuffer.
+    const auto vp       = ax2.viewport();
+    const int  right_px = static_cast<int>((vp.x + vp.w) * 2.0f);
+    EXPECT_LE(right_px, 800);
+    EXPECT_GT(right_px, 600);   // a 1x layout would end near x = 400
+
+    // Changing the scale at run time re-lays out at the next render.
+    s2.set_dpi_scale(1.0f);
+    ASSERT_TRUE(s2.render_to_buffer(px2.data()));
+    EXPECT_EQ(fig2.width(), 800u);
+}
+
+TEST(EmbedSurface, CursorDataMapsFramebufferPixelsAtDpiScale)
+{
+    EmbedConfig cfg;
+    cfg.width     = 800;
+    cfg.height    = 600;
+    cfg.dpi_scale = 2.0f;
+    EmbedSurface surface(cfg);
+    auto&        ax = surface.figure().subplot(1, 1, 1);
+    ax.line(std::vector<float>{0, 1, 2, 3}, std::vector<float>{0, 1, 4, 9});
+    ax.xlim(0.0, 3.0);
+    ax.ylim(0.0, 9.0);
+    std::vector<uint8_t> px(800 * 600 * 4);
+    ASSERT_TRUE(surface.render_to_buffer(px.data()));
+
+    double dx = 0.0;
+    double dy = 0.0;
+    surface.inject_mouse_move(1.0f, 1.0f);   // top-left corner: outside the axes
+    EXPECT_FALSE(surface.cursor_data(dx, dy));
+
+    // Input arrives in framebuffer pixels: twice the logical position.
+    const ScreenPoint p = data_to_screen(ax, 1.5, 6.0);
+    surface.inject_mouse_move(p.x * 2.0f, p.y * 2.0f);
+    ASSERT_TRUE(surface.cursor_data(dx, dy));
+    EXPECT_NEAR(dx, 1.5, 0.05);
+    EXPECT_NEAR(dy, 6.0, 0.1);
+}
+
+TEST(EmbedCApi, CursorData)
+{
+    SpectraEmbed* s = spectra_embed_create(400, 300);
+    ASSERT_NE(s, nullptr);
+    double x = 0.0;
+    double y = 0.0;
+    EXPECT_EQ(spectra_embed_get_cursor_data(nullptr, &x, &y), 0);
+    EXPECT_EQ(spectra_embed_get_cursor_data(s, nullptr, &y), 0);
+    SpectraFigure* fig  = spectra_embed_figure(s);
+    SpectraAxes*   ax   = spectra_figure_subplot(fig, 1, 1, 1);
+    const float    xs[] = {0.0f, 10.0f};
+    const float    ys[] = {0.0f, 10.0f};
+    spectra_axes_line(ax, xs, ys, 2, "l");
+    std::vector<uint8_t> px(400 * 300 * 4);
+    ASSERT_EQ(spectra_embed_render(s, px.data()), 1);
+    spectra_embed_mouse_move(s, 200.0f, 150.0f);   // centre: inside the axes
+    EXPECT_EQ(spectra_embed_get_cursor_data(s, &x, &y), 1);
+    EXPECT_GT(x, 0.0);
+    EXPECT_LT(x, 10.0);
+    spectra_embed_destroy(s);
+}
+
 TEST(EmbedSurface, BackgroundAlpha)
 {
     EmbedConfig cfg;

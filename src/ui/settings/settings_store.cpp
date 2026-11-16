@@ -155,24 +155,14 @@ std::string serialize(const SettingsData& d)
     os << "    \"inspector_visible\": " << (d.inspector_visible ? "true" : "false") << ",\n";
     os << "    \"nav_rail_visible\": " << (d.nav_rail_visible ? "true" : "false") << ",\n";
     os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << ",\n";
-    os << "    \"ui_scale\": " << d.ui_scale
-       << ",
-          ";
-        os
-       << "    \"transform_overwrite\": " << (d.transform_overwrite ? "true" : "false")
-       << "
-          ";
-        os
-       << "  },
-          ";
-        os
-       << "  \"recent_files\": [";
+    os << "    \"ui_scale\": " << d.ui_scale << ",\n";
+    os << "    \"transform_overwrite\": " << (d.transform_overwrite ? "true" : "false") << "\n";
+    os << "  },\n";
+    os << "  \"recent_files\": [";
     for (size_t i = 0; i < d.recent_files.size(); ++i)
         os << (i ? ", " : "") << '"' << escape_json(d.recent_files[i]) << '"';
-    os << "]
-          ";
-        os
-       << "}\n";
+    os << "]\n";
+    os << "}\n";
     return os.str();
 }
 

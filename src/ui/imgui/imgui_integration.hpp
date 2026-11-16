@@ -376,12 +376,10 @@ class ImGuiIntegration
     // (and logs why) for unsupported or missing files.
     bool open_path(const std::string& path);
 
-    // Recent data files (start page) live in the settings store.
-    void set_settings_store(ui::settings::SettingsStore* s) { settings_store_ = s; }
-
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
-    // Settings store — owned externally; supplies persisted UI choices.
+    // Settings store — owned externally; supplies persisted UI choices and
+    // the recent data files shown on the start page.
     void                         set_settings_store(ui::settings::SettingsStore* store);
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
 
@@ -830,7 +828,6 @@ class ImGuiIntegration
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
-    ui::settings::SettingsStore* settings_store_ = nullptr;
 
     // Settings store — not owned.
     ui::settings::SettingsStore* settings_store_      = nullptr;

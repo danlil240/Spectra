@@ -34,7 +34,7 @@ static fs::path baseline_dir()
         return fs::path(env);
     }
     // Relative to this source file's location
-    return fs::path(__FILE__).parent_path() / "baseline";
+    return fs::path(SPECTRA_GOLDEN_BASELINE_DIR_DEFAULT);
 }
 
 // Directory for test output artifacts (actual renders, diff images)
@@ -44,7 +44,7 @@ static fs::path output_dir()
     {
         return fs::path(env);
     }
-    return fs::path(__FILE__).parent_path() / "output";
+    return fs::path(SPECTRA_GOLDEN_OUTPUT_DIR_DEFAULT);
 }
 
 // If SPECTRA_UPDATE_BASELINES=1, overwrite baselines instead of comparing

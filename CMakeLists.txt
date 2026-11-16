@@ -722,6 +722,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/overlay/tooltip.cpp
         src/ui/overlay/crosshair.cpp
         src/ui/overlay/data_marker.cpp
+        src/ui/overlay/marker_actions.cpp
         src/ui/overlay/annotation.cpp
         src/ui/overlay/data_interaction.cpp
         src/ui/input/region_select.cpp

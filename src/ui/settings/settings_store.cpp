@@ -111,6 +111,8 @@ std::string serialize(const SettingsData& d)
     os << "  \"ui\": {\n";
     os << R"(    "default_theme": ")" << escape_json(d.default_theme) << "\",\n";
     os << R"(    "default_data_palette": ")" << escape_json(d.default_data_palette) << "\",\n";
+    os << R"(    "last_dark_theme": ")" << escape_json(d.last_dark_theme) << "\",\n";
+    os << R"(    "last_light_theme": ")" << escape_json(d.last_light_theme) << "\",\n";
     os << "    \"inspector_visible\": " << (d.inspector_visible ? "true" : "false") << ",\n";
     os << "    \"nav_rail_visible\": " << (d.nav_rail_visible ? "true" : "false") << ",\n";
     os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << ",\n";
@@ -185,6 +187,13 @@ bool SettingsStore::load(const std::string& path)
     if (!palette.empty())
         data_.default_data_palette = palette;
 
+    const std::string last_dark = read_json_string(json, "last_dark_theme");
+    if (!last_dark.empty())
+        data_.last_dark_theme = last_dark;
+    const std::string last_light = read_json_string(json, "last_light_theme");
+    if (!last_light.empty())
+        data_.last_light_theme = last_light;
+
     data_.inspector_visible = read_json_bool(json, "inspector_visible", data_.inspector_visible);
     data_.nav_rail_visible  = read_json_bool(json, "nav_rail_visible", data_.nav_rail_visible);
     data_.timeline_visible  = read_json_bool(json, "timeline_visible", data_.timeline_visible);
@@ -250,6 +259,8 @@ void SettingsStore::apply_to(ui::ThemeManager& tm) const
     // set_theme()/set_data_palette() would silently no-op and the first
     // ThemeManager::instance() call would then fall back to "night".
     tm.ensure_initialized();
+    // Before set_theme(), which records the startup theme as the last of its kind.
+    tm.set_last_themes(data_.last_dark_theme, data_.last_light_theme);
     if (!data_.default_theme.empty())
         tm.set_theme(data_.default_theme);
     if (!data_.default_data_palette.empty())
@@ -270,7 +281,9 @@ bool select_theme(ui::ThemeManager& tm, SettingsStore& store, const std::string&
     tm.set_theme(theme);
     if (tm.current_theme_name() != theme)
         return false;
-    store.data_mut().default_theme = theme;
+    store.data_mut().default_theme    = theme;
+    store.data_mut().last_dark_theme  = tm.last_dark_theme();
+    store.data_mut().last_light_theme = tm.last_light_theme();
     store.notify_change();
     return true;
 }
@@ -295,6 +308,17 @@ void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore&
 {
     store.data_mut().default_data_palette = tm.current_data_palette_name();
     store.notify_change();
+}
+
+bool remember_toggle_themes(const ui::ThemeManager& tm, SettingsStore& store)
+{
+    SettingsData& d = store.data_mut();
+    if (d.last_dark_theme == tm.last_dark_theme() && d.last_light_theme == tm.last_light_theme())
+        return false;
+    d.last_dark_theme  = tm.last_dark_theme();
+    d.last_light_theme = tm.last_light_theme();
+    store.notify_change();
+    return true;
 }
 
 void SettingsStore::notify_change()

@@ -297,6 +297,18 @@ class ImGuiIntegration
         input_handler_ = ih;
         if (ih)
             ih->set_tool_mode(interaction_mode_);
+        // Inspector axis-range edits join the view history (Back / Forward,
+        // Ctrl+Z) and move linked axes along.
+        inspector_.set_on_axes_limits_edited(
+            [this](Axes& ax, AxisLimits old_x, AxisLimits old_y, const std::string& key)
+            {
+                if (input_handler_)
+                    input_handler_->commit_axes_limits_edit(inspector_.context().figure,
+                                                            &ax,
+                                                            old_x,
+                                                            old_y,
+                                                            key);
+            });
     }
     InputHandler* input_handler() const { return input_handler_; }
 

@@ -728,6 +728,8 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     auto& view = bar.menu("View");
     view.add(command("Zoom to Fit", "view.autofit"));
     view.add(command("Reset View", "view.reset"));
+    view.add(command("Previous View", "view.back"));
+    view.add(command("Next View", "view.forward"));
     view.add(command("Toggle Grid", "view.toggle_grid"));
     view.add(command("Toggle Legend", "view.toggle_legend"));
     view.add({.label    = "Remove All Data Tips",

@@ -204,6 +204,7 @@ set(SPECTRA_UNIT_TESTS
     test_shell_app_shell
     test_ui_shell_fixes
     test_interaction_fixes
+    test_view_history
     test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3

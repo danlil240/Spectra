@@ -1139,6 +1139,21 @@ void ImGuiIntegration::update_plot_cursor()
     }
     plot_cursor_ = plot_cursor_for(input_handler_->tool_mode(), over, panning);
 
+    // Axis gutters (tick labels): wheel / drag there acts on that axis only.
+    AxisGutter gutter = input_handler_->gutter_drag_axis();
+    if (gutter == AxisGutter::None && !panning && !over && ImGui::IsMousePosValid(&mouse)
+        && !wants_capture_mouse() && ImGui::GetMouseCursor() == ImGuiMouseCursor_Arrow)
+    {
+        gutter = input_handler_->hit_test_gutter(mouse.x, mouse.y);
+    }
+    if (gutter != AxisGutter::None)
+    {
+        plot_cursor_ = PlotCursor::Default;
+        ImGui::SetMouseCursor(gutter == AxisGutter::X ? ImGuiMouseCursor_ResizeEW
+                                                      : ImGuiMouseCursor_ResizeNS);
+        return;
+    }
+
     switch (plot_cursor_)
     {
         case PlotCursor::Default:

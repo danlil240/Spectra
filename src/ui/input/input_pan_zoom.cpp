@@ -3,7 +3,9 @@
 #include <cmath>
 
 #include <algorithm>
+#include <cstdint>
 #include <limits>
+#include <string>
 #include <spectra/logger.hpp>
 
 #include "core/axis_scale.hpp"
@@ -389,10 +391,12 @@ void InputHandler::handle_mouse_button_middle_pan(int action, double x, double y
         middle_pan_xlim_max_ = xlim.max;
         middle_pan_ylim_min_ = ylim.min;
         middle_pan_ylim_max_ = ylim.max;
+        begin_view_gesture();
     }
     else if (action == ACTION_RELEASE && middle_pan_dragging_)
     {
         middle_pan_dragging_ = false;
+        end_view_gesture("Pan");
     }
 }
 
@@ -423,11 +427,13 @@ void InputHandler::handle_mouse_button_rclick_zoom(int action, double x, double 
         rclick_zoom_ylim_max_ = ylim.max;
         // Capture drag-start position in data space as zoom anchor
         screen_to_data(x, y, rclick_zoom_anchor_data_x_, rclick_zoom_anchor_data_y_);
+        begin_view_gesture();
     }
     else if (action == ACTION_RELEASE && rclick_zoom_dragging_ && !rclick_zoom_3d_)
     {
         rclick_zoom_dragging_ = false;
         rclick_zoom_axis_     = ZoomAxis::None;
+        end_view_gesture("Zoom");
     }
 }
 
@@ -468,6 +474,9 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
 {
     if (action == ACTION_PRESS && mode_ == InteractionMode::Idle)
     {
+        // An inertial glide still running ends here: record where it got to.
+        finalize_pending_view();
+
         // Cancel any running animations on this axes (new input overrides)
         if (transition_engine_)
         {
@@ -507,6 +516,7 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                 }
                 if (active_axes_ && (transition_engine_ || anim_ctrl_))
                 {
+                    const ViewState before = capture_view(active_axes_);
                     // Compute auto-fit target limits
                     auto old_xlim = active_axes_->x_limits();
                     auto old_ylim = active_axes_->y_limits();
@@ -537,6 +547,9 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                     {
                         axis_link_mgr_->propagate_limits(active_axes_, target_x, target_y);
                     }
+                    ViewState after = capture_view(active_axes_);
+                    set_axes_view(after, active_axes_, target_x, target_y);
+                    record_view_change(figure_, "Auto-fit", before, std::move(after));
                     return;   // Don't start a pan drag on double-click
                 }
             }
@@ -557,6 +570,7 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
         drag_start_xlim_max_ = xlim.max;
         drag_start_ylim_min_ = ylim.min;
         drag_start_ylim_max_ = ylim.max;
+        begin_view_gesture();
     }
     else if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging)
     {
@@ -587,6 +601,10 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                     active_axes_->xlim(drag_start_xlim_min_, drag_start_xlim_max_);
                     active_axes_->ylim(drag_start_ylim_min_, drag_start_ylim_max_);
                 }
+                if (view_gesture_open_ && view_gesture_figure_)
+                    apply_view(view_gesture_figure_, view_gesture_before_);   // linked axes too
+                view_gesture_open_ = false;
+                view_gesture_before_.clear();
 
                 // Pan-mode click behavior: select/highlight nearest point (data tip).
                 if (data_interaction_)
@@ -669,6 +687,10 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                 }
             }
         }
+
+        // One history entry per drag; an inertial glide is folded into it
+        // when it ends (finalize_pending_view).
+        end_view_gesture("Pan", has_active_animations());
     }
 }
 
@@ -975,31 +997,22 @@ void InputHandler::handle_scroll_3d(Axes3D* axes3d, double y_offset)
     }
 }
 
-// ─── Scroll: 2D zoom ───────────────────────────────────────────────────────
+// ─── Scroll: 2D zoom / horizontal pan ───────────────────────────────────────
 
-void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cursor_y)
+void InputHandler::handle_scroll_2d(double   x_offset,
+                                    double   y_offset,
+                                    double   cursor_x,
+                                    double   cursor_y,
+                                    ViewAxes axes)
 {
-    Axes* hit = hit_test_axes(cursor_x, cursor_y);
-    if (!hit)
+    if (!active_axes_)
         return;
 
-    active_axes_      = hit;
-    active_axes_base_ = hit;
+    // An inertial glide or animated zoom still running ends here.
+    finalize_pending_view();
+    cancel_view_animations(active_axes_);
 
     const auto& vp = viewport_for_axes(active_axes_);
-
-    // Cancel any running animations — new scroll input takes priority
-    if (transition_engine_)
-    {
-        transition_engine_->cancel_for_axes(active_axes_);
-    }
-    else if (anim_ctrl_)
-    {
-        anim_ctrl_->cancel_for_axes(active_axes_);
-    }
-
-    auto xlim = active_axes_->x_limits();
-    auto ylim = active_axes_->y_limits();
 
     // Compute cursor position in data space
     float saved_vp_x = vp_x_;
@@ -1020,6 +1033,9 @@ void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cur
     vp_w_ = saved_vp_w;
     vp_h_ = saved_vp_h;
 
+    const bool zoom_x = view_axes_has_x(axes);
+    const bool zoom_y = view_axes_has_y(axes);
+
     // Exponential zoom: symmetric in both directions.
     // scroll up (y_offset>0) → factor<1 (zoom in), scroll down → factor>1 (zoom out)
     float factor = std::pow(1.0f / (1.0f + ZOOM_FACTOR), static_cast<float>(y_offset));
@@ -1027,7 +1043,8 @@ void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cur
 
     // Live views keep following while the user changes the visible history
     // span with the wheel. Manual Y overrides are handled separately.
-    if (active_axes_->is_presented_buffer_following() && active_axes_->has_presented_buffer())
+    if (y_offset != 0.0 && zoom_x && active_axes_->is_presented_buffer_following()
+        && active_axes_->has_presented_buffer())
     {
         float seconds = active_axes_->presented_buffer_seconds();
         seconds       = std::clamp(seconds * factor, 0.1f, 86400.0f);
@@ -1035,51 +1052,402 @@ void InputHandler::handle_scroll_2d(double y_offset, double cursor_x, double cur
         return;
     }
 
+    const ViewState before = capture_view(active_axes_);
+    const char*     label  = "Zoom";
+    std::string     key;
+
     // Apply zoom instantly — scroll zoom must be immediate and responsive.
     // (Animations are used for auto-fit, box zoom, and inertial pan instead.)
-    // Use double arithmetic to preserve precision at deep zoom levels.
-    // Log axes zoom in axis space so the cursor stays fixed on screen.
-    const AxisLimits zx       = zoom_limits_about(active_axes_->xscale(), xlim, data_x, factor);
-    const AxisLimits zy       = zoom_limits_about(active_axes_->yscale(), ylim, data_y, factor);
-    double           new_xmin = zx.min;
-    double           new_xmax = zx.max;
-    double           new_ymin = zy.min;
-    double           new_ymax = zy.max;
-
-    // Clamp to double precision limits — prevent zooming past what double can represent
+    // Double precision preserves deep zoom; log / sqrt axes zoom in axis
+    // space so the cursor stays fixed on screen.
+    if (y_offset != 0.0)
     {
-        double abs_max   = std::max(std::abs(new_xmin), std::abs(new_xmax));
-        double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
-        if (min_range < 1e-300)
-            min_range = 1e-300;
-        if (new_xmax - new_xmin < min_range)
+        if (zoom_x)
         {
-            double mid = (new_xmin + new_xmax) * 0.5;
-            new_xmin   = mid - min_range * 0.5;
-            new_xmax   = mid + min_range * 0.5;
+            const AxisLimits zx = clamp_min_span(zoom_limits_about(active_axes_->xscale(),
+                                                                   active_axes_->x_limits(),
+                                                                   data_x,
+                                                                   factor));
+            active_axes_->xlim(zx.min, zx.max);
         }
-    }
-    {
-        double abs_max   = std::max(std::abs(new_ymin), std::abs(new_ymax));
-        double min_range = abs_max * std::numeric_limits<double>::epsilon() * 16.0;
-        if (min_range < 1e-300)
-            min_range = 1e-300;
-        if (new_ymax - new_ymin < min_range)
+        if (zoom_y)
         {
-            double mid = (new_ymin + new_ymax) * 0.5;
-            new_ymin   = mid - min_range * 0.5;
-            new_ymax   = mid + min_range * 0.5;
+            const AxisLimits zy = clamp_min_span(zoom_limits_about(active_axes_->yscale(),
+                                                                   active_axes_->y_limits(),
+                                                                   data_y,
+                                                                   factor));
+            active_axes_->ylim(zy.min, zy.max);
         }
+        label = axes == ViewAxes::X ? "Zoom X" : (axes == ViewAxes::Y ? "Zoom Y" : "Zoom");
+        key   = "zoom";
     }
 
-    active_axes_->xlim(new_xmin, new_xmax);
-    active_axes_->ylim(new_ymin, new_ymax);
+    // Horizontal wheel / trackpad swipe pans X (positive = scroll left).
+    if (x_offset != 0.0 && axes != ViewAxes::Y)
+    {
+        const AxisLimits px = pan_limits(active_axes_->xscale(),
+                                         active_axes_->x_limits(),
+                                         -x_offset * WHEEL_PAN_FRACTION);
+        active_axes_->xlim(px.min, px.max);
+        if (key.empty())
+        {
+            label = "Pan X";
+            key   = "pan";
+        }
+    }
 
-    // Propagate zoom to linked axes
+    if (key.empty())
+        return;
+
+    // Linked axes follow (each takes the linked dimension's new limits).
+    if (axis_link_mgr_)
+        axis_link_mgr_->propagate_limits(active_axes_,
+                                         active_axes_->x_limits(),
+                                         active_axes_->y_limits());
+
+    // One history entry per wheel burst on this axes / axis combination.
+    key += ":" + std::to_string(reinterpret_cast<std::uintptr_t>(active_axes_)) + ":"
+           + std::to_string(static_cast<int>(axes));
+    record_view_change(figure_,
+                       label,
+                       before,
+                       capture_view(active_axes_),
+                       std::move(key),
+                       WHEEL_COALESCE_WINDOW);
+}
+
+// ─── View history ───────────────────────────────────────────────────────────
+
+ViewState InputHandler::capture_view(Axes* ax) const
+{
+    ViewState state;
+    if (!ax)
+        return state;
+    state.push_back({ax, ax->x_limits(), ax->y_limits()});
     if (axis_link_mgr_)
     {
-        axis_link_mgr_->propagate_zoom(active_axes_, data_x, data_y, factor);
+        for (Axes* peer : axis_link_mgr_->linked_peers(ax))
+            if (peer && !find_axes_view(state, peer))
+                state.push_back({peer, peer->x_limits(), peer->y_limits()});
     }
+    return state;
+}
+
+ViewState InputHandler::capture_figure_view(const Figure& fig)
+{
+    ViewState state;
+    for (const auto& ax : fig.axes())
+        if (ax)
+            state.push_back({ax.get(), ax->x_limits(), ax->y_limits()});
+    return state;
+}
+
+void InputHandler::cancel_view_animations(Axes* ax)
+{
+    if (!ax)
+        return;
+    if (transition_engine_)
+        transition_engine_->cancel_for_axes(ax);
+    if (anim_ctrl_)
+        anim_ctrl_->cancel_for_axes(ax);
+}
+
+void InputHandler::apply_view(Figure* fig, const ViewState& state)
+{
+    if (!fig)
+        return;
+    for (const auto& v : state)
+    {
+        const auto& all = fig->axes();
+        if (std::any_of(all.begin(), all.end(), [&](const auto& p) { return p.get() == v.axes; }))
+            cancel_view_animations(v.axes);
+    }
+    apply_view_state(*fig, state);
+}
+
+void InputHandler::record_view_change(Figure*                             fig,
+                                      std::string                         label,
+                                      ViewState                           before,
+                                      ViewState                           after,
+                                      std::string                         coalesce_key,
+                                      std::chrono::steady_clock::duration coalesce_window)
+{
+    if (!fig)
+        fig = figure_;
+
+    if (!fig)
+    {
+        // No figure to keep a history for (bare embedding): undo only.
+        if (undo_mgr_ && !same_view(before, after))
+        {
+            auto restore = [](const ViewState& st)
+            {
+                for (const auto& v : st)
+                {
+                    v.axes->xlim(v.x.min, v.x.max);
+                    v.axes->ylim(v.y.min, v.y.max);
+                }
+            };
+            undo_mgr_->push(UndoAction{label,
+                                       [restore, before]() { restore(before); },
+                                       [restore, after]() { restore(after); }});
+        }
+        return;
+    }
+
+    // A new change ends the previous animated one: where it started is
+    // where the previous one ended.
+    finalize_pending_view(&before);
+
+    std::shared_ptr<ViewHistory> history = view_history_.history(fig);
+    auto                         result  = history->push(label,
+                                std::move(before),
+                                std::move(after),
+                                std::move(coalesce_key),
+                                coalesce_window);
+    if (!result.entry)
+        return;
+
+    // A coalesced step extends the undo step pushed with the entry.
+    if (result.coalesced || !undo_mgr_)
+        return;
+
+    std::weak_ptr<ViewHistory> weak  = history;
+    auto                       entry = result.entry;
+    undo_mgr_->push(UndoAction{entry->label,
+                               [this, weak, entry, fig]()
+                               {
+                                   auto h = weak.lock();
+                                   if (!h)
+                                       return;   // figure closed
+                                   finalize_pending_view();
+                                   apply_view(fig, h->undo_entry(entry));
+                               },
+                               [this, weak, entry, fig]()
+                               {
+                                   auto h = weak.lock();
+                                   if (!h)
+                                       return;
+                                   finalize_pending_view();
+                                   apply_view(fig, h->redo_entry(entry));
+                               }});
+}
+
+void InputHandler::commit_axes_limits_edit(Figure*     fig,
+                                           Axes*       ax,
+                                           AxisLimits  old_x,
+                                           AxisLimits  old_y,
+                                           std::string coalesce_key)
+{
+    if (!ax)
+        return;
+    ViewState before = capture_view(ax);
+    set_axes_view(before, ax, old_x, old_y);
+    if (axis_link_mgr_)
+        axis_link_mgr_->propagate_limits(ax, ax->x_limits(), ax->y_limits());
+    ViewState after = capture_view(ax);
+
+    // The axes must belong to the figure whose history records it.
+    if (!fig)
+        fig = figure_;
+    if (fig)
+    {
+        const auto& all = fig->axes();
+        if (std::none_of(all.begin(), all.end(), [&](const auto& p) { return p.get() == ax; }))
+            fig = nullptr;
+    }
+    if (!fig)
+        return;
+    record_view_change(fig, "Edit axis limits", std::move(before), std::move(after), coalesce_key);
+}
+
+void InputHandler::finalize_pending_view(const ViewState* end_state)
+{
+    if (!pending_view_entry_)
+        return;
+    auto    entry        = std::move(pending_view_entry_);
+    Figure* fig          = pending_view_figure_;
+    pending_view_entry_  = nullptr;
+    pending_view_figure_ = nullptr;
+    if (!fig || !view_history_.find(fig))
+        return;
+    const auto& all = fig->axes();
+    for (auto& v : entry->after)
+    {
+        if (const AxesView* known = end_state ? find_axes_view(*end_state, v.axes) : nullptr)
+        {
+            v.x = known->x;
+            v.y = known->y;
+        }
+        else if (std::any_of(all.begin(),
+                             all.end(),
+                             [&](const auto& p) { return p.get() == v.axes; }))
+        {
+            v.x = v.axes->x_limits();
+            v.y = v.axes->y_limits();
+        }
+    }
+}
+
+bool InputHandler::can_view_back(const Figure* fig) const
+{
+    const ViewHistory* h = view_history_.find(fig ? fig : figure_);
+    return h && h->can_back();
+}
+
+bool InputHandler::can_view_forward(const Figure* fig) const
+{
+    const ViewHistory* h = view_history_.find(fig ? fig : figure_);
+    return h && h->can_forward();
+}
+
+bool InputHandler::view_back(Figure* fig)
+{
+    if (!fig)
+        fig = figure_;
+    if (!fig)
+        return false;
+    finalize_pending_view();
+    ViewHistory* h = view_history_.find(fig);
+    if (!h)
+        return false;
+    const ViewState* state = h->back();
+    if (!state)
+        return false;
+    apply_view(fig, *state);
+    return true;
+}
+
+bool InputHandler::view_forward(Figure* fig)
+{
+    if (!fig)
+        fig = figure_;
+    if (!fig)
+        return false;
+    finalize_pending_view();
+    ViewHistory* h = view_history_.find(fig);
+    if (!h)
+        return false;
+    const ViewState* state = h->forward();
+    if (!state)
+        return false;
+    apply_view(fig, *state);
+    return true;
+}
+
+void InputHandler::begin_view_gesture()
+{
+    finalize_pending_view();
+    view_gesture_open_   = active_axes_ != nullptr;
+    view_gesture_figure_ = figure_;
+    view_gesture_before_ = capture_view(active_axes_);
+}
+
+void InputHandler::end_view_gesture(const char* label, bool settles_later)
+{
+    if (!view_gesture_open_)
+        return;
+    view_gesture_open_ = false;
+    if (view_gesture_before_.empty())
+        return;
+    Axes*     ax    = view_gesture_before_.front().axes;
+    Figure*   fig   = view_gesture_figure_ ? view_gesture_figure_ : figure_;
+    ViewState after = capture_view(ax);
+    record_view_change(fig, label, std::move(view_gesture_before_), std::move(after));
+    view_gesture_before_.clear();
+
+    // An inertial glide keeps moving the view: its end state is folded into
+    // this entry once it stops (finalize_pending_view).
+    if (settles_later && fig)
+    {
+        if (ViewHistory* h = view_history_.find(fig); h && h->cursor() == h->size() && h->size())
+        {
+            pending_view_entry_  = view_history_.history(fig)->last_entry();
+            pending_view_figure_ = fig;
+        }
+    }
+}
+
+// ─── Axis gutters ───────────────────────────────────────────────────────────
+
+AxisGutter InputHandler::hit_test_gutter(double screen_x, double screen_y, Axes** out_axes) const
+{
+    if (out_axes)
+        *out_axes = nullptr;
+    if (!figure_)
+        return AxisGutter::None;
+    for (const auto& ax : figure_->axes())
+    {
+        if (!ax)
+            continue;
+        const AxisGutter g = hit_test_axis_gutter(ax->viewport(), screen_x, screen_y);
+        if (g != AxisGutter::None)
+        {
+            if (out_axes)
+                *out_axes = ax.get();
+            return g;
+        }
+    }
+    return AxisGutter::None;
+}
+
+void InputHandler::handle_gutter_press(AxisGutter gutter,
+                                       Axes*      axes,
+                                       int        button,
+                                       double     x,
+                                       double     y)
+{
+    active_axes_       = axes;
+    active_axes_base_  = axes;
+    last_pressed_axes_ = axes;
+    cancel_view_animations(axes);
+    begin_view_gesture();
+    gutter_drag_        = gutter;
+    gutter_drag_button_ = button;
+    gutter_drag_x_      = x;
+    gutter_drag_y_      = y;
+    gutter_drag_lim_    = gutter == AxisGutter::X ? axes->x_limits() : axes->y_limits();
+}
+
+void InputHandler::handle_gutter_move(double x, double y)
+{
+    if (!active_axes_)
+        return;
+    const auto& vp = active_axes_->viewport();
+    if (gutter_drag_ == AxisGutter::X && vp.w > 0.0f)
+    {
+        const AxisLimits l =
+            pan_limits(active_axes_->xscale(), gutter_drag_lim_, -(x - gutter_drag_x_) / vp.w);
+        active_axes_->xlim(l.min, l.max);
+    }
+    else if (gutter_drag_ == AxisGutter::Y && vp.h > 0.0f)
+    {
+        const AxisLimits l =
+            pan_limits(active_axes_->yscale(), gutter_drag_lim_, (y - gutter_drag_y_) / vp.h);
+        active_axes_->ylim(l.min, l.max);
+    }
+    if (axis_link_mgr_)
+        axis_link_mgr_->propagate_limits(active_axes_,
+                                         active_axes_->x_limits(),
+                                         active_axes_->y_limits());
+}
+
+void InputHandler::end_gutter_drag(bool commit)
+{
+    const AxisGutter g = gutter_drag_;
+    gutter_drag_       = AxisGutter::None;
+    if (g == AxisGutter::None)
+        return;
+    if (commit)
+    {
+        end_view_gesture(g == AxisGutter::X ? "Pan X" : "Pan Y");
+        return;
+    }
+    // Cancelled (Esc): put the axis back where the drag started.
+    if (view_gesture_open_ && view_gesture_figure_)
+        apply_view(view_gesture_figure_, view_gesture_before_);
+    view_gesture_open_ = false;
+    view_gesture_before_.clear();
 }
 
 }   // namespace spectra

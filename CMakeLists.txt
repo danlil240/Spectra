@@ -274,6 +274,7 @@ foreach(_ui_src
     src/ui/input/input_select.cpp
     src/ui/input/input_measure.cpp
     src/ui/input/input_annotate.cpp
+    src/ui/input/view_history.cpp
     src/ui/layout/layout_manager.cpp
     src/ui/figures/tab_bar.cpp
     src/ui/animation/animation_controller.cpp

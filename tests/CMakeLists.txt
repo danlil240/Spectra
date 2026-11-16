@@ -122,6 +122,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_r2_series
     test_bugfix_r2_plugin
     test_layout
+    test_subplot_layout
     test_easing
     test_ring_buffer
     test_input

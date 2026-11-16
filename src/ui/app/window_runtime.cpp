@@ -825,19 +825,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
                         pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
 
-                        float content_h = 0.0f;
-                        float min_sub_h = fs_style.min_subplot_height;
-                        float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
-
-                        const auto rects = compute_subplot_layout(pinfo.bounds.w,
-                                                                  pinfo.bounds.h,
-                                                                  fig->grid_rows_,
-                                                                  fig->grid_cols_,
-                                                                  pane_margins,
-                                                                  pinfo.bounds.x,
-                                                                  origin_y,
-                                                                  min_sub_h,
-                                                                  &content_h);
+                        const float min_sub_h = fs_style.min_subplot_height;
+                        const float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
+                        const float content_h = layout_figure(
+                            *fig,
+                            Rect{pinfo.bounds.x, origin_y, pinfo.bounds.w, pinfo.bounds.h},
+                            pane_margins,
+                            min_sub_h);
                         fig->set_content_height(content_h);
 
                         // Clamp scroll offset to valid range
@@ -846,8 +840,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             fig->set_scroll_offset_y(max_scroll);
                         if (fig->scroll_offset_y() < 0.0f)
                             fig->set_scroll_offset_y(0.0f);
-
-                        apply_subplot_layout(*fig, rects, pane_margins);
                     }
                 }
             }
@@ -864,19 +856,12 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
 
-                float content_h = 0.0f;
-                float min_sub_h = af_style.min_subplot_height;
-                float origin_y  = cb.y - active_figure->scroll_offset_y();
-
-                const auto rects = compute_subplot_layout(cb.w,
-                                                          cb.h,
-                                                          active_figure->grid_rows_,
-                                                          active_figure->grid_cols_,
-                                                          fig_margins,
-                                                          cb.x,
-                                                          origin_y,
-                                                          min_sub_h,
-                                                          &content_h);
+                const float min_sub_h = af_style.min_subplot_height;
+                const float origin_y  = cb.y - active_figure->scroll_offset_y();
+                const float content_h = layout_figure(*active_figure,
+                                                      Rect{cb.x, origin_y, cb.w, cb.h},
+                                                      fig_margins,
+                                                      min_sub_h);
                 active_figure->set_content_height(content_h);
 
                 // Clamp scroll offset to valid range
@@ -885,8 +870,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     active_figure->set_scroll_offset_y(max_scroll);
                 if (active_figure->scroll_offset_y() < 0.0f)
                     active_figure->set_scroll_offset_y(0.0f);
-
-                apply_subplot_layout(*active_figure, rects, fig_margins);
             }
         }
         else if (active_figure)

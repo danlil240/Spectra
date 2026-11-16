@@ -1093,8 +1093,12 @@ TEST(SvgExport, FittedLabelsMatchRasterHelper)
                     }
                     ASSERT_NE(t, nullptr) << prefix;
                     EXPECT_EQ(t->content, fit->text) << prefix;
-                    EXPECT_FLOAT_EQ(t->font_px,
-                                    svg_plot_label_font_px(static_cast<LabelFont>(fit->size)))
+                    // Titles shrink smoothly: the exporter writes the tier size times the scale
+                    // (rounded in the file).
+                    EXPECT_NEAR(
+                        t->font_px,
+                        svg_plot_label_font_px(static_cast<LabelFont>(fit->size)) * fit->scale,
+                        0.01f)
                         << prefix;
                 }
             }

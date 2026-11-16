@@ -508,6 +508,9 @@ TEST(StylePresetsIpc, SnapshotCarriesStyleName)
     EXPECT_FALSE(built->axes()[0]->grid_enabled());
 }
 
+// Wire value shared with the FlatBuffers schema; 32-42 belong to other changes.
+static_assert(static_cast<int>(ipc::DiffOp::Type::SET_FIGURE_STYLE) == 43);
+
 TEST(StylePresetsIpc, StyleDiffOpRoundTrip)
 {
     ipc::StateDiffPayload diff;

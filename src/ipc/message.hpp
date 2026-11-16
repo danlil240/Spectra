@@ -397,7 +397,8 @@ struct DiffOp
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
-        SET_FIGURE_STYLE      = 32,   // str_val=built-in plot style name (Figure::apply_style)
+        SET_FIGURE_STYLE =
+            43,   // (32-42: other open PRs) str_val=built-in plot style name (Figure::apply_style)
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

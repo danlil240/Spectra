@@ -30,3 +30,4 @@ class DiffOpType(object):
     SET_AXIS_SCALE = 29
     SET_LEGEND_POSITION = 30
     SET_SERIES_CATEGORIES = 31
+    SET_FIGURE_STYLE = 43

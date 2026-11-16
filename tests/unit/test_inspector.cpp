@@ -24,6 +24,26 @@
 using namespace spectra;
 using namespace spectra::ui;
 
+// ─── Figure summary counts ───────────────────────────────────────────────────
+
+TEST(FigureCounts, Include3DAxesAndTheirSeries)
+{
+    Figure             fig;
+    std::vector<float> v = {0.0f, 1.0f};
+    fig.subplot(1, 2, 1).line(v, v);
+    auto& ax3 = fig.subplot3d(1, 2, 2);
+    ax3.scatter3d(v, v, v);
+    ax3.line3d(v, v, v);
+    const FigureCounts c = figure_counts(fig);
+    EXPECT_EQ(c.axes, 2);
+    EXPECT_EQ(c.series, 3);
+
+    Figure only3d;
+    only3d.subplot3d(1, 1, 1).scatter3d(v, v, v);
+    EXPECT_EQ(figure_counts(only3d).axes, 1);
+    EXPECT_EQ(figure_counts(only3d).series, 1);
+}
+
 // ─── SelectionContext Tests ─────────────────────────────────────────────────
 
 TEST(SelectionContext, DefaultIsNone)

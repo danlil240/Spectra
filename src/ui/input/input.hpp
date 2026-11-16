@@ -55,6 +55,10 @@ struct CursorReadout
     // Pointer inside the window (screen_x/y current), even when not over an
     // axes (valid == false), e.g. over an outside-right legend.
     bool in_window = false;
+    // Over a 3D axes: data_x/y are not meaningful (no plane to map the cursor
+    // to); the status bar reads X/Y/Z from the 3D pick instead
+    // (DataInteraction::readout_3d).
+    bool over_3d = false;
 };
 
 // Box zoom selection rectangle (screen coordinates)

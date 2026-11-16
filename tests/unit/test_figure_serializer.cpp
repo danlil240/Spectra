@@ -167,3 +167,44 @@ TEST_F(FigureSerializerTest, RoundTrips3DBoxStyleAndSurfaceColormapRange)
     EXPECT_FLOAT_EQ(auto_range->colormap_min(), 2.0f);
     EXPECT_FLOAT_EQ(auto_range->colormap_max(), 5.0f);
 }
+
+TEST_F(FigureSerializerTest, RoundTrips3DDepthCueLightAndSurfaceStyle)
+{
+    Figure             src({800, 600});
+    auto&              ax = src.subplot3d(1, 1, 1);
+    std::vector<float> g  = {0.0f, 1.0f, 2.0f};
+    std::vector<float> z  = {0.0f, 1.0f, 2.0f, 1.0f, 2.0f, 3.0f, 2.0f, 3.0f, 4.0f};
+    ax.light_mode(LightMode::Headlight);
+    ax.fog(0.3f);
+    ax.scatter3d(g, g, g).depth_shade(false);
+    ax.line3d(g, g, g).depth_shade(true);
+    ax.surface(g, g, z)
+        .show_edges(true)
+        .edge_color(Color(1.0f, 0.0f, 0.0f, 0.5f))
+        .contour_projection(true)
+        .contour_levels(7);
+    ax.surface(g, g, z);   // defaults
+
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, src));
+    Figure dst({640, 480});
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst));
+    auto* a = dynamic_cast<Axes3D*>(dst.all_axes()[0].get());
+    ASSERT_NE(a, nullptr);
+    EXPECT_EQ(a->light_mode(), LightMode::Headlight);
+    EXPECT_FLOAT_EQ(a->fog(), 0.3f);
+    ASSERT_EQ(a->series().size(), 4u);
+    auto* sc = dynamic_cast<ScatterSeries3D*>(a->series()[0].get());
+    auto* ln = dynamic_cast<LineSeries3D*>(a->series()[1].get());
+    auto* sf = dynamic_cast<SurfaceSeries*>(a->series()[2].get());
+    auto* sd = dynamic_cast<SurfaceSeries*>(a->series()[3].get());
+    ASSERT_TRUE(sc && ln && sf && sd);
+    EXPECT_FALSE(sc->depth_shade());
+    EXPECT_TRUE(ln->depth_shade());
+    EXPECT_TRUE(sf->show_edges());
+    EXPECT_FLOAT_EQ(sf->edge_color().r, 1.0f);
+    EXPECT_FLOAT_EQ(sf->edge_color().a, 0.5f);
+    EXPECT_TRUE(sf->contour_projection());
+    EXPECT_EQ(sf->contour_levels(), 7);
+    EXPECT_FALSE(sd->show_edges());
+    EXPECT_FALSE(sd->contour_projection());
+}

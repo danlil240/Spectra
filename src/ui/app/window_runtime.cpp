@@ -598,6 +598,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (active_figure && data_interaction)
         {
             data_interaction->update(readout, *active_figure);
+            // Over a 3D axes the status bar shows the picked point's X/Y/Z.
+            if (readout.over_3d)
+            {
+                double     x = 0.0, y = 0.0, z = 0.0;
+                const bool picked = data_interaction->readout_3d(x, y, z);
+                imgui_ui->set_cursor_data_3d(x, y, z, picked);
+            }
         }
 
         // Feed zoom level (approximate: based on data bounds vs view)

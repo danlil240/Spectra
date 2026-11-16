@@ -253,6 +253,16 @@ class ImGuiIntegration
         cursor_data_x_     = x;
         cursor_data_y_     = y;
         cursor_data_valid_ = valid;
+        cursor_data_3d_    = false;
+    }
+    // Over a 3D axes: X/Y/Z of the picked data point (valid = something picked).
+    void set_cursor_data_3d(double x, double y, double z, bool valid)
+    {
+        cursor_data_x_     = x;
+        cursor_data_y_     = y;
+        cursor_data_z_     = z;
+        cursor_data_valid_ = valid;
+        cursor_data_3d_    = true;
     }
     void set_zoom_level(float zoom) { zoom_level_ = zoom; }
     void set_gpu_time(float ms) { gpu_time_ms_ = ms; }
@@ -807,7 +817,9 @@ class ImGuiIntegration
     // Status bar data
     double cursor_data_x_     = 0.0;
     double cursor_data_y_     = 0.0;
+    double cursor_data_z_     = 0.0;
     bool   cursor_data_valid_ = false;
+    bool   cursor_data_3d_    = false;
     float  zoom_level_        = 1.0f;
     float  gpu_time_ms_       = 0.0f;
 

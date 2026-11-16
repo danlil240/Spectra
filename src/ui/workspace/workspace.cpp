@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -175,7 +176,9 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"equal_aspect\": " << (a3.equal_aspect ? "true" : "false") << ",\n";
             os << "          \"light_dir_x\": " << a3.light_dir_x << ",\n";
             os << "          \"light_dir_y\": " << a3.light_dir_y << ",\n";
-            os << "          \"light_dir_z\": " << a3.light_dir_z << "\n";
+            os << "          \"light_dir_z\": " << a3.light_dir_z << ",\n";
+            os << "          \"light_mode\": " << a3.light_mode << ",\n";
+            os << "          \"fog\": " << a3.fog << "\n";
             os << "        }";
             if (a3i + 1 < fig.axes_3d.size())
                 os << ",";
@@ -808,6 +811,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 a3.light_dir_x = static_cast<float>(read_number_value(a3_json, "light_dir_x", 1));
                 a3.light_dir_y = static_cast<float>(read_number_value(a3_json, "light_dir_y", 1));
                 a3.light_dir_z = static_cast<float>(read_number_value(a3_json, "light_dir_z", 1));
+                a3.light_mode  = static_cast<int>(read_number_value(a3_json, "light_mode", 0));
+                a3.fog         = static_cast<float>(read_number_value(a3_json, "fog", 0));
                 fig.axes_3d.push_back(std::move(a3));
             }
         }
@@ -1101,6 +1106,8 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 a3.light_dir_x       = ld.x;
                 a3.light_dir_y       = ld.y;
                 a3.light_dir_z       = ld.z;
+                a3.light_mode        = static_cast<int>(ax3d->light_mode());
+                a3.fog               = ax3d->fog();
                 fs.axes_3d.push_back(std::move(a3));
             }
             else if (auto* ax2d = dynamic_cast<const Axes*>(ax_base))
@@ -1444,6 +1451,9 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                         ax3d->set_lighting_enabled(a3.lighting_enabled);
                         ax3d->equal_aspect(a3.equal_aspect);
                         ax3d->set_light_dir(a3.light_dir_x, a3.light_dir_y, a3.light_dir_z);
+                        ax3d->light_mode(a3.light_mode == 1 ? LightMode::Headlight
+                                                            : LightMode::Fixed);
+                        ax3d->fog(std::isfinite(a3.fog) ? a3.fog : 0.0f);
                         break;
                     }
                 }

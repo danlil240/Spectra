@@ -7,6 +7,7 @@
 #include <spectra/series.hpp>
 
 #include "ui/overlay/axes3d_pick.hpp"
+#include "ui/overlay/readout_format.hpp"
 #include "data/sorted_x_query.hpp"
 
 #if defined(SPECTRA_USE_IMGUI) && __has_include(<imgui.h>)
@@ -440,6 +441,102 @@ TEST(Axes3DPickTest, PrefersFrontmostWhenOverlapping)
     auto pick = find_nearest_3d_in_axes(axes, proj.screen_x, proj.screen_y);
     ASSERT_TRUE(pick.found);
     EXPECT_FLOAT_EQ(pick.data_z, 1.0f);
+}
+
+namespace
+{
+
+// 5 x 5 surface z = x + y over [-2, 2]^2 in a 2D-like top view.
+Axes3D& surface_axes(Axes3D& axes)
+{
+    axes.xlim(-2.0, 2.0);
+    axes.ylim(-2.0, 2.0);
+    axes.zlim(-5.0, 5.0);
+    axes.set_viewport(Rect{0.0f, 0.0f, 800.0f, 600.0f});
+    axes.camera().set_azimuth(30.0f).set_elevation(40.0f).set_distance(10.0f);
+    std::vector<float> g = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f};
+    std::vector<float> z;
+    for (float y : g)
+        for (float x : g)
+            z.push_back(x + y);
+    axes.surface(g, g, z);
+    return axes;
+}
+
+}   // namespace
+
+TEST(Axes3DPickTest, SurfaceUnderCursorSnapsToVertex)
+{
+    Axes3D axes;
+    surface_axes(axes);
+
+    // Cursor a little off the projection of vertex (1, 0, 1): the ray hits the
+    // surface next to it and the pick snaps to that grid vertex.
+    const Projected3DPoint v = project_axes3d_data_point(axes, {1.0f, 0.0f, 1.0f});
+    ASSERT_TRUE(v.visible);
+    const auto pick = find_nearest_3d_in_axes(axes, v.screen_x + 3.0f, v.screen_y - 2.0f);
+    ASSERT_TRUE(pick.found);
+    EXPECT_NE(dynamic_cast<const SurfaceSeries*>(pick.series), nullptr);
+    EXPECT_FLOAT_EQ(pick.data_x, 1.0f);
+    EXPECT_FLOAT_EQ(pick.data_y, 0.0f);
+    EXPECT_FLOAT_EQ(pick.data_z, 1.0f);
+    EXPECT_EQ(pick.point_index, 2u * 5u + 3u);   // row y = 0, column x = 1
+    EXPECT_FLOAT_EQ(pick.distance_px, 0.0f);
+}
+
+TEST(Axes3DPickTest, NoSurfaceHitOffTheSurface)
+{
+    Axes3D axes;
+    surface_axes(axes);
+    // Top-left corner of the viewport: outside the projected surface.
+    const auto pick = pick_surface_3d_in_axes(axes, 2.0f, 2.0f);
+    EXPECT_FALSE(pick.found);
+}
+
+TEST(Axes3DPickTest, MeshUnderCursorIsPicked)
+{
+    Axes3D axes;
+    axes.xlim(-1.0, 1.0);
+    axes.ylim(-1.0, 1.0);
+    axes.zlim(-1.0, 1.0);
+    axes.set_viewport(Rect{0.0f, 0.0f, 600.0f, 600.0f});
+    axes.camera().set_azimuth(20.0f).set_elevation(60.0f).set_distance(10.0f);
+    // One triangle in the z = 0.5 plane: {x, y, z, nx, ny, nz} per vertex.
+    std::vector<float> verts =
+        {-0.8f, -0.8f, 0.5f, 0, 0, 1, 0.8f, -0.8f, 0.5f, 0, 0, 1, 0.0f, 0.8f, 0.5f, 0, 0, 1};
+    std::vector<uint32_t> idx = {0, 1, 2};
+    axes.mesh(verts, idx);
+
+    const Projected3DPoint c = project_axes3d_data_point(axes, {0.0f, -0.2f, 0.5f});
+    ASSERT_TRUE(c.visible);
+    const auto pick = find_nearest_3d_in_axes(axes, c.screen_x, c.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_NE(dynamic_cast<const MeshSeries*>(pick.series), nullptr);
+    EXPECT_FLOAT_EQ(pick.data_z, 0.5f);
+}
+
+TEST(Axes3DPickTest, PointInFrontOfSurfaceWins)
+{
+    Axes3D axes;
+    surface_axes(axes);
+    // A scatter point well above the surface at (0, 0): it is in front of the
+    // surface hit under its own projection.
+    std::vector<float> xs = {0.0f}, ys = {0.0f}, zs = {4.5f};
+    axes.scatter3d(xs, ys, zs);
+    const Projected3DPoint p = project_axes3d_data_point(axes, {0.0f, 0.0f, 4.5f});
+    ASSERT_TRUE(p.visible);
+    const auto pick = find_nearest_3d_in_axes(axes, p.screen_x, p.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_NE(dynamic_cast<const ScatterSeries3D*>(pick.series), nullptr);
+    EXPECT_FLOAT_EQ(pick.data_z, 4.5f);
+}
+
+TEST(StatusCursorFormat, ShowsXYZOver3D)
+{
+    EXPECT_EQ(ui::format_status_cursor(true, false, 1.5, 2.0, 0.0), "X: 1.5000  Y: 2.0000");
+    EXPECT_EQ(ui::format_status_cursor(false, false, 0.0, 0.0, 0.0), "X: —  Y: —");
+    EXPECT_EQ(ui::format_status_cursor(true, true, 1.5, -2.0, 0.25), "X: 1.5  Y: -2  Z: 0.25");
+    EXPECT_EQ(ui::format_status_cursor(false, true, 0.0, 0.0, 0.0), "X: —  Y: —  Z: —");
 }
 
 // ─── Real DataInteraction picking on log axes ───────────────────────────────

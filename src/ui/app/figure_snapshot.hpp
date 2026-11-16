@@ -595,15 +595,20 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
         }
         else if (auto* ax3 = dynamic_cast<const Axes3D*>(base))
         {
-            sa.is_3d   = true;
-            sa.x_min   = ax3->x_limits().min;
-            sa.x_max   = ax3->x_limits().max;
-            sa.y_min   = ax3->y_limits().min;
-            sa.y_max   = ax3->y_limits().max;
-            sa.z_min   = ax3->z_limits().min;
-            sa.z_max   = ax3->z_limits().max;
-            sa.x_label = ax3->xlabel();
-            sa.y_label = ax3->ylabel();
+            sa.is_3d            = true;
+            sa.x_min            = ax3->x_limits().min;
+            sa.x_max            = ax3->x_limits().max;
+            sa.y_min            = ax3->y_limits().min;
+            sa.y_max            = ax3->y_limits().max;
+            sa.z_min            = ax3->z_limits().min;
+            sa.z_max            = ax3->z_limits().max;
+            sa.x_label          = ax3->xlabel();
+            sa.y_label          = ax3->ylabel();
+            sa.light_mode       = static_cast<uint8_t>(ax3->light_mode());
+            sa.fog              = ax3->fog();
+            sa.light_angles_set = true;
+            sa.light_azimuth    = ax3->light_azimuth();
+            sa.light_elevation  = ax3->light_elevation();
         }
         if (base)
         {
@@ -642,9 +647,20 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             else if (auto* scatter = dynamic_cast<const ScatterSeries*>(&s))
                 ss.marker_size = scatter->size();
             else if (auto* l3 = dynamic_cast<const LineSeries3D*>(&s))
-                ss.line_width = l3->width();
+            {
+                ss.line_width  = l3->width();
+                ss.depth_shade = l3->depth_shade() ? 1 : 0;
+            }
             else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
+            {
                 ss.marker_size = s3->size();
+                ss.depth_shade = s3->depth_shade() ? 1 : 0;
+            }
+            else if (auto* surf = dynamic_cast<const SurfaceSeries*>(&s))
+            {
+                ss.show_edges     = surf->show_edges();
+                ss.contour_levels = surf->contour_projection() ? surf->contour_levels() : 0;
+            }
 
             encode_snapshot_series_data(s, ss);
             if (auto* bar = dynamic_cast<const BarSeries*>(&s))

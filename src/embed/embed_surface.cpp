@@ -483,6 +483,12 @@ struct EmbedSurface::Impl
                 auto readout = input.cursor_readout();
                 imgui_ui->set_cursor_data(readout.data_x, readout.data_y, readout.valid);
                 data_interaction->update(readout, *active_fig);
+                if (readout.over_3d)
+                {
+                    double     x = 0.0, y = 0.0, z = 0.0;
+                    const bool picked = data_interaction->readout_3d(x, y, z);
+                    imgui_ui->set_cursor_data_3d(x, y, z, picked);
+                }
             }
         }
         else

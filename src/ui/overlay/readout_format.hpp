@@ -64,4 +64,22 @@ inline std::string format_compact_value(double v, double resolution = 0.0, size_
     return std::format("{:.0e}", v);
 }
 
+// Status-bar cursor readout: "X: …  Y: …" over a 2D axes, "X: …  Y: …  Z: …"
+// over a 3D one (the picked point), dashes when there is nothing to read.
+inline std::string format_status_cursor(bool valid, bool is_3d, double x, double y, double z)
+{
+    if (is_3d)
+    {
+        if (!valid)
+            return "X: —  Y: —  Z: —";
+        return std::format("X: {}  Y: {}  Z: {}",
+                           format_readout_value(x, 5),
+                           format_readout_value(y, 5),
+                           format_readout_value(z, 5));
+    }
+    if (!valid)
+        return "X: —  Y: —";
+    return std::format("X: {:.4f}  Y: {:.4f}", x, y);
+}
+
 }   // namespace spectra::ui

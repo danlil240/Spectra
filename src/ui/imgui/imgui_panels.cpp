@@ -14,6 +14,7 @@
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/input/axes_selection.hpp"
     #include "ui/overlay/live_status.hpp"
+    #include "ui/overlay/readout_format.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -982,10 +983,11 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              };
 
              {
-                 const std::string cursor_buf =
-                     cursor_data_valid_
-                         ? std::format("X: {:.4f}  Y: {:.4f}", cursor_data_x_, cursor_data_y_)
-                         : "X: —  Y: —";
+                 const std::string cursor_buf = ui::format_status_cursor(cursor_data_valid_,
+                                                                         cursor_data_3d_,
+                                                                         cursor_data_x_,
+                                                                         cursor_data_y_,
+                                                                         cursor_data_z_);
                  draw_pill(cursor_buf.c_str(),
                            colors.text_secondary,
                            colors.bg_tertiary,

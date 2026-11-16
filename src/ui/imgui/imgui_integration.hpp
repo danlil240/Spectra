@@ -219,7 +219,9 @@ class ImGuiIntegration
     // Cursor the plot area asks for this frame (set by build_ui).  Hosts that
     // have no ImGui platform backend (Qt, embed) map it to their own cursors.
     PlotCursor plot_cursor() const { return plot_cursor_; }
-    bool       is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
+    // Cursor the ImGui widgets requested this frame, as a toolkit-free value.
+    WidgetCursor widget_cursor() const;
+    bool         is_transform_dialog_open() const { return custom_transform_dialog_.is_open(); }
     // Open the custom transform dialog on the current figure, as the nav
     // rail's Transform button does (automation / design review).
     void open_transform_dialog()

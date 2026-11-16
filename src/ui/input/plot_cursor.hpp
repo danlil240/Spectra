@@ -19,6 +19,21 @@ enum class PlotCursor
     Text,        // Annotate: click places a text note
 };
 
+// Cursor a UI widget asked for this frame (splitters, text fields, links),
+// mirrored from ImGui so non-ImGui hosts (Qt) need no ImGui headers.
+enum class WidgetCursor
+{
+    Arrow,
+    TextInput,
+    ResizeAll,
+    ResizeNS,
+    ResizeEW,
+    ResizeNESW,
+    ResizeNWSE,
+    Hand,
+    NotAllowed,
+};
+
 // Cursor for @p tool.  @p over_plot: the pointer is over an axes data area
 // with no UI widget in the way.  @p panning: a pan drag is in progress, which
 // keeps the grab cursor even when the pointer leaves the axes.

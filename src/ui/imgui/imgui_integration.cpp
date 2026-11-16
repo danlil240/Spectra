@@ -191,7 +191,10 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
         crosshair_cursor_          = glfwCreateStandardCursor(GLFW_CROSSHAIR_CURSOR);
         arrow_cursor_              = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
         glfwSetErrorCallback(prev_error_cb);
+        #ifndef __EMSCRIPTEN__
+        // Emscripten's GLFW port has no glfwGetError.
         (void)glfwGetError(nullptr);
+        #endif
     }
 
     ImGui_ImplVulkan_InitInfo ii{};
@@ -1717,6 +1720,31 @@ void ImGuiIntegration::apply_modern_style()
     // Apply theme colors through ThemeManager
     if (theme_mgr_)
         theme_mgr_->apply_to_imgui();
+}
+
+WidgetCursor ImGuiIntegration::widget_cursor() const
+{
+    switch (ImGui::GetMouseCursor())
+    {
+        case ImGuiMouseCursor_TextInput:
+            return WidgetCursor::TextInput;
+        case ImGuiMouseCursor_ResizeAll:
+            return WidgetCursor::ResizeAll;
+        case ImGuiMouseCursor_ResizeNS:
+            return WidgetCursor::ResizeNS;
+        case ImGuiMouseCursor_ResizeEW:
+            return WidgetCursor::ResizeEW;
+        case ImGuiMouseCursor_ResizeNESW:
+            return WidgetCursor::ResizeNESW;
+        case ImGuiMouseCursor_ResizeNWSE:
+            return WidgetCursor::ResizeNWSE;
+        case ImGuiMouseCursor_Hand:
+            return WidgetCursor::Hand;
+        case ImGuiMouseCursor_NotAllowed:
+            return WidgetCursor::NotAllowed;
+        default:
+            return WidgetCursor::Arrow;
+    }
 }
 
 }   // namespace spectra

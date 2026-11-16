@@ -10,8 +10,6 @@
 #include "ui/theme/theme.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
-    #include <imgui.h>
-
     #include "core/figure_layout.hpp"
     #include "core/layout.hpp"
     #include "ui/imgui/imgui_integration.hpp"
@@ -38,7 +36,7 @@ namespace
 // Qt cursor for this frame: the plot cursor for the active tool, else the
 // shape an ImGui widget asked for (splitters, text fields, links).  The ImGui
 // UI runs headless here, so nothing else forwards ImGui cursors to Qt.
-Qt::CursorShape qt_cursor_for(PlotCursor plot, ImGuiMouseCursor imgui_cursor)
+Qt::CursorShape qt_cursor_for(PlotCursor plot, WidgetCursor widget)
 {
     switch (plot)
     {
@@ -53,27 +51,28 @@ Qt::CursorShape qt_cursor_for(PlotCursor plot, ImGuiMouseCursor imgui_cursor)
         case PlotCursor::Default:
             break;
     }
-    switch (imgui_cursor)
+    switch (widget)
     {
-        case ImGuiMouseCursor_TextInput:
+        case WidgetCursor::TextInput:
             return Qt::IBeamCursor;
-        case ImGuiMouseCursor_ResizeAll:
+        case WidgetCursor::ResizeAll:
             return Qt::SizeAllCursor;
-        case ImGuiMouseCursor_ResizeNS:
+        case WidgetCursor::ResizeNS:
             return Qt::SizeVerCursor;
-        case ImGuiMouseCursor_ResizeEW:
+        case WidgetCursor::ResizeEW:
             return Qt::SizeHorCursor;
-        case ImGuiMouseCursor_ResizeNESW:
+        case WidgetCursor::ResizeNESW:
             return Qt::SizeBDiagCursor;
-        case ImGuiMouseCursor_ResizeNWSE:
+        case WidgetCursor::ResizeNWSE:
             return Qt::SizeFDiagCursor;
-        case ImGuiMouseCursor_Hand:
+        case WidgetCursor::Hand:
             return Qt::PointingHandCursor;
-        case ImGuiMouseCursor_NotAllowed:
+        case WidgetCursor::NotAllowed:
             return Qt::ForbiddenCursor;
-        default:
-            return Qt::ArrowCursor;
+        case WidgetCursor::Arrow:
+            break;
     }
+    return Qt::ArrowCursor;
 }
 }   // namespace
 #endif
@@ -661,7 +660,7 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
         imgui_ui_->build_ui(figure);
 
         const Qt::CursorShape cursor =
-            qt_cursor_for(imgui_ui_->plot_cursor(), ImGui::GetMouseCursor());
+            qt_cursor_for(imgui_ui_->plot_cursor(), imgui_ui_->widget_cursor());
         if (window->cursor().shape() != cursor)
             window->setCursor(QCursor(cursor));
 

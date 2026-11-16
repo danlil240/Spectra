@@ -153,6 +153,7 @@ table SnapshotSeriesState {
     depth_shade: ubyte = 255;  // 3D depth shade 0/1, 255 = series type default
     show_edges: bool = false;  // surface edge lines over the faces
     contour_levels: int32 = 0; // surface floor contour levels, 0 = off
+    edge_color: [float];       // surface edge RGBA (4 floats), absent = default
 }
 
 table SnapshotFigureState {

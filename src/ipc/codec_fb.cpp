@@ -411,6 +411,7 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> cat_off;
     if (!s.categories.empty())
         cat_off = fbb.CreateVectorOfStrings(s.categories);
+    const auto edge_off = fbb.CreateVector(s.edge_color.data(), s.edge_color.size());
 
     fb::SnapshotSeriesStateBuilder b(fbb);
     b.add_name(name_off);
@@ -434,6 +435,7 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_depth_shade(s.depth_shade);
     b.add_show_edges(s.show_edges);
     b.add_contour_levels(s.contour_levels);
+    b.add_edge_color(edge_off);
     if (!s.data.empty())
         b.add_data(data_off);
     if (!s.categories.empty())
@@ -467,6 +469,11 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
     s.depth_shade    = fb->depth_shade();
     s.show_edges     = fb->show_edges();
     s.contour_levels = fb->contour_levels();
+    if (fb->edge_color() && fb->edge_color()->size() == 4)
+    {
+        for (flatbuffers::uoffset_t i = 0; i < 4; ++i)
+            s.edge_color[i] = fb->edge_color()->Get(i);
+    }
     if (fb->data())
     {
         s.data.reserve(fb->data()->size());

@@ -661,6 +661,8 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             {
                 ss.show_edges     = surf->show_edges();
                 ss.contour_levels = surf->contour_projection() ? surf->contour_levels() : 0;
+                const Color& ec   = surf->edge_color();
+                ss.edge_color     = {ec.r, ec.g, ec.b, ec.a};
             }
 
             encode_snapshot_series_data(s, ss);

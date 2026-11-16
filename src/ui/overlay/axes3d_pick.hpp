@@ -141,10 +141,16 @@ inline bool ray_triangle_hit(const vec3& o,
     return std::isfinite(t);
 }
 
+// Screen-space distance (px) within which a wireframe surface's grid line is
+// picked.  Wireframe cells are see-through, so their interiors never pick.
+inline constexpr float WIREFRAME_PICK_PX = 5.0f;
+
 // Nearest surface or mesh under the cursor (ray cast against its triangles,
 // clipped to the axes box).  The candidate snaps to the triangle vertex
 // nearest the hit, so the data tip shows a real data value; distance_px is 0
-// since the cursor is on the surface.
+// since the cursor is on the surface.  Wireframe surfaces pick only their grid
+// lines within WIREFRAME_PICK_PX of the cursor (frontmost line wins), so points
+// seen through an open cell stay hoverable.
 inline Nearest3DPickCandidate pick_surface_3d_in_axes(const Axes3D& axes,
                                                       float         cursor_x,
                                                       float         cursor_y)
@@ -204,26 +210,116 @@ inline Nearest3DPickCandidate pick_surface_3d_in_axes(const Axes3D& axes,
         const vec3 hit = o + d * t;
         if (!in_box(hit))
             return;
+        // Against a wireframe candidate (other series) compare screen depth.
+        const Projected3DPoint proj = project_axes3d_data_point(axes, hit);
+        const float            hd   = proj.visible ? proj.ndc_depth : 1.0f;
+        if (best.found && best.distance_px > 0.0f && !(hd < best.ndc_depth))
+            return;
         best_t = t;
         // Snap to the vertex with the largest barycentric weight.
-        const double w[3]           = {1.0 - u - v, u, v};
-        const int    k              = (w[0] >= w[1] && w[0] >= w[2]) ? 0 : (w[1] >= w[2] ? 1 : 2);
-        const vec3&  sv             = k == 0 ? a : (k == 1 ? b : c);
-        best.found                  = true;
-        best.series                 = series;
-        best.point_index            = idx[k];
-        best.data_x                 = static_cast<float>(sv.x);
-        best.data_y                 = static_cast<float>(sv.y);
-        best.data_z                 = static_cast<float>(sv.z);
-        best.distance_px            = 0.0f;
-        const Projected3DPoint proj = project_axes3d_data_point(axes, hit);
-        best.ndc_depth              = proj.visible ? proj.ndc_depth : 1.0f;
-        const Projected3DPoint sp   = project_axes3d_data_point(axes, sv);
-        best.screen_x               = sp.visible ? sp.screen_x : cursor_x;
-        best.screen_y               = sp.visible ? sp.screen_y : cursor_y;
+        const double w[3]         = {1.0 - u - v, u, v};
+        const int    k            = (w[0] >= w[1] && w[0] >= w[2]) ? 0 : (w[1] >= w[2] ? 1 : 2);
+        const vec3&  sv           = k == 0 ? a : (k == 1 ? b : c);
+        best.found                = true;
+        best.series               = series;
+        best.point_index          = idx[k];
+        best.data_x               = static_cast<float>(sv.x);
+        best.data_y               = static_cast<float>(sv.y);
+        best.data_z               = static_cast<float>(sv.z);
+        best.distance_px          = 0.0f;
+        best.ndc_depth            = hd;
+        const Projected3DPoint sp = project_axes3d_data_point(axes, sv);
+        best.screen_x             = sp.visible ? sp.screen_x : cursor_x;
+        best.screen_y             = sp.visible ? sp.screen_y : cursor_y;
     };
     auto finite3 = [](const vec3& p)
     { return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z); };
+
+    // Data space -> screen, with the MVP computed once (wireframe picking
+    // projects many grid vertices).
+    const auto& vp = axes.viewport();
+    const mat4  mvp =
+        mat4_mul(axes.projection_matrix(vp),
+                 mat4_mul(axes.camera().view_matrix(), axes.data_to_normalized_matrix()));
+    auto project = [&](const vec3& p)
+    {
+        Projected3DPoint out;
+        const double     cx = mvp.m[0] * p.x + mvp.m[4] * p.y + mvp.m[8] * p.z + mvp.m[12];
+        const double     cy = mvp.m[1] * p.x + mvp.m[5] * p.y + mvp.m[9] * p.z + mvp.m[13];
+        const double     cz = mvp.m[2] * p.x + mvp.m[6] * p.y + mvp.m[10] * p.z + mvp.m[14];
+        const double     cw = mvp.m[3] * p.x + mvp.m[7] * p.y + mvp.m[11] * p.z + mvp.m[15];
+        if (!(cw > 0.001))
+            return out;
+        out.screen_x  = static_cast<float>(vp.x + (cx / cw + 1.0) * 0.5 * vp.w);
+        out.screen_y  = static_cast<float>(vp.y + (cy / cw + 1.0) * 0.5 * vp.h);
+        out.ndc_depth = static_cast<float>(cz / cw);
+        out.visible   = true;
+        return out;
+    };
+    // One wireframe grid line p-q: picked when its projection passes within
+    // WIREFRAME_PICK_PX of the cursor inside the box; the frontmost such line
+    // wins and the candidate snaps to its nearer end.
+    auto try_wire_segment = [&](const Series*           series,
+                                const vec3&             p,
+                                const vec3&             q,
+                                const Projected3DPoint& sp,
+                                const Projected3DPoint& sq,
+                                size_t                  ip,
+                                size_t                  iq)
+    {
+        if (!sp.visible || !sq.visible)
+            return;
+        const float ex = sq.screen_x - sp.screen_x, ey = sq.screen_y - sp.screen_y;
+        const float len2 = ex * ex + ey * ey;
+        float       f    = 0.0f;
+        if (len2 > 1e-12f)
+            f = std::clamp(((cursor_x - sp.screen_x) * ex + (cursor_y - sp.screen_y) * ey) / len2,
+                           0.0f,
+                           1.0f);
+        const float dx   = sp.screen_x + f * ex - cursor_x;
+        const float dy   = sp.screen_y + f * ey - cursor_y;
+        const float dist = std::sqrt(dx * dx + dy * dy);
+        if (!(dist <= WIREFRAME_PICK_PX))
+            return;
+        const float depth = sp.ndc_depth + f * (sq.ndc_depth - sp.ndc_depth);
+        if ((best.found && !(depth < best.ndc_depth))
+            || !in_box(p + (q - p) * static_cast<double>(f)))
+            return;
+        const bool              nq  = f > 0.5f;
+        const vec3&             sv  = nq ? q : p;
+        const Projected3DPoint& svp = nq ? sq : sp;
+        best.found                  = true;
+        best.series                 = series;
+        best.point_index            = nq ? iq : ip;
+        best.data_x                 = static_cast<float>(sv.x);
+        best.data_y                 = static_cast<float>(sv.y);
+        best.data_z                 = static_cast<float>(sv.z);
+        best.distance_px            = dist;
+        best.ndc_depth              = depth;
+        best.screen_x               = svp.screen_x;
+        best.screen_y               = svp.screen_y;
+    };
+    // Screen rectangle of a data-space box, grown by the wire pick radius:
+    // false when the cursor is outside it (or the box crosses the eye plane,
+    // which is then conservatively kept).
+    auto cursor_near_box = [&](const vec3& lo, const vec3& hi)
+    {
+        float x0 = std::numeric_limits<float>::max(), y0 = x0;
+        float x1 = -x0, y1 = -x0;
+        for (int k = 0; k < 8; ++k)
+        {
+            const Projected3DPoint c =
+                project(vec3{(k & 1) ? hi.x : lo.x, (k & 2) ? hi.y : lo.y, (k & 4) ? hi.z : lo.z});
+            if (!c.visible)
+                return true;
+            x0 = std::min(x0, c.screen_x);
+            x1 = std::max(x1, c.screen_x);
+            y0 = std::min(y0, c.screen_y);
+            y1 = std::max(y1, c.screen_y);
+        }
+        return cursor_x >= x0 - WIREFRAME_PICK_PX && cursor_x <= x1 + WIREFRAME_PICK_PX
+               && cursor_y >= y0 - WIREFRAME_PICK_PX && cursor_y <= y1 + WIREFRAME_PICK_PX;
+    };
 
     for (const auto& series_ptr : axes.series())
     {
@@ -240,13 +336,81 @@ inline Nearest3DPickCandidate pick_surface_3d_in_axes(const Axes3D& axes,
                 continue;
             vec3 bmin, bmax;
             surf->get_bounds(bmin, bmax);
+            auto vtx = [&](size_t i, size_t j) { return vec3{xg[j], yg[i], zv[i * uc + j]}; };
+            constexpr size_t BLOCK = 16;
+            if (surf->wireframe())
+            {
+                // The drawn grid lines: row segments (i, j)-(i, j+1) and
+                // column segments (i, j)-(i+1, j).  Blocks whose screen
+                // footprint misses the cursor are skipped.
+                if (!cursor_near_box(bmin, bmax))
+                    continue;
+                for (size_t bi = 0; bi < ur; bi += BLOCK)
+                    for (size_t bj = 0; bj < uc; bj += BLOCK)
+                    {
+                        const size_t ie = std::min(bi + BLOCK, ur - 1);
+                        const size_t je = std::min(bj + BLOCK, uc - 1);
+                        vec3         lo{std::numeric_limits<double>::max(),
+                                std::numeric_limits<double>::max(),
+                                std::numeric_limits<double>::max()};
+                        vec3         hi  = lo * -1.0;
+                        bool         any = false;
+                        for (size_t i = bi; i <= ie; ++i)
+                            for (size_t j = bj; j <= je; ++j)
+                            {
+                                const vec3 p = vtx(i, j);
+                                if (!finite3(p))
+                                    continue;
+                                lo  = vec3_min(lo, p);
+                                hi  = vec3_max(hi, p);
+                                any = true;
+                            }
+                        if (!any || !cursor_near_box(lo, hi))
+                            continue;
+                        // Each block owns the segments starting in it.
+                        const size_t iend = std::min(bi + BLOCK, ur);
+                        const size_t jend = std::min(bj + BLOCK, uc);
+                        for (size_t i = bi; i < iend; ++i)
+                            for (size_t j = bj; j < jend; ++j)
+                            {
+                                const vec3 p = vtx(i, j);
+                                if (!finite3(p))
+                                    continue;
+                                const Projected3DPoint pp = project(p);
+                                const size_t           ip = i * uc + j;
+                                if (j + 1 < uc)
+                                {
+                                    const vec3 q = vtx(i, j + 1);
+                                    if (finite3(q))
+                                        try_wire_segment(series_ptr.get(),
+                                                         p,
+                                                         q,
+                                                         pp,
+                                                         project(q),
+                                                         ip,
+                                                         ip + 1);
+                                }
+                                if (i + 1 < ur)
+                                {
+                                    const vec3 q = vtx(i + 1, j);
+                                    if (finite3(q))
+                                        try_wire_segment(series_ptr.get(),
+                                                         p,
+                                                         q,
+                                                         pp,
+                                                         project(q),
+                                                         ip,
+                                                         ip + uc);
+                                }
+                            }
+                    }
+                continue;
+            }
             if (!ray_hits_aabb(bmin, bmax))
                 continue;
-            auto vtx = [&](size_t i, size_t j) { return vec3{xg[j], yg[i], zv[i * uc + j]}; };
             // Cells in blocks of BLOCK x BLOCK: only blocks whose bounding box
             // the ray crosses are tested triangle by triangle, so large grids
             // stay cheap to hover.
-            constexpr size_t BLOCK = 16;
             for (size_t bi = 0; bi + 1 < ur; bi += BLOCK)
                 for (size_t bj = 0; bj + 1 < uc; bj += BLOCK)
                 {

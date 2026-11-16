@@ -515,6 +515,62 @@ TEST(Axes3DPickTest, MeshUnderCursorIsPicked)
     EXPECT_FLOAT_EQ(pick.data_z, 0.5f);
 }
 
+TEST(Axes3DPickTest, WireframeSurfacePicksGridLinesNotCells)
+{
+    Axes3D axes;
+    surface_axes(axes);
+    auto* surf = dynamic_cast<SurfaceSeries*>(axes.series()[0].get());
+    ASSERT_NE(surf, nullptr);
+    surf->wireframe(true);
+
+    // The middle of an open cell is see-through: nothing to pick.
+    const Projected3DPoint cell = project_axes3d_data_point(axes, {0.5f, 0.5f, 1.0f});
+    ASSERT_TRUE(cell.visible);
+    EXPECT_FALSE(pick_surface_3d_in_axes(axes, cell.screen_x, cell.screen_y).found);
+
+    // Near a grid line (row y = 0, between x = 0 and x = 1, closer to x = 1)
+    // the line is picked and snaps to its nearer vertex.
+    const Projected3DPoint line = project_axes3d_data_point(axes, {0.7f, 0.0f, 0.7f});
+    ASSERT_TRUE(line.visible);
+    const auto pick = pick_surface_3d_in_axes(axes, line.screen_x + 1.0f, line.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.series, surf);
+    EXPECT_FLOAT_EQ(pick.data_x, 1.0f);
+    EXPECT_FLOAT_EQ(pick.data_y, 0.0f);
+    EXPECT_FLOAT_EQ(pick.data_z, 1.0f);
+    EXPECT_LE(pick.distance_px, WIREFRAME_PICK_PX);
+}
+
+TEST(Axes3DPickTest, PointSeenThroughWireframeCellWins)
+{
+    Axes3D axes;
+    surface_axes(axes);
+    auto* surf = dynamic_cast<SurfaceSeries*>(axes.series()[0].get());
+    ASSERT_NE(surf, nullptr);
+
+    // A scatter point straight behind the middle of a cell, on the cursor ray.
+    const Projected3DPoint cell = project_axes3d_data_point(axes, {0.5f, 0.5f, 1.0f});
+    ASSERT_TRUE(cell.visible);
+    vec3 o, d;
+    ASSERT_TRUE(axes3d_cursor_ray(axes, cell.screen_x, cell.screen_y, o, d));
+    const vec3         behind = vec3{0.5, 0.5, 1.0} + vec3_normalize(d) * 1.0;
+    std::vector<float> xs     = {static_cast<float>(behind.x)};
+    std::vector<float> ys     = {static_cast<float>(behind.y)};
+    std::vector<float> zs     = {static_cast<float>(behind.z)};
+    auto&              sc     = axes.scatter3d(xs, ys, zs);
+
+    // Solid: the surface hides the point.
+    auto pick = find_nearest_3d_in_axes(axes, cell.screen_x, cell.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.series, surf);
+
+    // Wireframe: the cell is open, so the point is hovered.
+    surf->wireframe(true);
+    pick = find_nearest_3d_in_axes(axes, cell.screen_x, cell.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.series, &sc);
+}
+
 TEST(Axes3DPickTest, PointInFrontOfSurfaceWins)
 {
     Axes3D axes;

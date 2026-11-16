@@ -225,6 +225,7 @@ TEST(Style3DTransport, SnapshotFieldsRoundTrip)
     ss.show_edges     = true;
     ss.contour_levels = 8;
     ss.depth_shade    = 0;
+    ss.edge_color     = {0.9f, 0.1f, 0.2f, 0.6f};
     snap.series.push_back(ss);
 
     const auto back = round_trip(snap);
@@ -238,6 +239,10 @@ TEST(Style3DTransport, SnapshotFieldsRoundTrip)
     EXPECT_TRUE(back.series[0].show_edges);
     EXPECT_EQ(back.series[0].contour_levels, 8);
     EXPECT_EQ(back.series[0].depth_shade, 0);
+    EXPECT_FLOAT_EQ(back.series[0].edge_color[0], 0.9f);
+    EXPECT_FLOAT_EQ(back.series[0].edge_color[1], 0.1f);
+    EXPECT_FLOAT_EQ(back.series[0].edge_color[2], 0.2f);
+    EXPECT_FLOAT_EQ(back.series[0].edge_color[3], 0.6f);
 
     // Defaults survive as "unset" / off.
     ipc::SnapshotFigureState plain;
@@ -297,6 +302,7 @@ TEST(Style3DTransport, DiffOpsUpdateModelAndLiveSeries)
     ipc::SnapshotSeriesState want;
     want.show_edges     = true;
     want.contour_levels = 6;
+    want.edge_color     = {1.0f, 1.0f, 1.0f, 0.5f};
     ipc::series_style_3d_to_op(want, sop);
     ipc::SnapshotSeriesState got;
     ipc::series_style_3d_from_op(round_trip(sop), got);
@@ -304,6 +310,22 @@ TEST(Style3DTransport, DiffOpsUpdateModelAndLiveSeries)
     EXPECT_TRUE(surf.show_edges());
     EXPECT_TRUE(surf.contour_projection());
     EXPECT_EQ(surf.contour_levels(), 6);
+    EXPECT_FLOAT_EQ(surf.edge_color().r, 1.0f);
+    EXPECT_FLOAT_EQ(surf.edge_color().a, 0.5f);
+
+    // The daemon keeps the edge colour and sends it with the op.
+    uint32_t sfidx = 0;
+    model.add_series_with_diff(fid, "surf", "surface", 0, sfidx);
+    auto eop = round_trip(model.update_series_style_3d(fid,
+                                                       sfidx,
+                                                       [](ipc::SnapshotSeriesState& ss)
+                                                       {
+                                                           ss.show_edges = true;
+                                                           ss.edge_color = {0.2f, 0.4f, 0.6f, 0.8f};
+                                                       }));
+    ASSERT_EQ(eop.data.size(), 4u);
+    EXPECT_FLOAT_EQ(eop.data[2], 0.6f);
+    EXPECT_FLOAT_EQ(model.snapshot().figures[0].series[sfidx].edge_color[3], 0.8f);
 }
 
 TEST(Style3DTransport, AppSnapshotCapturesAndWindowRebuilds3DStyle)
@@ -315,7 +337,11 @@ TEST(Style3DTransport, AppSnapshotCapturesAndWindowRebuilds3DStyle)
     ax.light_mode(LightMode::Headlight);
     ax.fog(0.4f);
     ax.scatter3d(v, v, v).depth_shade(false);
-    ax.surface(v, v, z).show_edges(true).contour_projection(true).contour_levels(5);
+    ax.surface(v, v, z)
+        .show_edges(true)
+        .edge_color(Color{0.8f, 0.2f, 0.1f, 0.7f})
+        .contour_projection(true)
+        .contour_levels(5);
 
     const auto snap = figure_to_snapshot(fig, 1);
     auto       win  = agent::build_figure_from_snapshot(round_trip(snap));
@@ -332,4 +358,8 @@ TEST(Style3DTransport, AppSnapshotCapturesAndWindowRebuilds3DStyle)
     EXPECT_TRUE(sf->show_edges());
     EXPECT_TRUE(sf->contour_projection());
     EXPECT_EQ(sf->contour_levels(), 5);
+    EXPECT_FLOAT_EQ(sf->edge_color().r, 0.8f);
+    EXPECT_FLOAT_EQ(sf->edge_color().g, 0.2f);
+    EXPECT_FLOAT_EQ(sf->edge_color().b, 0.1f);
+    EXPECT_FLOAT_EQ(sf->edge_color().a, 0.7f);
 }

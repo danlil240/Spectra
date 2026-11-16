@@ -10,6 +10,7 @@
 #include <spectra/series3d.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 
@@ -24,10 +25,11 @@ inline constexpr int32_t MAX_CONTOUR_LEVELS = 1000;
 
 // Snapshot / op values -> a live 3D series.  depth_shade: SERIES_STYLE_UNSET
 // keeps the type's default; show_edges / contour_levels apply to surfaces.
-inline void apply_series_style_3d(Series& s,
-                                  uint8_t depth_shade,
-                                  bool    show_edges,
-                                  int32_t contour_levels)
+inline void apply_series_style_3d(Series&                     s,
+                                  uint8_t                     depth_shade,
+                                  bool                        show_edges,
+                                  int32_t                     contour_levels,
+                                  const std::array<float, 4>& edge_color)
 {
     if (depth_shade <= 1)
     {
@@ -40,6 +42,15 @@ inline void apply_series_style_3d(Series& s,
     {
         if (surf->show_edges() != show_edges)
             surf->show_edges(show_edges);
+        bool finite = true;
+        for (float c : edge_color)
+            finite = finite && std::isfinite(c);
+        if (finite)
+        {
+            auto ch = [](float c) { return std::clamp(c, 0.0f, 1.0f); };
+            surf->edge_color(
+                Color{ch(edge_color[0]), ch(edge_color[1]), ch(edge_color[2]), ch(edge_color[3])});
+        }
         const bool contours = contour_levels > 0;
         if (surf->contour_projection() != contours)
             surf->contour_projection(contours);
@@ -50,7 +61,7 @@ inline void apply_series_style_3d(Series& s,
 
 inline void apply_series_style_3d(Series& s, const SnapshotSeriesState& ss)
 {
-    apply_series_style_3d(s, ss.depth_shade, ss.show_edges, ss.contour_levels);
+    apply_series_style_3d(s, ss.depth_shade, ss.show_edges, ss.contour_levels, ss.edge_color);
 }
 
 // SET_SERIES_STYLE_3D op fields -> snapshot fields.
@@ -61,6 +72,8 @@ inline void series_style_3d_from_op(const DiffOp& op, SnapshotSeriesState& ss)
     ss.contour_levels = (std::isfinite(op.f3) && op.f3 >= 1.0)
                             ? static_cast<int32_t>(std::min(op.f3, double{MAX_CONTOUR_LEVELS}))
                             : 0;
+    if (op.data.size() == 4)
+        std::copy(op.data.begin(), op.data.end(), ss.edge_color.begin());
 }
 
 // Snapshot / op values -> a live 3D axes.
@@ -100,6 +113,7 @@ inline void series_style_3d_to_op(const SnapshotSeriesState& ss, DiffOp& op)
     op.f1   = ss.depth_shade;
     op.f2   = ss.show_edges ? 1.0 : 0.0;
     op.f3   = ss.contour_levels;
+    op.data.assign(ss.edge_color.begin(), ss.edge_color.end());
 }
 
 }   // namespace spectra::ipc

@@ -83,11 +83,22 @@ static bool apply_property_update(FigureModel&              fig_model,
     }
     else if (property == "show_edges")
     {
-        // Surface edge lines over the faces (bool_val).
-        diff.ops.push_back(fig_model.update_series_style_3d(figure_id,
-                                                            series_index,
-                                                            [&](ipc::SnapshotSeriesState& ss)
-                                                            { ss.show_edges = bool_val; }));
+        // Surface edge lines over the faces (bool_val); optional data = edge
+        // colour RGBA (4 floats in [0, 1]).
+        if (!data.empty() && data.size() != 4)
+            return false;
+        for (float c : data)
+            if (!std::isfinite(c))
+                return false;
+        diff.ops.push_back(fig_model.update_series_style_3d(
+            figure_id,
+            series_index,
+            [&](ipc::SnapshotSeriesState& ss)
+            {
+                ss.show_edges = bool_val;
+                for (size_t i = 0; i < data.size(); ++i)
+                    ss.edge_color[i] = std::clamp(data[i], 0.0f, 1.0f);
+            }));
     }
     else if (property == "contour_projection")
     {

@@ -45,6 +45,17 @@ def test_series_3d_styles():
         s.set_contour_projection(True, 0)
 
 
+def test_surface_edge_color():
+    sess = _FakeSession()
+    s = Series(sess, 7, 0, "surface", "s")
+    s.set_show_edges(True, color=(1.0, 0.0, 0.0))
+    req = sess.requests[0]
+    assert req["prop"] == "show_edges" and req["bool_val"] is True
+    assert list(req["data"]) == pytest.approx([1.0, 0.0, 0.0, 1.0])
+    with pytest.raises(ValueError):
+        s.set_show_edges(True, color=(1.0, 0.0))
+
+
 def test_axes_3d_light():
     sess = _FakeSession()
     ax = Axes(sess, 7, 1, is_3d=True)

@@ -353,7 +353,7 @@ std::string run_fuzz_action(FuzzAction       action,
 #ifdef SPECTRA_USE_IMGUI
             automation::inject_scroll(ui_ctx, x, y, 0.0, dy);
 #endif
-            ui_ctx->input_handler.on_scroll(x, y, 0.0, dy);
+            ui_ctx->input_handler.on_scroll(0.0, dy, x, y);
             ui::log_ui_action("fuzz_scroll",
                               std::to_string(static_cast<int>(dy)),
                               "ok",

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, List, Optional, Sequence, Tuple, Union
 
 from . import _protocol as P
 from . import _codec as codec
@@ -77,11 +77,16 @@ class Axes:
         bottom: float = 0.0,
         horizontal: bool = False,
         label: str = "",
+        fill_alpha: Optional[float] = None,
+        edge_width: Optional[float] = None,
+        edge_color: Optional[Sequence[float]] = None,
     ) -> Series:
         """Add a native bar series (filled bars, legend swatch).
 
         ``x`` holds bar positions, or category names: bar ``i`` then sits at
-        x = i and the axis is labelled with the names.
+        x = i and the axis is labelled with the names.  ``fill_alpha`` (default
+        0.88), ``edge_width`` (pixels, default 1) and ``edge_color`` (RGB(A)
+        floats; default a theme-aware shade of the fill) style the bars.
         """
         names = _category_names(x)
         hv = _floats(heights)
@@ -89,7 +94,8 @@ class Axes:
         if len(xv) != len(hv):
             raise ValueError(f"x has {len(xv)} values but heights has {len(hv)}")
         data = [float(width), float(bottom), 1.0 if horizontal else 0.0, 0.0, float(len(xv))]
-        series = self._add_stats_series("bar", data + xv + hv, label)
+        style = _stat_style(fill_alpha, edge_width, edge_color)
+        series = self._add_stats_series("bar", data + xv + hv + style, label)
         if names is not None:
             series._set_categories(names)
         return series
@@ -101,13 +107,21 @@ class Axes:
         density: bool = False,
         cumulative: bool = False,
         label: str = "",
+        fill_alpha: Optional[float] = None,
+        edge_width: Optional[float] = None,
+        edge_color: Optional[Sequence[float]] = None,
     ) -> Series:
-        """Add a native histogram; the bins are computed by the renderer."""
+        """Add a native histogram; the bins are computed by the renderer.
+
+        ``fill_alpha``, ``edge_width`` and ``edge_color`` style the bins as in
+        :meth:`bar`.
+        """
         vals = [v for v in _floats(values) if math.isfinite(v)]
         nbins = max(1, int(bins))
         data = [float(nbins), 1.0 if cumulative else 0.0, 1.0 if density else 0.0, 0.0,
                 float(len(vals))]
-        return self._add_stats_series("histogram", data + vals, label)
+        style = _stat_style(fill_alpha, edge_width, edge_color)
+        return self._add_stats_series("histogram", data + vals + style, label)
 
     def band(
         self,
@@ -496,6 +510,32 @@ def scale_to_wire(scale: str) -> int:
     if key not in _SCALES:
         raise ValueError(f"unknown scale {scale!r}; expected one of {sorted(_SCALES)}")
     return _SCALES[key]
+
+
+# Fill-style trailer of bar / histogram payloads (src/ui/app/figure_snapshot.hpp).
+_STAT_STYLE_TAG = 21332.0
+STAT_DEFAULT_FILL_ALPHA = 0.88
+STAT_DEFAULT_EDGE_WIDTH = 1.0
+
+
+def _stat_style(fill_alpha: Optional[float], edge_width: Optional[float],
+                edge_color: Optional[Sequence[float]]) -> List[float]:
+    """Payload trailer for a non-default fill style ([] keeps the defaults)."""
+    if fill_alpha is None and edge_width is None and edge_color is None:
+        return []
+    a = STAT_DEFAULT_FILL_ALPHA if fill_alpha is None else float(fill_alpha)
+    w = STAT_DEFAULT_EDGE_WIDTH if edge_width is None else float(edge_width)
+    if not (math.isfinite(a) and 0.0 <= a <= 1.0):
+        raise ValueError(f"fill_alpha must be in [0, 1], got {fill_alpha!r}")
+    if not (math.isfinite(w) and w >= 0.0):
+        raise ValueError(f"edge_width must be >= 0, got {edge_width!r}")
+    rgba = [0.0, 0.0, 0.0, 1.0]
+    if edge_color is not None:
+        c = [float(v) for v in edge_color]
+        if len(c) not in (3, 4) or not all(0.0 <= v <= 1.0 for v in c):
+            raise ValueError(f"edge_color must be 3 or 4 floats in [0, 1], got {edge_color!r}")
+        rgba = c + [1.0] if len(c) == 3 else c
+    return [_STAT_STYLE_TAG, a, w, 1.0 if edge_color is not None else 0.0] + rgba
 
 
 def _floats(data) -> List[float]:

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <span>
 #include <spectra/color.hpp>
 #include <spectra/fwd.hpp>
@@ -98,6 +99,29 @@ class BandSeries : public Series
     bool               show_edges_   = true;
 };
 
+// ─── Stat fill style ────────────────────────────────────────────────────────
+// Fill and outline style shared by bars, histograms, box plots and violins:
+// a flat fill in the series colour at `fill_alpha` with a thin outline.  An
+// unset `edge_color` draws the outline in a shade of the fill picked for
+// contrast with the plot background (darker on light themes, lighter on dark
+// ones).
+
+inline constexpr float STAT_DEFAULT_FILL_ALPHA = 0.88f;
+inline constexpr float STAT_DEFAULT_EDGE_WIDTH = 1.0f;
+
+struct StatFillStyle
+{
+    float                fill_alpha = STAT_DEFAULT_FILL_ALPHA;   // 0..1, times the series alpha
+    float                edge_width = STAT_DEFAULT_EDGE_WIDTH;   // pixels, 0 hides the outline
+    std::optional<Color> edge_color;                             // unset: theme-aware shade
+
+    static float sanitize_alpha(float a)
+    {
+        return std::isfinite(a) ? std::clamp(a, 0.0f, 1.0f) : 1.0f;
+    }
+    static float sanitize_width(float w) { return std::isfinite(w) ? std::max(w, 0.0f) : 0.0f; }
+};
+
 // ─── Box Plot Series ────────────────────────────────────────────────────────
 // Renders one or more box-and-whisker plots.
 // Each box is defined by a dataset; statistics (median, Q1, Q3, whiskers,
@@ -166,16 +190,19 @@ class BoxPlotSeries : public Series
     }
     bool notched() const { return notched_; }
 
-    // Access outline geometry (line segments with NaN breaks)
+    // Access outline geometry (line segments with NaN breaks).  The median
+    // segments come last, from median_first_point() on, so the renderer can
+    // draw them in a contrasting colour.
     std::span<const float> x_data() const { return line_x_; }
     std::span<const float> y_data() const { return line_y_; }
     size_t                 point_count() const { return line_x_.size(); }
+    size_t                 median_first_point() const { return median_first_point_; }
 
     // Access fill geometry (interleaved x,y,alpha per vertex)
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
-    // Enable/disable horizontal gradient on fills
+    // Opt-in horizontal gradient on fills (off by default: flat fills)
     BoxPlotSeries& gradient(bool g)
     {
         gradient_ = g;
@@ -184,6 +211,41 @@ class BoxPlotSeries : public Series
         return *this;
     }
     bool gradient() const { return gradient_; }
+
+    // ── Fill / outline style (see StatFillStyle) ──
+    // Fill opacity, multiplied with the series colour alpha. Default: 0.88
+    BoxPlotSeries& fill_alpha(float a)
+    {
+        style_.fill_alpha = StatFillStyle::sanitize_alpha(a);
+        dirty_            = true;
+        return *this;
+    }
+    float fill_alpha() const { return style_.fill_alpha; }
+
+    // Outline width in pixels; 0 hides the outline. Default: 1
+    BoxPlotSeries& edge_width(float w)
+    {
+        style_.edge_width = StatFillStyle::sanitize_width(w);
+        dirty_            = true;
+        return *this;
+    }
+    float edge_width() const { return style_.edge_width; }
+
+    // Outline colour; std::nullopt (default) uses a theme-aware shade of the fill.
+    BoxPlotSeries& edge_color(std::optional<Color> c)
+    {
+        style_.edge_color = c;
+        dirty_            = true;
+        return *this;
+    }
+    std::optional<Color> edge_color() const { return style_.edge_color; }
+
+    const StatFillStyle& fill_style() const { return style_; }
+    BoxPlotSeries&       fill_style(const StatFillStyle& st)
+    {
+        fill_alpha(st.fill_alpha).edge_width(st.edge_width).edge_color(st.edge_color);
+        return *this;
+    }
 
     // Access outlier points (scatter rendering)
     std::span<const float> outlier_x() const { return outlier_x_; }
@@ -226,7 +288,9 @@ class BoxPlotSeries : public Series
     float                     box_width_     = 0.6f;
     bool                      show_outliers_ = true;
     bool                      notched_       = false;
-    bool                      gradient_      = true;
+    bool                      gradient_      = false;
+    StatFillStyle             style_;
+    size_t                    median_first_point_ = 0;
 
     // Generated geometry
     std::vector<float> line_x_;
@@ -286,7 +350,7 @@ class ViolinSeries : public Series
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
-    // Enable/disable horizontal gradient on fills
+    // Opt-in horizontal gradient on fills (off by default: flat fills)
     ViolinSeries& gradient(bool g)
     {
         gradient_ = g;
@@ -295,6 +359,41 @@ class ViolinSeries : public Series
         return *this;
     }
     bool gradient() const { return gradient_; }
+
+    // ── Fill / outline style (see StatFillStyle) ──
+    // Fill opacity, multiplied with the series colour alpha. Default: 0.88
+    ViolinSeries& fill_alpha(float a)
+    {
+        style_.fill_alpha = StatFillStyle::sanitize_alpha(a);
+        dirty_            = true;
+        return *this;
+    }
+    float fill_alpha() const { return style_.fill_alpha; }
+
+    // Outline width in pixels; 0 hides the outline. Default: 1
+    ViolinSeries& edge_width(float w)
+    {
+        style_.edge_width = StatFillStyle::sanitize_width(w);
+        dirty_            = true;
+        return *this;
+    }
+    float edge_width() const { return style_.edge_width; }
+
+    // Outline colour; std::nullopt (default) uses a theme-aware shade of the fill.
+    ViolinSeries& edge_color(std::optional<Color> c)
+    {
+        style_.edge_color = c;
+        dirty_            = true;
+        return *this;
+    }
+    std::optional<Color> edge_color() const { return style_.edge_color; }
+
+    const StatFillStyle& fill_style() const { return style_; }
+    ViolinSeries&        fill_style(const StatFillStyle& st)
+    {
+        fill_alpha(st.fill_alpha).edge_width(st.edge_width).edge_color(st.edge_color);
+        return *this;
+    }
 
     // Fluent setters
     using Series::color;
@@ -331,7 +430,8 @@ class ViolinSeries : public Series
     float                   violin_width_ = 0.8f;
     int                     resolution_   = 50;
     bool                    show_box_     = true;
-    bool                    gradient_     = true;
+    bool                    gradient_     = false;
+    StatFillStyle           style_;
 
     // Generated geometry
     std::vector<float> line_x_;
@@ -393,7 +493,7 @@ class HistogramSeries : public Series
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
-    // Enable/disable horizontal gradient on fills
+    // Opt-in horizontal gradient on fills (off by default: flat fills)
     HistogramSeries& gradient(bool g)
     {
         gradient_ = g;
@@ -402,6 +502,41 @@ class HistogramSeries : public Series
         return *this;
     }
     bool gradient() const { return gradient_; }
+
+    // ── Fill / outline style (see StatFillStyle) ──
+    // Fill opacity, multiplied with the series colour alpha. Default: 0.88
+    HistogramSeries& fill_alpha(float a)
+    {
+        style_.fill_alpha = StatFillStyle::sanitize_alpha(a);
+        dirty_            = true;
+        return *this;
+    }
+    float fill_alpha() const { return style_.fill_alpha; }
+
+    // Outline width in pixels; 0 hides the outline. Default: 1
+    HistogramSeries& edge_width(float w)
+    {
+        style_.edge_width = StatFillStyle::sanitize_width(w);
+        dirty_            = true;
+        return *this;
+    }
+    float edge_width() const { return style_.edge_width; }
+
+    // Outline colour; std::nullopt (default) uses a theme-aware shade of the fill.
+    HistogramSeries& edge_color(std::optional<Color> c)
+    {
+        style_.edge_color = c;
+        dirty_            = true;
+        return *this;
+    }
+    std::optional<Color> edge_color() const { return style_.edge_color; }
+
+    const StatFillStyle& fill_style() const { return style_; }
+    HistogramSeries&     fill_style(const StatFillStyle& st)
+    {
+        fill_alpha(st.fill_alpha).edge_width(st.edge_width).edge_color(st.edge_color);
+        return *this;
+    }
 
     // Access bin edges and counts
     const std::vector<float>& bin_edges() const { return bin_edges_; }
@@ -437,7 +572,8 @@ class HistogramSeries : public Series
     int                bins_       = 30;
     bool               cumulative_ = false;
     bool               density_    = false;
-    bool               gradient_   = true;
+    bool               gradient_   = false;
+    StatFillStyle      style_;
 
     // Computed
     std::vector<float> bin_edges_;
@@ -506,8 +642,8 @@ class BarSeries : public Series
     std::span<const float> fill_verts() const { return fill_verts_; }
     size_t                 fill_vertex_count() const { return fill_verts_.size() / 3; }
 
-    // Enable/disable the fill gradient across the bar thickness (left to right on
-    // vertical bars, top to bottom on horizontal bars)
+    // Opt-in fill gradient across the bar thickness (left to right on vertical
+    // bars, top to bottom on horizontal bars).  Off by default: flat fills.
     BarSeries& gradient(bool g)
     {
         gradient_ = g;
@@ -516,6 +652,41 @@ class BarSeries : public Series
         return *this;
     }
     bool gradient() const { return gradient_; }
+
+    // ── Fill / outline style (see StatFillStyle) ──
+    // Fill opacity, multiplied with the series colour alpha. Default: 0.88
+    BarSeries& fill_alpha(float a)
+    {
+        style_.fill_alpha = StatFillStyle::sanitize_alpha(a);
+        dirty_            = true;
+        return *this;
+    }
+    float fill_alpha() const { return style_.fill_alpha; }
+
+    // Outline width in pixels; 0 hides the outline. Default: 1
+    BarSeries& edge_width(float w)
+    {
+        style_.edge_width = StatFillStyle::sanitize_width(w);
+        dirty_            = true;
+        return *this;
+    }
+    float edge_width() const { return style_.edge_width; }
+
+    // Outline colour; std::nullopt (default) uses a theme-aware shade of the fill.
+    BarSeries& edge_color(std::optional<Color> c)
+    {
+        style_.edge_color = c;
+        dirty_            = true;
+        return *this;
+    }
+    std::optional<Color> edge_color() const { return style_.edge_color; }
+
+    const StatFillStyle& fill_style() const { return style_; }
+    BarSeries&           fill_style(const StatFillStyle& st)
+    {
+        fill_alpha(st.fill_alpha).edge_width(st.edge_width).edge_color(st.edge_color);
+        return *this;
+    }
 
     // Access raw positions/heights
     const std::vector<float>& bar_positions() const { return positions_; }
@@ -559,7 +730,8 @@ class BarSeries : public Series
     float                    bar_width_   = 0.8f;
     float                    baseline_    = 0.0f;
     BarOrientation           orientation_ = BarOrientation::Vertical;
-    bool                     gradient_    = true;
+    bool                     gradient_    = false;
+    StatFillStyle            style_;
 
     // Generated geometry
     std::vector<float> line_x_;

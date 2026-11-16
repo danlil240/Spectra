@@ -34,6 +34,8 @@
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
+    #include "../data_sidebar/builtin_providers.hpp"
+    #include "../data_sidebar/data_sidebar.hpp"
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
     #include "../workspace/layout_session.hpp"
@@ -617,6 +619,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_axes_context_menu(figure);
         draw_topic_drop_target(figure);
         draw_log_field_drop_target(figure);
+        draw_data_field_drop_target(figure);
     }
     if (canvas_visible_)
     {
@@ -1383,6 +1386,9 @@ void ImGuiIntegration::load_csv_into_dialog(const std::string& path)
     csv_col_z_ = -1;
     // Opened on failure too: the picker shows csv_error_ and disables "Plot".
     csv_dialog_open_ = true;
+    // Loaded files stay browsable in the Data sidebar.
+    if (csv_data_loaded_ && data_sidebar_ && data_sidebar_->csv_provider())
+        data_sidebar_->csv_provider()->add_file(csv_file_path_, csv_data_);
 }
 
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)

@@ -61,6 +61,10 @@ namespace logs
 {
 class LogBrowserPanel;
 }
+namespace data_sidebar
+{
+class DataSidebar;
+}
 namespace settings
 {
 class SettingsPanel;
@@ -376,6 +380,10 @@ class ImGuiIntegration
     void set_log_browser_panel(ui::logs::LogBrowserPanel* p) { log_browser_panel_ = p; }
     ui::logs::LogBrowserPanel* log_browser_panel() const { return log_browser_panel_; }
 
+    // Docked Data sidebar (owned by WindowUIContext; drawn by the "core.data" shell panel).
+    void set_data_sidebar(ui::data_sidebar::DataSidebar* s) { data_sidebar_ = s; }
+    ui::data_sidebar::DataSidebar* data_sidebar() const { return data_sidebar_; }
+
     // Native "Open Log" dialog (File > Open Log...); opens the chosen file in
     // the log browser.  No-op without a log browser or native dialogs.
     void open_log_with_dialog();
@@ -439,6 +447,8 @@ class ImGuiIntegration
     // Several files dropped at once are queued and opened one after another: the next
     // one is loaded once the column picker of the previous one is closed.
     void request_csv_load(const std::string& path) { pending_csv_loads_.push_back(path); }
+    // Show the "Open CSV" file dialog on the next build_ui() call.
+    void request_open_csv_dialog() { pending_open_csv_ = true; }
 
     // CSV column picker state (read by tests and automation).
     bool               csv_dialog_open() const { return csv_dialog_open_; }
@@ -673,6 +683,8 @@ class ImGuiIntegration
     void draw_topic_drop_target_welcome();
     void draw_log_field_drop_target(Figure& figure);
     void draw_log_field_drop_target_welcome();
+    // Data sidebar fields without a native drop target (DATA_FIELD_DRAG_TYPE).
+    void draw_data_field_drop_target(Figure& figure);
     // Invisible canvas-wide drop overlay shared by the topic and log-field
     // drop targets: highlights the axes under the mouse while a `payload_type`
     // payload is dragged and calls `on_drop(payload, axes_index)` on release
@@ -843,7 +855,8 @@ class ImGuiIntegration
     LayoutSession*           layout_session_ = nullptr;
 
     // Log browser panel — not owned.
-    ui::logs::LogBrowserPanel* log_browser_panel_ = nullptr;
+    ui::logs::LogBrowserPanel*     log_browser_panel_ = nullptr;
+    ui::data_sidebar::DataSidebar* data_sidebar_      = nullptr;
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;

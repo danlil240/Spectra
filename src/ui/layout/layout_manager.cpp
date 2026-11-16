@@ -86,6 +86,16 @@ void LayoutManager::fit_to_window()
     const float space      = window_width_ - nav_rail_fit_target_ - WINDOW_MIN_CANVAS_WIDTH;
     inspector_auto_hidden_ = space < INSPECTOR_MIN_FIT_WIDTH;
     inspector_fit_width_   = inspector_auto_hidden_ ? 0.0f : std::min(inspector_width_, space);
+
+    // 4. The left panel (Data sidebar) takes what is left after the inspector; it
+    //    hides rather than squeezing the canvas below the minimum.
+    left_fit_width_ = 0.0f;
+    if (left_panel_visible_)
+    {
+        const float left_space = space - inspector_fit_width_;
+        if (left_space >= LEFT_PANEL_MIN_FIT_WIDTH)
+            left_fit_width_ = std::min(left_panel_width_, left_space);
+    }
 }
 
 void LayoutManager::update(float window_width, float window_height, float dt)
@@ -122,6 +132,7 @@ void LayoutManager::compute_zones()
     command_bar_rect_ = compute_command_bar();
     nav_rail_rect_    = compute_nav_rail();
     inspector_rect_   = compute_inspector();
+    left_panel_rect_  = compute_left_panel();
     status_bar_rect_  = compute_status_bar();
     tab_bar_rect_     = compute_tab_bar();
     workspace_rect_   = compute_workspace();
@@ -152,6 +163,17 @@ Rect LayoutManager::compute_inspector() const
                 std::max(0.0f, content_h)};
 }
 
+Rect LayoutManager::compute_left_panel() const
+{
+    const float content_h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT;
+    if (left_fit_width_ < 1.0f)
+        return Rect{nav_rail_anim_width_, COMMAND_BAR_HEIGHT, 0.0f, 0.0f};
+    return Rect{nav_rail_anim_width_,
+                COMMAND_BAR_HEIGHT,
+                left_fit_width_,
+                std::max(0.0f, content_h)};
+}
+
 Rect LayoutManager::compute_status_bar() const
 {
     return Rect{0.0f, window_height_ - STATUS_BAR_HEIGHT, window_width_, STATUS_BAR_HEIGHT};
@@ -163,7 +185,7 @@ Rect LayoutManager::compute_tab_bar() const
     {
         return Rect{0.0f, 0.0f, 0.0f, 0.0f};
     }
-    float x = nav_rail_anim_width_ + PLOT_LEFT_MARGIN;
+    float x = nav_rail_anim_width_ + left_fit_width_ + PLOT_LEFT_MARGIN;
     float w = window_width_ - x - inspector_anim_width_;
     return Rect{x, COMMAND_BAR_HEIGHT, std::max(0.0f, w), TAB_BAR_HEIGHT};
 }
@@ -175,8 +197,8 @@ Rect LayoutManager::workspace_rect() const
 
 Rect LayoutManager::compute_workspace() const
 {
-    float x = nav_rail_anim_width_;
-    float w = window_width_ - nav_rail_anim_width_ - inspector_anim_width_;
+    float x = nav_rail_anim_width_ + left_fit_width_;
+    float w = window_width_ - x - inspector_anim_width_;
     float y = COMMAND_BAR_HEIGHT;
 
     float h = window_height_ - COMMAND_BAR_HEIGHT - STATUS_BAR_HEIGHT - bottom_panel_height_;
@@ -214,6 +236,10 @@ Rect LayoutManager::canvas_rect() const
 Rect LayoutManager::inspector_rect() const
 {
     return inspector_rect_;
+}
+Rect LayoutManager::left_panel_rect() const
+{
+    return left_panel_rect_;
 }
 Rect LayoutManager::status_bar_rect() const
 {
@@ -264,6 +290,20 @@ void LayoutManager::set_inspector_width(float width)
         inspector_anim_width_ = inspector_fit_width_;
         compute_zones();
     }
+}
+
+void LayoutManager::set_left_panel_visible(bool visible)
+{
+    left_panel_visible_ = visible;
+    fit_to_window();
+    compute_zones();
+}
+
+void LayoutManager::set_left_panel_width(float width)
+{
+    left_panel_width_ = std::clamp(width, LEFT_PANEL_MIN_WIDTH, LEFT_PANEL_MAX_WIDTH);
+    fit_to_window();
+    compute_zones();
 }
 
 void LayoutManager::reset_inspector_width()

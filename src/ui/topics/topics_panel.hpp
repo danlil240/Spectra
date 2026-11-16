@@ -105,6 +105,20 @@ class TopicsPanel
     // Names of the topics in the latest list.  Safe to call from any thread.
     std::vector<std::string> topic_names() const;
 
+    // Copy of the latest topic list.  Safe to call from any thread.
+    std::vector<ipc::TopicInfoEntry> topics() const;
+
+    // Ask the transport for a fresh list (at most once a second unless
+    // `force`), as the open panel does.  Lets other views (the Data sidebar)
+    // keep the list current while this panel is hidden.  UI thread.
+    void request_list(bool force = false);
+
+    // Rows of the "Data sources" section (empty if not wired).  UI thread.
+    std::vector<DataSourceRow> data_sources() const
+    {
+        return data_source_list_cb_ ? data_source_list_cb_() : std::vector<DataSourceRow>{};
+    }
+
     // ─── UI state ────────────────────────────────────────────────────────
 
     bool is_visible() const { return visible_; }

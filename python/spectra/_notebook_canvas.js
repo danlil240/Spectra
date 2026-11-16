@@ -5,12 +5,53 @@
 // flight at a time and the next goes out when the kernel acks, so a busy
 // kernel never accumulates a backlog. Consecutive moves and wheel ticks are
 // merged while a batch is in flight.
+//
+// Also: a small toolbar (Home = reset view, Save = download PNG), the data
+// coordinates under the pointer, drag-to-resize height, and the notebook's
+// light/dark theme reported to the kernel so the plot matches it.
 
 // KeyboardEvent.key -> GLFW key code, for the keys the plot reacts to.
 const KEYS = { r: 82, R: 82, a: 65, A: 65, g: 71, G: 71, Escape: 256 };
 
 function mods(e) {
   return (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
+}
+
+// True / false when the notebook's theme is known to be dark / light, null
+// when it cannot be told. JupyterLab and Notebook 7 set data-jp-theme-light on
+// <body>; VS Code sets vscode-dark / vscode-light classes; Colab sets
+// theme="dark" on <html>. Otherwise use the background behind the output.
+function notebookIsDark(el) {
+  const body = document.body;
+  const jp = body && body.dataset ? body.dataset.jpThemeLight : undefined;
+  if (jp === "true") return false;
+  if (jp === "false") return true;
+  if (body && body.classList) {
+    if (body.classList.contains("vscode-dark") || body.classList.contains("vscode-high-contrast"))
+      return true;
+    if (body.classList.contains("vscode-light")) return false;
+  }
+  const htmlTheme = document.documentElement.getAttribute("theme");
+  if (htmlTheme === "dark") return true;
+  if (htmlTheme === "light") return false;
+  for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    const m = /rgba?\(([^)]+)\)/.exec(getComputedStyle(node).backgroundColor || "");
+    if (!m) continue;
+    const [r, g, b, a = 1] = m[1].split(",").map(Number);
+    if (a === 0) continue;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
+  }
+  return null;
+}
+
+function button(cls, title, text) {
+  const b = document.createElement("button");
+  b.className = `spectra-canvas-btn ${cls}`;
+  b.type = "button";
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  b.textContent = text;
+  return b;
 }
 
 function render({ model, el }) {
@@ -21,12 +62,14 @@ function render({ model, el }) {
   const img = document.createElement("img");
   img.draggable = false;
   img.alt = "Spectra plot";
-  const reset = document.createElement("button");
-  reset.className = "spectra-canvas-reset";
-  reset.type = "button";
-  reset.title = "Reset view (R)";
-  reset.textContent = "↺";
-  root.append(img, reset);
+  const toolbar = document.createElement("div");
+  toolbar.className = "spectra-canvas-toolbar";
+  const home = button("spectra-canvas-home", "Reset view (R)", "⌂");
+  const save = button("spectra-canvas-save", "Save as PNG", "⤓");
+  toolbar.append(home, save);
+  const readout = document.createElement("div");
+  readout.className = "spectra-canvas-readout";
+  root.append(img, toolbar, readout);
   el.appendChild(root);
 
   // ── Frames ────────────────────────────────────────────────────────────
@@ -41,6 +84,14 @@ function render({ model, el }) {
       if (prev) URL.revokeObjectURL(prev);
     };
     img.src = next;
+  }
+  function showReadout() {
+    const text = model.get("readout") || "";
+    readout.textContent = text;
+    readout.style.display = text ? "" : "none";
+  }
+  function applyDark() {
+    root.classList.toggle("spectra-dark", !!model.get("dark"));
   }
 
   // ── Event batching with flow control ─────────────────────────────────
@@ -63,7 +114,7 @@ function render({ model, el }) {
 
   function push(ev) {
     const last = pending[pending.length - 1];
-    if (last && last.t === ev.t && (ev.t === "move" || ev.t === "resize")) {
+    if (last && last.t === ev.t && (ev.t === "move" || ev.t === "resize" || ev.t === "leave")) {
       pending[pending.length - 1] = ev;
     } else if (last && ev.t === "wheel" && last.t === "wheel" && last.mode === ev.mode) {
       last.dx += ev.dx;
@@ -76,11 +127,25 @@ function render({ model, el }) {
     flush();
   }
 
-  function onMsg(msg) {
-    if (msg && msg.type === "ack") {
+  function download(buffer, name) {
+    const href = URL.createObjectURL(new Blob([buffer], { type: "image/png" }));
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = name || "spectra.png";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  }
+
+  function onMsg(msg, buffers) {
+    if (!msg) return;
+    if (msg.type === "ack") {
       inflight = false;
       clearTimeout(watchdog);
       flush();
+    } else if (msg.type === "png" && buffers && buffers.length) {
+      download(buffers[0], msg.name);
     }
   }
 
@@ -91,7 +156,6 @@ function render({ model, el }) {
 
   // ── Pointer, wheel and keyboard ──────────────────────────────────────
   function onPointerDown(e) {
-    if (e.target === reset) return;
     root.focus({ preventScroll: true });
     img.setPointerCapture(e.pointerId);
     push({ t: "down", b: e.button, m: mods(e), ...pos(e) });
@@ -103,6 +167,9 @@ function render({ model, el }) {
   }
   function onPointerMove(e) {
     push({ t: "move", ...pos(e) });
+  }
+  function onPointerLeave() {
+    push({ t: "leave" });
   }
   function onWheel(e) {
     e.preventDefault(); // zoom the plot, not the notebook
@@ -119,9 +186,13 @@ function render({ model, el }) {
     e.preventDefault();
     e.stopPropagation(); // keep Jupyter's command-mode shortcuts out of it
   }
-  const onReset = (e) => {
+  const onHome = (e) => {
     e.stopPropagation();
     key(KEYS.r, 0);
+  };
+  const onSave = (e) => {
+    e.stopPropagation();
+    model.send({ type: "save" });
   };
   const onDblClick = () => key(KEYS.r, 0);
   const noMenu = (e) => e.preventDefault();
@@ -130,41 +201,94 @@ function render({ model, el }) {
   img.addEventListener("pointerup", onPointerUp);
   img.addEventListener("pointercancel", onPointerUp);
   img.addEventListener("pointermove", onPointerMove);
+  img.addEventListener("pointerleave", onPointerLeave);
   img.addEventListener("wheel", onWheel, { passive: false });
   img.addEventListener("dblclick", onDblClick);
   img.addEventListener("contextmenu", noMenu);
   root.addEventListener("keydown", onKeyDown);
-  reset.addEventListener("click", onReset);
+  home.addEventListener("click", onHome);
+  save.addEventListener("click", onSave);
 
-  // ── Size: follow the output width at the device pixel ratio ─────────
+  // ── Size: follow the output width; the user may drag the height ──────
+  // The kernel renders at devicePixelRatio x this CSS size and the <img>
+  // shows it at CSS size, so the plot stays sharp on HiDPI screens.
   let resizeTimer = null;
   function sendSize() {
     const w = root.clientWidth;
-    const h = model.get("height");
+    const h = root.clientHeight || model.get("height");
     if (w > 0 && h > 0) push({ t: "resize", w, h, dpr: window.devicePixelRatio || 1 });
   }
   function applyHeight() {
     root.style.height = `${model.get("height")}px`;
     sendSize();
   }
+  function onResized() {
+    // Dragging the resize handle changes the height: keep the model in step
+    // so the new size survives a re-display.
+    const h = Math.round(root.clientHeight);
+    if (h > 0 && h !== model.get("height")) {
+      model.set("height", h);
+      model.save_changes();
+    }
+    sendSize();
+  }
   const observer = new ResizeObserver(() => {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(sendSize, 100);
+    resizeTimer = setTimeout(onResized, 100);
   });
   observer.observe(root);
 
+  // devicePixelRatio changes with browser zoom or when the window moves to
+  // another screen: render again at the new ratio.
+  let dprQuery = null;
+  function onDprChange() {
+    watchDpr();
+    sendSize();
+  }
+  function watchDpr() {
+    if (dprQuery) dprQuery.removeEventListener("change", onDprChange);
+    dprQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+    dprQuery.addEventListener("change", onDprChange);
+  }
+  watchDpr();
+
+  // ── Theme: tell the kernel whether the notebook is dark ─────────────
+  let lastDark = null;
+  function sendTheme() {
+    const dark = notebookIsDark(el);
+    if (dark === null || dark === lastDark) return;
+    lastDark = dark;
+    model.send({ type: "theme", dark });
+  }
+  const themeObserver = new MutationObserver(sendTheme);
+  themeObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["data-jp-theme-light", "class"],
+  });
+  // Styles apply once the output is attached: check on the next frame.
+  const themeFrame = requestAnimationFrame(sendTheme);
+
   model.on("change:frame", showFrame);
   model.on("change:height", applyHeight);
+  model.on("change:readout", showReadout);
+  model.on("change:dark", applyDark);
   model.on("msg:custom", onMsg);
   applyHeight();
   showFrame();
+  showReadout();
+  applyDark();
 
   return () => {
     observer.disconnect();
+    themeObserver.disconnect();
+    cancelAnimationFrame(themeFrame);
+    if (dprQuery) dprQuery.removeEventListener("change", onDprChange);
     clearTimeout(resizeTimer);
     clearTimeout(watchdog);
     model.off("change:frame", showFrame);
     model.off("change:height", applyHeight);
+    model.off("change:readout", showReadout);
+    model.off("change:dark", applyDark);
     model.off("msg:custom", onMsg);
     if (url) URL.revokeObjectURL(url);
   };

@@ -61,6 +61,10 @@ namespace logs
 {
 class LogBrowserPanel;
 }
+namespace data_sidebar
+{
+class DataSidebar;
+}
 namespace settings
 {
 class SettingsPanel;
@@ -295,6 +299,18 @@ class ImGuiIntegration
         input_handler_ = ih;
         if (ih)
             ih->set_tool_mode(interaction_mode_);
+        // Inspector axis-range edits join the view history (Back / Forward,
+        // Ctrl+Z) and move linked axes along.
+        inspector_.set_on_axes_limits_edited(
+            [this](Axes& ax, AxisLimits old_x, AxisLimits old_y, const std::string& key)
+            {
+                if (input_handler_)
+                    input_handler_->commit_axes_limits_edit(inspector_.context().figure,
+                                                            &ax,
+                                                            old_x,
+                                                            old_y,
+                                                            key);
+            });
     }
     InputHandler* input_handler() const { return input_handler_; }
 
@@ -374,13 +390,28 @@ class ImGuiIntegration
     void set_log_browser_panel(ui::logs::LogBrowserPanel* p) { log_browser_panel_ = p; }
     ui::logs::LogBrowserPanel* log_browser_panel() const { return log_browser_panel_; }
 
+    // Docked Data sidebar (owned by WindowUIContext; drawn by the "core.data" shell panel).
+    void set_data_sidebar(ui::data_sidebar::DataSidebar* s) { data_sidebar_ = s; }
+    ui::data_sidebar::DataSidebar* data_sidebar() const { return data_sidebar_; }
+
     // Native "Open Log" dialog (File > Open Log...); opens the chosen file in
     // the log browser.  No-op without a log browser or native dialogs.
     void open_log_with_dialog();
 
+    // Native "Open File" dialog (File > Open File..., start page): CSV/TSV,
+    // ULog, MCAP and .spectra layouts, routed by open_path().
+    void open_file_with_dialog();
+
+    // Opens @p path as if it were dropped on the window (classify_open_file()):
+    // CSV/TSV -> column picker, ULog/MCAP -> log browser, .spectra/.json ->
+    // layout.  Data files are added to the recent-files list.  Returns false
+    // (and logs why) for unsupported or missing files.
+    bool open_path(const std::string& path);
+
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
-    // Settings store — owned externally; supplies persisted UI choices.
+    // Settings store — owned externally; supplies persisted UI choices and
+    // the recent data files shown on the start page.
     void                         set_settings_store(ui::settings::SettingsStore* store);
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
 
@@ -437,6 +468,8 @@ class ImGuiIntegration
     // Several files dropped at once are queued and opened one after another: the next
     // one is loaded once the column picker of the previous one is closed.
     void request_csv_load(const std::string& path) { pending_csv_loads_.push_back(path); }
+    // Show the "Open CSV" file dialog on the next build_ui() call.
+    void request_open_csv_dialog() { pending_open_csv_ = true; }
 
     // CSV column picker state (read by tests and automation).
     bool               csv_dialog_open() const { return csv_dialog_open_; }
@@ -677,6 +710,8 @@ class ImGuiIntegration
     void draw_topic_drop_target_welcome();
     void draw_log_field_drop_target(Figure& figure);
     void draw_log_field_drop_target_welcome();
+    // Data sidebar fields without a native drop target (DATA_FIELD_DRAG_TYPE).
+    void draw_data_field_drop_target(Figure& figure);
     // Invisible canvas-wide drop overlay shared by the topic and log-field
     // drop targets: highlights the axes under the mouse while a `payload_type`
     // payload is dragged and calls `on_drop(payload, axes_index)` on release
@@ -846,7 +881,8 @@ class ImGuiIntegration
     LayoutSession*           layout_session_ = nullptr;
 
     // Log browser panel — not owned.
-    ui::logs::LogBrowserPanel* log_browser_panel_ = nullptr;
+    ui::logs::LogBrowserPanel*     log_browser_panel_ = nullptr;
+    ui::data_sidebar::DataSidebar* data_sidebar_      = nullptr;
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
@@ -1060,6 +1096,17 @@ class ImGuiIntegration
     void load_logo_textures(VulkanBackend& backend);
     void destroy_logo_textures();
     void draw_welcome_screen(float display_w, float display_h, float dt);
+    // Runs a welcome-screen action (registry command or WELCOME_*_ID pseudo id).
+    void run_welcome_action(const std::string& id);
+    // Shows the Topics panel (start page "Topics / connect...").
+    void show_topics_panel();
+    // In-canvas "drop a file" hint over each empty axes of @p figure.
+    void draw_empty_axes_hints(Figure& figure);
+    // Opens the deferred CSV dialog request and queued CSV files (drops,
+    // command line).  Called from build_ui() and build_empty_ui().
+    void process_pending_opens();
+    // Opens @p path in the log browser and records it as a recent file.
+    bool open_log_file(const std::string& path);
 
     // Native "Open CSV" dialog; on success parses the file and opens the column picker.
     // Shared by Data > Load from CSV, the canvas welcome button and the empty-app welcome.

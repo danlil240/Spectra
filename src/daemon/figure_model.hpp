@@ -159,6 +159,11 @@ class FigureModel
     // Set series marker size. Returns a DiffOp.
     ipc::DiffOp set_marker_size(uint64_t figure_id, uint32_t series_index, float size);
 
+    // Set series line / marker style (spectra::LineStyle / MarkerStyle wire
+    // values). Returns a DiffOp.
+    ipc::DiffOp set_series_line_style(uint64_t figure_id, uint32_t series_index, uint8_t style);
+    ipc::DiffOp set_series_marker_style(uint64_t figure_id, uint32_t series_index, uint8_t style);
+
     // Set series opacity. Returns a DiffOp.
     ipc::DiffOp set_opacity(uint64_t figure_id, uint32_t series_index, float opacity);
 

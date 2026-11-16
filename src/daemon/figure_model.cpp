@@ -479,6 +479,42 @@ ipc::DiffOp FigureModel::set_series_color_letter(uint64_t figure_id,
     return op;
 }
 
+ipc::DiffOp FigureModel::set_series_palette_index(uint64_t figure_id,
+                                                  uint32_t series_index,
+                                                  int32_t  slot)
+{
+    std::lock_guard lock(mu_);
+    ipc::DiffOp     op;
+    op.type         = ipc::DiffOp::Type::SET_SERIES_COLOR;
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+
+    auto it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+    {
+        auto& s = it->second.series[series_index];
+        if (slot >= 0)
+        {
+            const Color c =
+                palette::default_cycle[static_cast<size_t>(slot) % palette::default_cycle_size];
+            s.color_r      = c.r;
+            s.color_g      = c.g;
+            s.color_b      = c.b;
+            s.color_a      = 1.0f;
+            s.color_index  = slot;
+            s.color_letter = 0;
+        }
+        op.f1 = s.color_r;
+        op.f2 = s.color_g;
+        op.f3 = s.color_b;
+        op.f4 = s.color_a;
+        if (s.color_index >= 0)
+            op.str_val = ipc::palette_slot_tag(s.color_index);
+    }
+    bump_revision();
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_series_visible(uint64_t figure_id, uint32_t series_index, bool visible)
 {
     std::lock_guard lock(mu_);
@@ -962,12 +998,14 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
         case ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
-            it->second.series[op.series_index].color_r     = op.f1;
-            it->second.series[op.series_index].color_g     = op.f2;
-            it->second.series[op.series_index].color_b     = op.f3;
-            it->second.series[op.series_index].color_a     = op.f4;
-            it->second.series[op.series_index].color_index = -1;
-            // A format letter in str_val keeps the colour theme-aware.
+            it->second.series[op.series_index].color_r = op.f1;
+            it->second.series[op.series_index].color_g = op.f2;
+            it->second.series[op.series_index].color_b = op.f3;
+            it->second.series[op.series_index].color_a = op.f4;
+            // A palette slot tag ("C3") keeps the colour theme-aware.
+            it->second.series[op.series_index].color_index =
+                ipc::parse_palette_slot_tag(op.str_val);
+            // So does a format letter in str_val.
             it->second.series[op.series_index].color_letter =
                 (op.str_val.size() == 1 && format_colors::is_letter(op.str_val[0]))
                     ? static_cast<uint8_t>(op.str_val[0])

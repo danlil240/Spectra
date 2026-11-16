@@ -93,7 +93,7 @@ bool InputHandler::has_active_gesture() const
         return true;
     if (measure_dragging_ || measure_click_state_ == 1)
         return true;
-    if (annotate_dragging_ || annotate_press_active_)
+    if (annotate_dragging_ || annotate_press_active_ || tip_dragging_)
         return true;
     return data_interaction_ && data_interaction_->annotations().is_editing();
 }
@@ -134,6 +134,17 @@ bool InputHandler::cancel_active_gesture()
         measure_click_state_ = 0;
         measure_axes_        = nullptr;
         cancelled            = true;
+    }
+
+    // Data tip drag: put the tip back on the sample it started on.
+    if (tip_dragging_)
+    {
+        if (data_interaction_)
+            data_interaction_->cancel_marker_drag();
+        tip_dragging_ = false;
+        if (mode_ == InteractionMode::Dragging)
+            mode_ = InteractionMode::Idle;
+        cancelled = true;
     }
 
     // Annotation drag: put it back where the drag started.
@@ -180,6 +191,9 @@ bool InputHandler::dismiss_tool_results()
         data_interaction_->dismiss_region_select();
         dismissed = true;
     }
+    // Selected data tips: deselect, so the arrow keys pan again.
+    if (data_interaction_ && data_interaction_->clear_marker_selection())
+        dismissed = true;
     return dismissed;
 }
 
@@ -330,6 +344,7 @@ void InputHandler::clear_figure_cache(Figure* fig)
         last_pressed_axes_ = nullptr;
         drag3d_axes_       = nullptr;
         measure_axes_      = nullptr;
+        tip_dragging_      = false;
         mode_              = InteractionMode::Idle;
         is_3d_orbit_drag_  = false;
         is_3d_pan_drag_    = false;
@@ -682,6 +697,14 @@ void InputHandler::on_mouse_move(double x, double y)
         return;
     }
 
+    // Data tip drag (Pan tool): the tip slides along its series.
+    if (tip_dragging_)
+    {
+        if (data_interaction_)
+            data_interaction_->update_marker_drag(x, y);
+        return;
+    }
+
     if (mode_ == InteractionMode::Dragging)
     {
         handle_mouse_move_pan_drag(x, y);
@@ -784,6 +807,13 @@ void InputHandler::on_key(int key, int action, int mods)
 {
     // Track modifier state for use in mouse callbacks
     mods_ = mods;
+    // X11 reports the modifier state from before the event, so an Alt press
+    // alone would not show up until the next event (Measure: Alt = no snap).
+    constexpr int KEY_LEFT_ALT  = 342;
+    constexpr int KEY_RIGHT_ALT = 346;
+    constexpr int MOD_ALT       = 0x0004;
+    if (key == KEY_LEFT_ALT || key == KEY_RIGHT_ALT)
+        mods_ = action == ACTION_RELEASE ? (mods_ & ~MOD_ALT) : (mods_ | MOD_ALT);
 
     // Delegate to ShortcutManager first — if it handles the key, we're done
     if (shortcut_mgr_ && shortcut_mgr_->on_key(key, action, mods))

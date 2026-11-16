@@ -221,6 +221,8 @@ set(SPECTRA_UNIT_TESTS
     test_math3d
     test_3d_pipelines
     test_camera
+    test_3d_camera_views
+    test_scatter3d_selection_gpu
     test_axes3d_fit
     test_axes3d_render_helpers
     test_axes3d_box
@@ -499,6 +501,7 @@ set(SPECTRA_GPU_TESTS
     test_shape3d_first_frame
     test_shape2d_first_frame
     test_custom_series_gpu
+    test_scatter3d_selection_gpu
     test_3d_lighting
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
@@ -635,7 +638,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|scatter3d_selection_gpu|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

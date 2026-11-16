@@ -11,6 +11,10 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+### Added
+
+- 3D camera views: commands and shortcuts for front / back / left / right / top / bottom / isometric (Alt+1..7) and a perspective/orthographic toggle (Alt+0), plus a clickable view cube in the corner of every 3D axes; axis views switch to orthographic so ticks stay evenly spaced, and all camera moves are undoable. `Axes3D::equal_aspect()` ("axis equal", Inspector checkbox, saved in workspaces), and 3D scatter per-point colours (`ScatterSeries3D::color_values()` + `colormap()`, with colorbar) and sizes (`sizes()`).
+
 ### Changed
 - Notebook and web polish: the Jupyter canvas renders at devicePixelRatio (`EmbedSurface.set_dpi_scale()` now lays the plot out in logical pixels, so it is sharp on Retina without shrinking the text), gets Home / Save PNG buttons, a cursor readout (new `EmbedSurface.cursor_data()` / `spectra_embed_get_cursor_data()`), drag-to-resize, a theme that follows the notebook (light by default instead of night) and re-renders when the plot changes from Python; the browser demo shows a poster and download progress while the wasm loads, keeps the poster with a message when WebGPU is missing, supports pinch zoom, shows both plots and is linked from the docs; new windows are scaled down to fit the screen's work area.
 - Live, measure and legend interaction: every live axes gets a pill showing "Following" or "Paused · N s behind" (click or End resumes; a plain click no longer pauses a live plot) plus a status-bar Live pill; the Measure tool snaps to the nearest sample (ring indicator, Alt for a free point), measures in data space on log axes (with ×ratio and decades), reports Δx / Δy / slope with each axis' unit and only shows a distance when both axes share a unit; data tips can be dragged along their series, the selected tip steps with Left / Right, Shift+click selects a second tip for a Δx / Δy / slope readout, Esc deselects; hovering a legend entry fades the other series and double-click solos it (again: restore); the status-bar tool pill opens a tool chooser.

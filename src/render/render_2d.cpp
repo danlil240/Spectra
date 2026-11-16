@@ -335,10 +335,12 @@ void Renderer::render_series(Series&             series,
             // explicit style use the same default dot as 2D scatter.
             const ScatterMarkerParams marker =
                 resolve_scatter_marker(scatter3d->marker_style(),
-                                       false,
+                                       scatter3d->has_colormap(),
                                        plot_colors().bg_canvas.luminance());
             pc.marker_type = marker.marker_type;
             pc._pad2[1]    = marker.edge_mix;
+            // Per-point colours / sizes: two vec4 per point (render_upload).
+            pc._pad2[0] = gpu.ssbo_stride_floats == 8 ? 1.0f : 0.0f;
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
@@ -955,8 +957,13 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 if (scatter3d->point_count() == 0)
                     break;
                 backend_.bind_pipeline(scatter3d_pipeline_);
-                pc.point_size  = scatter3d->size() + 3.0f;
-                pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
+                // Per-point colours / sizes pack two vec4 per point
+                // (render_upload); 2 = read that layout, grow each point's own
+                // size by point_size and keep the accent colour.
+                const bool packed = gpu.ssbo_stride_floats == 8;
+                pc._pad2[0]       = packed ? 2.0f : 0.0f;
+                pc.point_size     = packed ? 3.0f : scatter3d->size() + 3.0f;
+                pc.marker_type    = static_cast<uint32_t>(MarkerStyle::Circle);
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));

@@ -854,15 +854,20 @@ void DataInteraction::draw_marker_deltas(Figure& figure, ImDrawList* dl)
         if (!map.x_drawable(a->data_x) || !map.y_drawable(a->data_y) || !map.x_drawable(b->data_x)
             || !map.y_drawable(b->data_y))
             continue;
-        const ImVec2 pa(static_cast<float>(map.to_screen_x(a->data_x)),
-                        static_cast<float>(map.to_screen_y(a->data_y)));
-        const ImVec2 pb(static_cast<float>(map.to_screen_x(b->data_x)),
-                        static_cast<float>(map.to_screen_y(b->data_y)));
+        // Clip the connector to the plot first: zoomed far in, the tips can
+        // be millions of pixels off screen.
+        double ax0 = map.to_screen_x(a->data_x);
+        double ay0 = map.to_screen_y(a->data_y);
+        double bx0 = map.to_screen_x(b->data_x);
+        double by0 = map.to_screen_y(b->data_y);
+        if (!measure::clip_segment(axes_ptr->viewport(), ax0, ay0, bx0, by0))
+            continue;
+        const ImVec2 pa(static_cast<float>(ax0), static_cast<float>(ay0));
+        const ImVec2 pb(static_cast<float>(bx0), static_cast<float>(by0));
 
-        // Dashed connector between the two tips.
+        // Dashed connector between the two tips (visible part only).
         const ImU32 line_col = ui::to_imu32(colors.accent, 0.85f);
-        const float len      = std::hypot(pb.x - pa.x, pb.y - pa.y);
-        const int   dashes   = std::max(1, static_cast<int>(len / 8.0f));
+        const int   dashes   = measure::dash_count(std::hypot(bx0 - ax0, by0 - ay0), 8.0);
         for (int i = 0; i < dashes; i += 2)
         {
             const float t0 = static_cast<float>(i) / static_cast<float>(dashes);

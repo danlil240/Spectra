@@ -1078,25 +1078,52 @@ void ImGuiIntegration::draw_measure_overlay()
     const double      ey = input_handler_->measure_end_data_y();
     if (!map.x_drawable(sx) || !map.y_drawable(sy) || !map.x_drawable(ex) || !map.y_drawable(ey))
         return;
-    const ImVec2 a(static_cast<float>(map.to_screen_x(sx)),
-                   static_cast<float>(map.to_screen_y(sy)));
-    const ImVec2 b(static_cast<float>(map.to_screen_x(ex)),
-                   static_cast<float>(map.to_screen_y(ey)));
+    // Screen positions in double, clipped to the plot before drawing: zoomed
+    // far in, an endpoint can sit millions of pixels off screen.
+    const Rect&  vp     = ax->viewport();
+    const double ax0    = map.to_screen_x(sx);
+    const double ay0    = map.to_screen_y(sy);
+    const double bx0    = map.to_screen_x(ex);
+    const double by0    = map.to_screen_y(ey);
+    auto         inside = [&](double x, double y)
+    { return x >= vp.x && x <= vp.x + vp.w && y >= vp.y && y <= vp.y + vp.h; };
+    // Draws the visible part of a segment; returns its midpoint when drawn.
+    auto clipped_line =
+        [&](double x0, double y0, double x1, double y1, ImU32 col, float w, ImVec2* mid = nullptr)
+    {
+        if (!measure::clip_segment(vp, x0, y0, x1, y1))
+            return false;
+        dl->AddLine(ImVec2(static_cast<float>(x0), static_cast<float>(y0)),
+                    ImVec2(static_cast<float>(x1), static_cast<float>(y1)),
+                    col,
+                    w);
+        if (mid)
+            *mid = ImVec2(static_cast<float>((x0 + x1) * 0.5), static_cast<float>((y0 + y1) * 0.5));
+        return true;
+    };
 
-    dl->AddCircleFilled(a, 4.0f, accent);
-    if (input_handler_->measure_start_snapped())
-        snap_ring(a.x, a.y);
-    if (std::hypot(b.x - a.x, b.y - a.y) < 1.0f)
+    if (inside(ax0, ay0))
+    {
+        dl->AddCircleFilled(ImVec2(static_cast<float>(ax0), static_cast<float>(ay0)), 4.0f, accent);
+        if (input_handler_->measure_start_snapped())
+            snap_ring(static_cast<float>(ax0), static_cast<float>(ay0));
+    }
+    if (std::hypot(bx0 - ax0, by0 - ay0) < 1.0)
         return;   // first point only (two-click mode, before moving)
 
     // Δx / Δy legs (dashed by alpha) and the measurement line.
     const ImU32 leg = ui::to_imu32(colors.accent, 0.45f);
-    dl->AddLine(a, ImVec2(b.x, a.y), leg, 1.0f);
-    dl->AddLine(ImVec2(b.x, a.y), b, leg, 1.0f);
-    dl->AddLine(a, b, ui::to_imu32(colors.accent, 0.86f), 2.0f);
-    dl->AddCircleFilled(b, 4.0f, accent);
-    if (input_handler_->measure_end_snapped())
-        snap_ring(b.x, b.y);
+    clipped_line(ax0, ay0, bx0, ay0, leg, 1.0f);
+    clipped_line(bx0, ay0, bx0, by0, leg, 1.0f);
+    ImVec2 mid;
+    if (!clipped_line(ax0, ay0, bx0, by0, ui::to_imu32(colors.accent, 0.86f), 2.0f, &mid))
+        return;   // the measurement is entirely off screen
+    if (inside(bx0, by0))
+    {
+        dl->AddCircleFilled(ImVec2(static_cast<float>(bx0), static_cast<float>(by0)), 4.0f, accent);
+        if (input_handler_->measure_end_snapped())
+            snap_ring(static_cast<float>(bx0), static_cast<float>(by0));
+    }
 
     measure::MeasureFormat fmt = measure::measure_format(*ax, ex, ey);
     if (input_handler_->measure_start_snapped() && input_handler_->measure_end_snapped())
@@ -1114,8 +1141,8 @@ void ImGuiIntegration::draw_measure_overlay()
                                                                 fmt.x_unit,
                                                                 fmt.y_unit);
     DataInteraction::draw_measurement_label(dl,
-                                            (a.x + b.x) * 0.5f,
-                                            (a.y + b.y) * 0.5f,
+                                            mid.x,
+                                            mid.y,
                                             measure::measurement_lines(m, fmt),
                                             colors);
 }

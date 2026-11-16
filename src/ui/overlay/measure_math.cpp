@@ -319,6 +319,51 @@ std::vector<std::string> measurement_lines(const Measurement& m, const MeasureFo
     return lines;
 }
 
+// ─── Screen geometry ────────────────────────────────────────────────────────
+
+bool clip_segment(const Rect& rect, double& x0, double& y0, double& x1, double& y1)
+{
+    if (!std::isfinite(x0) || !std::isfinite(y0) || !std::isfinite(x1) || !std::isfinite(y1))
+        return false;
+    const double dx  = x1 - x0;
+    const double dy  = y1 - y0;
+    double       t0  = 0.0;
+    double       t1  = 1.0;
+    const double p[] = {-dx, dx, -dy, dy};
+    const double q[] = {x0 - rect.x, rect.x + rect.w - x0, y0 - rect.y, rect.y + rect.h - y0};
+    for (int i = 0; i < 4; ++i)
+    {
+        if (p[i] == 0.0)
+        {
+            if (q[i] < 0.0)
+                return false;   // parallel to this edge and outside it
+            continue;
+        }
+        const double t = q[i] / p[i];
+        if (p[i] < 0.0)
+            t0 = std::max(t0, t);
+        else
+            t1 = std::min(t1, t);
+        if (t0 > t1)
+            return false;
+    }
+    const double ox = x0;
+    const double oy = y0;
+    x0              = ox + t0 * dx;
+    y0              = oy + t0 * dy;
+    x1              = ox + t1 * dx;
+    y1              = oy + t1 * dy;
+    return true;
+}
+
+int dash_count(double length_px, double dash_px)
+{
+    if (!std::isfinite(length_px) || !(dash_px > 0.0))
+        return 1;
+    const double n = std::floor(length_px / dash_px);
+    return static_cast<int>(std::clamp(n, 1.0, static_cast<double>(MAX_DASHES)));
+}
+
 // ─── Data tip navigation ────────────────────────────────────────────────────
 
 std::optional<size_t> step_index(const Series& series, size_t index, int delta)

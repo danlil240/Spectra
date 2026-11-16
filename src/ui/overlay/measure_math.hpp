@@ -120,6 +120,19 @@ MeasureFormat measure_format(const Axes& axes, double x_at, double y_at);
 // with "(×12.5)" appended to a log axis delta.
 std::vector<std::string> measurement_lines(const Measurement& m, const MeasureFormat& fmt);
 
+// ─── Screen geometry ────────────────────────────────────────────────────────
+
+// Clip segment (x0, y0)-(x1, y1) to @p rect (Liang-Barsky), in place.  Returns
+// false when no part of it is inside (or a coordinate is not finite).  Overlay
+// lines between far-apart data points are clipped before drawing, so a deep
+// zoom never feeds off-screen coordinates (or millions of dashes) to ImGui.
+bool clip_segment(const Rect& rect, double& x0, double& y0, double& x1, double& y1);
+
+// Dashes of @p dash_px for a line @p length_px long, at least 1 and at most
+// MAX_DASHES.
+constexpr int MAX_DASHES = 1024;
+int           dash_count(double length_px, double dash_px);
+
 // ─── Data tip navigation ────────────────────────────────────────────────────
 
 // Index @p delta samples from @p index, clamped to the series; nullopt when

@@ -467,3 +467,52 @@ TEST(LegendSolo, SeriesAddedWhileSoloedIsLeftAlone)
     EXPECT_TRUE(b.visible());
     EXPECT_TRUE(d.visible());
 }
+
+// ─── Overlay geometry (connectors between far-apart points) ─────────────────
+
+TEST(MeasureGeometry, ClipSegmentToViewport)
+{
+    // Fully inside: unchanged.
+    double x0 = 200, y0 = 100, x1 = 300, y1 = 200;
+    ASSERT_TRUE(measure::clip_segment(VP, x0, y0, x1, y1));
+    EXPECT_DOUBLE_EQ(x0, 200);
+    EXPECT_DOUBLE_EQ(y1, 200);
+
+    // Horizontal line far beyond both sides: clipped to the viewport edges.
+    x0 = -1e9;
+    y0 = 200;
+    x1 = 1e9;
+    y1 = 200;
+    ASSERT_TRUE(measure::clip_segment(VP, x0, y0, x1, y1));
+    EXPECT_NEAR(x0, VP.x, 1e-3);
+    EXPECT_NEAR(x1, VP.x + VP.w, 1e-3);
+
+    // Entirely outside (above the plot) or non-finite: nothing to draw.
+    x0 = -1e9;
+    y0 = 0;
+    x1 = 1e9;
+    y1 = 10;
+    EXPECT_FALSE(measure::clip_segment(VP, x0, y0, x1, y1));
+    x0 = std::nan("");
+    EXPECT_FALSE(measure::clip_segment(VP, x0, y0, x1, y1));
+}
+
+TEST(MeasureGeometry, DeepZoomTipConnectorStaysBounded)
+{
+    // Two tips 1000 units apart, view zoomed to a 0.001-unit span between
+    // them: unclipped, the connector is ~8e8 px long (1e8 dashes per frame).
+    Plot p;
+    p.ax.xlim(500.0, 500.001);
+    p.ax.ylim(-1.0, 1.0);
+    const AxisMapping map(p.ax);
+    double            x0 = map.to_screen_x(0.0), y0 = map.to_screen_y(0.0);
+    double            x1 = map.to_screen_x(1000.0), y1 = map.to_screen_y(0.0);
+    EXPECT_GT(std::hypot(x1 - x0, y1 - y0), 1e8);
+    ASSERT_TRUE(measure::clip_segment(VP, x0, y0, x1, y1));
+    const double len = std::hypot(x1 - x0, y1 - y0);
+    EXPECT_LE(len, std::hypot(VP.w, VP.h) + 1e-6);
+    EXPECT_LE(measure::dash_count(len, 8.0), 100);
+    // Even an unclipped length is capped.
+    EXPECT_EQ(measure::dash_count(8e8, 8.0), measure::MAX_DASHES);
+    EXPECT_EQ(measure::dash_count(0.0, 8.0), 1);
+}

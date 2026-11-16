@@ -223,6 +223,12 @@ class Renderer
     void set_selected_series(const std::vector<const Series*>& selected);
     void clear_selected_series();
 
+    // Series drawn faded (alpha × DIMMED_SERIES_ALPHA) so another one stands
+    // out, e.g. while its legend entry is hovered.  Empty: none.  Interactive
+    // only; exports do not set it.
+    void                   set_dimmed_series(std::vector<const Series*> dimmed);
+    static constexpr float DIMMED_SERIES_ALPHA = 0.2f;
+
     // Set the series type registry for custom plugin series types.
     // The Renderer subscribes to the registry's unregister notifications so a
     // plugin's per-series GPU state is released (via its cleanup_fn) before the
@@ -691,6 +697,8 @@ class Renderer
 
     // Currently selected series for GPU-rendered highlight.
     std::vector<const Series*> selected_series_;
+    // Series faded behind an emphasised one (legend hover).
+    std::vector<const Series*> dimmed_series_;
 
     // Reusable scratch buffer for interleaving series data before GPU upload.
     // Avoids per-frame heap allocations for animated/streaming series.

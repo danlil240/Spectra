@@ -354,6 +354,9 @@ class Axes : public AxesBase
         return presented_buffer_following_ && presented_buffer_seconds_.has_value();
     }
     float presented_buffer_seconds() const { return presented_buffer_seconds_.value_or(0.0f); }
+    /// Right edge the live window follows: the pinned right edge when one is
+    /// set, else the latest x sample.  nullopt without a presented buffer or data.
+    std::optional<double> presented_buffer_head() const;
 
     /// Re-enable live X-follow without clearing any manual Y override.
     /// No-op if no presented_buffer has been configured.

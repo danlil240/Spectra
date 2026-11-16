@@ -186,6 +186,9 @@ set(SPECTRA_UNIT_TESTS
     test_json_key
     test_r2b_followups
     test_settings_appearance
+    test_theme_toggle_commands
+    test_sequential_palette
+    test_marker_actions
     test_settings_layout
     test_phase2_integration
     test_split_view
@@ -315,6 +318,8 @@ set(SPECTRA_UNIT_TESTS
     test_pixel_scale
     test_headless_export_text
     test_framebuffer_contrast
+    test_line_geometry
+    test_line_rendering_gpu
     test_text_scaling
     test_window_defaults
     test_text_annotation_ipc
@@ -481,6 +486,7 @@ set(SPECTRA_GPU_TESTS
     test_easy_embed
     test_headless_export_text
     test_framebuffer_contrast
+    test_line_rendering_gpu
     test_text_scaling
     test_shape3d_first_frame
     test_shape2d_first_frame
@@ -532,7 +538,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
@@ -621,7 +627,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

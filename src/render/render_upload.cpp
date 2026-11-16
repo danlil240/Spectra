@@ -315,6 +315,8 @@ void Renderer::upload_series_data(Series&   series,
         gpu.origin_y       = origin_y;
         gpu.upload_xscale  = xscale;
         gpu.upload_yscale  = yscale;
+        if (line || contour)
+            store_line_points(gpu, series, upload_scratch_.data(), count);
 
         // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
         std::span<const float> fill_verts;
@@ -489,6 +491,7 @@ void Renderer::upload_series_data(Series&   series,
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
+        store_line_points(gpu, series, upload_scratch_.data(), count);
         gpu.uploaded_count  = count;
         gpu.origin_x        = origin_x;
         gpu.origin_y        = origin_y;

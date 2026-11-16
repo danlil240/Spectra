@@ -1,7 +1,32 @@
 #version 450
 
+// 2D thick polyline fragment shader — see line.vert for the overall scheme.
+// Coverage is the capsule SDF of this segment (round joins and caps); a pixel
+// that a neighbouring segment is nearer to is left to that segment, so
+// overlapping quads never blend the same pixel twice.
+
+// Per-frame UBO (set 0, binding 0) — must match FrameUBO in backend.hpp
+layout(set = 0, binding = 0) uniform FrameUBO
+{
+    mat4  projection;
+    mat4  view;
+    mat4  model;
+    vec2  viewport_size;
+    float time;
+    float _pad0;
+    vec3  camera_pos;
+    float near_plane;
+    vec3  light_dir;
+    float far_plane;
+    vec2  viewport_origin;
+    float pixel_scale;
+    float _pad1;
+};
+
 // Per-series push constant — must match SeriesPushConstants in backend.hpp
-layout(push_constant) uniform SeriesPC {
+// (poly_first / poly_last alias SeriesPushConstants::_pad2, see line.vert).
+layout(push_constant) uniform SeriesPC
+{
     vec4  color;
     float line_width;
     float point_size;
@@ -14,74 +39,92 @@ layout(push_constant) uniform SeriesPC {
     float dash_pattern[8];
     float dash_total;
     int   dash_count;
-    float _pad2[2];
+    uint  poly_first;
+    uint  poly_last;
 };
 
-layout(location = 0) in float v_distance_to_edge;
-layout(location = 1) in float v_line_length;
-layout(location = 2) in float v_along_line;
-layout(location = 3) in float v_cumulative_dist;
+layout(location = 0) flat in vec4 v_p01;
+layout(location = 1) flat in vec4 v_p23;
+layout(location = 2) flat in vec4 v_p45;
+layout(location = 3) flat in float v_phase;
+layout(location = 4) flat in uint v_neighbours;
 
 layout(location = 0) out vec4 out_color;
 
-// Compute signed distance to the nearest dash edge along the line.
-// Returns negative when inside a dash (draw), positive when in a gap.
-float dash_sdf(float dist_along) {
-    if (dash_count <= 0 || dash_total <= 0.0) return -1.0;
-
-    float t = mod(dist_along, dash_total);
-
-    // Find which segment we're in and compute distance to nearest boundary
-    float accum = 0.0;
-    for (int i = 0; i < dash_count && i < 8; i++) {
-        float seg_start = accum;
-        accum += dash_pattern[i];
-        float seg_end = accum;
-
-        if (t < seg_end) {
-            bool is_gap = (i % 2) == 1;
-            // Distance to nearest boundary of this segment
-            float d_to_start = t - seg_start;
-            float d_to_end   = seg_end - t;
-            float d_boundary  = min(d_to_start, d_to_end);
-            return is_gap ? d_boundary : -d_boundary;
-        }
-    }
-    return -1.0;
+// Distance from q to the segment a-b.  `precise` keeps the result
+// bit-identical between the draws of neighbouring segments.
+float seg_dist(vec2 q, vec2 a, vec2 b)
+{
+    precise vec2  ab = b - a;
+    precise vec2  aq = q - a;
+    precise float l2 = dot(ab, ab);
+    precise float t  = l2 > 0.0 ? clamp(dot(aq, ab) / l2, 0.0, 1.0) : 0.0;
+    precise float d  = length(aq - ab * t);
+    return d;
 }
 
-void main() {
+// Signed distance along the line from arc position t to the nearest dash
+// "core".  Dash lengths in dash_pattern are visual lengths: each dash is
+// drawn as a core shortened by half the width at both ends plus round caps,
+// so a dash of length <= width is a round dot.  <= 0 inside a core.
+float dash_core_dist(float t, float half_w)
+{
+    float best = 1e30;
+    float acc  = 0.0;
+    for (int i = 0; i < dash_count && i < 8; ++i)
+    {
+        float len = dash_pattern[i];
+        if ((i & 1) == 0)
+        {
+            float c = acc + len * 0.5;
+            float h = max(len * 0.5 - half_w, 0.0);
+            float x = t - c;
+            x -= dash_total * floor(x / dash_total + 0.5);
+            best = min(best, abs(x) - h);
+        }
+        acc += len;
+    }
+    return best;
+}
+
+void main()
+{
+    float ps = pixel_scale > 0.0 ? pixel_scale : 1.0;
+    vec2  q  = gl_FragCoord.xy / ps - viewport_origin;
+
+    vec2  a = v_p23.xy;
+    vec2  b = v_p23.zw;
+    float d = seg_dist(q, a, b);
+
+    // Ownership: the nearest segment draws the pixel, the lower index on a tie.
+    uint nb = v_neighbours;
+    if ((nb & 1u) != 0u && seg_dist(q, v_p01.xy, v_p01.zw) <= d)
+        discard;
+    if ((nb & 2u) != 0u && seg_dist(q, v_p01.zw, a) <= d)
+        discard;
+    if ((nb & 8u) != 0u && seg_dist(q, b, v_p45.xy) < d)
+        discard;
+    if ((nb & 16u) != 0u && seg_dist(q, v_p45.xy, v_p45.zw) < d)
+        discard;
+
     float half_w = line_width * 0.5;
     // AA feather width in pixels — 1.0px gives crisp but smooth edges
     float aa = 1.0;
 
-    // ── Edge anti-aliasing ──────────────────────────────────────────────
-    float dist = abs(v_distance_to_edge);
-    float edge_alpha = smoothstep(half_w + aa, half_w, dist);
-
-    // Round caps at segment endpoints
-    float cap_start = length(vec2(v_along_line, v_distance_to_edge));
-    float cap_end   = length(vec2(v_along_line - v_line_length, v_distance_to_edge));
-
-    if (v_along_line < 0.0) {
-        edge_alpha = min(edge_alpha, smoothstep(half_w + aa, half_w, cap_start));
-    }
-    if (v_along_line > v_line_length) {
-        edge_alpha = min(edge_alpha, smoothstep(half_w + aa, half_w, cap_end));
+    float dist = d;
+    if (dash_count > 0 && dash_total > 0.0)
+    {
+        vec2  ab  = b - a;
+        float len = length(ab);
+        vec2  dir = len > 0.0001 ? ab / len : vec2(1.0, 0.0);
+        float t   = v_phase + dot(q - a, dir);
+        float s   = dash_core_dist(t, half_w);
+        dist      = length(vec2(max(s, 0.0), d));
     }
 
-    // ── Dash pattern with smooth anti-aliased transitions ───────────────
-    float dash_alpha = 1.0;
-    if (dash_count > 0 && dash_total > 0.0) {
-        // Use round-cap dashes: treat each dash as a capsule SDF.
-        // The dash_sdf gives signed distance to nearest gap boundary.
-        float d = dash_sdf(v_cumulative_dist);
-        // Smooth transition over 1.5px for crisp but not jagged edges
-        dash_alpha = smoothstep(aa * 0.5, -aa * 0.5, d);
-    }
-
-    float alpha = edge_alpha * dash_alpha;
-    if (alpha < 0.002) discard;
+    float alpha = smoothstep(half_w + aa, half_w, dist);
+    if (alpha < 0.002)
+        discard;
 
     out_color = vec4(color.rgb, color.a * opacity * alpha);
 }

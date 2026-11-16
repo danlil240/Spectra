@@ -149,6 +149,17 @@ void ThemeManager::set_theme(const std::string& name)
         SPECTRA_LOG_TRACE("theme", "Theme changed to '{}'", name);
         current_theme_name_ = name;
         current_theme_      = &it->second;
+        switch (theme_kind(name))
+        {
+            case ThemeKind::Dark:
+                last_dark_theme_ = name;
+                break;
+            case ThemeKind::Light:
+                last_light_theme_ = name;
+                break;
+            case ThemeKind::HighContrast:
+                break;
+        }
         if (current_theme_)
             current_theme_->use_blur = glass_settings_.blur_enabled;
         ++theme_version_;
@@ -316,6 +327,46 @@ std::string ThemeManager::display_name(std::string_view theme_id) const
     if (it != themes_.end() && !it->second.display_name.empty())
         return it->second.display_name;
     return theme_display_name(theme_id);
+}
+
+std::vector<std::string> ThemeManager::available_themes() const
+{
+    static constexpr const char* BUILT_INS[] = {"night", "dark", "light", "high_contrast"};
+    std::vector<std::string>     out;
+    for (const char* id : BUILT_INS)
+        if (themes_.count(id))
+            out.emplace_back(id);
+    std::vector<std::string> others;
+    for (const auto& [id, theme] : themes_)
+        if (std::find(out.begin(), out.end(), id) == out.end())
+            others.push_back(id);
+    std::sort(others.begin(), others.end());
+    out.insert(out.end(), others.begin(), others.end());
+    return out;
+}
+
+ThemeKind ThemeManager::theme_kind(std::string_view theme_id) const
+{
+    if (theme_id == "high_contrast")
+        return ThemeKind::HighContrast;
+    auto it = themes_.find(std::string(theme_id));
+    if (it != themes_.end() && is_light_plot_background(it->second.colors))
+        return ThemeKind::Light;
+    return ThemeKind::Dark;
+}
+
+void ThemeManager::set_last_themes(const std::string& dark, const std::string& light)
+{
+    if (themes_.count(dark) && theme_kind(dark) == ThemeKind::Dark)
+        last_dark_theme_ = dark;
+    if (themes_.count(light) && theme_kind(light) == ThemeKind::Light)
+        last_light_theme_ = light;
+}
+
+const std::string& ThemeManager::toggle_theme_target() const
+{
+    return theme_kind(current_theme_name_) == ThemeKind::Light ? last_dark_theme_
+                                                               : last_light_theme_;
 }
 
 std::string theme_display_name(std::string_view theme_id)
@@ -2182,12 +2233,61 @@ void resolve_auto_series_colors(Figure&               figure,
     resolve_auto_series_colors(figure, visible_data_palette(palette, canvas), light_background);
 }
 
+size_t sequential_palette_slot(size_t rank, size_t count, size_t palette_size)
+{
+    if (palette_size == 0)
+        return 0;
+    if (count >= palette_size)
+        return rank % palette_size;
+    // Evenly spaced over the 10%..90% part of the ramp, so neighbours stay
+    // apart and the extremes (often near the canvas) are avoided.
+    const double t = count <= 1 ? 0.5 : static_cast<double>(rank) / static_cast<double>(count - 1);
+    const double u = SEQUENTIAL_RAMP_LO + (SEQUENTIAL_RAMP_HI - SEQUENTIAL_RAMP_LO) * t;
+    const double slot = std::round(u * static_cast<double>(palette_size - 1));
+    return std::min(static_cast<size_t>(std::max(slot, 0.0)), palette_size - 1);
+}
+
 void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool light_background)
 {
+    // Sequential palettes: rank of each auto-coloured series' palette slot
+    // among the distinct slots of the auto-coloured series of its axes.
+    // Series sharing a slot (e.g. errorbar data + error bars, both "C2")
+    // share the rank and so the colour.
+    std::vector<std::pair<int, size_t>> order;
+    std::vector<size_t>                 rank_of;
+    size_t                              n_distinct       = 0;
+    auto                                rank_auto_series = [&](AxesBase& axes)
+    {
+        order.clear();
+        const auto& series = axes.series_mut();
+        rank_of.assign(series.size(), 0);
+        for (size_t i = 0; i < series.size(); ++i)
+        {
+            const auto& s = series[i];
+            if (s && s->color_letter() == '\0' && s->has_auto_color())
+                order.emplace_back(s->auto_color_index(), i);
+        }
+        std::sort(order.begin(), order.end());
+        n_distinct = 0;
+        for (size_t r = 0; r < order.size(); ++r)
+        {
+            if (r > 0 && order[r].first != order[r - 1].first)
+                ++n_distinct;
+            rank_of[order[r].second] = n_distinct;
+        }
+        if (!order.empty())
+            ++n_distinct;
+    };
+
     auto resolve_axes = [&](AxesBase& axes)
     {
+        const bool sampled = palette.sequential && palette.colors.size() > 1;
+        if (sampled)
+            rank_auto_series(axes);
+        size_t index = 0;
         for (auto& s : axes.series_mut())
         {
+            const size_t pos = index++;
             if (s && s->color_letter() != '\0')
             {
                 s->resolve_letter_color(
@@ -2196,10 +2296,12 @@ void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool
             }
             if (!s || !s->has_auto_color())
                 continue;
-            const auto     slot = static_cast<size_t>(s->auto_color_index());
+            auto           slot = static_cast<size_t>(s->auto_color_index());
             spectra::Color c;
             if (!palette.colors.empty())
             {
+                if (sampled)
+                    slot = sequential_palette_slot(rank_of[pos], n_distinct, palette.colors.size());
                 const auto& pc = palette.colors[slot % palette.colors.size()];
                 c              = spectra::Color{pc.r, pc.g, pc.b, pc.a};
             }

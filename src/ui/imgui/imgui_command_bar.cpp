@@ -2,6 +2,7 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <cstring>
     #include <format>
 
     #include "../../../third_party/tinyfiledialogs.h"
@@ -30,7 +31,8 @@ static bool icon_label_button(const char* icon_codepoint,
                               ImFont*     icon_font,
                               ImFont*     label_font,
                               float       width,
-                              float       scale = 1.0f)
+                              float       scale   = 1.0f,
+                              const char* tooltip = nullptr)
 {
     using namespace ui;
 
@@ -57,8 +59,13 @@ static bool icon_label_button(const char* icon_codepoint,
     ImGuiID       hover_anim_id  = ImGui::GetID("hover_anim");
     ImGuiID       active_anim_id = ImGui::GetID("active_anim");
     ImGui::InvisibleButton("##btn", ImVec2(width, cell_h));
-    bool  clicked  = ImGui::IsItemClicked();
-    bool  hovered  = ImGui::IsItemHovered();
+    bool clicked = ImGui::IsItemClicked();
+    bool hovered = ImGui::IsItemHovered();
+    // The label is drawn under the icon; a tooltip only adds something when it
+    // says more (e.g. the tool's key).
+    if (tooltip && *tooltip && std::strcmp(tooltip, label) != 0
+        && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+        ImGui::SetTooltip("%s", tooltip);
     float dt       = ImGui::GetIO().DeltaTime;
     float hover_t  = storage->GetFloat(hover_anim_id, hovered ? 1.0f : 0.0f);
     float active_t = storage->GetFloat(active_anim_id, active ? 1.0f : 0.0f);
@@ -181,9 +188,17 @@ bool ImGuiIntegration::icon_label_button_rail(const char* icon_codepoint,
                                               ImFont*     icon_font,
                                               ImFont*     label_font,
                                               float       width,
-                                              float       scale)
+                                              float       scale,
+                                              const char* tooltip)
 {
-    return icon_label_button(icon_codepoint, label, active, icon_font, label_font, width, scale);
+    return icon_label_button(icon_codepoint,
+                             label,
+                             active,
+                             icon_font,
+                             label_font,
+                             width,
+                             scale,
+                             tooltip);
 }
 
 void ImGuiIntegration::render_menubar_menu(const char* label, const std::vector<MenuItem>& items)
@@ -1478,16 +1493,18 @@ void ImGuiIntegration::draw_nav_rail()
         // ── Tool mode helper ──
         auto tool_btn = [&](ui::Icon icon, const char* label, ToolMode mode)
         {
-            bool is_active = (interaction_mode_ == mode);
+            bool              is_active = (interaction_mode_ == mode);
+            const std::string tip       = tool_tooltip(label, mode);
             if (icon_label_button(ui::icon_str(icon),
                                   label,
                                   is_active,
                                   font_icon_,
                                   label_font,
                                   btn_w,
-                                  btn_scale))
+                                  btn_scale,
+                                  tip.c_str()))
             {
-                interaction_mode_ = mode;
+                set_interaction_mode(mode);
             }
         };
 

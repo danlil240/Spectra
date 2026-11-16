@@ -26,6 +26,7 @@
 #include <cmath>
 #include <limits>
 #include <utility>
+#include <vector>
 
 namespace spectra
 {
@@ -315,13 +316,71 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                 zoom_limits_centered(ax.yscale(), ax.y_limits(), cy, factor)};
     };
 
+    // ─── Keyboard view change ────────────────────────────────────────────
+    // Set ax's limits, move every axes linked to it the way a mouse drag does
+    // (AxisLinkManager), and push one undo entry restoring all of them.
+    auto& axis_link_mgr = ui_ctx.axis_link_mgr;
+    auto  set_view_limits =
+        [&undo_mgr, &axis_link_mgr](Axes& ax, AxisLimits new_x, AxisLimits new_y, const char* label)
+    {
+        struct Snapshot
+        {
+            Axes*      axes;
+            AxisLimits x;
+            AxisLimits y;
+        };
+        std::vector<Axes*> touched{&ax};
+        for (Axes* peer : axis_link_mgr.linked_peers(&ax))
+            if (peer && peer != &ax)
+                touched.push_back(peer);
+
+        auto capture = [&touched]()
+        {
+            std::vector<Snapshot> snap;
+            snap.reserve(touched.size());
+            for (Axes* a : touched)
+                snap.push_back({a, a->x_limits(), a->y_limits()});
+            return snap;
+        };
+        auto restore = [](const std::vector<Snapshot>& snap)
+        {
+            for (const auto& s : snap)
+            {
+                s.axes->xlim(s.x.min, s.x.max);
+                s.axes->ylim(s.y.min, s.y.max);
+            }
+        };
+
+        auto before = capture();
+        ax.xlim(new_x.min, new_x.max);
+        ax.ylim(new_y.min, new_y.max);
+        axis_link_mgr.propagate_limits(&ax, ax.x_limits(), ax.y_limits());
+        auto after = capture();
+        undo_mgr.push(UndoAction{label,
+                                 [before, restore]() { restore(before); },
+                                 [after, restore]() { restore(after); }});
+    };
+
+    // Pan by `fx` / `fy` of the visible span, in axis space: a log axis moves
+    // by a ratio (never to zero or below), like a mouse drag.
+    auto pan_view = [&input_handler, set_view_limits](double fx, double fy)
+    {
+        auto* ax = input_handler.active_axes();
+        if (!ax)
+            return;
+        set_view_limits(*ax,
+                        pan_limits(ax->xscale(), ax->x_limits(), fx),
+                        pan_limits(ax->yscale(), ax->y_limits(), fy),
+                        "Pan view");
+    };
+
     // ─── Zoom In ─────────────────────────────────────────────────────────
     cmds.push_back({"view.zoom_in",
                     "Zoom In",
                     "",
                     "View",
                     static_cast<uint16_t>(ui::Icon::ZoomIn),
-                    [&, zoom_about_data_center]()
+                    [&, zoom_about_data_center, set_view_limits]()
                     {
                         if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
                         {
@@ -330,7 +389,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         else if (auto* ax = input_handler.active_axes())
                         {
                             const auto [new_x, new_y] = zoom_about_data_center(*ax, 0.75);
-                            undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
+                            set_view_limits(*ax, new_x, new_y, "Zoom in");
                         }
                     }});
 
@@ -340,7 +399,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     "",
                     "View",
                     0,
-                    [&, zoom_about_data_center]()
+                    [&, zoom_about_data_center, set_view_limits]()
                     {
                         if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
                         {
@@ -349,78 +408,22 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         else if (auto* ax = input_handler.active_axes())
                         {
                             const auto [new_x, new_y] = zoom_about_data_center(*ax, 1.25);
-                            undoable_set_limits(&undo_mgr, *ax, new_x, new_y);
+                            set_view_limits(*ax, new_x, new_y, "Zoom out");
                         }
                     }});
 
     // ─── Pan commands ────────────────────────────────────────────────────
-    cmds.push_back({"view.pan_left",
-                    "Pan Left",
-                    "Left",
-                    "View",
-                    0,
-                    [&]()
-                    {
-                        if (auto* ax = input_handler.active_axes())
-                        {
-                            auto       old_x = ax->x_limits();
-                            auto       old_y = ax->y_limits();
-                            float      dx    = (old_x.max - old_x.min) * 0.1f;
-                            AxisLimits nx    = {old_x.min - dx, old_x.max - dx};
-                            undoable_set_limits(&undo_mgr, *ax, nx, old_y);
-                        }
-                    }});
+    cmds.push_back(
+        {"view.pan_left", "Pan Left", "Left", "View", 0, [pan_view]() { pan_view(-0.1, 0.0); }});
 
-    cmds.push_back({"view.pan_right",
-                    "Pan Right",
-                    "Right",
-                    "View",
-                    0,
-                    [&]()
-                    {
-                        if (auto* ax = input_handler.active_axes())
-                        {
-                            auto       old_x = ax->x_limits();
-                            auto       old_y = ax->y_limits();
-                            float      dx    = (old_x.max - old_x.min) * 0.1f;
-                            AxisLimits nx    = {old_x.min + dx, old_x.max + dx};
-                            undoable_set_limits(&undo_mgr, *ax, nx, old_y);
-                        }
-                    }});
+    cmds.push_back(
+        {"view.pan_right", "Pan Right", "Right", "View", 0, [pan_view]() { pan_view(0.1, 0.0); }});
 
-    cmds.push_back({"view.pan_up",
-                    "Pan Up",
-                    "Up",
-                    "View",
-                    0,
-                    [&]()
-                    {
-                        if (auto* ax = input_handler.active_axes())
-                        {
-                            auto       old_x = ax->x_limits();
-                            auto       old_y = ax->y_limits();
-                            float      dy    = (old_y.max - old_y.min) * 0.1f;
-                            AxisLimits ny    = {old_y.min + dy, old_y.max + dy};
-                            undoable_set_limits(&undo_mgr, *ax, old_x, ny);
-                        }
-                    }});
+    cmds.push_back(
+        {"view.pan_up", "Pan Up", "Up", "View", 0, [pan_view]() { pan_view(0.0, 0.1); }});
 
-    cmds.push_back({"view.pan_down",
-                    "Pan Down",
-                    "Down",
-                    "View",
-                    0,
-                    [&]()
-                    {
-                        if (auto* ax = input_handler.active_axes())
-                        {
-                            auto       old_x = ax->x_limits();
-                            auto       old_y = ax->y_limits();
-                            float      dy    = (old_y.max - old_y.min) * 0.1f;
-                            AxisLimits ny    = {old_y.min - dy, old_y.max - dy};
-                            undoable_set_limits(&undo_mgr, *ax, old_x, ny);
-                        }
-                    }});
+    cmds.push_back(
+        {"view.pan_down", "Pan Down", "Down", "View", 0, [pan_view]() { pan_view(0.0, -0.1); }});
 
     // ─── Split commands ──────────────────────────────────────────────────
     auto do_split = [&](SplitDirection dir)

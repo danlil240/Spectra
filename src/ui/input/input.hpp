@@ -154,9 +154,20 @@ class InputHandler
     InteractionMode mode() const { return mode_; }
     void            set_mode(InteractionMode new_mode) { mode_ = new_mode; }
 
-    // Current tool mode (selected by toolbar)
+    // Current tool mode.  With the ImGui UI, ImGuiIntegration owns the tool
+    // (ImGuiIntegration::set_interaction_mode) and mirrors it here.
     ToolMode tool_mode() const { return tool_mode_; }
     void     set_tool_mode(ToolMode new_tool);
+
+    // Esc handling, in order.  cancel_active_gesture() aborts the gesture in
+    // progress: a box-zoom (or Ctrl+drag) / select / ROI drag, a measurement
+    // still being placed, an annotation drag (restored to where it started) or
+    // a pending annotation.  dismiss_tool_results() clears finished results
+    // that stay on screen (a measurement, an ROI selection).  Each returns
+    // true when it changed something.
+    bool cancel_active_gesture();
+    bool dismiss_tool_results();
+    bool has_active_gesture() const;
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }

@@ -27,6 +27,10 @@ constexpr float XLABEL_ROW_GAP = 4.0f;
 constexpr float SUPTITLE_PAD = 8.0f;
 // Rotated label thickness: the renderer's line height for the Label tier.
 constexpr float LABEL_LINE_FACTOR = 1.25f;
+// Clearance kept past an outermost x tick label that overhangs the plot edge:
+// it only has to stay clear of the figure edge / neighbour, so a label that
+// already fits the style margin never grows it.
+constexpr float EDGE_TICK_PAD = 2.0f;
 
 }   // namespace
 
@@ -81,9 +85,9 @@ AxesDecorations measure_decorations(const Axes& axes)
             over_r           = std::max(over_r, px + half - (vp.x + vp.w));
         }
         if (over_l > 0.0f)
-            d.left = std::max(d.left, over_l + LEFT_LABEL_OUTER_PAD);
+            d.left = std::max(d.left, over_l + EDGE_TICK_PAD);
         if (over_r > 0.0f)
-            d.right = over_r + LEFT_LABEL_OUTER_PAD;
+            d.right = over_r + EDGE_TICK_PAD;
     }
 
     // Below: tick marks, tick labels, then the X label / offset row.

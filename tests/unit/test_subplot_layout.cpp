@@ -173,6 +173,27 @@ TEST(FigureLayout, ConstrainedIsDefaultAndSingleAxesKeepsStyleMargins)
     EXPECT_FLOAT_EQ(bottom(r), 600.0f - fig.style().margin_bottom);
 }
 
+// A last x tick label centred on the right edge ("4.00") overhangs the plot
+// but still fits the default right margin: the plot must not shrink for it
+// (golden p2_zoomed_region).
+TEST(FigureLayout, EdgeTickLabelThatFitsTheMarginDoesNotGrowIt)
+{
+    Figure fig({.width = 640, .height = 480});
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.plot(X, Y).label("signal");
+    ax.xlim(2.0f, 4.0f);
+    ax.ylim(-0.5f, 0.5f);
+    ax.title("Zoomed Region");
+    ax.xlabel("Time");
+    ax.ylabel("Amplitude");
+    fig.compute_layout();
+    const Rect r = fig.axes()[0]->viewport();
+    EXPECT_FLOAT_EQ(r.x, fig.style().margin_left);
+    EXPECT_FLOAT_EQ(r.y, fig.style().margin_top);
+    EXPECT_FLOAT_EQ(right(r), 640.0f - fig.style().margin_right);
+    EXPECT_FLOAT_EQ(bottom(r), 480.0f - fig.style().margin_bottom);
+}
+
 TEST(FigureLayout, ConstrainedGapsFitTheLabelsWithoutOverlap)
 {
     auto fig                  = labelled_grid();

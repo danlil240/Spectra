@@ -87,11 +87,41 @@ def _finalize(builder: flatbuffers.Builder) -> bytes:
     return FB_PREFIX + bytes(buf)
 
 
-def _create_float_vector(builder: flatbuffers.Builder, data: List[float]) -> int:
-    """Build a [float] vector (must be called before the owning table's Start)."""
-    builder.StartVector(4, len(data), 4)
-    for v in reversed(data):
-        builder.PrependFloat32(float(v))
+def _float32_le_bytes(data) -> bytes:
+    """Pack ``data`` (list, tuple or NumPy array) as little-endian float32 bytes.
+
+    Vectorised: one C-level copy instead of one Python call per value.
+    """
+    try:
+        import numpy as np
+    except ImportError:
+        np = None
+    if np is not None and isinstance(data, np.ndarray):
+        return np.ascontiguousarray(data.ravel(), dtype="<f4").tobytes()
+    import array
+
+    arr = array.array("f", [float(v) for v in data] if not isinstance(data, list) else data)
+    if _sys.byteorder != "little":
+        arr.byteswap()
+    return arr.tobytes()
+
+
+def _create_float_vector(builder: flatbuffers.Builder, data) -> int:
+    """Build a [float] vector (must be called before the owning table's Start).
+
+    The values are copied into the builder as one block of float32 bytes (the
+    same thing ``Builder.CreateNumpyVector`` does), so a 10M-value payload
+    takes milliseconds instead of tens of seconds.
+    """
+    try:
+        raw = _float32_le_bytes(data)
+    except TypeError:  # a list holding non-floats: convert each value first
+        raw = _float32_le_bytes([float(v) for v in data])
+    count = len(raw) // 4
+    builder.StartVector(4, count, 4)
+    builder.head = builder.head - len(raw)
+    builder.Bytes[builder.head:builder.head + len(raw)] = raw
+    builder.vectorNumElems = count
     return builder.EndVector()
 
 
@@ -160,17 +190,15 @@ def encode_fb_req_add_series(
 def encode_fb_req_set_data(
     figure_id: int, series_index: int, data: List[float], dtype: int = 0
 ) -> bytes:
+    has_data = len(data) > 0
     builder = flatbuffers.Builder(256 + len(data) * 4)
-    if data:
-        FBReqSetData.StartDataVector(builder, len(data))
-        for v in reversed(data):
-            builder.PrependFloat32(v)
-        data_off = builder.EndVector()
+    if has_data:
+        data_off = _create_float_vector(builder, data)
     FBReqSetData.Start(builder)
     FBReqSetData.AddFigureId(builder, figure_id)
     FBReqSetData.AddSeriesIndex(builder, series_index)
     FBReqSetData.AddDtype(builder, dtype)
-    if data:
+    if has_data:
         FBReqSetData.AddData(builder, data_off)
     root = builder.EndObject()
     builder.Finish(root)
@@ -180,16 +208,14 @@ def encode_fb_req_set_data(
 def encode_fb_req_append_data(
     figure_id: int, series_index: int, data: List[float]
 ) -> bytes:
+    has_data = len(data) > 0
     builder = flatbuffers.Builder(256 + len(data) * 4)
-    if data:
-        FBReqAppendData.StartDataVector(builder, len(data))
-        for v in reversed(data):
-            builder.PrependFloat32(v)
-        data_off = builder.EndVector()
+    if has_data:
+        data_off = _create_float_vector(builder, data)
     FBReqAppendData.Start(builder)
     FBReqAppendData.AddFigureId(builder, figure_id)
     FBReqAppendData.AddSeriesIndex(builder, series_index)
-    if data:
+    if has_data:
         FBReqAppendData.AddData(builder, data_off)
     root = builder.EndObject()
     builder.Finish(root)
@@ -212,7 +238,7 @@ def encode_fb_req_update_property(
     builder = flatbuffers.Builder(512)
     prop_off = builder.CreateString(prop)
     str_off = builder.CreateString(str_val) if str_val else None
-    data_off = _create_float_vector(builder, data) if data else None
+    data_off = _create_float_vector(builder, data) if data is not None and len(data) else None
     FBReqUpdProp.Start(builder)
     FBReqUpdProp.AddFigureId(builder, figure_id)
     FBReqUpdProp.AddAxesIndex(builder, axes_index)
@@ -241,7 +267,7 @@ def encode_fb_req_update_batch(updates: List[dict]) -> bytes:
         str_val = upd.get("str_val", "")
         str_off = builder.CreateString(str_val) if str_val else None
         data = upd.get("data")
-        data_off = _create_float_vector(builder, data) if data else None
+        data_off = _create_float_vector(builder, data) if data is not None and len(data) else None
         FBReqUpdProp.Start(builder)
         FBReqUpdProp.AddFigureId(builder, upd.get("figure_id", 0))
         FBReqUpdProp.AddAxesIndex(builder, upd.get("axes_index", 0))

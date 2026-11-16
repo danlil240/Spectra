@@ -265,6 +265,7 @@ file(GLOB SPECTRA_DAEMON_SOURCES
 file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp src/ui/app/app_step.cpp)
 foreach(_ui_src
     src/app/inproc_topic_server.cpp
+    src/ui/app/launch_files.cpp
     src/ui/app/window_ui_context_builder.cpp
     src/ui/app/window_manager_bootstrap.cpp
     src/ui/app/window_ui_context_runtime.cpp
@@ -274,6 +275,7 @@ foreach(_ui_src
     src/ui/input/input_select.cpp
     src/ui/input/input_measure.cpp
     src/ui/input/input_annotate.cpp
+    src/ui/input/view_history.cpp
     src/ui/layout/layout_manager.cpp
     src/ui/figures/tab_bar.cpp
     src/ui/animation/animation_controller.cpp
@@ -326,6 +328,7 @@ foreach(_ui_src
     src/ui/overlay/plot_overlay_dialog.cpp
     src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
+    src/ui/overlay/measure_math.cpp
     src/adapters/data_source_registry.cpp
     src/adapters/data_source_topics.cpp
     src/embed/embed_surface.cpp
@@ -1223,6 +1226,10 @@ else()
 endif()
 install(FILES icons/spectra.desktop
     DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+install(FILES packaging/linux/spectra-mime.xml
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/mime/packages
+    RENAME spectra.xml
 )
 
 # Man page

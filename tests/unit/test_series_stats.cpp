@@ -265,10 +265,10 @@ TEST(BoxPlotSeries, NotchedOutlineNarrowsAtMedian)
         EXPECT_NEAR(pts[i].second, ey[i], 1e-4f) << "point " << i;
     }
 
-    // Median line spans only the waist.
+    // Median line spans only the waist (median segments come last).
     const auto& xs = bp.x_data();
     const auto& ys = bp.y_data();
-    size_t      m  = pts.size() + 1;
+    size_t      m  = bp.median_first_point();
     EXPECT_NEAR(xs[m], 2 - hw / 2, 1e-5f);
     EXPECT_NEAR(xs[m + 1], 2 + hw / 2, 1e-5f);
     EXPECT_FLOAT_EQ(ys[m], s.median);

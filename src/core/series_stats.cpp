@@ -2,6 +2,7 @@
 #include <spectra/series_stats.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -318,6 +319,10 @@ void BoxPlotSeries::rebuild_geometry()
 
     float hw = box_width_ * 0.5f;
 
+    // Median segments (x0, x1, y), appended after every box outline and whisker.
+    std::vector<std::array<float, 3>> medians;
+    medians.reserve(positions_.size());
+
     for (size_t i = 0; i < positions_.size(); ++i)
     {
         float               x = positions_[i];
@@ -428,13 +433,8 @@ void BoxPlotSeries::rebuild_geometry()
             line_y_.push_back(NAN_BREAK);
         }
 
-        // ── Median line (spans the waist of a notched box) ──
-        line_x_.push_back(x - median_hw);
-        line_y_.push_back(s.median);
-        line_x_.push_back(x + median_hw);
-        line_y_.push_back(s.median);
-        line_x_.push_back(NAN_BREAK);
-        line_y_.push_back(NAN_BREAK);
+        // Median line (spans the waist of a notched box), emitted after the loop
+        medians.push_back({x - median_hw, x + median_hw, s.median});
 
         // ── Whiskers ──
         float cap_hw = hw * 0.5f;
@@ -480,6 +480,18 @@ void BoxPlotSeries::rebuild_geometry()
                 outlier_y_.push_back(o);
             }
         }
+    }
+
+    // ── Median lines last, so they can be drawn on top in their own colour ──
+    median_first_point_ = line_x_.size();
+    for (const auto& [x0, x1, y] : medians)
+    {
+        line_x_.push_back(x0);
+        line_y_.push_back(y);
+        line_x_.push_back(x1);
+        line_y_.push_back(y);
+        line_x_.push_back(NAN_BREAK);
+        line_y_.push_back(NAN_BREAK);
     }
 }
 
@@ -784,6 +796,22 @@ void HistogramSeries::rebuild_geometry()
 
     line_x_.push_back(bin_edges_[bins_]);
     line_y_.push_back(0.0f);
+
+    // ── Edges between adjacent bins, so the bins read as flat bars side by side.
+    // Drawn top-down to the baseline (the outline keeps ending at y = 0); the
+    // step contour above already covers each edge above the shorter bin.
+    for (int i = 1; i < bins_; ++i)
+    {
+        const float top = std::min(bin_counts_[i - 1], bin_counts_[i]);
+        if (!(top > 0.0f))
+            continue;
+        line_x_.push_back(NAN_BREAK);
+        line_y_.push_back(NAN_BREAK);
+        line_x_.push_back(bin_edges_[i]);
+        line_y_.push_back(top);
+        line_x_.push_back(bin_edges_[i]);
+        line_y_.push_back(0.0f);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

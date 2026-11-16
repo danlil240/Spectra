@@ -83,6 +83,23 @@ std::vector<std::string> TopicsPanel::topic_names() const
     return out;
 }
 
+std::vector<ipc::TopicInfoEntry> TopicsPanel::topics() const
+{
+    std::lock_guard<std::mutex> g(mutex_);
+    return topics_;
+}
+
+void TopicsPanel::request_list(bool force)
+{
+    if (!list_cb_)
+        return;
+    const uint64_t now = now_ms();
+    if (!force && now - last_list_req_ms_ <= 1000)
+        return;
+    list_cb_();
+    last_list_req_ms_ = now;
+}
+
 bool TopicsPanel::submit_data_source_toggle(const std::string& name, bool start)
 {
     if (!data_source_toggle_cb_ || name.empty())
@@ -137,11 +154,7 @@ bool TopicsPanel::draw()
     // Periodic refresh — 1 Hz.  EVT_TOPIC_LIST_CHANGED will also drive an
     // immediate refresh on the transport side; this is just a fallback.
     const uint64_t now = now_ms();
-    if (list_cb_ && (now - last_list_req_ms_ > 1000))
-    {
-        list_cb_();
-        last_list_req_ms_ = now;
-    }
+    request_list();
 
     bool committed_subscribe = false;
 

@@ -399,8 +399,15 @@ void install_simple_input(Runtime& rt)
                               double x = 0.0, y = 0.0;
                               glfwGetCursorPos(w, &x, &y);
                               cursor_to_layout(w, x, y);
+                              int mods = 0;
+                              if (glfwGetKey(w, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS
+                                  || glfwGetKey(w, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS)
+                                  mods |= GLFW_MOD_SHIFT;
+                              if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS
+                                  || glfwGetKey(w, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS)
+                                  mods |= GLFW_MOD_CONTROL;
                               if (auto* in = simple_input_of(w))
-                                  in->on_scroll(dx, dy, x, y);
+                                  in->on_scroll(dx, dy, x, y, mods);
                           });
     glfwSetKeyCallback(win,
                        [](GLFWwindow* w, int key, int /*scancode*/, int action, int mods)
@@ -769,6 +776,14 @@ void App::init_runtime()
         }
         else
         {
+            // init() may have shrunk the window to fit the screen.
+            int ww = 0, wh = 0;
+            rt.glfw->window_size(ww, wh);
+            if (ww > 0 && wh > 0)
+            {
+                init_w = static_cast<uint32_t>(ww);
+                init_h = static_cast<uint32_t>(wh);
+            }
             backend_->create_surface(rt.glfw->native_window());
             backend_->create_swapchain(init_w, init_h);
 
@@ -1048,23 +1063,21 @@ void App::init_runtime()
                 return &fig->subplot(1, 1, 1);
             });
 
-        // Wire OS drag-and-drop: CSV/TSV/TXT files trigger the Load from CSV
-        // flow; log files the registry recognizes (ULog, MCAP) open in the
-        // log browser.
-        auto* imgui_ui_ptr  = imgui_ui.get();
-        auto* log_panel_ptr = &log_panel;
+        // Wire OS drag-and-drop through ImGuiIntegration::open_path():
+        // CSV/TSV/TXT files trigger the Load from CSV flow, log files the
+        // registry recognizes (ULog, MCAP) open in the log browser and
+        // .spectra layouts open like File > Open Layout.
+        auto* imgui_ui_ptr = imgui_ui.get();
         if (rt.window_mgr)
         {
             rt.window_mgr->set_file_drop_handler(
-                [imgui_ui_ptr, log_panel_ptr](uint32_t /*window_id*/, const std::string& path)
-                {
-                    const std::string ext = logs::lowercase_extension(path);
-                    if (ext == "csv" || ext == "tsv" || ext == "txt")
-                        imgui_ui_ptr->request_csv_load(path);
-                    else if (log_panel_ptr->can_open(path))
-                        log_panel_ptr->open_file(path);
-                });
+                [imgui_ui_ptr](uint32_t /*window_id*/, const std::string& path)
+                { imgui_ui_ptr->open_path(path); });
         }
+
+        // `spectra data.csv flight.ulg`: opened like a drop on the first window.
+        for (const std::string& path : config_.open_files)
+            imgui_ui_ptr->open_path(path);
     }
 #endif
 

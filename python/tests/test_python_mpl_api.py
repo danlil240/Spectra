@@ -37,6 +37,14 @@ class _FakeSeries:
         self.width = None
         self.marker_size = None
         self.opacity = None
+        self.line_style = None
+        self.marker_style = None
+
+    def set_line_style(self, style):
+        self.line_style = style
+
+    def set_marker_style(self, marker):
+        self.marker_style = marker
 
     def set_color_letter(self, letter):
         self.letter = letter
@@ -74,13 +82,13 @@ class _FakeAxes:
     def scatter(self, x, y, label=""):
         return self._add("scatter", x=list(x), y=list(y), label=label)
 
-    def bar(self, x, heights, width=0.8, bottom=0.0, horizontal=False, label=""):
+    def bar(self, x, heights, width=0.8, bottom=0.0, horizontal=False, label="", **style):
         return self._add("bar", x=list(x), heights=list(heights), width=width, bottom=bottom,
-                         horizontal=horizontal, label=label)
+                         horizontal=horizontal, label=label, **style)
 
-    def histogram(self, values, bins=30, density=False, cumulative=False, label=""):
+    def histogram(self, values, bins=30, density=False, cumulative=False, label="", **style):
         return self._add("histogram", values=list(values), bins=bins, density=density,
-                         cumulative=cumulative, label=label)
+                         cumulative=cumulative, label=label, **style)
 
     def band(self, x, lower, upper, fill_opacity=0.25, edge_width=1.0, show_edges=True,
              label=""):
@@ -152,11 +160,11 @@ def fake(monkeypatch):
     monkeypatch.setattr(st, "_ensure_axes", lambda: ax)
     monkeypatch.setattr(st, "_show_if_pending", lambda: None)
     monkeypatch.setattr(st, "_current_fig", fig)
-    for d in (st._axes_bounds, st._axes_scales, st._errorbar_counts):
+    for d in (st._axes_bounds, st._axes_sticky, st._axes_scales, st._errorbar_counts):
         d.clear()
     st._datetime_axes.clear()
     yield ax, fig
-    for d in (st._axes_bounds, st._axes_scales, st._errorbar_counts):
+    for d in (st._axes_bounds, st._axes_sticky, st._axes_scales, st._errorbar_counts):
         d.clear()
     st._datetime_axes.clear()
 
@@ -170,7 +178,7 @@ def test_hist_uses_native_histogram_and_fits_counts(fake):
     assert s.kw["values"] == [1, 2, 2, 3, 3, 3]  # NaN dropped
     assert (s.kw["bins"], s.kw["label"], s.letter) == (3, "h", "r")
     lo, hi = ax.limits[1]
-    assert lo < 0 < 3 < hi  # y fits 0..max count (3)
+    assert lo == 0 and 3 < hi  # y fits 0..max count (3), no padding below the baseline
     assert ax.limits[0][0] < 1 and ax.limits[0][1] > 3
 
 
@@ -227,8 +235,8 @@ def test_stem_is_native(fake):
 
 def test_log_scale_refits_to_positive_data(fake):
     ax, _ = fake
-    sp.bar([1, 2, 3], [1, 10, 1000])  # bars start at 0
-    assert ax.limits[1][0] < 0
+    sp.bar([1, 2, 3], [1, 10, 1000])  # bars start at 0 (sticky baseline)
+    assert ax.limits[1][0] == 0
     sp.yscale("log")
     assert ax.scales["y"] == "log"
     lo, hi = ax.limits[1]
@@ -448,9 +456,26 @@ def test_pyplot_plot_routes_fmt(fake_plt):
         plt.plot([0, 1], [1, 2], "g--")
     assert [s.kind for s in lines] == ["line", "scatter"]
     assert lines[0].letter == "r" and lines[0].width == 3.0
+    assert lines[0].line_style == "-"
     assert lines[1].letter == "b" and lines[1].marker_size == 6.0
-    msgs = [str(x.message) for x in w]
-    assert len([m for m in msgs if "--" in m]) == 1  # warned once
+    assert lines[1].marker_style == "o"
+    dashed = ax.created[-1]
+    assert dashed.letter == "g" and dashed.line_style == "--"
+    assert not [str(x.message) for x in w]  # line styles are drawn, not ignored
+
+
+def test_pyplot_plot_line_with_markers_and_keywords(fake_plt):
+    ax, _ = fake_plt
+    (s,) = plt.plot([0, 1], [1, 2], "k-.^")
+    assert s.kind == "line" and s.letter == "k"
+    assert s.line_style == "-." and s.marker_style == "^"
+    (s,) = plt.plot([0, 1], [1, 2], linestyle="dotted", marker="s", ms=4)
+    assert s.line_style == ":" and s.marker_style == "s" and s.marker_size == 4.0
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        (s,) = plt.plot([0, 1], [1, 2], linestyle=(0, (5, 2)), marker="8")
+    assert s.line_style is None and s.marker_style is None
+    assert len(w) == 2  # unsupported dash tuple and marker warn instead of failing
 
 
 def test_pyplot_unknown_kwargs_warn_once(fake_plt):
@@ -482,6 +507,53 @@ def test_pyplot_bar_fill_errorbar_stem(fake_plt):
     assert "scatter" in kinds and kinds[-1] == "stem"
     assert ax.created[-1].letter == "r"
     assert ax.created[2].kw["fill_opacity"] == 0.5
+    assert ax.created[0].kw["edge_color"] == (0.0, 0.0, 0.0, 1.0)  # edgecolor="k"
+    assert "edge_color" not in ax.created[1].kw  # theme-aware default
+
+
+def test_bar_hist_fill_style_and_sticky_baseline(fake):
+    ax, _ = fake
+    s = sp.bar([1, 2], [3, 5], fill_alpha=0.5, edge_width=2, edge_color=(1, 0, 0))
+    assert (s.kw["fill_alpha"], s.kw["edge_width"]) == (0.5, 2.0)
+    assert s.kw["edge_color"] == (1.0, 0.0, 0.0, 1.0)
+    lo, hi = ax.limits[1]
+    assert lo == 0 and hi > 5  # padding above only
+    h = sp.hist([1, 2, 3], bins=3, edge_width=0)
+    assert h.kw["edge_width"] == 0.0 and "fill_alpha" not in h.kw
+    sp.plot([0, 3], [-1, 1])  # data below the baseline: padded again
+    assert ax.limits[1][0] < -1
+
+
+def test_barh_sticky_x_and_fill_between_to_zero(fake):
+    ax, _ = fake
+    sp.barh([1, 2], [3, 4], left=1.0)
+    assert ax.limits[0][0] == 1.0 and ax.limits[0][1] > 4
+    assert ax.limits[1][0] < 0.6  # category axis keeps its padding
+
+
+def test_fill_between_to_constant_is_sticky(fake):
+    ax, _ = fake
+    sp.fill_between([0, 1, 2], [1, 3, 2])  # down to 0
+    assert ax.limits[1][0] == 0
+
+
+def test_sticky_baseline_keeps_span_for_constant_data(fake):
+    ax, _ = fake
+    sp.bar([1, 2], [0, 0])  # all bars at their baseline
+    lo, hi = ax.limits[1]
+    assert lo == 0 and hi > 0
+
+
+def test_stat_style_trailer_layout():
+    from spectra._axes import _stat_style
+
+    assert _stat_style(None, None, None) == []
+    t = _stat_style(0.5, None, (0.1, 0.2, 0.3))
+    assert t == [21332.0, 0.5, 1.0, 1.0, 0.1, 0.2, 0.3, 1.0]
+    with pytest.raises(ValueError):
+        _stat_style(1.5, None, None)
+    with pytest.raises(ValueError):
+        _stat_style(None, -1, None)
 
 
 def test_pyplot_labels_limits_scales(fake_plt):

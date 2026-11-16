@@ -6,6 +6,7 @@
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/codec.hpp"
+#include "../ipc/series_style_state.hpp"
 #include "figure_export.hpp"
 #include "ui/app/figure_snapshot.hpp"
 
@@ -52,6 +53,24 @@ static bool apply_property_update(FigureModel&              fig_model,
         if (str_val.size() == 1)
             diff.ops.push_back(
                 fig_model.set_series_color_letter(figure_id, series_index, str_val[0]));
+    }
+    else if (property == "line_style")
+    {
+        // Format-string line style token ("-", "--", ":", "-.", "-..", "none").
+        LineStyle ls{};
+        if (!ipc::parse_line_style_token(str_val, ls))
+            return false;
+        diff.ops.push_back(
+            fig_model.set_series_line_style(figure_id, series_index, static_cast<uint8_t>(ls)));
+    }
+    else if (property == "marker_style")
+    {
+        // Format-string marker symbol ("o", "s", "^", ...) or "none".
+        MarkerStyle ms{};
+        if (!ipc::parse_marker_style_token(str_val, ms))
+            return false;
+        diff.ops.push_back(
+            fig_model.set_series_marker_style(figure_id, series_index, static_cast<uint8_t>(ms)));
     }
     else if (property == "palette_index")
     {
@@ -471,12 +490,13 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {
-        "color",       "color_letter",   "xlim",     "ylim",           "zlim",
-        "title",       "grid",           "visible",  "line_width",     "marker_size",
-        "opacity",     "xlabel",         "ylabel",   "axes_title",     "label",
-        "legend",      "legend_visible", "add_knob", "annotation",     "clear_annotations",
-        "data_origin", "xscale",         "yscale",   "xaxis_datetime", "yaxis_datetime",
-        "categories",  "palette_index",  "suptitle", "figure_layout"};
+        "color",        "color_letter",   "xlim",         "ylim",           "zlim",
+        "title",        "grid",           "visible",      "line_width",     "marker_size",
+        "opacity",      "xlabel",         "ylabel",       "axes_title",     "label",
+        "legend",       "legend_visible", "add_knob",     "annotation",     "clear_annotations",
+        "data_origin",  "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
+        "categories",   "line_style",     "marker_style", "palette_index",  "suptitle",
+        "figure_layout"};
     bool known = false;
     for (const auto* p : known_props)
     {
@@ -514,7 +534,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                       ctx.graph.session_id(),
                       msg.header.request_id,
                       404,
-                      "Bad target for property: " + req->property);
+                      "Bad target or value for property: " + req->property);
         return HandleResult::Continue;
     }
 

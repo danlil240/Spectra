@@ -13,6 +13,7 @@
 #include <spectra/figure_registry.hpp>
 #include "window_ui_context.hpp"
 #include "zoom_level.hpp"
+#include "ui/input/view_history.hpp"
 
 #include <limits>
 
@@ -527,11 +528,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         // Handle interaction state from UI — Home restores original view
         if (active_figure && imgui_ui->should_reset_view())
         {
-            auto& active_vm = fig_mgr.active_state();
+            auto&     active_vm = fig_mgr.active_state();
+            ViewState home_before;
+            ViewState home_after;
             for (auto& ax : active_figure->axes_mut())
             {
                 if (ax)
                 {
+                    home_before.push_back({ax.get(), ax->x_limits(), ax->y_limits()});
                     auto it = active_vm.home_limits().find(ax.get());
                     if (it != active_vm.home_limits().end())
                     {
@@ -541,6 +545,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                                                             it->second.y,
                                                             0.25f,
                                                             ease::ease_out);
+                        home_after.push_back({ax.get(), it->second.x, it->second.y});
                     }
                     else
                     {
@@ -557,9 +562,17 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                                                             target_y,
                                                             0.25f,
                                                             ease::ease_out);
+                        home_after.push_back({ax.get(), target_x, target_y});
                     }
                 }
             }
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+            // One Back / Forward entry and undo step.
+            ui_ctx.input_handler.record_view_change(active_figure,
+                                                    "Restore original view",
+                                                    std::move(home_before),
+                                                    std::move(home_after));
+    #endif
             // 3D axes (subplot3d populates all_axes only)
             for (auto& ax_base : active_figure->all_axes_mut())
             {
@@ -570,19 +583,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 }
             }
             imgui_ui->clear_reset_view();
-        }
-
-        // Live reset chip: restore presented-buffer-driven tracking view
-        if (active_figure && imgui_ui->should_reset_live_view())
-        {
-            for (auto& ax : active_figure->axes_mut())
-            {
-                if (ax && ax->has_presented_buffer())
-                {
-                    ax->presented_buffer(ax->presented_buffer_seconds());
-                }
-            }
-            imgui_ui->clear_reset_live_view();
         }
 
         // ImGuiIntegration owns the tool (nav rail, tool.* commands and their
@@ -1031,6 +1031,12 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 renderer_.clear_selected_series();
             }
         }
+        // Hovering a legend entry fades the other series of its axes.
+        if (ui_ctx.data_interaction && active_figure)
+            renderer_.set_dimmed_series(
+                ui_ctx.data_interaction->legend().dimmed_series(*active_figure));
+        else
+            renderer_.set_dimmed_series({});
 #endif
 
         if (profiler)

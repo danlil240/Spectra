@@ -28,6 +28,7 @@ void UndoManager::push(UndoAction action)
 
     // Clear redo stack on new action
     redo_stack_.clear();
+    ++revision_;
 
     undo_stack_.push_back(std::move(action));
 
@@ -51,6 +52,7 @@ bool UndoManager::undo()
         auto action = std::move(undo_stack_.back());
         undo_stack_.pop_back();
         SPECTRA_LOG_TRACE("undo", "Undo: {}", action.description);
+        ++revision_;
         fn = action.undo_fn;
         redo_stack_.push_back(std::move(action));
     }
@@ -71,6 +73,7 @@ bool UndoManager::redo()
         auto action = std::move(redo_stack_.back());
         redo_stack_.pop_back();
         SPECTRA_LOG_TRACE("undo", "Redo: {}", action.description);
+        ++revision_;
         fn = action.redo_fn;
         undo_stack_.push_back(std::move(action));
     }
@@ -106,6 +109,12 @@ std::string UndoManager::redo_description() const
     return redo_stack_.empty() ? "" : redo_stack_.back().description;
 }
 
+uint64_t UndoManager::revision() const
+{
+    std::lock_guard lock(mutex_);
+    return revision_;
+}
+
 size_t UndoManager::undo_count() const
 {
     std::lock_guard lock(mutex_);
@@ -123,6 +132,7 @@ void UndoManager::clear()
     std::lock_guard lock(mutex_);
     undo_stack_.clear();
     redo_stack_.clear();
+    ++revision_;
     grouping_ = false;
     group_actions_.clear();
 }
@@ -191,6 +201,7 @@ void UndoManager::end_group()
 
     // Clear redo stack on new action
     redo_stack_.clear();
+    ++revision_;
     undo_stack_.push_back(std::move(combined));
 
     if (undo_stack_.size() > MAX_STACK_SIZE)
@@ -208,6 +219,8 @@ size_t UndoManager::remove_owned(const void* owner)
     for (auto* stack : {&undo_stack_, &redo_stack_, &group_actions_})
         removed +=
             std::erase_if(*stack, [owner](const UndoAction& a) { return a.owned_by(owner); });
+    if (removed)
+        ++revision_;
     return removed;
 }
 

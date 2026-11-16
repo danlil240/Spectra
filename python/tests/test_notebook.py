@@ -176,16 +176,16 @@ def test_wheel_is_normalized_to_glfw_notches():
     assert ctl.events_handled == 3
 
 
-def test_resize_follows_css_size_and_ignores_dpr_by_default():
-    ctl, s, _, sent = make(FakeSurface(40, 30))
+def test_resize_ignores_dpr_when_hidpi_is_off():
+    ctl, s, _, sent = make(FakeSurface(40, 30), hidpi=False)
     ctl.handle_events([{"t": "resize", "w": 300, "h": 100, "dpr": 2}])
     assert (s.width, s.height, s.dpi_scale) == (300, 100, 1.0)
     ctl.handle_events([{"t": "down", "b": 0, "x": 150, "y": 50}])
     assert s.calls[-1] == ("button", 0, 1, 0, 150.0, 50.0)
 
 
-def test_resize_follows_css_size_and_device_pixel_ratio_when_hidpi():
-    ctl, s, _, sent = make(FakeSurface(40, 30), hidpi=True)
+def test_resize_follows_css_size_and_device_pixel_ratio_by_default():
+    ctl, s, _, sent = make(FakeSurface(40, 30))
     ctl.handle_events([{"t": "resize", "w": 300, "h": 100, "dpr": 2}])
     assert (s.width, s.height, s.dpi_scale) == (600, 200, 2.0)
     assert ctl.css_size == (300.0, 100.0)
@@ -433,3 +433,214 @@ def test_surface_widget_is_cached():
     assert surface.widget(height=100) is not w
     w.close()
     surface.close()
+
+
+# ─── Readout, theme, auto-refresh (spectra.notebook polish) ─────────────────
+
+
+def test_format_readout():
+    assert notebook.format_readout(None) == ""
+    assert notebook.format_readout((1.5, -2e-7)) == "x = 1.5   y = -2e-07"
+    assert notebook.format_readout((123456789.0, 0.0)) == "x = 1.23457e+08   y = 0"
+
+
+def test_resolve_theme():
+    assert notebook.resolve_theme("auto", None) == "light"  # light by default in Jupyter
+    assert notebook.resolve_theme("auto", False) == "light"
+    assert notebook.resolve_theme("auto", True) == "dark"
+    assert notebook.resolve_theme("night", True) == "night"  # explicit wins
+    assert notebook.resolve_theme(None, True) is None  # keep the surface's theme
+
+
+class ReadoutSurface(FakeSurface):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.data = None
+
+    def cursor_data(self):
+        return self.data
+
+
+def test_pointer_events_update_the_readout_and_leave_clears_it():
+    texts = []
+    ctl, s, _, _ = make(ReadoutSurface(), on_readout=texts.append)
+    s.data = (2.0, 3.5)
+    ctl.handle_events([{"t": "move", "x": 1, "y": 1}])
+    assert ctl.readout == "x = 2   y = 3.5" and texts == ["x = 2   y = 3.5"]
+    ctl.handle_events([{"t": "move", "x": 2, "y": 2}])  # same value: no new callback
+    assert texts == ["x = 2   y = 3.5"]
+    s.data = None  # pointer moved off the axes
+    ctl.handle_events([{"t": "move", "x": 3, "y": 3}])
+    assert texts[-1] == ""
+    s.data = (1.0, 1.0)
+    ctl.handle_events([{"t": "move", "x": 4, "y": 4}, {"t": "leave"}])
+    assert ctl.readout == ""
+    # Key presses do not query the readout.
+    s.data = (9.0, 9.0)
+    ctl.handle_events([{"t": "key", "k": 82}])
+    assert ctl.readout == ""
+
+
+def test_readout_without_cursor_support_stays_empty():
+    ctl, _, _, _ = make()  # FakeSurface has no cursor_data()
+    ctl.handle_events([{"t": "move", "x": 1, "y": 1}])
+    assert ctl.readout == ""
+
+
+def test_notify_changed_renders_throttled():
+    ctl, s, loop, sent = make()
+    ctl.render_now()
+    n = s.renders
+    s.view += 1
+    ctl.notify_changed()  # within the frame budget: deferred to the next slot
+    assert s.renders == n
+    for _ in range(5):
+        ctl.notify_changed()  # coalesced
+    loop.advance(ctl.frame_interval)
+    assert s.renders == n + 1
+    loop.advance(1.0)
+    assert sent[-1][0] == "image/png"
+
+
+def test_notify_changed_during_render_is_ignored():
+    class AppendingSurface(FakeSurface):
+        ctl = None
+
+        def update(self, dt):
+            # A frame callback appending data notifies the surface mid-render.
+            self.ctl.notify_changed()
+
+    s = AppendingSurface()
+    ctl, _, loop, _ = make(s)
+    AppendingSurface.ctl = ctl
+    ctl.render_now()
+    assert s.renders == 1
+    assert loop.pending() == 0  # no frame queued by the re-entrant notify
+
+
+@_skip_embed
+def test_real_change_listener_fires_on_proxy_calls():
+    surface = EmbedSurface(64, 48)
+    calls = []
+    surface.add_change_listener(lambda: calls.append(1))
+    ax = surface.figure().subplot(1, 1, 1)
+    n = len(calls)
+    series = ax.line([0.0, 1.0], [0.0, 1.0])
+    assert len(calls) == n + 1
+    series.set_data([0.0, 1.0, 2.0], [0.0, 1.0, 4.0])
+    series.set_color(1.0, 0.0, 0.0)
+    ax.set_xlim(0.0, 5.0)
+    assert len(calls) == n + 4
+    ax.annotation_count()  # read-only: no notification
+    assert len(calls) == n + 4
+    surface.remove_change_listener(calls.append)  # not registered: no error
+    surface.close()
+
+
+@_skip_embed
+def test_real_hidpi_readout_matches_data_under_pointer():
+    surface = EmbedSurface(320, 240)
+    ax = surface.figure().subplot(1, 1, 1)
+    ax.line([0.0, 10.0], [0.0, 10.0])
+    ax.set_xlim(0.0, 10.0)
+    ax.set_ylim(0.0, 10.0)
+    texts = []
+    ctl, _, _, _ = make(surface, on_readout=texts.append)
+    ctl.handle_events([{"t": "resize", "w": 320, "h": 240, "dpr": 2}])
+    assert (surface.width, surface.height) == (640, 480)
+    ctl.render_now()
+    ctl.handle_events([{"t": "move", "x": 2, "y": 2}])  # corner: outside the axes
+    assert ctl.readout == ""
+    # The plot's centre in CSS pixels is (near) the data centre at any dpr.
+    xs = []
+    for cx in (140, 180):
+        ctl.handle_events([{"t": "move", "x": cx, "y": 120}])
+        assert ctl.readout.startswith("x = ")
+        xs.append(float(ctl.readout.split()[2]))
+    assert 2.0 < xs[0] < xs[1] < 8.0
+    surface.close()
+
+
+@_skip_embed
+@_skip_widget
+def test_canvas_theme_follows_notebook_and_respects_explicit_choice():
+    surface, _, _ = _real(64, 48)
+    w = notebook.Canvas(surface)
+    w.send = lambda content, buffers=None: None
+    assert w._theme_applied == "light" and w.dark is False  # light by default
+    light = bytes(w.frame)
+    w._handle_custom_msg({"type": "theme", "dark": True}, [])
+    assert w._theme_applied == "dark" and w.dark is True
+    assert bytes(w.frame) != light
+    w.close()
+
+    forced = notebook.Canvas(surface, theme="night")
+    forced._handle_custom_msg({"type": "theme", "dark": False}, [])
+    assert forced._theme_applied == "night"
+    forced.close()
+    surface.close()
+
+    explicit = EmbedSurface(64, 48, theme="night")
+    explicit.figure().subplot(1, 1, 1)
+    kept = notebook.Canvas(explicit)
+    assert getattr(kept, "_theme_applied", None) is None  # surface keeps "night"
+    kept.close()
+    explicit.close()
+
+
+@_skip_embed
+@_skip_widget
+def test_canvas_save_readout_and_auto_refresh():
+    surface = EmbedSurface(320, 240)
+    ax = surface.figure().subplot(1, 1, 1)
+    series = ax.line([0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    w = notebook.Canvas(surface)
+    sent = []
+    w.send = lambda content, buffers=None: sent.append((content, buffers))
+
+    # Save: the kernel answers with a PNG the browser downloads.
+    w._handle_custom_msg({"type": "save"}, [])
+    content, buffers = sent[-1]
+    assert content == {"type": "png", "name": "spectra.png"}
+    assert bytes(buffers[0]).startswith(b"\x89PNG")
+
+    # Readout: synced after a move over the axes.
+    w._handle_custom_msg({"type": "events", "events": [{"t": "move", "x": 160, "y": 120}]}, [])
+    assert w.readout.startswith("x = ")
+
+    # Auto-refresh: changing the data from Python pushes a new frame.
+    before = bytes(w.frame)
+    series.set_data([0.0, 1.0, 2.0], [0.0, -1.0, 0.0])
+    assert bytes(w.frame) != before
+
+    # After close() the surface no longer drives the widget.
+    w.close()
+    assert w.controller.notify_changed not in surface._change_listeners
+    surface.close()
+
+
+def test_notify_changed_renders_overdue_frame_while_the_loop_is_blocked():
+    # A synchronous cell loop: the clock advances but scheduled timers never
+    # run until the cell yields. Each notification past the frame interval
+    # must still render, instead of waiting for the stuck timer.
+    ctl, s, loop, sent = make()
+    ctl.render_now()
+    n = s.renders
+    s.view += 1
+    ctl.notify_changed()  # within the interval: deferred to a timer
+    assert s.renders == n
+    for i in range(1, 6):
+        loop.now += ctl.frame_interval * 1.5  # time passes, timers do not fire
+        s.view += 1
+        ctl.notify_changed()
+        assert s.renders == n + i
+        assert sent[-1][0] == "image/jpeg"
+    # Notifications inside the interval are still coalesced into one timer;
+    # the stale ones were cancelled.
+    ctl.notify_changed()
+    ctl.notify_changed()
+    assert s.renders == n + 5
+    assert sum(1 for t in loop.timers if t[3] and t[2] == ctl._on_flush) == 1
+    # When the cell yields, that one pending frame renders once.
+    loop.advance(ctl.frame_interval)
+    assert s.renders == n + 6

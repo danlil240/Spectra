@@ -33,7 +33,7 @@ class Figure:
     """
 
     __slots__ = ("_session", "_id", "_title", "_axes_list", "_visible", "_shown_once", "_window_id",
-                 "_suptitle", "_layout")
+                 "_suptitle", "_layout", "_size")
 
     def __init__(self, session: Session, figure_id: int, title: str = "") -> None:
         self._session = session
@@ -45,6 +45,7 @@ class Figure:
         self._window_id: int = 0
         self._suptitle = ""
         self._layout = [True, 0, 0]  # constrained, sharex, sharey
+        self._size = None  # (width, height) the figure was created with, if known
 
     @property
     def id(self) -> int:
@@ -226,6 +227,19 @@ class Figure:
         payload = codec.encode_req_destroy_figure(self._id)
         self._session._request(P.REQ_DESTROY_FIGURE, payload)
         self._visible = False
+
+    def to_png(self) -> Optional[bytes]:
+        """PNG bytes of this figure rendered offscreen (None if it cannot be rendered).
+
+        Uses the inline settings of :func:`spectra.use_inline` (size, theme).
+        """
+        from ._inline import render_png
+
+        return render_png(self)
+
+    def _repr_png_(self) -> Optional[bytes]:
+        """IPython/Jupyter rich display: the figure as an inline PNG image."""
+        return self.to_png()
 
     def __repr__(self) -> str:
         return f"Figure(id={self._id}, title={self._title!r})"

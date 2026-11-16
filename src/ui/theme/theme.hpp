@@ -556,6 +556,10 @@ class ThemeManager
         std::vector<std::string> themes;     // registered theme ids
         std::vector<std::string> palettes;   // registered palette ids
         std::vector<std::string> errors;     // "<file>: <reason>"
+        // Entries of an earlier load whose file is gone (or now invalid),
+        // unregistered; an active one falls back to a built-in.
+        std::vector<std::string> removed_themes;
+        std::vector<std::string> removed_palettes;
     };
     static std::filesystem::path user_themes_dir(const std::filesystem::path& config_dir);
     static std::filesystem::path user_palettes_dir(const std::filesystem::path& config_dir);
@@ -628,6 +632,10 @@ class ThemeManager
     void ensure_initialized();
 
    private:
+    // Unregister a user theme / palette (load_user_files() reconciliation).
+    bool unregister_user_theme(const std::string& id);
+    bool unregister_user_data_palette(const std::string& id);
+
     std::unordered_map<std::string, Theme> themes_;
     std::string                            current_theme_name_ = "night";
     Theme*                                 current_theme_      = nullptr;
@@ -732,6 +740,11 @@ class ScopedExportTheme
     ScopedExportTheme& operator=(const ScopedExportTheme&) = delete;
 
     bool active() const { return active_; }
+
+    // True when a capture with export theme `name` must be drawn under a
+    // ScopedExportTheme: it has its own theme, or the CVD preview is on and
+    // must be suspended so the file gets the real colours.
+    static bool needed_for(const ThemeManager* tm, const std::string& name);
 
    private:
     ThemeManager* tm_        = nullptr;

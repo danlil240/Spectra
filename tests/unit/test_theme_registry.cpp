@@ -271,6 +271,97 @@ TEST_F(ThemeRegistryTest, LoadUserFilesRegistersThemesAndPalettes)
     EXPECT_TRUE(fresh.load_user_files(dir_ / "nope").errors.empty());
 }
 
+TEST_F(ThemeRegistryTest, ReloadRemovesUserEntriesWhoseFilesWereDeleted)
+{
+    // Two user themes (one light) and two palettes on disk.
+    fs::create_directories(ThemeManager::user_themes_dir(dir_));
+    Theme dark_t = *tm_.find_theme("night");
+    dark_t.name  = "midnight";
+    tm_.register_theme("midnight", dark_t);
+    Theme light_t = *tm_.find_theme("light");
+    light_t.name  = "paper";
+    tm_.register_theme("paper", light_t);
+    const fs::path midnight_file = ThemeManager::user_themes_dir(dir_) / "midnight.json";
+    const fs::path paper_file    = ThemeManager::user_themes_dir(dir_) / "paper.json";
+    ASSERT_TRUE(tm_.export_theme_file("midnight", midnight_file.string()));
+    ASSERT_TRUE(tm_.export_theme_file("paper", paper_file.string()));
+    const fs::path warm_file = ThemeManager::user_palettes_dir(dir_) / "warm.json";
+    write(warm_file, R"({"name": "warm", "colors": ["#ff8800", "#cc4400"]})");
+    write(ThemeManager::user_palettes_dir(dir_) / "cool.json",
+          R"({"name": "cool", "colors": ["#0088ff", "#0044cc"]})");
+
+    ThemeManager fresh;
+    fresh.ensure_initialized();
+    auto res = fresh.load_user_files(dir_);
+    ASSERT_EQ(res.themes.size(), 2u);
+    ASSERT_EQ(res.palettes.size(), 2u);
+    EXPECT_TRUE(res.removed_themes.empty());
+    EXPECT_TRUE(res.removed_palettes.empty());
+    fresh.set_theme("paper");
+    fresh.set_data_palette("warm");
+    ASSERT_EQ(fresh.current_theme_name(), "paper");
+    ASSERT_EQ(fresh.current_data_palette_name(), "warm");
+
+    // Nothing changed on disk: reload keeps everything.
+    res = fresh.load_user_files(dir_);
+    EXPECT_TRUE(res.removed_themes.empty());
+    EXPECT_EQ(fresh.current_theme_name(), "paper");
+
+    // Delete the active theme, an inactive one's file stays; delete the
+    // active palette.
+    fs::remove(paper_file);
+    fs::remove(warm_file);
+    res = fresh.load_user_files(dir_);
+    EXPECT_EQ(res.removed_themes, std::vector<std::string>{"paper"});
+    EXPECT_EQ(res.removed_palettes, std::vector<std::string>{"warm"});
+    EXPECT_EQ(fresh.find_theme("paper"), nullptr);
+    EXPECT_FALSE(fresh.is_user_theme("paper"));
+    EXPECT_FALSE(fresh.is_user_data_palette("warm"));
+    const auto themes = fresh.available_themes();
+    EXPECT_EQ(std::find(themes.begin(), themes.end(), "paper"), themes.end());
+    const auto palettes = fresh.ordered_data_palettes();
+    EXPECT_EQ(std::find(palettes.begin(), palettes.end(), "warm"), palettes.end());
+    EXPECT_NE(std::find(palettes.begin(), palettes.end(), "cool"), palettes.end());
+    // The active theme falls back to the built-in of the same kind; the
+    // palette to the theme's own.
+    EXPECT_EQ(fresh.current_theme_name(), "light");
+    EXPECT_TRUE(near(fresh.current().colors.bg_canvas, tm_.find_theme("light")->colors.bg_canvas));
+    EXPECT_EQ(fresh.current_data_palette_name(), "default");
+    // The remaining user theme is untouched.
+    EXPECT_TRUE(fresh.is_user_theme("midnight"));
+    EXPECT_NE(fresh.find_theme("midnight"), nullptr);
+
+    // A dark active user theme falls back to a dark built-in.
+    fresh.set_theme("midnight");
+    fs::remove(midnight_file);
+    res = fresh.load_user_files(dir_);
+    EXPECT_EQ(res.removed_themes, std::vector<std::string>{"midnight"});
+    EXPECT_EQ(fresh.current_theme_name(), "night");
+
+    // A theme registered by code (not from the user dir) is never removed.
+    EXPECT_NE(fresh.find_theme("night"), nullptr);
+    Theme coded = *fresh.find_theme("night");
+    fresh.register_theme("from_code", coded);
+    fresh.load_user_files(dir_);
+    EXPECT_NE(fresh.find_theme("from_code"), nullptr);
+}
+
+TEST_F(ThemeRegistryTest, CapturesNeedExportThemeForAThemeOrTheCvdPreview)
+{
+    EXPECT_FALSE(ScopedExportTheme::needed_for(nullptr, "light"));
+    EXPECT_FALSE(ScopedExportTheme::needed_for(&tm_, ""));
+    EXPECT_TRUE(ScopedExportTheme::needed_for(&tm_, "light"));
+    tm_.set_cvd_preview(CVDType::Protanopia);
+    // file.export_png saves without a theme: the preview still has to go.
+    EXPECT_TRUE(ScopedExportTheme::needed_for(&tm_, ""));
+    {
+        ScopedExportTheme guard(&tm_, "");
+        EXPECT_EQ(tm_.cvd_preview(), CVDType::None);
+        EXPECT_FALSE(guard.active());
+    }
+    EXPECT_EQ(tm_.cvd_preview(), CVDType::Protanopia);
+}
+
 TEST_F(ThemeRegistryTest, ImportUserFileCopiesIntoConfigDirAndRenamesBuiltins)
 {
     // Exporting a built-in and importing it creates "<id>_custom".

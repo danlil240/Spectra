@@ -1237,9 +1237,11 @@ App::StepResult App::step()
 
     // A PNG capture with its own theme: the frame it reads back is drawn with
     // that theme (only the plot follows it; ImGui keeps its applied style),
-    // then the window is redrawn in the app theme.
+    // then the window is redrawn in the app theme.  Every capture suspends the
+    // colour vision deficiency preview (a view setting) the same way.
     std::optional<ui::ScopedExportTheme> capture_theme;
-    if (rt.png_export.awaiting_capture() && !rt.png_export.theme().empty())
+    if (rt.png_export.awaiting_capture()
+        && ui::ScopedExportTheme::needed_for(theme_mgr_.get(), rt.png_export.theme()))
     {
         capture_theme.emplace(theme_mgr_.get(), rt.png_export.theme());
         rt.session.redraw_tracker().mark_dirty("themed export");
@@ -1468,11 +1470,14 @@ void App::shutdown_runtime()
 
             // The framebuffer still holds the active figure's last frame only
             // until another figure has been re-rendered into it.
-            // A per-export theme draws this figure (only) with that theme.
+            // A per-export theme draws this figure (only) with that theme; a
+            // frame drawn with the CVD preview is never reused for the file.
+            const bool view_differs =
+                ui::ScopedExportTheme::needed_for(theme_mgr_.get(), f.export_req_.png_theme);
             ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.png_theme);
             bool needs_render = (&f != rt.active_figure) || !framebuffer_holds_active
                                 || (export_w != f.width()) || (export_h != f.height())
-                                || export_theme.active();
+                                || export_theme.active() || view_differs;
 
             if (needs_render)
             {

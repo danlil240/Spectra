@@ -954,6 +954,9 @@ void SettingsPanel::draw_files_section()
         files_status_error_ = !res.errors.empty();
         files_status_       = "Loaded " + std::to_string(res.themes.size()) + " theme(s), "
                         + std::to_string(res.palettes.size()) + " palette(s)";
+        const size_t removed = res.removed_themes.size() + res.removed_palettes.size();
+        if (removed > 0)
+            files_status_ += ", removed " + std::to_string(removed);
         if (!res.errors.empty())
             files_status_ +=
                 "; skipped " + res.errors.front()

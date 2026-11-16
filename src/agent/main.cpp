@@ -1462,9 +1462,11 @@ int main(int argc, char* argv[])
         }
 
         // ── Standard session tick (same as inproc) ───────────────────────
-        // A PNG capture with its own theme draws the captured frame with it.
+        // A PNG capture with its own theme draws the captured frame with it;
+        // every capture suspends the colour vision deficiency preview.
         std::optional<spectra::ui::ScopedExportTheme> capture_theme;
-        if (png_export.awaiting_capture() && !png_export.theme().empty())
+        if (png_export.awaiting_capture()
+            && spectra::ui::ScopedExportTheme::needed_for(&theme_mgr, png_export.theme()))
         {
             capture_theme.emplace(&theme_mgr, png_export.theme());
             session.redraw_tracker().mark_dirty("themed export");

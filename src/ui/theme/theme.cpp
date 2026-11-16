@@ -233,6 +233,11 @@ ScopedExportTheme::ScopedExportTheme(ThemeManager* tm, const std::string& name) 
                          tm_->current_theme_name());
 }
 
+bool ScopedExportTheme::needed_for(const ThemeManager* tm, const std::string& name)
+{
+    return tm && (!name.empty() || tm->cvd_preview() != CVDType::None);
+}
+
 ScopedExportTheme::~ScopedExportTheme()
 {
     if (!tm_)
@@ -1772,6 +1777,54 @@ bool ThemeManager::is_user_data_palette(std::string_view id) const
     return user_palettes_.count(std::string(id)) > 0;
 }
 
+bool ThemeManager::unregister_user_theme(const std::string& id)
+{
+    // Built-ins are never user entries; an active export override holds a
+    // pointer into themes_ (exports finish within one frame, so a reload
+    // never overlaps one).
+    if (is_builtin_theme(id) || export_override_.active)
+        return false;
+    auto it = themes_.find(id);
+    if (it == themes_.end())
+        return false;
+    const bool was_light   = is_light_plot_background(it->second.colors);
+    const bool was_current = current_theme_ == &it->second || current_theme_name_ == id;
+    if (transitioning_ && transition_target_name_ == id)
+        transitioning_ = false;
+    themes_.erase(it);
+    if (last_dark_theme_ == id)
+        last_dark_theme_ = "night";
+    if (last_light_theme_ == id)
+        last_light_theme_ = "light";
+    if (was_current)
+    {
+        // Fall back to a built-in of the same kind (set_theme() notifies).
+        current_theme_ = nullptr;
+        set_theme(was_light ? last_light_theme_ : last_dark_theme_);
+    }
+    return true;
+}
+
+bool ThemeManager::unregister_user_data_palette(const std::string& id)
+{
+    if (is_builtin_data_palette(id))
+        return false;
+    auto it = data_palettes_.find(id);
+    if (it == data_palettes_.end())
+        return false;
+    if (palette_transitioning_ && palette_transition_target_name_ == id)
+        palette_transitioning_ = false;
+    data_palettes_.erase(it);
+    palette_names_dirty_ = true;
+    if (current_data_palette_name_ == id)
+    {
+        current_data_palette_name_ = "default";
+        display_palette_valid_     = false;
+        palette_transitioning_     = false;
+    }
+    return true;
+}
+
 ThemeManager::UserFilesResult ThemeManager::load_user_files(const std::filesystem::path& config_dir)
 {
     namespace fs = std::filesystem;
@@ -1795,6 +1848,13 @@ ThemeManager::UserFilesResult ThemeManager::load_user_files(const std::filesyste
         std::sort(files.begin(), files.end());
         return files;
     };
+
+    // Entries from an earlier load: those whose file is gone (or no longer
+    // valid) are unregistered below, so Reload also removes.
+    const std::unordered_set<std::string> previous_themes   = std::move(user_themes_);
+    const std::unordered_set<std::string> previous_palettes = std::move(user_palettes_);
+    user_themes_.clear();
+    user_palettes_.clear();
 
     for (const fs::path& file : json_files(user_themes_dir(config_dir)))
     {
@@ -1820,6 +1880,15 @@ ThemeManager::UserFilesResult ThemeManager::load_user_files(const std::filesyste
         user_palettes_.insert(id);
         result.palettes.push_back(id);
     }
+
+    for (const std::string& id : previous_themes)
+        if (!user_themes_.count(id) && unregister_user_theme(id))
+            result.removed_themes.push_back(id);
+    for (const std::string& id : previous_palettes)
+        if (!user_palettes_.count(id) && unregister_user_data_palette(id))
+            result.removed_palettes.push_back(id);
+    std::sort(result.removed_themes.begin(), result.removed_themes.end());
+    std::sort(result.removed_palettes.begin(), result.removed_palettes.end());
     for (const std::string& e : result.errors)
         SPECTRA_LOG_WARN("theme", "Skipping user theme/palette file {}", e);
     return result;

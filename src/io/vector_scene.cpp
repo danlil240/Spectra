@@ -235,7 +235,7 @@ float clamp01(float v)
 // choice).  Drives every layout decision (legend box, label fitting, overlap).
 float measure_text_width(std::string_view s, float font_px)
 {
-    return inter_text_width(s, font_px);
+    return inter_mathtext_width(s, font_px);
 }
 
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
@@ -1731,12 +1731,15 @@ std::string fit_label(std::string_view text, float max_w, float font_px, bool& t
             ends.push_back(i);
     if (ends.empty())
         return {};
-    auto candidate = [&](size_t k)
+    const bool is_math   = mathtext::is_math_text(text);
+    auto       candidate = [&](size_t k)
     {
         size_t len = ends[k];
         while (len > 0 && text[len - 1] == ' ')
             --len;
         std::string out(text.substr(0, len));
+        if (is_math)
+            mathtext::close_truncated(out);
         out.append(ellipsis);
         return out;
     };

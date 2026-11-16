@@ -12,6 +12,7 @@ summarise the main changes rather than listing every commit.
 ## [Unreleased]
 
 ### Added
+- Matplotlib-style mathtext in plot text (titles, axis labels, legend entries, annotations): `$\alpha_1 = 10^{-3}$ s` renders Greek letters, common symbols, function names and sub/superscripts (70% size, baseline-shifted, stacked as in `x_i^2`) on screen and in SVG/PDF export, and text measurement uses the same layout; `\$` is a literal dollar and strings with an odd number of `$` stay plain.
 
 - 3D camera views: commands and shortcuts for front / back / left / right / top / bottom / isometric (Alt+1..7) and a perspective/orthographic toggle (Alt+0), plus a clickable view cube in the corner of every 3D axes; axis views switch to orthographic so ticks stay evenly spaced, and all camera moves are undoable. `Axes3D::equal_aspect()` ("axis equal", Inspector checkbox, saved in workspaces), and 3D scatter per-point colours (`ScatterSeries3D::color_values()` + `colormap()`, with colorbar) and sizes (`sizes()`).
 

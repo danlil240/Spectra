@@ -266,6 +266,7 @@ set(SPECTRA_UNIT_TESTS
     test_text_renderer
     test_text_fit
     test_label_layout
+    test_mathtext
     test_overlay_text_fit
     test_font_fallback
     test_eigen_support

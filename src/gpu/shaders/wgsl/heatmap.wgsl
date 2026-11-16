@@ -1,6 +1,7 @@
 // heatmap.wgsl — WGSL heatmap pipeline (PipelineType::Heatmap) for the WebGPU
-// backend.  Same data layout and colormap as the example heatmap plug-in
-// shaders (examples/plugins/shaders/heatmap.{vert,frag}).
+// backend.  Same data layout as the example heatmap plug-in shaders
+// (examples/plugins/shaders/heatmap.{vert,frag}); the colours come from a
+// colormap lookup table (Colormap::rgba8, n x 1 RGBA8) bound as group 2.
 //
 // Storage buffer (group 1, binding 0), as floats:
 //   [cols (u32 bits), rows (u32 bits), min_val, max_val, v0, v1, ...]
@@ -81,27 +82,20 @@ fn vs_main(
     return out;
 }
 
-// Viridis-inspired colormap (5 control points, linearly interpolated).
-fn viridis(t_in: f32) -> vec3<f32> {
-    let c0 = vec3<f32>(0.267, 0.004, 0.329);
-    let c1 = vec3<f32>(0.282, 0.140, 0.458);
-    let c2 = vec3<f32>(0.127, 0.566, 0.551);
-    let c3 = vec3<f32>(0.544, 0.774, 0.247);
-    let c4 = vec3<f32>(0.993, 0.906, 0.144);
+// ── Bind group 2: colormap lookup table ─────────────────────────────────────
 
-    let t = clamp(t_in, 0.0, 1.0);
-    let s = t * 4.0;
-    let i = i32(floor(s));
-    let f = fract(s);
+@group(2) @binding(0) var lut_tex : texture_2d<f32>;
 
-    if i >= 4 { return c4; }
-    if i == 0 { return mix(c0, c1, f); }
-    if i == 1 { return mix(c1, c2, f); }
-    if i == 2 { return mix(c2, c3, f); }
-    return mix(c3, c4, f);
+// Nearest entry min(int(t * n), n - 1), as Colormap::sample().
+fn apply_colormap(t_in: f32) -> vec4<f32> {
+    let t   = clamp(t_in, 0.0, 1.0);
+    let n   = i32(textureDimensions(lut_tex).x);
+    let idx = clamp(i32(t * f32(n)), 0, n - 1);
+    return textureLoad(lut_tex, vec2<i32>(idx, 0), 0);
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(viridis(in.v_value), series_pc.opacity);
+    let lut = apply_colormap(in.v_value);
+    return vec4<f32>(lut.rgb, lut.a * series_pc.opacity);
 }

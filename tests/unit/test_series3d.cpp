@@ -773,8 +773,9 @@ TEST(Colormap, SampleGrayscale)
     EXPECT_FLOAT_EQ(c1.g, 1.0f);
     EXPECT_FLOAT_EQ(c1.b, 1.0f);
 
+    // Entry 128 of the 256-entry gray lookup table.
     Color c5 = SurfaceSeries::sample_colormap(ColormapType::Grayscale, 0.5f);
-    EXPECT_FLOAT_EQ(c5.r, 0.5f);
+    EXPECT_FLOAT_EQ(c5.r, 128.0f / 255.0f);
 }
 
 TEST(Colormap, SampleClampsInput)

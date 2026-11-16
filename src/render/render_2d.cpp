@@ -240,14 +240,21 @@ void Renderer::render_series(Series&             series,
                                       && gpu.ssbo_stride_floats == 4;
             if (scatter->has_colormap() && !scatter_colormap_pipeline_)
                 note_unsupported("colormapped scatter (drawn in one color)");
+            // Colormap lookup table (set 2 of scatter_colormap.frag).
+            const TextureHandle lut =
+                use_colormap ? colormap_lut(gpu, scatter->cmap()) : TextureHandle{};
+            if (use_colormap && !lut)
+                break;   // the vec4 SSBO needs the colormap pipeline
             if (use_colormap)
             {
-                pc.dash_count      = static_cast<int>(scatter->colormap());
+                pc.dash_count      = 1;
                 pc.dash_pattern[0] = scatter->colormap_min();
                 pc.dash_pattern[1] = scatter->colormap_max();
                 pc._pad2[0]        = 1.0f;
             }
             backend_.bind_pipeline(use_colormap ? scatter_colormap_pipeline_ : scatter_pipeline_);
+            if (use_colormap)
+                backend_.bind_texture(lut, 1);
             pc.point_size = scatter->size();
             // No explicit marker style: filled dot with a theme-contrasting edge.
             const ScatterMarkerParams marker =
@@ -308,20 +315,25 @@ void Renderer::render_series(Series&             series,
             auto* surface = static_cast<SurfaceSeries*>(&series);
             if (gpu.index_buffer)
             {
-                bool is_transparent =
-                    (pc.color[3] * pc.opacity) < 0.99f || surface->colormap_alpha();
-                // Colormap in push constants (see surface3d.frag): dash_count =
-                // colormap type (1=Viridis..7=Grayscale, 0=None), dash_pattern[0..1]
-                // = data value range, dash_pattern[2..4] = colormap alpha on/min/max.
-                // The vertex z is the data value, so the colours follow the data
-                // and not the axes limits.
-                const ColormapType cm = surface->colormap_type();
-                pc.dash_count         = (cm != ColormapType::None) ? static_cast<int>(cm) : 0;
-                pc.dash_pattern[0]    = surface->colormap_min();
-                pc.dash_pattern[1]    = surface->colormap_max();
-                pc.dash_pattern[2]    = surface->colormap_alpha() ? 1.0f : 0.0f;
-                pc.dash_pattern[3]    = surface->colormap_alpha_min();
-                pc.dash_pattern[4]    = surface->colormap_alpha_max();
+                // A translucent user colormap needs the sorted, no-depth-write pipeline too.
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f
+                                      || surface->colormap_alpha()
+                                      || surface->cmap().has_transparency();
+                // Colormap (see surface3d.frag): the lookup table is set 2, bound
+                // for every surface draw since the shader always declares it;
+                // dash_count = 1 enables it, dash_pattern[0..1] = data value
+                // range, dash_pattern[2..4] = colormap alpha on/min/max.  The
+                // vertex z is the data value, so the colours follow the data and
+                // not the axes limits.
+                const TextureHandle lut = colormap_lut(gpu, surface->cmap());
+                if (!lut)
+                    break;
+                pc.dash_count      = surface->cmap().is_none() ? 0 : 1;
+                pc.dash_pattern[0] = surface->colormap_min();
+                pc.dash_pattern[1] = surface->colormap_max();
+                pc.dash_pattern[2] = surface->colormap_alpha() ? 1.0f : 0.0f;
+                pc.dash_pattern[3] = surface->colormap_alpha_min();
+                pc.dash_pattern[4] = surface->colormap_alpha_max();
                 if (surface->wireframe())
                 {
                     if (!surface->is_wireframe_mesh_generated())
@@ -329,6 +341,7 @@ void Renderer::render_series(Series&             series,
                     backend_.bind_pipeline(is_transparent
                                                ? surface_wireframe3d_transparent_pipeline_
                                                : surface_wireframe3d_pipeline_);
+                    backend_.bind_texture(lut, 1);
                     pc._pad2[0] = surface->ambient();
                     pc._pad2[1] = surface->specular();
                     if (surface->shininess() > 0.0f)
@@ -349,6 +362,7 @@ void Renderer::render_series(Series&             series,
                     const auto& surf_mesh = surface->mesh();
                     backend_.bind_pipeline(is_transparent ? surface3d_transparent_pipeline_
                                                           : surface3d_pipeline_);
+                    backend_.bind_texture(lut, 1);
                     pc._pad2[0] = surface->ambient();
                     pc._pad2[1] = surface->specular();
                     if (surface->shininess() > 0.0f)
@@ -899,8 +913,15 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 auto* scatter = static_cast<const ScatterSeries*>(sel);
                 if (scatter->point_count() == 0)
                     break;
-                backend_.bind_pipeline(gpu.ssbo_stride_floats == 4 ? scatter_colormap_pipeline_
-                                                                   : scatter_pipeline_);
+                // The colormap pipeline (vec4 SSBO) also needs its lookup table bound.
+                const bool          cmap_ssbo = gpu.ssbo_stride_floats == 4;
+                const TextureHandle lut =
+                    cmap_ssbo ? colormap_lut(gpu, scatter->cmap()) : TextureHandle{};
+                if (cmap_ssbo && !lut)
+                    break;
+                backend_.bind_pipeline(cmap_ssbo ? scatter_colormap_pipeline_ : scatter_pipeline_);
+                if (cmap_ssbo)
+                    backend_.bind_texture(lut, 1);
                 pc.point_size  = scatter->size() + 3.0f;
                 pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
                 pc.dash_count  = 0;

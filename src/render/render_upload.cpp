@@ -18,6 +18,7 @@
 
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
+#include "ui/theme/theme.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
@@ -52,27 +53,50 @@ void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gp
     }
 
     // Colormap lookup table: re-uploaded only when the colormap or levels change.
-    if (!image.is_rgba() && (!gpu.lut_texture || gpu.lut_generation != image.lut_generation()))
+    // The CVD preview (view only) simulates the table too.
+    if (!image.is_rgba()
+        && (!gpu.lut_texture || gpu.lut_generation != image.lut_generation()
+            || gpu.lut_cvd != cvd_preview_))
     {
         if (gpu.lut_texture)
             backend_.destroy_texture(gpu.lut_texture);
-        const auto lut = image_colormap::build_lut(image.cmap(), image.levels());
+        auto lut = image_colormap::build_lut(image.cmap(), image.levels());
+        simulate_lut(lut);
         gpu.lut_texture =
             backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
         gpu.lut_generation = image.lut_generation();
+        gpu.lut_cvd        = cvd_preview_;
+    }
+}
+
+template <typename Lut>
+void Renderer::simulate_lut(Lut& rgba8) const
+{
+    if (cvd_preview_ == ui::CVDType::None)
+        return;
+    for (size_t i = 0; i + 3 < rgba8.size(); i += 4)
+    {
+        const ui::Color s = ui::simulate_cvd(
+            ui::Color(rgba8[i] / 255.0f, rgba8[i + 1] / 255.0f, rgba8[i + 2] / 255.0f, 1.0f),
+            cvd_preview_);
+        rgba8[i + 0] = static_cast<uint8_t>(std::lround(std::clamp(s.r, 0.0f, 1.0f) * 255.0f));
+        rgba8[i + 1] = static_cast<uint8_t>(std::lround(std::clamp(s.g, 0.0f, 1.0f) * 255.0f));
+        rgba8[i + 2] = static_cast<uint8_t>(std::lround(std::clamp(s.b, 0.0f, 1.0f) * 255.0f));
     }
 }
 
 TextureHandle Renderer::colormap_lut(SeriesGpuData& gpu, const Colormap& cm)
 {
-    if (gpu.lut_texture && gpu.lut_colormap == cm)
+    if (gpu.lut_texture && gpu.lut_colormap == cm && gpu.lut_cvd == cvd_preview_)
         return gpu.lut_texture;
     if (gpu.lut_texture)
         backend_.destroy_texture(gpu.lut_texture);   // deferred by the backend
-    const auto lut = cm.rgba8();
+    auto lut = cm.rgba8();
+    simulate_lut(lut);
     gpu.lut_texture =
         backend_.create_texture(static_cast<uint32_t>(Colormap::LUT_SIZE), 1, lut.data());
     gpu.lut_colormap = cm;
+    gpu.lut_cvd      = cvd_preview_;
     return gpu.lut_texture;
 }
 
@@ -540,26 +564,46 @@ void Renderer::upload_series_data(Series&   series,
         if (count == 0)
             return;
 
-        size_t byte_size = count * 4 * sizeof(float);
-        if (!gpu.ssbo || gpu.ssbo_capacity < count)
+        // A 3D scatter with per-point colours or sizes uploads two vec4 per
+        // point, (x, y, z, size) and (r, g, b, colormap alpha or -1); see scatter3d.vert.
+        const bool   per_point = scatter3d && (scatter3d->has_colormap() || scatter3d->has_sizes());
+        const size_t stride    = per_point ? 8 : 4;
+        size_t       byte_size = count * stride * sizeof(float);
+        if (!gpu.ssbo || gpu.ssbo_capacity < count || gpu.ssbo_stride_floats != stride)
         {
             if (gpu.ssbo)
                 backend_.destroy_buffer(gpu.ssbo);
             size_t alloc_count = count * 2;
             gpu.ssbo =
-                backend_.create_buffer(BufferUsage::Storage, alloc_count * 4 * sizeof(float));
-            gpu.ssbo_capacity = alloc_count;
+                backend_.create_buffer(BufferUsage::Storage, alloc_count * stride * sizeof(float));
+            gpu.ssbo_capacity      = alloc_count;
+            gpu.ssbo_stride_floats = stride;
         }
 
-        size_t floats_needed = count * 4;
+        size_t floats_needed = count * stride;
         if (upload_scratch_.size() < floats_needed)
             upload_scratch_.resize(floats_needed);
         for (size_t i = 0; i < count; ++i)
         {
-            upload_scratch_[i * 4]     = x_data[i];
-            upload_scratch_[i * 4 + 1] = y_data[i];
-            upload_scratch_[i * 4 + 2] = z_data[i];
-            upload_scratch_[i * 4 + 3] = 0.0f;   // padding
+            float* p = &upload_scratch_[i * stride];
+            p[0]     = x_data[i];
+            p[1]     = y_data[i];
+            p[2]     = z_data[i];
+            p[3]     = 0.0f;   // padding
+            if (per_point)
+            {
+                p[3] = scatter3d->point_size(i);
+                const bool own_color =
+                    scatter3d->has_colormap() && std::isfinite(scatter3d->color_values_data()[i]);
+                const Color c = own_color ? scatter3d->point_color(i) : Color{};
+                p[4]          = c.r;
+                p[5]          = c.g;
+                p[6]          = c.b;
+                // w: the colormap entry's alpha (point_color() already holds
+                // the series alpha, which the shader applies), -1 = no colour.
+                const float series_a = scatter3d->color().a;
+                p[7] = own_color ? (series_a > 1e-6f ? c.a / series_a : 1.0f) : -1.0f;
+            }
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);

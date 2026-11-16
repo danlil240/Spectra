@@ -77,6 +77,14 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
     if (!imgui_)
         return;
 
+    // "Label (Key)" when the item's command has a shortcut.
+    auto with_key = [this](const std::string& label, const std::string& command_id)
+    {
+        const std::string key =
+            menu_shortcut_text(imgui_->shortcut_manager_, imgui_->command_registry_, command_id);
+        return key.empty() ? label : label + " (" + key + ")";
+    };
+
     auto add_tool = [&](Icon icon, const char* label, ToolMode mode)
     {
         NavItem item;
@@ -84,6 +92,7 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
         item.label     = label;
         item.id        = label;
         item.tooltip   = imgui_->tool_tooltip(label, mode);
+        item.tool_mode = true;
         item.is_active = [imgui = imgui_, mode]() { return imgui->interaction_mode_ == mode; };
         item.on_click  = [imgui = imgui_, mode]() { imgui->set_interaction_mode(mode); };
         out.push_back(std::move(item));
@@ -130,7 +139,7 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
         xform.icon      = Icon::MagicWand;
         xform.label     = "Transform";
         xform.id        = "transform";
-        xform.tooltip   = "Transform";
+        xform.tooltip   = "Transform data (derivative, FFT, custom...)";
         xform.is_active = [imgui = imgui_]() { return imgui->custom_transform_dialog_.is_open(); };
         xform.on_click  = [imgui = imgui_]() { imgui->open_transform_dialog(); };
         out.push_back(std::move(xform));
@@ -156,7 +165,9 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
             // panel directly instead.
             if (item.id == "core.settings")
             {
-                item.is_active = [imgui = imgui_]()
+                item.tooltip    = with_key(item.label, "panel.open_settings");
+                item.pin_bottom = true;
+                item.is_active  = [imgui = imgui_]()
                 { return imgui->settings_panel() && imgui->settings_panel()->is_visible(); };
                 item.on_click = [imgui = imgui_]()
                 {
@@ -167,18 +178,20 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
             }
 
             const std::string panel_id = item.id;
+            item.tooltip   = with_key(item.label, SpectraAppShell::panel_command_id(panel_id));
             item.is_active = [shell, panel_id]() { return shell->panel_visible(panel_id); };
             item.on_click  = [shell, panel_id]() { shell->toggle_panel(panel_id); };
         }
     }
 
     NavItem help;
-    help.icon      = Icon::Help;
-    help.label     = "Help";
-    help.id        = "help";
-    help.tooltip   = "Help";
-    help.is_active = []() { return false; };
-    help.on_click  = [imgui = imgui_]()
+    help.icon       = Icon::Help;
+    help.label      = "Help";
+    help.id         = "help";
+    help.tooltip    = with_key("Help", "help.show");
+    help.pin_bottom = true;
+    help.is_active  = []() { return false; };
+    help.on_click   = [imgui = imgui_]()
     {
         if (imgui->command_registry())
             imgui->command_registry()->execute("help.show");
@@ -273,13 +286,74 @@ void SpectraNavRail::draw()
             ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * scale));
         };
 
+        // Grouping: the tool-mode buttons (one is always active) sit on a
+        // shared tray drawn behind them (channel 0); Settings and Help are
+        // pinned to the bottom of the rail, away from the panel toggles.
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->ChannelsSplit(2);
+        dl->ChannelsSetCurrent(1);
+        int pinned_count = 0;
+        for (const NavItem& item : items)
+            if (item.pin_bottom)
+                ++pinned_count;
+        bool  pinned_placed = false;
+        float btn_h         = 0.0f;
+        float tray_top      = -1.0f;
+        float tray_bottom   = -1.0f;
+        auto  flush_tray    = [&]()
+        {
+            if (tray_top < 0.0f)
+                return;
+            const auto& c     = ui::theme();
+            const float inset = ui::tokens::SPACE_1 * scale;
+            dl->ChannelsSetCurrent(0);
+            const ImVec2 t0(bounds.x + inset, tray_top - inset);
+            const ImVec2 t1(bounds.x + rail_w - inset - 1.0f, tray_bottom + inset);
+            dl->AddRectFilled(t0,
+                              t1,
+                              ImGui::ColorConvertFloat4ToU32(
+                                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.75f)),
+                              ui::tokens::RADIUS_MD);
+            dl->AddRect(
+                t0,
+                t1,
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.border_default.r, c.border_default.g, c.border_default.b, 0.45f)),
+                ui::tokens::RADIUS_MD);
+            dl->ChannelsSetCurrent(1);
+            tray_top = tray_bottom = -1.0f;
+        };
+
         for (const NavItem& item : items)
         {
             if (item.is_section_header)
             {
+                flush_tray();
                 draw_separator();
                 continue;
             }
+            if (item.pin_bottom && !pinned_placed)
+            {
+                pinned_placed      = true;
+                const float bottom = bounds.y + bounds.h - ui::tokens::SPACE_3;
+                const float pin_y  = bottom - static_cast<float>(pinned_count) * btn_h;
+                const float cur_y  = ImGui::GetCursorScreenPos().y;
+                if (btn_h > 0.0f && pin_y > cur_y)
+                {
+                    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, pin_y));
+                    // Hairline above the pinned group.
+                    const float sep_inset = ui::tokens::SPACE_4 * scale;
+                    dl->AddLine(ImVec2(bounds.x + sep_inset, std::floor(pin_y) - 1.0f),
+                                ImVec2(bounds.x + rail_w - sep_inset, std::floor(pin_y) - 1.0f),
+                                IM_COL32(static_cast<int>(ui::theme().border_subtle.r * 255),
+                                         static_cast<int>(ui::theme().border_subtle.g * 255),
+                                         static_cast<int>(ui::theme().border_subtle.b * 255),
+                                         32),
+                                1.0f);
+                }
+            }
+            if (!item.tool_mode)
+                flush_tray();
             const bool active = item.is_active && item.is_active();
             if (imgui_->icon_label_button_rail(ui::icon_str(item.icon),
                                                item.label.c_str(),
@@ -295,6 +369,13 @@ void SpectraNavRail::draw()
                 if (item.id == "markers" && markers_popover_open_)
                     markers_popover_fresh_ = true;
             }
+            btn_h = std::max(btn_h, ImGui::GetItemRectSize().y);
+            if (item.tool_mode)
+            {
+                if (tray_top < 0.0f)
+                    tray_top = ImGui::GetItemRectMin().y;
+                tray_bottom = ImGui::GetItemRectMax().y;
+            }
             if (item.id == "markers")
             {
                 markers_btn_x_  = ImGui::GetItemRectMin().x;
@@ -303,6 +384,8 @@ void SpectraNavRail::draw()
                 markers_btn_y1_ = ImGui::GetItemRectMax().y;
             }
         }
+        flush_tray();
+        dl->ChannelsMerge();
     }
     ImGui::End();
     ImGui::PopStyleColor();
@@ -979,12 +1062,51 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
                 imgui->command_registry_->execute("view.compare_toggle_sort");
         },
         Icon::List));
-    view.add({.label    = "Remove All Data Tips",
-              .on_click = [imgui]()
+    // Undoable, like "Clear all" in the nav rail's data-tip popover.
+    view.add({.label = "Remove All Data Tips",
+              .on_click =
+                  [imgui]()
               {
-                  if (imgui->data_interaction_)
-                      imgui->data_interaction_->clear_markers();
+                  if (imgui->data_interaction_ && imgui->current_figure_)
+                      clear_figure_markers_undoable(*imgui->data_interaction_,
+                                                    *imgui->current_figure_,
+                                                    imgui->undo_manager_,
+                                                    [imgui]() { return imgui->current_figure_; });
+              },
+              .enabled =
+                  [imgui]()
+              {
+                  return imgui->data_interaction_ && imgui->current_figure_
+                         && !figure_marker_indices(imgui->data_interaction_->markers(),
+                                                   *imgui->current_figure_)
+                                 .empty();
               }});
+    {
+        // Colour vision deficiency preview: view only, never exported.
+        MenuAction cvd;
+        cvd.label = "Color Vision Preview";
+        cvd.icon  = static_cast<uint16_t>(Icon::Eye);
+        for (ui::CVDType type : {ui::CVDType::None,
+                                 ui::CVDType::Protanopia,
+                                 ui::CVDType::Deuteranopia,
+                                 ui::CVDType::Tritanopia,
+                                 ui::CVDType::Achromatopsia})
+        {
+            MenuAction item = command(
+                type == ui::CVDType::None ? "Off (Normal Vision)" : ui::cvd_type_label(type),
+                "");
+            item.command_id = std::string("view.cvd.") + ui::cvd_type_id(type);
+            item.on_click   = [imgui, id = item.command_id]()
+            {
+                if (imgui->command_registry_)
+                    imgui->command_registry_->execute(id);
+            };
+            item.checked = [imgui, type]()
+            { return imgui->theme_mgr_ && imgui->theme_mgr_->cvd_preview() == type; };
+            cvd.submenu.push_back(std::move(item));
+        }
+        view.add(std::move(cvd));
+    }
     view.add_separator();
     // One checkable item per panel. The registry panels (Inspector, Timeline,
     // Curve Editor, Plugins, Topics, Settings) are appended after these by
@@ -1036,11 +1158,11 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     tools.add(command("Screenshot (PNG)", "file.export_png"));
     tools.add_separator();
     {
-        MenuAction theme;
-        theme.label    = "Theme Settings";
-        theme.checked  = [imgui]() { return imgui->show_theme_settings_; };
-        theme.on_click = [imgui]() { imgui->show_theme_settings_ = !imgui->show_theme_settings_; };
-        tools.add(std::move(theme));
+        // Appearance (theme, palette, colour vision preview, glass) lives in
+        // Settings; this opens it on that tab.
+        MenuAction appearance = command("Appearance...", "panel.open_appearance");
+        appearance.icon       = static_cast<uint16_t>(Icon::Palette);
+        tools.add(std::move(appearance));
     }
     tools.add(command("Command Palette", "app.command_palette"));
 

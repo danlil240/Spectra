@@ -52,6 +52,7 @@ struct WorkspaceData
         int         grid_planes       = 1;   // Axes3D::GridPlane bitmask
         bool        show_bounding_box = true;
         bool        lighting_enabled  = true;
+        bool        equal_aspect      = false;
         float       light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
     };
 

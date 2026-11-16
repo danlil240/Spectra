@@ -19,6 +19,8 @@ layout(push_constant) uniform SeriesPC {
 
 layout(location = 0) in vec2 v_uv;
 layout(location = 1) in vec3 v_model_pos;
+layout(location = 2) flat in float v_point_size;   // marker diameter (px) of this point
+layout(location = 3) flat in vec4 v_point_color;   // own rgb + colormap alpha; a < 0: series colour
 
 layout(location = 0) out vec4 out_color;
 
@@ -116,16 +118,17 @@ void main() {
     // Discard points outside the bounding box
     const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
     if (any(greaterThan(abs(v_model_pos), vec3(BOX_HS)))) discard;
+    if (v_point_size <= 0.0) discard;
 
     // AA width in UV space — scale by point size for resolution-independent smoothing
-    // Larger point_size → smaller AA band in UV → sharper edges
-    float aa = clamp(2.5 / point_size, 0.01, 0.15);
+    // Larger v_point_size → smaller AA band in UV → sharper edges
+    float aa = clamp(2.5 / v_point_size, 0.01, 0.15);
 
     float d;
     bool is_filled = true;
     bool has_edge = false;
     // Stroke width in UV space — visible and crisp at all sizes
-    float stroke_w = clamp(4.0 / point_size, 0.08, 0.25);
+    float stroke_w = clamp(4.0 / v_point_size, 0.08, 0.25);
 
     // marker_type enum values:
     // 0=None, 1=Point, 2=Circle, 3=Plus, 4=Cross, 5=Star,
@@ -227,15 +230,17 @@ void main() {
 
     if (alpha < 0.002) discard;
 
-    vec3 base_color = color.rgb;
+    bool own_color = v_point_color.a >= 0.0;
+    vec3 base_color = own_color ? v_point_color.rgb : color.rgb;
+    float point_alpha = own_color ? v_point_color.a : 1.0;
     // Default scatter dot: tint a ~1 px rim towards white (_pad2[1] > 0) or
     // black (_pad2[1] < 0) so dark or light colors stay visible on the canvas.
     if (has_edge) {
-        float edge_w = clamp(1.0 / (point_size * 0.5 + 1.0), 0.06, 0.3);
+        float edge_w = clamp(1.0 / (v_point_size * 0.5 + 1.0), 0.06, 0.3);
         float rim = smoothstep(-edge_w - aa, -edge_w + aa, d);
         vec3 target = _pad2[1] >= 0.0 ? vec3(1.0) : vec3(0.0);
         base_color = mix(base_color, mix(base_color, target, abs(_pad2[1])), rim);
     }
 
-    out_color = vec4(base_color, color.a * opacity * alpha);
+    out_color = vec4(base_color, color.a * point_alpha * opacity * alpha);
 }

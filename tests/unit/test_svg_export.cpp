@@ -402,10 +402,12 @@ TEST(SvgExport, LineStylesEmitRendererDashPatterns)
     fig.compute_layout();
     std::string svg = SvgExporter::to_string(fig);
 
-    // get_dash_pattern() at width 2: dashed 8w/4w, dotted 2w/4w, dash-dot 8w/3.5w/2w/3.5w
-    EXPECT_NE(svg.find("stroke-dasharray=\"16,8\""), std::string::npos);
-    EXPECT_NE(svg.find("stroke-dasharray=\"4,8\""), std::string::npos);
-    EXPECT_NE(svg.find("stroke-dasharray=\"16,7,4,7\""), std::string::npos);
+    // get_dash_pattern() at width 2: dashed 8w/4w, dotted 1w/2w, dash-dot 8w/4w/1w/4w,
+    // drawn with round caps inside each dash: dashes shrink by w, gaps grow by w.
+    EXPECT_NE(svg.find("stroke-dasharray=\"14,10\""), std::string::npos);
+    EXPECT_NE(svg.find("stroke-dasharray=\"0,6\""), std::string::npos);
+    EXPECT_NE(svg.find("stroke-dasharray=\"14,10,0,10\""), std::string::npos);
+    EXPECT_NE(svg.find("stroke-linecap=\"round\""), std::string::npos);
     // Solid line has no dash array: 3 dashed series in the plot (+3 legend swatches would
     // need labels, there are none)
     EXPECT_EQ(count_of(svg, "stroke-dasharray"), 3);

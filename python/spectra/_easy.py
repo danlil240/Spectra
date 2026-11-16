@@ -34,7 +34,8 @@ Usage::
     sp.plot3(x, y, z)
     sp.scatter3(x, y, z)
 
-    # Block at end of script (optional — windows stay open anyway)
+    # Wait for the windows to close (optional: they stay open after the
+    # script exits anyway, but live updates stop with the Python process)
     sp.show()
 
 Everything runs in the background. Windows appear instantly.
@@ -2203,8 +2204,12 @@ def append(series, x_or_y, y=None):
 def show():
     """Block until all windows are closed.
 
-    Call this at the end of your script to keep windows open.
-    If you don't call it, windows stay open until the Python process exits.
+    Optional. Windows are drawn by separate Spectra processes, so without
+    ``show()`` they stay open after your script (and the Python process)
+    exits, until you close them. What stops with the Python process is
+    everything Python drives: :func:`live` callbacks, streaming appends and
+    other updates. Call ``show()`` at the end of a script that keeps the plot
+    changing, or that should wait for the user before it continues.
 
     In Jupyter inline mode (see :func:`use_inline`) it displays the pending
     figures as images under the cell and returns immediately.

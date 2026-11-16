@@ -1,11 +1,26 @@
 /* Styles for spectra.notebook.Canvas (anywidget). */
 .spectra-canvas {
+  --spectra-btn-fg: #1f2328;
+  --spectra-btn-bg: rgba(255, 255, 255, 0.85);
+  --spectra-btn-border: rgba(31, 35, 40, 0.25);
+  --spectra-readout-fg: #1f2328;
+  --spectra-readout-bg: rgba(255, 255, 255, 0.8);
   position: relative;
   width: 100%;
+  min-height: 80px;
   overflow: hidden;
   outline: none;
   touch-action: none;
   user-select: none;
+  /* Drag the bottom-right corner to change the height. */
+  resize: vertical;
+}
+.spectra-canvas.spectra-dark {
+  --spectra-btn-fg: #e6edf3;
+  --spectra-btn-bg: rgba(22, 27, 34, 0.85);
+  --spectra-btn-border: rgba(230, 237, 243, 0.25);
+  --spectra-readout-fg: #e6edf3;
+  --spectra-readout-bg: rgba(22, 27, 34, 0.75);
 }
 .spectra-canvas img {
   display: block;
@@ -14,24 +29,53 @@
   cursor: crosshair;
   -webkit-user-drag: none;
 }
-.spectra-canvas-reset {
+.spectra-canvas-toolbar {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid rgba(128, 128, 128, 0.45);
-  border-radius: 4px;
-  background: rgba(128, 128, 128, 0.18);
-  color: inherit;
-  font-size: 15px;
-  line-height: 24px;
-  cursor: pointer;
+  display: flex;
+  gap: 4px;
   opacity: 0;
   transition: opacity 0.15s;
 }
-.spectra-canvas:hover .spectra-canvas-reset,
-.spectra-canvas:focus-within .spectra-canvas-reset {
+.spectra-canvas:hover .spectra-canvas-toolbar,
+.spectra-canvas:focus-within .spectra-canvas-toolbar {
   opacity: 1;
+}
+@media (hover: none) {
+  /* Touch screens have no hover: keep the toolbar visible. */
+  .spectra-canvas-toolbar {
+    opacity: 1;
+  }
+}
+.spectra-canvas-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--spectra-btn-border);
+  border-radius: 4px;
+  background: var(--spectra-btn-bg);
+  color: var(--spectra-btn-fg);
+  font-size: 16px;
+  line-height: 26px;
+  cursor: pointer;
+}
+.spectra-canvas-btn:hover {
+  border-color: var(--spectra-btn-fg);
+}
+.spectra-canvas-btn:focus-visible {
+  outline: 2px solid #2f81f7;
+  outline-offset: 1px;
+}
+.spectra-canvas-readout {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--spectra-readout-bg);
+  color: var(--spectra-readout-fg);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  pointer-events: none;
+  white-space: pre;
 }

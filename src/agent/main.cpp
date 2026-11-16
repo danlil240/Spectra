@@ -850,6 +850,16 @@ int main(int argc, char* argv[])
         SPECTRA_LOG_ERROR("window", "Failed to create GLFW window");
         return 1;
     }
+    {
+        // init() may have shrunk the window to fit the screen.
+        int ww = 0, wh = 0;
+        glfw->window_size(ww, wh);
+        if (ww > 0 && wh > 0)
+        {
+            initial_w = static_cast<uint32_t>(ww);
+            initial_h = static_cast<uint32_t>(wh);
+        }
+    }
 
     backend->create_surface(glfw->native_window());
     backend->create_swapchain(initial_w, initial_h);

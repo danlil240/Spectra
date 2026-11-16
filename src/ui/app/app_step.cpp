@@ -776,6 +776,14 @@ void App::init_runtime()
         }
         else
         {
+            // init() may have shrunk the window to fit the screen.
+            int ww = 0, wh = 0;
+            rt.glfw->window_size(ww, wh);
+            if (ww > 0 && wh > 0)
+            {
+                init_w = static_cast<uint32_t>(ww);
+                init_h = static_cast<uint32_t>(wh);
+            }
             backend_->create_surface(rt.glfw->native_window());
             backend_->create_swapchain(init_w, init_h);
 

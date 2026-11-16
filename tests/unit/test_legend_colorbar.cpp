@@ -40,6 +40,7 @@ class RecordingBackend : public Backend
         PipelineType        pipeline;
         SeriesPushConstants pc;
         uint32_t            count;
+        uint64_t            lut = 0;   // texture bound at binding 1 (set 2), 0 = none
     };
 
     bool init(bool) override { return true; }
@@ -59,9 +60,12 @@ class RecordingBackend : public Backend
     BufferHandle  create_buffer(BufferUsage, size_t) override { return BufferHandle{next_id_++}; }
     void          destroy_buffer(BufferHandle) override {}
     void          upload_buffer(BufferHandle, const void*, size_t, size_t) override {}
-    TextureHandle create_texture(uint32_t, uint32_t, const uint8_t*) override
+    TextureHandle create_texture(uint32_t w, uint32_t h, const uint8_t* rgba) override
     {
-        return TextureHandle{next_id_++};
+        TextureHandle t{next_id_++};
+        if (rgba)
+            textures_[t.id].assign(rgba, rgba + static_cast<size_t>(w) * h * 4);
+        return t;
     }
     void destroy_texture(TextureHandle) override {}
 
@@ -73,22 +77,27 @@ class RecordingBackend : public Backend
     {
         auto it = pipeline_types_.find(h.id);
         bound_  = it != pipeline_types_.end() ? it->second : PipelineType::Image3D;
+        lut_    = 0;
     }
     void bind_buffer(BufferHandle, uint32_t) override {}
     void bind_index_buffer(BufferHandle) override {}
-    void bind_texture(TextureHandle, uint32_t) override {}
+    void bind_texture(TextureHandle t, uint32_t binding) override
+    {
+        if (binding == 1)
+            lut_ = t.id;
+    }
     void push_constants(const SeriesPushConstants& pc) override { pc_ = pc; }
     void set_viewport(float, float, float, float) override {}
     void set_scissor(int32_t, int32_t, uint32_t, uint32_t) override {}
     void set_line_width(float) override {}
-    void draw(uint32_t n, uint32_t) override { draws_.push_back({bound_, pc_, n}); }
+    void draw(uint32_t n, uint32_t) override { draws_.push_back({bound_, pc_, n, lut_}); }
     void draw_instanced(uint32_t n, uint32_t, uint32_t, uint32_t) override
     {
-        draws_.push_back({bound_, pc_, n});
+        draws_.push_back({bound_, pc_, n, lut_});
     }
     void draw_indexed(uint32_t n, uint32_t, int32_t) override
     {
-        draws_.push_back({bound_, pc_, n});
+        draws_.push_back({bound_, pc_, n, lut_});
     }
     bool     readback_framebuffer(uint8_t*, uint32_t, uint32_t) override { return false; }
     uint32_t swapchain_width() const override { return 800; }
@@ -112,12 +121,23 @@ class RecordingBackend : public Backend
                            });
     }
 
-    std::vector<Draw> draws_;
+    // First draw on pipeline t, or nullptr.
+    const Draw* find(PipelineType t) const
+    {
+        for (const auto& d : draws_)
+            if (d.pipeline == t)
+                return &d;
+        return nullptr;
+    }
+
+    std::vector<Draw>                                  draws_;
+    std::unordered_map<uint64_t, std::vector<uint8_t>> textures_;
 
    private:
     uint64_t                                   next_id_ = 1;
     std::unordered_map<uint64_t, PipelineType> pipeline_types_;
     PipelineType                               bound_ = PipelineType::Image3D;
+    uint64_t                                   lut_   = 0;
     SeriesPushConstants                        pc_{};
 };
 
@@ -440,18 +460,22 @@ TEST(ColorbarLayout, SourceFromScatterAndSurface)
     EXPECT_NEAR(s3->vmax, 1.5, 1e-6);
 }
 
-TEST(ColorbarLayout, ScatterSamplingMatchesShaderStops)
+TEST(ColorbarLayout, SamplingIsTheColormapLookupTable)
 {
     using colorbar_layout::Mapping;
-    const Color lo  = colorbar_layout::sample(ColormapType::Viridis, Mapping::Scatter, 0.0f);
-    const Color mid = colorbar_layout::sample(ColormapType::Viridis, Mapping::Scatter, 0.5f);
-    const Color hi  = colorbar_layout::sample(ColormapType::Viridis, Mapping::Scatter, 1.0f);
-    EXPECT_NEAR(lo.r, 0.267f, 1e-4f);
-    EXPECT_NEAR(mid.g, 0.567f, 1e-4f);
-    EXPECT_NEAR(hi.b, 0.144f, 1e-4f);
+    // matplotlib viridis: every mapping reads the same 256-entry table.
+    for (Mapping m : {Mapping::Scatter, Mapping::Surface, Mapping::Image})
+    {
+        const Color lo  = colorbar_layout::sample(ColormapType::Viridis, m, 0.0f);
+        const Color mid = colorbar_layout::sample(ColormapType::Viridis, m, 0.5f);
+        const Color hi  = colorbar_layout::sample(ColormapType::Viridis, m, 1.0f);
+        EXPECT_NEAR(lo.r, 0.267f, 2.5e-3f);
+        EXPECT_NEAR(mid.g, 0.567f, 2.5e-3f);
+        EXPECT_NEAR(hi.b, 0.144f, 2.5e-3f);
+    }
+    // Entry 64 of matplotlib's gray.
     const Color g = colorbar_layout::sample(ColormapType::Grayscale, Mapping::Scatter, 0.25f);
-    EXPECT_FLOAT_EQ(g.r, 0.25f);
-    // Surface mapping is the series' own sampler.
+    EXPECT_FLOAT_EQ(g.r, 64.0f / 255.0f);
     const Color s = colorbar_layout::sample(ColormapType::Jet, Mapping::Surface, 0.3f);
     const Color e = SurfaceSeries::sample_colormap(ColormapType::Jet, 0.3f);
     EXPECT_FLOAT_EQ(s.r, e.r);
@@ -1045,5 +1069,66 @@ TEST_F(RendererFixture, OverflowTooltipCarriesColourKeysOfHiddenEntries)
         EXPECT_NEAR(cell.colors[k].r, want.r, 1e-5f) << k;
         EXPECT_NEAR(cell.colors[k].b, want.b, 1e-5f) << k;
         EXPECT_LT(cell.colors[k].a, s.visible() ? 1.01f : 0.5f) << k;
+    }
+}
+
+// A translucent user colormap reaches the shaders: the bound lookup table
+// carries its alpha, and surfaces switch to the transparent pipeline.
+TEST_F(RendererFixture, TranslucentColormapAlphaReachesShaders)
+{
+    const std::vector<Color> stops = {{0.0f, 0.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}};
+    const Colormap           cm    = Colormap::from_colors(stops);
+    ASSERT_TRUE(cm.has_transparency());
+
+    auto lut_alpha_range = [&](const RecordingBackend::Draw& d)
+    {
+        const auto it = backend.textures_.find(d.lut);
+        EXPECT_NE(it, backend.textures_.end()) << "no colormap LUT bound";
+        if (it == backend.textures_.end() || it->second.size() < 4)
+            return std::pair<int, int>{-1, -1};
+        const auto& px = it->second;
+        return std::pair<int, int>{px[3], px[px.size() - 1]};
+    };
+
+    // Scatter: the LUT bound for the colormap pipeline holds the alpha ramp.
+    {
+        Figure fig({.width = 600, .height = 400});
+        auto&  ax = fig.subplot(1, 1, 1);
+        auto   x  = ramp(20, 0.0f, 1.0f);
+        ax.scatter(x, x).color_values(x).colormap(cm);
+        render(fig);
+        const auto* d = backend.find(PipelineType::ScatterColormap);
+        ASSERT_NE(d, nullptr);
+        const auto [a0, a1] = lut_alpha_range(*d);
+        EXPECT_EQ(a0, 0);
+        EXPECT_EQ(a1, 255);
+    }
+
+    // Surface: transparent pipeline, LUT alpha bound.
+    {
+        Figure             fig({.width = 600, .height = 400});
+        auto&              ax = fig.subplot3d(1, 1, 1);
+        auto               g  = ramp(8, -1.0f, 1.0f);
+        std::vector<float> z(g.size() * g.size());
+        for (size_t i = 0; i < z.size(); ++i)
+            z[i] = static_cast<float>(i % g.size()) / static_cast<float>(g.size() - 1);
+        auto& surf = ax.surface(g, g, z);
+        surf.colormap(cm);
+        EXPECT_TRUE(surf.is_transparent());
+        render(fig);
+        EXPECT_EQ(backend.find(PipelineType::Surface3D), nullptr);
+        const auto* d = backend.find(PipelineType::Surface3D_Transparent);
+        ASSERT_NE(d, nullptr);
+        EXPECT_EQ(d->pc.dash_count, 1);
+        const auto [a0, a1] = lut_alpha_range(*d);
+        EXPECT_EQ(a0, 0);
+        EXPECT_EQ(a1, 255);
+
+        // An opaque built-in map keeps the opaque pipeline.
+        surf.colormap(Colormap(ColormapType::Viridis));
+        EXPECT_FALSE(surf.is_transparent());
+        render(fig);
+        EXPECT_NE(backend.find(PipelineType::Surface3D), nullptr);
+        EXPECT_EQ(backend.find(PipelineType::Surface3D_Transparent), nullptr);
     }
 }

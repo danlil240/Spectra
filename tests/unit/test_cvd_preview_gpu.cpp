@@ -2,6 +2,7 @@
 // theme canvas clear and a figure's background override are simulated like
 // the series and ink drawn on them, so the whole plot surface is previewed.
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <gtest/gtest.h>
@@ -103,4 +104,38 @@ TEST_F(CvdPreviewGpuTest, FigureBackgroundOverrideIsSimulated)
     const std::vector<uint8_t> px = render();
     EXPECT_EQ(count_red(px), 0) << "background override drawn without the preview";
     EXPECT_TRUE(grey(at(px, kW / 2, kH / 2)));
+}
+
+TEST_F(CvdPreviewGpuTest, ColormappedImageAndColorbarAreSimulated)
+{
+    auto&              fig = app_->figure({.width = kW, .height = kH});
+    auto&              ax  = fig.subplot(1, 1, 1);
+    constexpr size_t   n   = 32;
+    std::vector<float> z(n * n);
+    for (size_t r = 0; r < n; ++r)
+        for (size_t c = 0; c < n; ++c)
+            z[r * n + c] = static_cast<float>(c) / static_cast<float>(n - 1);
+    ax.imshow(z, n, n).colormap(ColormapType::Jet);
+
+    // Pixels with a clear hue (jet is saturated almost everywhere).
+    auto chromatic = [](const std::vector<uint8_t>& px)
+    {
+        int count = 0;
+        for (size_t i = 0; i + 3 < px.size(); i += 4)
+        {
+            const int hi = std::max({px[i], px[i + 1], px[i + 2]});
+            const int lo = std::min({px[i], px[i + 1], px[i + 2]});
+            if (hi - lo > 60)
+                ++count;
+        }
+        return count;
+    };
+    ASSERT_GT(chromatic(render()), 5000) << "colormapped image not drawn";
+
+    theme().set_cvd_preview(ui::CVDType::Achromatopsia);
+    EXPECT_EQ(chromatic(render()), 0) << "colormap drawn without the preview";
+
+    // Back to the real colours (the lookup table is rebuilt again).
+    theme().set_cvd_preview(ui::CVDType::None);
+    EXPECT_GT(chromatic(render()), 5000);
 }

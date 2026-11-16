@@ -473,7 +473,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
         const float vis_alpha = s.visible() ? 1.0f : HIDDEN_ALPHA;
         Color       sc        = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
         if (const auto* scat = dynamic_cast<const ScatterSeries*>(&s); scat && scat->has_colormap())
-            sc = colorbar_layout::sample(scat->colormap(), colorbar_layout::Mapping::Scatter, 0.6f);
+            sc = colorbar_layout::sample(scat->cmap(), colorbar_layout::Mapping::Scatter, 0.6f);
         sc = series_view_color(sc);
         sc.a *= s.opacity() * vis_alpha;
 
@@ -708,7 +708,7 @@ void Renderer::build_colorbar(AxesBase& axes)
         const float         y1 = bar.y + bar.h - band_h * static_cast<float>(i);
         const float         y0 = (i == bands - 1) ? bar.y : y1 - band_h;
         SeriesPushConstants pc{};
-        set_color(pc, colorbar_layout::sample_source(*source, t));
+        set_color(pc, series_view_color(colorbar_layout::sample_source(*source, t)));
         const uint32_t first = b.vertex_count();
         b.quad(bar.x, y0, bar.x + bar.w, y1);
         annotation_draws_.push_back({AnnotationDraw::Kind::Triangles, first, 6, pc});

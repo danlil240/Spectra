@@ -18,6 +18,7 @@
 
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
+#include "ui/theme/theme.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra
@@ -52,15 +53,51 @@ void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gp
     }
 
     // Colormap lookup table: re-uploaded only when the colormap or levels change.
-    if (!image.is_rgba() && (!gpu.lut_texture || gpu.lut_generation != image.lut_generation()))
+    // The CVD preview (view only) simulates the table too.
+    if (!image.is_rgba()
+        && (!gpu.lut_texture || gpu.lut_generation != image.lut_generation()
+            || gpu.lut_cvd != cvd_preview_))
     {
         if (gpu.lut_texture)
             backend_.destroy_texture(gpu.lut_texture);
-        const auto lut = image_colormap::build_lut(image.colormap(), image.levels());
+        auto lut = image_colormap::build_lut(image.cmap(), image.levels());
+        simulate_lut(lut);
         gpu.lut_texture =
             backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
         gpu.lut_generation = image.lut_generation();
+        gpu.lut_cvd        = cvd_preview_;
     }
+}
+
+template <typename Lut>
+void Renderer::simulate_lut(Lut& rgba8) const
+{
+    if (cvd_preview_ == ui::CVDType::None)
+        return;
+    for (size_t i = 0; i + 3 < rgba8.size(); i += 4)
+    {
+        const ui::Color s = ui::simulate_cvd(
+            ui::Color(rgba8[i] / 255.0f, rgba8[i + 1] / 255.0f, rgba8[i + 2] / 255.0f, 1.0f),
+            cvd_preview_);
+        rgba8[i + 0] = static_cast<uint8_t>(std::lround(std::clamp(s.r, 0.0f, 1.0f) * 255.0f));
+        rgba8[i + 1] = static_cast<uint8_t>(std::lround(std::clamp(s.g, 0.0f, 1.0f) * 255.0f));
+        rgba8[i + 2] = static_cast<uint8_t>(std::lround(std::clamp(s.b, 0.0f, 1.0f) * 255.0f));
+    }
+}
+
+TextureHandle Renderer::colormap_lut(SeriesGpuData& gpu, const Colormap& cm)
+{
+    if (gpu.lut_texture && gpu.lut_colormap == cm && gpu.lut_cvd == cvd_preview_)
+        return gpu.lut_texture;
+    if (gpu.lut_texture)
+        backend_.destroy_texture(gpu.lut_texture);   // deferred by the backend
+    auto lut = cm.rgba8();
+    simulate_lut(lut);
+    gpu.lut_texture =
+        backend_.create_texture(static_cast<uint32_t>(Colormap::LUT_SIZE), 1, lut.data());
+    gpu.lut_colormap = cm;
+    gpu.lut_cvd      = cvd_preview_;
+    return gpu.lut_texture;
 }
 
 void Renderer::upload_series_data(Series& series)

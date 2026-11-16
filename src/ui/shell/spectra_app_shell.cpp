@@ -1,11 +1,13 @@
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/shell/spectra_app_shell.hpp"
 
+    #include <algorithm>
     #include <spectra/figure.hpp>
 
     #include "imgui.h"
     #include "io/export_registry.hpp"
     #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/welcome_actions.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/data_sidebar/data_sidebar.hpp"
     #include "ui/imgui/imgui_integration.hpp"
@@ -17,6 +19,7 @@
     #include "ui/overlay/marker_actions.hpp"
     #include "ui/overlay/readout_format.hpp"
     #include "ui/settings/settings_panel.hpp"
+    #include "ui/settings/settings_store.hpp"
     #include "ui/shell/panel.hpp"
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
@@ -77,6 +80,14 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
     if (!imgui_)
         return;
 
+    // "Label (Key)" when the item's command has a shortcut.
+    auto with_key = [this](const std::string& label, const std::string& command_id)
+    {
+        const std::string key =
+            menu_shortcut_text(imgui_->shortcut_manager_, imgui_->command_registry_, command_id);
+        return key.empty() ? label : label + " (" + key + ")";
+    };
+
     auto add_tool = [&](Icon icon, const char* label, ToolMode mode)
     {
         NavItem item;
@@ -84,6 +95,7 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
         item.label     = label;
         item.id        = label;
         item.tooltip   = imgui_->tool_tooltip(label, mode);
+        item.tool_mode = true;
         item.is_active = [imgui = imgui_, mode]() { return imgui->interaction_mode_ == mode; };
         item.on_click  = [imgui = imgui_, mode]() { imgui->set_interaction_mode(mode); };
         out.push_back(std::move(item));
@@ -130,7 +142,7 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
         xform.icon      = Icon::MagicWand;
         xform.label     = "Transform";
         xform.id        = "transform";
-        xform.tooltip   = "Transform";
+        xform.tooltip   = "Transform data (derivative, FFT, custom...)";
         xform.is_active = [imgui = imgui_]() { return imgui->custom_transform_dialog_.is_open(); };
         xform.on_click  = [imgui = imgui_]() { imgui->open_transform_dialog(); };
         out.push_back(std::move(xform));
@@ -156,7 +168,9 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
             // panel directly instead.
             if (item.id == "core.settings")
             {
-                item.is_active = [imgui = imgui_]()
+                item.tooltip    = with_key(item.label, "panel.open_settings");
+                item.pin_bottom = true;
+                item.is_active  = [imgui = imgui_]()
                 { return imgui->settings_panel() && imgui->settings_panel()->is_visible(); };
                 item.on_click = [imgui = imgui_]()
                 {
@@ -167,18 +181,20 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
             }
 
             const std::string panel_id = item.id;
+            item.tooltip   = with_key(item.label, SpectraAppShell::panel_command_id(panel_id));
             item.is_active = [shell, panel_id]() { return shell->panel_visible(panel_id); };
             item.on_click  = [shell, panel_id]() { shell->toggle_panel(panel_id); };
         }
     }
 
     NavItem help;
-    help.icon      = Icon::Help;
-    help.label     = "Help";
-    help.id        = "help";
-    help.tooltip   = "Help";
-    help.is_active = []() { return false; };
-    help.on_click  = [imgui = imgui_]()
+    help.icon       = Icon::Help;
+    help.label      = "Help";
+    help.id         = "help";
+    help.tooltip    = with_key("Help", "help.show");
+    help.pin_bottom = true;
+    help.is_active  = []() { return false; };
+    help.on_click   = [imgui = imgui_]()
     {
         if (imgui->command_registry())
             imgui->command_registry()->execute("help.show");
@@ -273,13 +289,74 @@ void SpectraNavRail::draw()
             ImGui::Dummy(ImVec2(0, ui::tokens::SPACE_2 * scale));
         };
 
+        // Grouping: the tool-mode buttons (one is always active) sit on a
+        // shared tray drawn behind them (channel 0); Settings and Help are
+        // pinned to the bottom of the rail, away from the panel toggles.
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        dl->ChannelsSplit(2);
+        dl->ChannelsSetCurrent(1);
+        int pinned_count = 0;
+        for (const NavItem& item : items)
+            if (item.pin_bottom)
+                ++pinned_count;
+        bool  pinned_placed = false;
+        float btn_h         = 0.0f;
+        float tray_top      = -1.0f;
+        float tray_bottom   = -1.0f;
+        auto  flush_tray    = [&]()
+        {
+            if (tray_top < 0.0f)
+                return;
+            const auto& c     = ui::theme();
+            const float inset = ui::tokens::SPACE_1 * scale;
+            dl->ChannelsSetCurrent(0);
+            const ImVec2 t0(bounds.x + inset, tray_top - inset);
+            const ImVec2 t1(bounds.x + rail_w - inset - 1.0f, tray_bottom + inset);
+            dl->AddRectFilled(t0,
+                              t1,
+                              ImGui::ColorConvertFloat4ToU32(
+                                  ImVec4(c.bg_tertiary.r, c.bg_tertiary.g, c.bg_tertiary.b, 0.75f)),
+                              ui::tokens::RADIUS_MD);
+            dl->AddRect(
+                t0,
+                t1,
+                ImGui::ColorConvertFloat4ToU32(
+                    ImVec4(c.border_default.r, c.border_default.g, c.border_default.b, 0.45f)),
+                ui::tokens::RADIUS_MD);
+            dl->ChannelsSetCurrent(1);
+            tray_top = tray_bottom = -1.0f;
+        };
+
         for (const NavItem& item : items)
         {
             if (item.is_section_header)
             {
+                flush_tray();
                 draw_separator();
                 continue;
             }
+            if (item.pin_bottom && !pinned_placed)
+            {
+                pinned_placed      = true;
+                const float bottom = bounds.y + bounds.h - ui::tokens::SPACE_3;
+                const float pin_y  = bottom - static_cast<float>(pinned_count) * btn_h;
+                const float cur_y  = ImGui::GetCursorScreenPos().y;
+                if (btn_h > 0.0f && pin_y > cur_y)
+                {
+                    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, pin_y));
+                    // Hairline above the pinned group.
+                    const float sep_inset = ui::tokens::SPACE_4 * scale;
+                    dl->AddLine(ImVec2(bounds.x + sep_inset, std::floor(pin_y) - 1.0f),
+                                ImVec2(bounds.x + rail_w - sep_inset, std::floor(pin_y) - 1.0f),
+                                IM_COL32(static_cast<int>(ui::theme().border_subtle.r * 255),
+                                         static_cast<int>(ui::theme().border_subtle.g * 255),
+                                         static_cast<int>(ui::theme().border_subtle.b * 255),
+                                         32),
+                                1.0f);
+                }
+            }
+            if (!item.tool_mode)
+                flush_tray();
             const bool active = item.is_active && item.is_active();
             if (imgui_->icon_label_button_rail(ui::icon_str(item.icon),
                                                item.label.c_str(),
@@ -295,6 +372,13 @@ void SpectraNavRail::draw()
                 if (item.id == "markers" && markers_popover_open_)
                     markers_popover_fresh_ = true;
             }
+            btn_h = std::max(btn_h, ImGui::GetItemRectSize().y);
+            if (item.tool_mode)
+            {
+                if (tray_top < 0.0f)
+                    tray_top = ImGui::GetItemRectMin().y;
+                tray_bottom = ImGui::GetItemRectMax().y;
+            }
             if (item.id == "markers")
             {
                 markers_btn_x_  = ImGui::GetItemRectMin().x;
@@ -303,6 +387,8 @@ void SpectraNavRail::draw()
                 markers_btn_y1_ = ImGui::GetItemRectMax().y;
             }
         }
+        flush_tray();
+        dl->ChannelsMerge();
     }
     ImGui::End();
     ImGui::PopStyleColor();
@@ -894,26 +980,41 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     auto panel_visible = [hooks](std::string_view id)
     { return hooks.panel_visible && hooks.panel_visible(id); };
 
+    // File: one save concept (the window's .spectra file); everything that
+    // writes another format lives under Export.
     auto& file = bar.menu("File");
     file.add(command("New Figure", "figure.new"));
-    file.add(command("Open File...", "file.open"));
+    file.add(command("Open...", "file.open"));
     file.add(command("Open Log...", "file.open_log"));
+    {
+        MenuAction recent;
+        recent.label   = RECENT_LAYOUTS_MENU;   // filled by sync_recent_layouts_menu()
+        recent.icon    = static_cast<uint16_t>(Icon::Clock);
+        recent.cascade = true;
+        recent.submenu.push_back({.label = "No Recent Files", .enabled = []() { return false; }});
+        file.add(std::move(recent));
+    }
     file.add_separator();
-    file.add(command("Export PNG", "file.export_png"));
-    file.add(command("Export SVG", "file.export_svg"));
-    file.add(command("Export PDF", "file.export_pdf"));
+    file.add(command("Save", "file.save"));
+    file.add(command("Save As...", "file.save_as"));
+    {
+        MenuAction exp;
+        exp.label   = EXPORT_MENU;
+        exp.icon    = static_cast<uint16_t>(Icon::Export);
+        exp.cascade = true;
+        exp.submenu.push_back(command("PNG Image...", "file.export_png"));
+        exp.submenu.push_back(command("SVG Image...", "file.export_svg"));
+        exp.submenu.push_back(command("PDF Document...", "file.export_pdf"));
+        exp.submenu.push_back(command("CSV Data...", "file.export_csv"));
+        exp.submenu.push_back({.separator = true});
+        exp.submenu.push_back(command("Layout (bindings only)...", "file.save_layout"));
+        file.add(std::move(exp));
+    }
     file.add(command("Copy as Image", "file.copy_to_clipboard"));
-    file.add(command("Save Workspace", "file.save_workspace"));
-    file.add(command("Load Workspace", "file.load_workspace"));
     file.add_separator();
-    file.add(command("Save Layout...", "file.save_layout"));
-    file.add(command("Open Layout...", "file.open_layout"));
-    file.add({.label = RECENT_LAYOUTS_MENU});   // submenu: sync_recent_layouts_menu()
     file.add(command("Data Bindings", "file.data_bindings"));
     file.add_separator();
-    file.add(command("Save Figure...", "file.save_figure"));
-    file.add(command("Load Figure...", "file.load_figure"));
-    file.add_separator();
+    file.add(command("Close Figure", "figure.close"));
     file.add(command("Exit", "app.quit"));
 
     auto& edit = bar.menu("Edit");
@@ -927,12 +1028,103 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     view.add(command("Next View", "view.forward"));
     view.add(command("Toggle Grid", "view.toggle_grid"));
     view.add(command("Toggle Legend", "view.toggle_legend"));
-    view.add({.label    = "Remove All Data Tips",
-              .on_click = [imgui]()
+    // Crosshair readouts: the compare-at-X tooltip and how it reads the series.
+    view.add(make_toggle_action(
+        "Crosshair",
+        [imgui]()
+        { return imgui->data_interaction_ && imgui->data_interaction_->crosshair_active(); },
+        [imgui]()
+        {
+            if (imgui->data_interaction_)
+                imgui->data_interaction_->toggle_crosshair();
+        },
+        Icon::Crosshair));
+    view.add(make_toggle_action(
+        "Compare at X",
+        [imgui]()
+        {
+            return imgui->data_interaction_ && imgui->data_interaction_->crosshair_active()
+                   && imgui->data_interaction_->compare_enabled();
+        },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.toggle_compare_at_x");
+        },
+        Icon::ChartLine));
+    view.add(make_toggle_action(
+        "Compare: Nearest Sample",
+        [imgui]()
+        {
+            return imgui->data_interaction_
+                   && imgui->data_interaction_->compare_mode()
+                          == spectra::probe::ProbeMode::Nearest;
+        },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.compare_toggle_nearest");
+        },
+        Icon::LineDotted));
+    view.add(make_toggle_action(
+        "Compare: Sort by Value",
+        [imgui]()
+        {
+            return imgui->data_interaction_
+                   && imgui->data_interaction_->compare_sort()
+                          == spectra::probe::CompareSort::ValueDescending;
+        },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.compare_toggle_sort");
+        },
+        Icon::List));
+    // Undoable, like "Clear all" in the nav rail's data-tip popover.
+    view.add({.label = "Remove All Data Tips",
+              .on_click =
+                  [imgui]()
               {
-                  if (imgui->data_interaction_)
-                      imgui->data_interaction_->clear_markers();
+                  if (imgui->data_interaction_ && imgui->current_figure_)
+                      clear_figure_markers_undoable(*imgui->data_interaction_,
+                                                    *imgui->current_figure_,
+                                                    imgui->undo_manager_,
+                                                    [imgui]() { return imgui->current_figure_; });
+              },
+              .enabled =
+                  [imgui]()
+              {
+                  return imgui->data_interaction_ && imgui->current_figure_
+                         && !figure_marker_indices(imgui->data_interaction_->markers(),
+                                                   *imgui->current_figure_)
+                                 .empty();
               }});
+    {
+        // Colour vision deficiency preview: view only, never exported.
+        MenuAction cvd;
+        cvd.label = "Color Vision Preview";
+        cvd.icon  = static_cast<uint16_t>(Icon::Eye);
+        for (ui::CVDType type : {ui::CVDType::None,
+                                 ui::CVDType::Protanopia,
+                                 ui::CVDType::Deuteranopia,
+                                 ui::CVDType::Tritanopia,
+                                 ui::CVDType::Achromatopsia})
+        {
+            MenuAction item = command(
+                type == ui::CVDType::None ? "Off (Normal Vision)" : ui::cvd_type_label(type),
+                "");
+            item.command_id = std::string("view.cvd.") + ui::cvd_type_id(type);
+            item.on_click   = [imgui, id = item.command_id]()
+            {
+                if (imgui->command_registry_)
+                    imgui->command_registry_->execute(id);
+            };
+            item.checked = [imgui, type]()
+            { return imgui->theme_mgr_ && imgui->theme_mgr_->cvd_preview() == type; };
+            cvd.submenu.push_back(std::move(item));
+        }
+        view.add(std::move(cvd));
+    }
     view.add_separator();
     // One checkable item per panel. The registry panels (Inspector, Timeline,
     // Curve Editor, Plugins, Topics, Settings) are appended after these by
@@ -984,11 +1176,11 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     tools.add(command("Screenshot (PNG)", "file.export_png"));
     tools.add_separator();
     {
-        MenuAction theme;
-        theme.label    = "Theme Settings";
-        theme.checked  = [imgui]() { return imgui->show_theme_settings_; };
-        theme.on_click = [imgui]() { imgui->show_theme_settings_ = !imgui->show_theme_settings_; };
-        tools.add(std::move(theme));
+        // Appearance (theme, palette, colour vision preview, glass) lives in
+        // Settings; this opens it on that tab.
+        MenuAction appearance = command("Appearance...", "panel.open_appearance");
+        appearance.icon       = static_cast<uint16_t>(Icon::Palette);
+        tools.add(std::move(appearance));
     }
     tools.add(command("Command Palette", "app.command_palette"));
 
@@ -1066,27 +1258,46 @@ void SpectraAppShell::sync_recent_layouts_menu(MenuBar& bar, spectra::ImGuiInteg
 {
     if (!imgui || !bar.has_menu("File"))
         return;
-    spectra::LayoutSession* session = imgui->layout_session();
+    spectra::LayoutSession*               session = imgui->layout_session();
+    spectra::ui::settings::SettingsStore* store   = imgui->settings_store();
+
+    // The start page's list: recent data files, then .spectra workspaces and
+    // layouts (opened, saved or restored).
+    static const std::vector<std::string>         none;
+    const std::vector<spectra::WelcomeRecentItem> recent =
+        spectra::build_welcome_recent(store ? store->data().recent_files : none,
+                                      session ? session->recent().entries() : none);
 
     std::vector<MenuAction> items;
-    if (!session || session->recent().empty())
+    if (recent.empty())
     {
-        items.push_back({.label = "No Recent Layouts", .enabled = []() { return false; }});
+        items.push_back({.label = "No Recent Files", .enabled = []() { return false; }});
     }
     else
     {
-        for (const std::string& path : session->recent().entries())
+        for (const auto& item : recent)
         {
-            const std::filesystem::path p(path);
-            items.push_back({.label    = p.filename().string(),
-                             .shortcut = p.parent_path().filename().string(),
-                             .icon     = static_cast<uint16_t>(Icon::Clock),
-                             // Deferred: opening edits the recent list this menu is built from.
-                             .on_click = [session, path]() { session->request_open(path); }});
+            const std::string path = item.path;
+            // Deferred: opening edits the recent lists this menu is built from.
+            std::function<void()> open =
+                item.layout && session
+                    ? std::function<void()>([session, path]() { session->request_open(path); })
+                    : std::function<void()>([imgui, path]() { imgui->request_open_path(path); });
+            items.push_back(
+                {.label    = item.name,
+                 .shortcut = item.folder,
+                 .icon     = static_cast<uint16_t>(item.layout ? Icon::Layout : Icon::FileText),
+                 .on_click = std::move(open)});
         }
         items.push_back({.separator = true});
-        items.push_back({.label    = "Clear Recent Layouts",
-                         .on_click = [session]() { session->recent().clear(); }});
+        items.push_back({.label    = "Clear Recent",
+                         .on_click = [session, store]()
+                         {
+                             if (session)
+                                 session->recent().clear();
+                             if (store)
+                                 store->clear_recent_files();
+                         }});
     }
 
     for (auto& action : bar.menu("File").items_mut())
@@ -1106,6 +1317,26 @@ void SpectraAppShell::sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegr
 
     auto& file = bar.menu("File");
     file.remove_submenu("##plugin_exports");
+
+    // Plugin formats go at the end of File > Export (or, in a File menu
+    // without one, into their own section).
+    MenuAction* export_menu = nullptr;
+    for (auto& action : file.items_mut())
+    {
+        if (action.label == EXPORT_MENU)
+            export_menu = &action;
+    }
+    if (export_menu)
+    {
+        auto& sub = export_menu->submenu;
+        sub.erase(std::remove_if(sub.begin(),
+                                 sub.end(),
+                                 [](const MenuAction& a) {
+                                     return a.label == "##plugin_exports"
+                                            || a.command_id.rfind("file.export_plugin.", 0) == 0;
+                                 }),
+                  sub.end());
+    }
     if (!imgui->export_format_registry_)
         return;
 
@@ -1113,21 +1344,31 @@ void SpectraAppShell::sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegr
     if (formats.empty())
         return;
 
-    MenuAction plugin_parent;
-    plugin_parent.label = "##plugin_exports";
+    std::vector<MenuAction> plugin_items;
     for (const auto& fmt : formats)
     {
-        const std::string label = "Export " + fmt.name + " (." + fmt.extension + ")";
         const std::string name  = fmt.name;
-        plugin_parent.submenu.push_back({.label      = label,
-                                         .command_id = "file.export_plugin." + name,
-                                         .on_click   = [imgui, name]()
-                                         {
-                                             if (imgui->command_registry_)
-                                                 imgui->command_registry_->execute(
-                                                     "file.export_plugin." + name);
-                                         }});
+        const std::string label = export_menu ? fmt.name + " (." + fmt.extension + ")..."
+                                              : "Export " + fmt.name + " (." + fmt.extension + ")";
+        plugin_items.push_back({.label      = label,
+                                .command_id = "file.export_plugin." + name,
+                                .on_click   = [imgui, name]()
+                                {
+                                    if (imgui->command_registry_)
+                                        imgui->command_registry_->execute("file.export_plugin."
+                                                                          + name);
+                                }});
     }
+    if (export_menu)
+    {
+        export_menu->submenu.push_back({.label = "##plugin_exports", .separator = true});
+        for (auto& item : plugin_items)
+            export_menu->submenu.push_back(std::move(item));
+        return;
+    }
+    MenuAction plugin_parent;
+    plugin_parent.label   = "##plugin_exports";
+    plugin_parent.submenu = std::move(plugin_items);
     file.add(std::move(plugin_parent));
 }
 

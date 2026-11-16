@@ -57,6 +57,7 @@ struct WorkspaceData
         int         grid_planes       = 1;   // Axes3D::GridPlane bitmask
         bool        show_bounding_box = true;
         bool        lighting_enabled  = true;
+        bool        equal_aspect      = false;
         float       light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
     };
 
@@ -134,6 +135,21 @@ struct WorkspaceData
         // LegendPosition (optional "legend_position" key); -1 = not in the
         // file, so apply() keeps the figure's current position.
         int legend_position = -1;
+        // Figure layout (optional keys; has_layout = false when the file has
+        // none, so apply() keeps the figure's own).  Margins / gaps in pixels,
+        // share modes are spectra::ShareAxes values.
+        bool        has_layout         = false;
+        float       margin_top         = 40.0f;
+        float       margin_bottom      = 60.0f;
+        float       margin_left        = 70.0f;
+        float       margin_right       = 20.0f;
+        float       subplot_hgap       = 40.0f;
+        float       subplot_vgap       = 50.0f;
+        float       min_subplot_height = 150.0f;
+        bool        constrained_layout = true;
+        int         share_x            = 0;
+        int         share_y            = 0;
+        std::string suptitle;
         // Built-in plot style (StyleSheet) name; empty = none (optional key).
         std::string plot_style;
     };
@@ -298,11 +314,12 @@ class Workspace
     // Delete the autosave file.
     static void clear_autosave();
 
-   private:
-    // JSON serialization helpers (minimal, no external dependency)
+    // JSON form of save()/load() (also embedded in workspace documents,
+    // workspace_document.hpp).
     static std::string serialize_json(const WorkspaceData& data);
     static bool        deserialize_json(const std::string& json, WorkspaceData& data);
 
+   private:
     // Simple JSON value parser
     static std::string read_string_value(const std::string& json, const std::string& key);
     static double      read_number_value(const std::string& json,

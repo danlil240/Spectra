@@ -19,6 +19,7 @@
 
     // Compressed Inter font data
     #include "../../../third_party/inter_font.hpp"
+    #include "../../../third_party/inter_semibold_font.hpp"
 
     // Embedded Font Awesome 6 Free Solid icon font data
     #include "../../../third_party/fa_solid_900.hpp"
@@ -32,6 +33,8 @@
     #include "ui/overlay/measure_math.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme_imgui.hpp"
+    #include "ui/overlay/toast_queue.hpp"
+    #include "ui/overlay/view_cube.hpp"
     #include "ui/ui_interaction_log.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
@@ -485,7 +488,7 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     // picked up on a frame, so keep frames coming until the preview lands.
     if (export_dialog_ && export_dialog_->wants_frames())
         return true;
-    // Modal scrim fading in/out (Settings, Theme Settings): ImGui advances the
+    // Modal scrim fading in/out (Settings): ImGui advances the
     // dim ratio per frame, so keep frames coming until it settles.
     if (const ImGuiContext* g = ImGui::GetCurrentContext();
         g && g->DimBgRatio > 0.0f && g->DimBgRatio < 1.0f)
@@ -493,6 +496,9 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     // The FPS badge still reads live after rendering stopped: draw one more
     // frame so it can settle to "Idle".
     if (fps_badge_.needs_settle_frame(ui::FpsBadgeState::Clock::now()))
+        return true;
+    // Toasts age (and fade) per frame; export watches poll the file per frame.
+    if (toasts_ && toasts_->needs_frames())
         return true;
     return false;
 }
@@ -559,6 +565,94 @@ void ImGuiIntegration::new_frame_headless(const HeadlessFrameInput& input)
     // Update layout with current display size and delta time
     update_layout(input.display_w, input.display_h, io.DeltaTime);
 }
+
+namespace
+{
+
+// The view cube of every 3D axes of `figure` (geometry: ui/overlay/view_cube.hpp;
+// clicks are handled by InputHandler::handle_view_cube_click).
+void draw_view_cubes(Figure& figure, ImDrawList* dl, ImFont* font)
+{
+    if (!dl)
+        return;
+    const auto&  c     = ui::theme();
+    const ImVec2 mouse = ImGui::GetIO().MousePos;
+    ImFont*      f     = font ? font : ImGui::GetFont();
+    for (auto& ax_base : figure.all_axes_mut())
+    {
+        const auto* ax3d = dynamic_cast<const Axes3D*>(ax_base.get());
+        if (!ax3d)
+            continue;
+        const view_cube::Layout layout = view_cube::compute_layout(*ax3d);
+        if (!layout.valid)
+            continue;
+        const view_cube::Hit hit = view_cube::hit_test(layout, mouse.x, mouse.y);
+
+        for (int i = 0; i < layout.visible_count; ++i)
+        {
+            const view_cube::Face& face =
+                layout.faces[static_cast<size_t>(layout.order[static_cast<size_t>(i)])];
+            const bool hovered = hit.kind == view_cube::HitKind::Face && hit.preset == face.preset;
+            ImVec2     pts[4];
+            for (int k = 0; k < 4; ++k)
+                pts[k] = ImVec2(face.x[static_cast<size_t>(k)], face.y[static_cast<size_t>(k)]);
+            // Faces turned away from the viewer are drawn fainter.
+            const float shade = 0.55f + 0.45f * std::clamp(face.facing, 0.0f, 1.0f);
+            const auto  fill  = hovered ? c.accent_muted.with_alpha(0.6f)
+                                        : c.bg_elevated.lerp(c.bg_tertiary, 1.0f - shade);
+            dl->AddConvexPolyFilled(pts, 4, ui::to_imu32(fill, hovered ? 0.6f : 0.88f));
+            dl->AddPolyline(pts,
+                            4,
+                            ui::to_imu32(hovered ? c.accent : c.border_strong, 0.9f),
+                            ImDrawFlags_Closed,
+                            1.0f);
+
+            // Label faces seen head-on enough to fit the word.
+            if (face.facing > 0.35f)
+            {
+                const float  size = 11.0f * std::clamp(face.facing, 0.8f, 1.0f);
+                const ImVec2 ts   = f->CalcTextSizeA(size, FLT_MAX, 0.0f, face.label);
+                dl->AddText(f,
+                            size,
+                            ImVec2(face.center_x - ts.x * 0.5f, face.center_y - ts.y * 0.5f),
+                            ui::to_imu32(hovered ? c.text_primary : c.text_secondary,
+                                         0.35f + 0.65f * face.facing),
+                            face.label);
+            }
+        }
+
+        // Projection toggle under the cube.
+        const Rect&  t       = layout.toggle;
+        const bool   t_hover = hit.kind == view_cube::HitKind::ProjectionToggle;
+        const bool   ortho = ax3d->camera().projection_mode == Camera::ProjectionMode::Orthographic;
+        const char*  text  = ortho ? "ORTHO" : "PERSP";
+        const ImVec2 t0(t.x + t.w * 0.2f, t.y);
+        const ImVec2 t1(t.x + t.w * 0.8f, t.y + t.h);
+        dl->AddRectFilled(t0,
+                          t1,
+                          ui::to_imu32(t_hover ? c.accent_muted : c.bg_elevated, 0.88f),
+                          4.0f);
+        dl->AddRect(t0,
+                    t1,
+                    ui::to_imu32(t_hover ? c.accent : c.border_default, 0.9f),
+                    4.0f,
+                    0,
+                    1.0f);
+        const float  size = 9.5f;
+        const ImVec2 ts   = f->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+        dl->AddText(f,
+                    size,
+                    ImVec2(t.x + (t.w - ts.x) * 0.5f, t.y + (t.h - ts.y) * 0.5f),
+                    ui::to_imu32(t_hover ? c.text_primary : c.text_secondary),
+                    text);
+        if (t_hover)
+            ImGui::SetTooltip("%s",
+                              ortho ? "Orthographic projection (click for perspective)"
+                                    : "Perspective projection (click for orthographic)");
+    }
+}
+
+}   // namespace
 
 void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 {
@@ -783,7 +877,11 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     if (data_interaction_)
     {
         ImGuiIO& io = ImGui::GetIO();
+        // Measure turns the crosshair on for its own readout: no compare tooltip.
+        data_interaction_->set_compare_suppressed(
+            input_handler_ && input_handler_->tool_mode() == ToolMode::Measure);
         data_interaction_->draw_overlays(io.DisplaySize.x, io.DisplaySize.y, &figure, overlay_dl);
+        draw_view_cubes(figure, overlay_dl, font_heading_);
 
         // In split mode, draw_overlays only draws legends for the active figure.
         // Draw the legend of every other pane's *visible* figure as well — not
@@ -798,7 +896,10 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                     continue;
                 Figure* fig = get_figure_ptr_(pane->figure_index());
                 if (fig && fig != &figure)
+                {
                     data_interaction_->draw_legend_for_figure(*fig);
+                    draw_view_cubes(*fig, overlay_dl, font_heading_);
+                }
             }
         }
     }
@@ -880,15 +981,14 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
             log_browser_panel_->draw();
     }
 
+    // Colour vision preview indicator (only while a preview is on).
+    draw_cvd_preview_badge();
+
     // Draw Settings panel.
     if (settings_panel_)
     {
         settings_panel_->draw();
     }
-
-    // Theme settings modal (draws nothing unless open; called every frame so the
-    // popup also closes when show_theme_settings_ is cleared elsewhere)
-    draw_theme_settings();
 
     // ── ROS2 Adapter error modal ──────────────────────────────────────────────
     // Shown when the tools.ros2_adapter command encounters a launch failure.
@@ -1017,6 +1117,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     {
         draw_knobs_panel();
     }
+
+    // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
+    draw_file_model_overlays();
 
     // Draw command palette overlay (Agent F) — must be last to render on top
     if (command_palette_)
@@ -1155,6 +1258,18 @@ void ImGuiIntegration::set_interaction_mode(ToolMode mode)
     interaction_mode_ = mode;
     if (input_handler_)
         input_handler_->set_tool_mode(mode);
+}
+
+void ImGuiIntegration::set_settings_panel(ui::settings::SettingsPanel* p)
+{
+    settings_panel_ = p;
+    if (settings_panel_)
+        settings_panel_->set_fonts(font_section_);
+}
+
+bool ImGuiIntegration::is_theme_settings_visible() const
+{
+    return settings_panel_ && settings_panel_->is_visible() && settings_panel_->active_tab() == 0;
 }
 
 std::string ImGuiIntegration::tool_tooltip(const char* label, ToolMode mode) const
@@ -1315,12 +1430,12 @@ void ImGuiIntegration::build_empty_ui()
     if (settings_panel_)
         settings_panel_->draw();
 
-    // Theme Settings is reachable from the Tools menu on the welcome screen too.
-    draw_theme_settings();
-
     // Welcome-state drop target: allows dragging a topic to auto-create a new figure.
     draw_topic_drop_target_welcome();
     draw_log_field_drop_target_welcome();
+
+    // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
+    draw_file_model_overlays();
 
     // Command palette overlay (Ctrl+K / Tools menu) — last so it renders on top.
     if (command_palette_)
@@ -1512,8 +1627,12 @@ bool ImGuiIntegration::open_path(const std::string& path)
         SPECTRA_LOG_WARN("app", "Cannot open {}: file not found", path);
         if (settings_store_)
             settings_store_->forget_recent_file(path);
+        if (open_file_handler_)
+            open_file_handler_(path);   // reports it (toast)
         return false;
     }
+    if (open_file_handler_)
+        return open_file_handler_(path);
     const auto is_log = [this](const std::string& p)
     { return log_browser_panel_ && log_browser_panel_->can_open(p); };
     switch (classify_open_file(path, is_log))
@@ -1540,6 +1659,15 @@ bool ImGuiIntegration::open_path(const std::string& path)
 
 void ImGuiIntegration::process_pending_opens()
 {
+    // Recent-file menu clicks, one frame later.
+    if (!pending_open_paths_.empty())
+    {
+        std::vector<std::string> paths;
+        paths.swap(pending_open_paths_);
+        for (const auto& p : paths)
+            open_path(p);
+    }
+
     // Deferred CSV open request (canvas welcome button).
     if (pending_open_csv_)
     {
@@ -2031,15 +2159,18 @@ void ImGuiIntegration::load_fonts()
     cfg.OversampleV          = 2;       // sharper vertical edges
     cfg.PixelSnapH           = true;    // snap glyphs to whole pixels for crispness
 
-    // Helper lambda: add Inter font at a given size, then merge FA6 icons
-    auto add_font_pair = [&](float size) -> ImFont*
+    // Helper lambda: add Inter (Regular, or SemiBold for headings) at a given
+    // size, then merge FA6 icons
+    auto add_font_pair = [&](float size, bool semibold = false) -> ImFont*
     {
         cfg.SizePixels = 0;
-        ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(InterFont_compressed_data,
-                                                                InterFont_compressed_size,
-                                                                size,
-                                                                &cfg,
-                                                                text_ranges);
+        ImFont* font   = io.Fonts->AddFontFromMemoryCompressedTTF(
+            semibold ? InterSemiBoldFont_compressed_data : InterFont_compressed_data,
+            static_cast<int>(semibold ? InterSemiBoldFont_compressed_size
+                                      : InterFont_compressed_size),
+            size,
+            &cfg,
+            text_ranges);
 
         ImFontConfig icon_cfg;
         icon_cfg.FontDataOwnedByAtlas = false;
@@ -2089,20 +2220,17 @@ void ImGuiIntegration::load_fonts()
             fallback_font_files_.push_back(std::move(file));
     }
 
-    // Body font (16px) + FA6 icon merge
-    font_body_ = add_font_pair(16.0f);
-
-    // Heading font (12.5px) + FA6 icon merge
-    font_heading_ = add_font_pair(11.5f);
-
-    // Icon font (20px) — primary icon font with Inter merged in
-    font_icon_ = add_font_pair(20.0f);
-
-    // Title font (18px) + FA6 icon merge
-    font_title_ = add_font_pair(20.0f);
-
-    // Menubar font (15px) + FA6 icon merge
-    font_menubar_ = add_font_pair(14.0f);
+    // Sizes are the typography tokens (design_tokens.hpp); each font merges FA6
+    // icons.  Headings and titles use Inter SemiBold so they read as headings
+    // without being smaller than the body text they introduce.
+    font_body_    = add_font_pair(ui::tokens::FONT_BODY);
+    font_heading_ = add_font_pair(ui::tokens::FONT_SM);   // compact caps labels, rail
+    font_icon_    = add_font_pair(ui::tokens::ICON_MD);   // icon bar symbols
+    font_title_   = add_font_pair(ui::tokens::FONT_2XL, true);
+    font_menubar_ = add_font_pair(ui::tokens::FONT_MD);
+    font_section_ = add_font_pair(ui::tokens::FONT_XL, true);
+    if (settings_panel_)
+        settings_panel_->set_fonts(font_section_);
 
     io.FontDefault = font_body_;
 }

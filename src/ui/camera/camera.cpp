@@ -281,6 +281,65 @@ Camera& Camera::align_view_to_axis(AxisView view)
     return *this;
 }
 
+Camera& Camera::set_view_preset(ViewPreset preset)
+{
+    // Just short of the pole: the view is indistinguishable from a true top
+    // view, but the orbit keeps a well-defined azimuth (at exactly 90 deg the
+    // horizontal offset is float noise whose sign flips the azimuth).
+    constexpr float kPole = 89.95f;
+    // Elevation of the isometric direction (1, 1, 1): atan(1 / sqrt(2)).
+    constexpr float kIsoElevation = 35.264390f;
+
+    // Azimuths of the horizontal views.  Z-up: the camera sits at
+    // (cos az, sin az) in the XY plane.  Y-up: at (cos az, sin az) in XZ.
+    const bool  z_up       = up_axis == UpAxis::Z;
+    const float az_front   = z_up ? 270.0f : 90.0f;   // Z-up: from -Y; Y-up: from +Z
+    const float az_back    = z_up ? 90.0f : 270.0f;
+    const float az_left    = 180.0f;     // from -X
+    const float az_right   = 0.0f;       // from +X
+    const float az_topdown = az_front;   // keeps X to the right, front edge at the bottom
+
+    switch (preset)
+    {
+        case ViewPreset::Front:
+            azimuth   = az_front;
+            elevation = 0.0f;
+            break;
+        case ViewPreset::Back:
+            azimuth   = az_back;
+            elevation = 0.0f;
+            break;
+        case ViewPreset::Left:
+            azimuth   = az_left;
+            elevation = 0.0f;
+            break;
+        case ViewPreset::Right:
+            azimuth   = az_right;
+            elevation = 0.0f;
+            break;
+        case ViewPreset::Top:
+            azimuth   = az_topdown;
+            elevation = kPole;
+            break;
+        case ViewPreset::Bottom:
+            azimuth   = az_topdown;
+            elevation = -kPole;
+            break;
+        case ViewPreset::Isometric:
+            azimuth   = 45.0f;
+            elevation = kIsoElevation;
+            break;
+    }
+    update_position_from_orbit();
+    return *this;
+}
+
+float Camera::perspective_matched_ortho_size() const
+{
+    const float d = distance > 0.0f ? distance : static_cast<float>(vec3_length(position - target));
+    return std::max(0.1f, d * std::tan(deg_to_rad(fov) * 0.5f));
+}
+
 void Camera::reset()
 {
     if (up_axis == UpAxis::Z)

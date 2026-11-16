@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
@@ -98,6 +99,17 @@ class InputHandler
     // which the hover-driven active_axes() no longer points at).  May be stale:
     // check that it still belongs to the figure before using it.
     Axes* last_pressed_axes() const { return last_pressed_axes_; }
+
+    // Animate the 3D axes' camera to a standard view (front, top, iso, ...)
+    // with one undo entry.  The six axis views switch to an orthographic
+    // projection (unless the user already chose one); the next orbit drag
+    // returns to perspective.
+    void apply_axes3d_view_preset(Axes3D* axes3d, Camera::ViewPreset preset);
+    // Switch the 3D axes between perspective and orthographic projection
+    // (keeping the framing), with one undo entry.
+    void toggle_axes3d_projection(Axes3D* axes3d);
+    // True while the axes' orthographic projection came from a view preset.
+    bool axes3d_auto_ortho(const Axes3D* axes3d) const;
 
     // Mouse button event: begin/end drag or box zoom
     void on_mouse_button(int button, int action, int mods, double x, double y);
@@ -314,6 +326,15 @@ class InputHandler
                           double   cursor_y,
                           ViewAxes axes);
     void snap_axes3d_axis_view(Axes3D* axes3d, Camera::AxisView view);
+    // Animate to `target` with one undo entry; `target_auto_ortho` is the
+    // automatic-orthographic mark after the move (restored by undo / redo).
+    void animate_axes3d_camera(Axes3D*       axes3d,
+                               const Camera& target,
+                               const char*   undo_label,
+                               bool          target_auto_ortho);
+    void set_axes3d_auto_ortho(const Axes3D* axes3d, bool on);
+    // Click on the view cube of a 3D axes; true when consumed.
+    bool handle_view_cube_click(Axes3D* axes3d, double x, double y);
     void update_axes3d_arrow_hover(AxesBase* hit_base, double x, double y);
 
     // ─── View history helpers (input_pan_zoom.cpp) ──────────────────────
@@ -410,6 +431,10 @@ class InputHandler
 
     // Undo manager (not owned)
     UndoManager* undo_mgr_ = nullptr;
+
+    // 3D axes whose orthographic projection was switched on by a view preset
+    // (compared by address only, never dereferenced).
+    std::vector<const Axes3D*> auto_ortho_axes_;
 
     // Axis link manager (not owned)
     AxisLinkManager* axis_link_mgr_ = nullptr;

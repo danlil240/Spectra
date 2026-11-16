@@ -65,7 +65,23 @@ struct LegendConfig
     }
 };
 
+/// @brief Which subplots of a Figure share an axis (Figure::share_x() / share_y()),
+/// like matplotlib's ``subplots(sharex=...)``.
+enum class ShareAxes : uint8_t
+{
+    None = 0,   ///< Every axes has its own limits (default)
+    All  = 1,   ///< All 2D axes of the figure share the axis
+    Row  = 2,   ///< Axes in the same grid row share the axis
+    Col  = 3,   ///< Axes in the same grid column share the axis
+};
+
 /// @brief Figure background colour, outer margins and subplot spacing (pixels).
+///
+/// The margins are kept around the whole subplot grid; @ref subplot_hgap /
+/// @ref subplot_vgap separate neighbouring plot areas.  With
+/// @ref constrained_layout (default) the margins and gaps are minimums: they
+/// grow so tick labels, axis labels and titles fit without overlapping a
+/// neighbouring subplot or leaving the figure.
 struct FigureStyle
 {
     /// Figure background, used only when @ref background_override is true.
@@ -79,6 +95,9 @@ struct FigureStyle
     float subplot_hgap        = 40.0f;
     float subplot_vgap        = 50.0f;
     float min_subplot_height  = 150.0f;   ///< Minimum pixel height per subplot row
+    /// Size margins and gaps from the measured labels (see above).  When false the
+    /// grid uses the margins and gaps exactly.
+    bool constrained_layout = true;
     /// Data palette for this figure's auto-coloured series (e.g. "colorblind");
     /// empty (default) follows the app's palette selection.
     std::string palette;
@@ -257,6 +276,31 @@ class Figure
                 fn(a.get());
     }
 
+    /// @brief Figure title drawn centred above the subplot grid (matplotlib's suptitle).
+    /// An empty string removes it.
+    void               suptitle(std::string_view text) { suptitle_ = std::string(text); }
+    const std::string& suptitle() const { return suptitle_; }
+
+    /// @brief Share the x axis between subplots (see ShareAxes): shared axes show
+    /// the same x limits, autoscale to the data of the whole group, and only the
+    /// bottom axes of a shared column draw x tick labels.  Applies to the 2D axes
+    /// that exist now and to ones created later.
+    void      share_x(ShareAxes mode);
+    ShareAxes share_x() const { return share_x_; }
+    /// @brief Share the y axis between subplots (see share_x()); only the left
+    /// axes of a shared row draw y tick labels.
+    void      share_y(ShareAxes mode);
+    ShareAxes share_y() const { return share_y_; }
+
+    /// @brief Turn on constrained layout (FigureStyle::constrained_layout), so the
+    /// subplot spacing fits the labels.  Equivalent of matplotlib's tight_layout().
+    void tight_layout() { style_.constrained_layout = true; }
+
+    /// Where the suptitle is drawn (window / image pixels), set by the layout;
+    /// zero-sized when there is none.
+    const Rect& suptitle_rect() const { return suptitle_rect_; }
+    void        set_suptitle_rect(const Rect& r) { suptitle_rect_ = r; }
+
     /// @brief Mutable figure style (background, margins, gaps).
     FigureStyle&       style() { return style_; }
     const FigureStyle& style() const { return style_; }
@@ -322,6 +366,10 @@ class Figure
     FigureAnimState     anim_;
 
    private:
+    // Re-group the 2D axes for share_x_ / share_y_ (called when a mode is set
+    // and when a subplot is created).
+    void apply_share_modes(bool x, bool y);
+
     friend class AnimationBuilder;
     friend class App;
     friend class FigureManager;
@@ -343,6 +391,10 @@ class Figure
     float       scroll_offset_y_ = 0.0f;
     float       content_height_  = 0.0f;
     std::string tab_title_;
+    std::string suptitle_;
+    Rect        suptitle_rect_{0.0f, 0.0f, 0.0f, 0.0f};
+    ShareAxes   share_x_ = ShareAxes::None;
+    ShareAxes   share_y_ = ShareAxes::None;
 };
 
 }   // namespace spectra

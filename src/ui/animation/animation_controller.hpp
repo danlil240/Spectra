@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <spectra/animator.hpp>
 #include <spectra/axes.hpp>
+#include <spectra/camera.hpp>
 #include <vector>
 
 namespace spectra
@@ -87,16 +88,17 @@ class AnimationController
 
     struct CameraAnim
     {
-        AnimId   id;
-        Camera*  camera;
-        float    start_azimuth, start_elevation, start_distance;
-        float    start_fov, start_ortho_size;
-        float    target_azimuth, target_elevation, target_distance;
-        float    target_fov, target_ortho_size;
-        float    elapsed  = 0.0f;
-        float    duration = 0.5f;
-        EasingFn easing   = ease::ease_out;
-        bool     finished = false;
+        AnimId                 id;
+        Camera*                camera;
+        float                  start_azimuth, start_elevation, start_distance;
+        float                  start_fov, start_ortho_size;
+        float                  target_azimuth, target_elevation, target_distance;
+        float                  target_fov, target_ortho_size;
+        Camera::ProjectionMode target_projection = Camera::ProjectionMode::Perspective;
+        float                  elapsed           = 0.0f;
+        float                  duration          = 0.5f;
+        EasingFn               easing            = ease::ease_out;
+        bool                   finished          = false;
     };
 
     AnimId next_id_ = 1;

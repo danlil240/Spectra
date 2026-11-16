@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <filesystem>
 #include <spectra/figure.hpp>
@@ -143,9 +144,71 @@ Axes& Figure::subplot(int rows, int cols, int index)
         axes_[idx] = std::make_unique<Axes>();
         if (style_sheet_)
             axes_[idx]->apply_style(*style_sheet_);
+        if (share_x_ != ShareAxes::None || share_y_ != ShareAxes::None)
+            apply_share_modes(share_x_ != ShareAxes::None, share_y_ != ShareAxes::None);
     }
 
     return *axes_[idx];
+}
+
+void Figure::share_x(ShareAxes mode)
+{
+    share_x_ = mode;
+    apply_share_modes(true, false);
+}
+
+void Figure::share_y(ShareAxes mode)
+{
+    share_y_ = mode;
+    apply_share_modes(false, true);
+}
+
+void Figure::apply_share_modes(bool x, bool y)
+{
+    const auto cols = static_cast<size_t>(std::max(1, grid_cols_));
+    // Group key of slot i for a mode: one group for All, the row or column otherwise.
+    auto key = [cols](ShareAxes mode, size_t i) -> size_t
+    {
+        switch (mode)
+        {
+            case ShareAxes::Row:
+                return i / cols;
+            case ShareAxes::Col:
+                return i % cols;
+            default:
+                return 0;
+        }
+    };
+    auto regroup = [&](ShareAxes mode, bool x_axis)
+    {
+        std::vector<std::pair<size_t, Axes*>> leaders;
+        for (size_t i = 0; i < axes_.size(); ++i)
+        {
+            Axes* a = axes_[i].get();
+            if (!a)
+                continue;
+            if (x_axis)
+                a->unshare_x();
+            else
+                a->unshare_y();
+            if (mode == ShareAxes::None)
+                continue;
+            const size_t k  = key(mode, i);
+            auto         it = std::find_if(leaders.begin(),
+                                   leaders.end(),
+                                   [k](const auto& l) { return l.first == k; });
+            if (it == leaders.end())
+                leaders.emplace_back(k, a);
+            else if (x_axis)
+                a->sharex(*it->second);
+            else
+                a->sharey(*it->second);
+        }
+    };
+    if (x)
+        regroup(share_x_, true);
+    if (y)
+        regroup(share_y_, false);
 }
 
 Axes3D& Figure::subplot3d(int rows, int cols, int index)
@@ -249,21 +312,18 @@ AnimationBuilder Figure::animate()
 
 void Figure::compute_layout()
 {
-    // Use the figure's own style margins (matching what the Spectra app uses
-    // via ImGui layout) instead of the default Margins from layout.hpp.
+    // The figure's own style margins (matching what the Spectra app uses via
+    // ImGui layout) around the whole grid.
     Margins fig_margins;
     fig_margins.left   = style_.margin_left;
     fig_margins.right  = style_.margin_right;
     fig_margins.top    = style_.margin_top;
     fig_margins.bottom = style_.margin_bottom;
 
-    auto rects = compute_subplot_layout(static_cast<float>(config_.width),
-                                        static_cast<float>(config_.height),
-                                        grid_rows_,
-                                        grid_cols_,
-                                        fig_margins);
-
-    apply_subplot_layout(*this, rects, fig_margins);
+    layout_figure(
+        *this,
+        Rect{0.0f, 0.0f, static_cast<float>(config_.width), static_cast<float>(config_.height)},
+        fig_margins);
 }
 
 }   // namespace spectra

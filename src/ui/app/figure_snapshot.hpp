@@ -573,6 +573,7 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
     // A built-in plot style travels by name (the window re-applies it).
     if (fig.style_sheet() && style::find(fig.style_name()))
         snap.style = fig.style_name();
+    ipc::figure_layout_to_state(fig, snap);
 
     // One axes entry per grid slot so axes_index == subplot index - 1 on both
     // sides; an empty slot (gap in the grid) becomes a blank 2D axes.

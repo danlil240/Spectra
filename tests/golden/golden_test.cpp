@@ -247,6 +247,32 @@ static void scene_multi_subplot(App& /*app*/, Figure& fig)
     ax2.ylim(-1.5f, 1.5f);
 }
 
+// Suptitle above a 2x2 grid with shared x (per column) and y (per row): the
+// inner tick labels are hidden and the constrained layout packs the grid.
+static void scene_suptitle_shared(App& /*app*/, Figure& fig)
+{
+    fig.suptitle("Shared axes overview");
+    fig.share_x(ShareAxes::Col);
+    fig.share_y(ShareAxes::Row);
+    constexpr size_t   N = 120;
+    std::vector<float> x(N);
+    for (size_t i = 0; i < N; ++i)
+        x[i] = static_cast<float>(i) * 0.05f;
+    for (int k = 1; k <= 4; ++k)
+    {
+        auto&              ax = fig.subplot(2, 2, k);
+        std::vector<float> y(N);
+        for (size_t i = 0; i < N; ++i)
+            y[i] = std::sin(x[i] * static_cast<float>(k)) * static_cast<float>(k);
+        ax.line(x, y).color(k % 2 ? colors::red : rgb(0.2f, 0.6f, 1.0f));
+        ax.title("Panel " + std::to_string(k));
+        if (k > 2)
+            ax.xlabel("Time (s)");
+        if (k % 2 == 1)
+            ax.ylabel("Amplitude");
+    }
+}
+
 static void scene_empty_axes(App& /*app*/, Figure& fig)
 {
     auto& ax = fig.subplot(1, 1, 1);
@@ -293,6 +319,33 @@ static std::function<void(App&, Figure&)> scene_style(const std::string& style_n
         ax.xlabel("Time (s)");
         ax.ylabel("Amplitude");
     };
+}
+
+// Mathtext ($...$) in the title, both axis labels (the Y one rotated), legend entries and
+// an annotation: Greek letters, symbols, sub/superscripts (stacked and nested).
+static void scene_mathtext(App& /*app*/, Figure& fig)
+{
+    auto& ax = fig.subplot(1, 1, 1);
+
+    constexpr size_t   N = 200;
+    std::vector<float> x(N);
+    std::vector<float> y1(N);
+    std::vector<float> y2(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+        x[i]  = static_cast<float>(i) * 0.05f;
+        y1[i] = std::sin(x[i] * 1.5f);
+        y2[i] = std::exp(-x[i] * 0.3f) * std::cos(x[i] * 3.0f);
+    }
+
+    ax.line(x, y1).label("$\\sin(\\omega t)$, $\\omega = 1.5$").color(rgb(0.2f, 0.6f, 1.0f));
+    ax.line(x, y2).label("$e^{-t/\\tau}\\cos(2\\pi f t)$").color(colors::red);
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(-1.5f, 1.5f);
+    ax.title("$\\alpha_1 = 10^{-3}$ s, $\\Delta T \\approx 5\\degree$C");
+    ax.xlabel("Time $t$ ($\\mu$s)");
+    ax.ylabel("$\\sigma_{xy}^2$ [V$^2$]");
+    ax.text(5.0f, 1.2f, "$x_i^2 \\pm \\delta$, cost \\$5");
 }
 
 // Flat stat fills: opaque fills, thin edges, contrasting box medians, and
@@ -356,6 +409,11 @@ TEST(GoldenImage, MultiSubplot)
     run_golden_test("multi_subplot", scene_multi_subplot, 800, 600);
 }
 
+TEST(GoldenImage, SuptitleSharedAxes)
+{
+    run_golden_test("suptitle_shared", scene_suptitle_shared, 800, 600);
+}
+
 TEST(GoldenImage, EmptyAxes)
 {
     run_golden_test("empty_axes", scene_empty_axes);
@@ -379,6 +437,11 @@ TEST(GoldenImage, StyleTalk)
 TEST(GoldenImage, StyleMinimal)
 {
     run_golden_test("style_minimal", scene_style("minimal"));
+}
+
+TEST(GoldenImage, MathText)
+{
+    run_golden_test("mathtext", scene_mathtext);
 }
 
 TEST(GoldenImage, StatFills)

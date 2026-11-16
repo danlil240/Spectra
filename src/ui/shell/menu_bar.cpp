@@ -53,10 +53,18 @@ std::vector<spectra::ImGuiIntegration::MenuItem> to_imgui_menu_items(
     out.reserve(actions.size());
     for (const MenuAction& action : actions)
     {
+        if (!action.submenu.empty() && action.cascade)
+        {
+            ImGuiMenuItem parent(action.label, nullptr);
+            parent.icon     = action.icon;
+            parent.children = to_imgui_menu_items(action.submenu, resolve_shortcut);
+            out.push_back(std::move(parent));
+            continue;
+        }
         if (!action.submenu.empty())
         {
-            // The command bar has no cascading menus: a submenu becomes its own
-            // separated section of the parent menu.
+            // Without `cascade` a submenu becomes its own separated section of
+            // the parent menu.
             append_separator(out);
             for (const MenuAction& sub : action.submenu)
                 append_item(out, sub, resolve_shortcut);

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -130,6 +131,21 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "      \"legend_position\": " << fig.legend_position << ",\n";
         if (!fig.plot_style.empty())
             os << R"(      "plot_style": ")" << escape_json(fig.plot_style) << "\",\n";
+        if (fig.has_layout)
+        {
+            os << "      \"margin_top\": " << fig.margin_top << ",\n";
+            os << "      \"margin_bottom\": " << fig.margin_bottom << ",\n";
+            os << "      \"margin_left\": " << fig.margin_left << ",\n";
+            os << "      \"margin_right\": " << fig.margin_right << ",\n";
+            os << "      \"subplot_hgap\": " << fig.subplot_hgap << ",\n";
+            os << "      \"subplot_vgap\": " << fig.subplot_vgap << ",\n";
+            os << "      \"min_subplot_height\": " << fig.min_subplot_height << ",\n";
+            os << "      \"constrained_layout\": " << (fig.constrained_layout ? "true" : "false")
+               << ",\n";
+            os << "      \"share_x\": " << fig.share_x << ",\n";
+            os << "      \"share_y\": " << fig.share_y << ",\n";
+            os << R"(      "suptitle": ")" << escape_json(fig.suptitle) << "\",\n";
+        }
 
         // Axes
         os << "      \"axes\": [\n";
@@ -178,6 +194,7 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
                << ",\n";
             os << "          \"lighting_enabled\": " << (a3.lighting_enabled ? "true" : "false")
                << ",\n";
+            os << "          \"equal_aspect\": " << (a3.equal_aspect ? "true" : "false") << ",\n";
             os << "          \"light_dir_x\": " << a3.light_dir_x << ",\n";
             os << "          \"light_dir_y\": " << a3.light_dir_y << ",\n";
             os << "          \"light_dir_z\": " << a3.light_dir_z << "\n";
@@ -699,6 +716,25 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         fig.legend_position = static_cast<int>(read_number_value(fig_json, "legend_position", -1));
         fig.plot_style      = read_string_value(fig_json, "plot_style");
 
+        // Optional figure layout keys (any version)
+        if (read_number_value(fig_json, "subplot_hgap", -1.0) >= 0.0)
+        {
+            auto num = [&](const char* key, float def)
+            { return static_cast<float>(read_number_value(fig_json, key, def)); };
+            fig.has_layout         = true;
+            fig.margin_top         = num("margin_top", fig.margin_top);
+            fig.margin_bottom      = num("margin_bottom", fig.margin_bottom);
+            fig.margin_left        = num("margin_left", fig.margin_left);
+            fig.margin_right       = num("margin_right", fig.margin_right);
+            fig.subplot_hgap       = num("subplot_hgap", fig.subplot_hgap);
+            fig.subplot_vgap       = num("subplot_vgap", fig.subplot_vgap);
+            fig.min_subplot_height = num("min_subplot_height", fig.min_subplot_height);
+            fig.constrained_layout = read_bool_value(fig_json, "constrained_layout", true);
+            fig.share_x            = static_cast<int>(read_number_value(fig_json, "share_x", 0));
+            fig.share_y            = static_cast<int>(read_number_value(fig_json, "share_y", 0));
+            fig.suptitle           = read_string_value(fig_json, "suptitle");
+        }
+
         // Axes
         auto ax_objects = parse_json_array(fig_json, "axes");
         for (const auto& ax_json : ax_objects)
@@ -814,6 +850,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 a3.grid_planes  = static_cast<int>(read_number_value(a3_json, "grid_planes", 1));
                 a3.show_bounding_box = read_bool_value(a3_json, "show_bounding_box", true);
                 a3.lighting_enabled  = read_bool_value(a3_json, "lighting_enabled", true);
+                a3.equal_aspect      = read_bool_value(a3_json, "equal_aspect", false);
                 a3.light_dir_x = static_cast<float>(read_number_value(a3_json, "light_dir_x", 1));
                 a3.light_dir_y = static_cast<float>(read_number_value(a3_json, "light_dir_y", 1));
                 a3.light_dir_z = static_cast<float>(read_number_value(a3_json, "light_dir_z", 1));
@@ -1069,6 +1106,21 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
         fs.grid_cols            = fig->grid_cols();
         fs.legend_position      = static_cast<int>(fig->legend().position);
         fs.plot_style           = fig->style_name();
+        {
+            const auto& st        = fig->style();
+            fs.has_layout         = true;
+            fs.margin_top         = st.margin_top;
+            fs.margin_bottom      = st.margin_bottom;
+            fs.margin_left        = st.margin_left;
+            fs.margin_right       = st.margin_right;
+            fs.subplot_hgap       = st.subplot_hgap;
+            fs.subplot_vgap       = st.subplot_vgap;
+            fs.min_subplot_height = st.min_subplot_height;
+            fs.constrained_layout = st.constrained_layout;
+            fs.share_x            = static_cast<int>(fig->share_x());
+            fs.share_y            = static_cast<int>(fig->share_y());
+            fs.suptitle           = fig->suptitle();
+        }
 
         // Capture axes: use all_axes() if populated (mixed/3D figures),
         // otherwise fall back to axes() (2D-only figures).
@@ -1110,6 +1162,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 a3.grid_planes       = static_cast<int>(ax3d->grid_planes());
                 a3.show_bounding_box = ax3d->show_bounding_box();
                 a3.lighting_enabled  = ax3d->lighting_enabled();
+                a3.equal_aspect      = ax3d->equal_aspect();
                 auto ld              = ax3d->light_dir();
                 a3.light_dir_x       = ld.x;
                 a3.light_dir_y       = ld.y;
@@ -1429,6 +1482,35 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
         // Plot style first; the per-axes state below then applies on top.
         if (!fs.plot_style.empty() && fs.plot_style != fig->style_name())
             fig->apply_style(fs.plot_style);
+        // Files without layout keys keep the figure's layout.
+        if (fs.has_layout)
+        {
+            auto  len = [](float v, float def) { return std::isfinite(v) && v >= 0.0f ? v : def; };
+            auto& st  = fig->style();
+            const FigureStyle def;
+            st.margin_top         = len(fs.margin_top, def.margin_top);
+            st.margin_bottom      = len(fs.margin_bottom, def.margin_bottom);
+            st.margin_left        = len(fs.margin_left, def.margin_left);
+            st.margin_right       = len(fs.margin_right, def.margin_right);
+            st.subplot_hgap       = len(fs.subplot_hgap, def.subplot_hgap);
+            st.subplot_vgap       = len(fs.subplot_vgap, def.subplot_vgap);
+            st.min_subplot_height = len(fs.min_subplot_height, def.min_subplot_height);
+            st.constrained_layout = fs.constrained_layout;
+            fig->suptitle(fs.suptitle);
+        }
+
+        // Detach the figure's current share groups first: with them active,
+        // restoring one axes' limits would overwrite its peers.  The target
+        // modes (the file's, else the figure's own) are linked again below.
+        auto share = [](int v)
+        {
+            return v >= 0 && v <= static_cast<int>(ShareAxes::Col) ? static_cast<ShareAxes>(v)
+                                                                   : ShareAxes::None;
+        };
+        const ShareAxes target_share_x = fs.has_layout ? share(fs.share_x) : fig->share_x();
+        const ShareAxes target_share_y = fs.has_layout ? share(fs.share_y) : fig->share_y();
+        fig->share_x(ShareAxes::None);
+        fig->share_y(ShareAxes::None);
 
         // Apply axes: use all_axes() if populated, else axes()
         const bool has_all_axes = !fig->all_axes().empty();
@@ -1463,6 +1545,7 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                         ax3d->set_grid_planes(a3.grid_planes);
                         ax3d->show_bounding_box(a3.show_bounding_box);
                         ax3d->set_lighting_enabled(a3.lighting_enabled);
+                        ax3d->equal_aspect(a3.equal_aspect);
                         ax3d->set_light_dir(a3.light_dir_x, a3.light_dir_y, a3.light_dir_z);
                         break;
                     }
@@ -1517,6 +1600,10 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             for (size_t ai = 0; ai < fs.axes.size() && ai < fig->axes().size(); ++ai)
                 apply_to_axes_base(fig->axes()[ai].get(), ai);
         }
+
+        // Shared axes, once the axes and their limits are in place.
+        fig->share_x(target_share_x);
+        fig->share_y(target_share_y);
 
         // Layout series were created and styled by build_layout_figure().
         if (data.layout_only)

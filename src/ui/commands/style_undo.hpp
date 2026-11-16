@@ -53,9 +53,13 @@ struct FigureStyleSnapshot
         float         point_size  = 0.0f;   // ScatterSeries::size()
     };
 
-    Figure*                   figure    = nullptr;   // used when there is no lookup
-    FigureId                  figure_id = INVALID_FIGURE_ID;
-    FigureStyle               style;
+    Figure*  figure    = nullptr;   // used when there is no lookup
+    FigureId figure_id = INVALID_FIGURE_ID;
+    // Only the FigureStyle fields a StyleSheet sets (Figure::apply_style), so
+    // undo leaves layout settings (margins, constrained layout) alone.
+    bool                      background_override = false;
+    Color                     background;
+    std::string               palette;
     float                     legend_font_size = 0.0f;
     std::optional<StyleSheet> sheet;
     std::vector<AxesState>    axes;
@@ -81,9 +85,11 @@ inline FigureStyleSnapshot capture_figure_style(Figure& fig, const StyleFigureLo
         const FigureId id = lookup.id_of(&fig);   // 0 = unknown, like INVALID_FIGURE_ID
         snap.figure_id    = id == 0 ? INVALID_FIGURE_ID : id;
     }
-    snap.style            = fig.style();
-    snap.legend_font_size = fig.legend().font_size;
-    snap.sheet            = fig.style_sheet();
+    snap.background_override = fig.style().background_override;
+    snap.background          = fig.style().background;
+    snap.palette             = fig.style().palette;
+    snap.legend_font_size    = fig.legend().font_size;
+    snap.sheet               = fig.style_sheet();
     fig.for_each_axes(
         [&](AxesBase* ax)
         {
@@ -127,8 +133,10 @@ inline bool restore_figure_style(const FigureStyleSnapshot& snap,
     if (!fig)
         return false;
 
-    fig->style()            = snap.style;
-    fig->legend().font_size = snap.legend_font_size;
+    fig->style().background_override = snap.background_override;
+    fig->style().background          = snap.background;
+    fig->style().palette             = snap.palette;
+    fig->legend().font_size          = snap.legend_font_size;
     fig->set_style_sheet(snap.sheet);
 
     auto find_axes = [&](const AxesBase* ax, size_t index) -> const FigureStyleSnapshot::AxesState*

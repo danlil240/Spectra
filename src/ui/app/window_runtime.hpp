@@ -54,6 +54,10 @@ class WindowRuntime
     // Returns true if the frame was successfully presented.
     bool render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfiler* profiler = nullptr);
 
+    // Timers that must run every loop iteration, also while the window is idle
+    // and update() is skipped (autosave debounce).  Cheap when nothing is due.
+    static void background_tick(WindowUIContext& ui_ctx);
+
    private:
     Backend&        backend_;
     Renderer&       renderer_;

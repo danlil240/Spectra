@@ -239,6 +239,21 @@ TEST(StylePresets, UndoRestoresEverything)
     EXPECT_EQ(line.width(), style::find("paper")->line_width);
 }
 
+TEST(StylePresets, UndoKeepsTheFigureLayout)
+{
+    Figure fig;
+    fig.subplot(1, 1, 1);
+    UndoManager undo;
+    undoable_apply_style(&undo, fig, *style::find("paper"));
+    // Layout changed after the style (FigureStyle also holds it).
+    fig.style().constrained_layout = false;
+    fig.style().margin_left        = 123.0f;
+    ASSERT_TRUE(undo.undo());
+    EXPECT_FALSE(fig.style().background_override);
+    EXPECT_FALSE(fig.style().constrained_layout);
+    EXPECT_EQ(fig.style().margin_left, 123.0f);
+}
+
 // Codex P1: undo must not touch a series deleted after the style was applied
 // (Inspector trash -> deferred Axes::remove_series), nor a closed figure.
 TEST(StylePresets, UndoSkipsSeriesRemovedAfterwards)

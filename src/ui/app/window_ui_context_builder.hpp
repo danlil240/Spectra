@@ -75,6 +75,9 @@ struct WindowUIContextBuildOptions
 
     // Deprecated: prefer `mode = WindowUIContextBuildMode::Headless`.
     bool headless = false;
+    // Write crash-recovery autosaves (DocumentSession) for this window and
+    // offer to restore those of a crashed session.  Real app windows only.
+    bool enable_autosave = false;
 };
 
 std::unique_ptr<WindowUIContext> build_window_ui_context(

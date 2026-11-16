@@ -35,6 +35,7 @@ How a component reaches you:
 | tinyfiledialogs | 3.21.3 | zlib | vendored (`third_party/tinyfiledialogs.*`) | https://sourceforge.net/projects/tinyfiledialogs/ |
 | Inter (Regular, 4.001) | 4.001 | SIL OFL 1.1 | embedded asset (`third_party/Inter-Regular.ttf`, installed to `share/spectra/fonts/`, embedded into `libspectra`) | https://github.com/rsms/inter |
 | Inter (variable, InterVariable.ttf) | 4.x | SIL OFL 1.1 | embedded asset (`third_party/inter_font.hpp`) | https://github.com/rsms/inter |
+| Inter SemiBold (UI-range subset of Inter-SemiBold.otf) | 4.0 | SIL OFL 1.1 | embedded asset (`third_party/inter_semibold_font.hpp`, UI headings and titles) | https://github.com/rsms/inter |
 | Font Awesome Free (Solid 900) | 6.5.1 | Font: SIL OFL 1.1; icons: CC BY 4.0; code: MIT | embedded asset (`third_party/fa_solid_900.hpp`) | https://github.com/FortAwesome/Font-Awesome |
 | DejaVu Sans (symbol subset) | 2.37 | Bitstream Vera license (DejaVu changes public domain) | embedded asset (`third_party/fonts/DejaVuSans-Symbols.ttf`, embedded into Emscripten/browser builds only as the symbol fallback font) | https://dejavu-fonts.github.io/ |
 | matplotlib colormap data (viridis, plasma, inferno, magma, cividis, turbo, twilight, coolwarm, RdBu, PuOr, jet, gray, hot) | 3.11.2 | Matplotlib License (PSF-based); viridis family CC0 1.0; turbo Apache-2.0 (Google); RdBu/PuOr ColorBrewer Apache-2.0 | generated lookup tables compiled into `libspectra` (`src/core/colormap_tables.hpp`, by `tools/gen_colormap_tables.py`) | https://matplotlib.org |

@@ -122,6 +122,10 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     auto& fig_mgr          = *ui_ctx.fig_mgr;
     auto& anim_controller  = ui_ctx.anim_controller;
 
+    // Unsaved-changes tracking: edits made since the last frame (input
+    // callbacks, the previous build_ui) count as the user's...
+    ui_ctx.document.detect_changes();
+
     // Advance timeline editor (drives interpolator evaluation).
     // While Playing, an animated active figure drives the playhead itself from
     // its own clock (drive_figure_anim below) — advancing here too would run
@@ -202,6 +206,15 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 }
     #endif
             }
+    #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+            else
+            {
+                // Last figure closed (start page): drop pointers into it.
+                input_handler.set_figure(nullptr);
+                input_handler.set_figure_view_model(nullptr);
+                input_handler.set_active_axes(nullptr);
+            }
+    #endif
         }
     };
 
@@ -381,6 +394,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         }
     }
 
+#endif
+
+#ifdef SPECTRA_USE_IMGUI
+    // ...while what the program's on_frame callbacks just did is not.
+    ui_ctx.document.absorb_external_changes();
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
@@ -825,19 +843,13 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
                         pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
 
-                        float content_h = 0.0f;
-                        float min_sub_h = fs_style.min_subplot_height;
-                        float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
-
-                        const auto rects = compute_subplot_layout(pinfo.bounds.w,
-                                                                  pinfo.bounds.h,
-                                                                  fig->grid_rows_,
-                                                                  fig->grid_cols_,
-                                                                  pane_margins,
-                                                                  pinfo.bounds.x,
-                                                                  origin_y,
-                                                                  min_sub_h,
-                                                                  &content_h);
+                        const float min_sub_h = fs_style.min_subplot_height;
+                        const float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
+                        const float content_h = layout_figure(
+                            *fig,
+                            Rect{pinfo.bounds.x, origin_y, pinfo.bounds.w, pinfo.bounds.h},
+                            pane_margins,
+                            min_sub_h);
                         fig->set_content_height(content_h);
 
                         // Clamp scroll offset to valid range
@@ -846,8 +858,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             fig->set_scroll_offset_y(max_scroll);
                         if (fig->scroll_offset_y() < 0.0f)
                             fig->set_scroll_offset_y(0.0f);
-
-                        apply_subplot_layout(*fig, rects, pane_margins);
                     }
                 }
             }
@@ -864,19 +874,12 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 fig_margins.top    = af_style.margin_top;
                 fig_margins.bottom = af_style.margin_bottom;
 
-                float content_h = 0.0f;
-                float min_sub_h = af_style.min_subplot_height;
-                float origin_y  = cb.y - active_figure->scroll_offset_y();
-
-                const auto rects = compute_subplot_layout(cb.w,
-                                                          cb.h,
-                                                          active_figure->grid_rows_,
-                                                          active_figure->grid_cols_,
-                                                          fig_margins,
-                                                          cb.x,
-                                                          origin_y,
-                                                          min_sub_h,
-                                                          &content_h);
+                const float min_sub_h = af_style.min_subplot_height;
+                const float origin_y  = cb.y - active_figure->scroll_offset_y();
+                const float content_h = layout_figure(*active_figure,
+                                                      Rect{cb.x, origin_y, cb.w, cb.h},
+                                                      fig_margins,
+                                                      min_sub_h);
                 active_figure->set_content_height(content_h);
 
                 // Clamp scroll offset to valid range
@@ -885,8 +888,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                     active_figure->set_scroll_offset_y(max_scroll);
                 if (active_figure->scroll_offset_y() < 0.0f)
                     active_figure->set_scroll_offset_y(0.0f);
-
-                apply_subplot_layout(*active_figure, rects, fig_margins);
             }
         }
         else if (active_figure)
@@ -919,6 +920,25 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
         if (profiler)
             profiler->end_stage("scene_update");
     }
+
+#ifdef SPECTRA_USE_IMGUI
+    // UI edits of this frame (build_ui, queued figure create/close) are the
+    // user's; mirror the result on the figure view models and autosave.
+    ui_ctx.document.detect_changes();
+    for (FigureId id : fig_mgr.figure_ids())
+        fig_mgr.mark_modified(id, ui_ctx.document.is_figure_modified(id));
+#endif
+}
+
+void WindowRuntime::background_tick(WindowUIContext& ui_ctx)
+{
+#ifdef SPECTRA_USE_IMGUI
+    // The idle loop skips update() but still wakes at least every 100 ms, so
+    // the autosave debounce fires after the last edit.
+    ui_ctx.document.tick_autosave();
+#else
+    (void)ui_ctx;
+#endif
 }
 
 // ─── render ───────────────────────────────────────────────────────────────────
@@ -926,6 +946,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 // Returns true if the frame was successfully presented.
 bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfiler* profiler)
 {
+#ifdef SPECTRA_USE_IMGUI
+    // Drawing resolves theme colours on the series; that is not an edit.
+    struct AbsorbOnExit
+    {
+        DocumentSession& doc;
+        ~AbsorbOnExit() { doc.absorb_external_changes(); }
+    } absorb_on_exit{ui_ctx.document};
+#endif
     auto* active_figure       = fs.active_figure;
     auto& imgui_frame_started = fs.imgui_frame_started;
 

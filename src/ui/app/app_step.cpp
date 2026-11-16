@@ -37,6 +37,7 @@
 #include "window_png_export.hpp"
 #include "ui/workspace/data_binding.hpp"
 #include "ui/workspace/plugin_api.hpp"
+#include "core/config_paths.hpp"
 #include "ui/settings/settings_store.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -691,6 +692,9 @@ void App::init_runtime()
     {
         rt.settings_store->load();
         rt.settings_store->set_on_change([&store = *rt.settings_store]() { store.save(); });
+        // User themes / palettes (<config>/themes, <config>/palettes) before
+        // the startup theme is resolved, so settings may name one.
+        theme_mgr_->load_user_files(user_config_dir());
     }
     {
         const auto startup =
@@ -1065,16 +1069,25 @@ void App::init_runtime()
                 return &fig->subplot(1, 1, 1);
             });
 
-        // Wire OS drag-and-drop through ImGuiIntegration::open_path():
-        // CSV/TSV/TXT files trigger the Load from CSV flow, log files the
-        // registry recognizes (ULog, MCAP) open in the log browser and
-        // .spectra layouts open like File > Open Layout.
+        // Wire OS drag-and-drop: the window the file was dropped on opens it
+        // like File > Open (WindowUIContext::open_file_fn): .spectra
+        // workspaces/figures/layouts, CSV/TSV/TXT (Load from CSV), ULog/MCAP
+        // (log browser).  Without one, ImGuiIntegration::open_path() routes it.
         auto* imgui_ui_ptr = imgui_ui.get();
         if (rt.window_mgr)
         {
+            auto* wm = rt.window_mgr.get();
             rt.window_mgr->set_file_drop_handler(
-                [imgui_ui_ptr](uint32_t /*window_id*/, const std::string& path)
-                { imgui_ui_ptr->open_path(path); });
+                [imgui_ui_ptr, wm](uint32_t window_id, const std::string& path)
+                {
+                    WindowContext* target = wm->find_window(window_id);
+                    if (target && target->ui_ctx && target->ui_ctx->open_file_fn)
+                    {
+                        target->ui_ctx->open_file_fn(path);
+                        return;
+                    }
+                    imgui_ui_ptr->open_path(path);
+                });
         }
 
         // `spectra data.csv flight.ulg`: opened like a drop on the first window.
@@ -1252,9 +1265,11 @@ App::StepResult App::step()
 
     // A PNG capture with its own theme: the frame it reads back is drawn with
     // that theme (only the plot follows it; ImGui keeps its applied style),
-    // then the window is redrawn in the app theme.
+    // then the window is redrawn in the app theme.  Every capture suspends the
+    // colour vision deficiency preview (a view setting) the same way.
     std::optional<ui::ScopedExportTheme> capture_theme;
-    if (rt.png_export.awaiting_capture() && !rt.png_export.theme().empty())
+    if (rt.png_export.awaiting_capture()
+        && ui::ScopedExportTheme::needed_for(theme_mgr_.get(), rt.png_export.theme()))
     {
         capture_theme.emplace(theme_mgr_.get(), rt.png_export.theme());
         rt.session.redraw_tracker().mark_dirty("themed export");
@@ -1483,12 +1498,15 @@ void App::shutdown_runtime()
 
             // The framebuffer still holds the active figure's last frame only
             // until another figure has been re-rendered into it.
-            // A per-export theme draws this figure (only) with that theme.
+            // A per-export theme draws this figure (only) with that theme; a
+            // frame drawn with the CVD preview is never reused for the file.
+            const bool view_differs =
+                ui::ScopedExportTheme::needed_for(theme_mgr_.get(), f.export_req_.png_theme);
             ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.png_theme);
             const bool            transparent = f.export_req_.png_transparent;
             bool needs_render = (&f != rt.active_figure) || !framebuffer_holds_active
                                 || (export_w != f.width()) || (export_h != f.height())
-                                || export_theme.active() || transparent;
+                                || export_theme.active() || view_differs || transparent;
 
             if (needs_render)
             {

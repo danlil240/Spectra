@@ -43,6 +43,7 @@
     #include "ui/topics/topics_panel.hpp"
 #endif
 
+#include "core/config_paths.hpp"
 #include "ui/settings/settings_store.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -279,6 +280,10 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             break;
         case spectra::ipc::DiffOp::Type::SET_FIGURE_STYLE:
             spectra::ipc::restyle_snapshot(fig.style, fig.axes, fig.series, op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+            spectra::ipc::apply_figure_layout_op(fig, op);
             break;
         case spectra::ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {
@@ -525,6 +530,17 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
         case spectra::ipc::DiffOp::Type::SET_LEGEND_POSITION:
             fig.legend().position = spectra::ipc::legend_position_from_wire(op.f1);
             break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+            fig.suptitle(op.str_val);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+        {
+            spectra::ipc::SnapshotFigureState fs;
+            spectra::ipc::apply_figure_layout_op(fs, op);
+            fs.suptitle = fig.suptitle();
+            spectra::ipc::apply_figure_layout_state(fig, fs);
+            break;
+        }
         case spectra::ipc::DiffOp::Type::SET_FIGURE_STYLE:
             fig.apply_style(op.str_val);
             break;
@@ -823,6 +839,8 @@ int main(int argc, char* argv[])
     // Saved preferences (theme, data palette), as App::run does in-process.
     spectra::ui::settings::SettingsStore settings_store;
     settings_store.load();
+    theme_mgr.ensure_initialized();
+    theme_mgr.load_user_files(spectra::user_config_dir());
     settings_store.apply_to(theme_mgr);
     settings_store.set_on_change([&settings_store]() { settings_store.save(); });
 
@@ -1105,6 +1123,22 @@ int main(int argc, char* argv[])
     // File > Export PNG / SVG and Copy to Clipboard queue requests on the
     // figure; this window process writes them (same path as App::step()).
     spectra::WindowPngExport png_export;
+
+    // OS drag-and-drop: open the file in the window it was dropped on, like
+    // File > Open (.spectra, CSV/TSV, ULog/MCAP).
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
+    if (window_mgr)
+    {
+        auto* wm = window_mgr.get();
+        window_mgr->set_file_drop_handler(
+            [wm](uint32_t window_id, const std::string& path)
+            {
+                spectra::WindowContext* target = wm->find_window(window_id);
+                if (target && target->ui_ctx && target->ui_ctx->open_file_fn)
+                    target->ui_ctx->open_file_fn(path);
+            });
+    }
+#endif
 
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
     {
@@ -1516,10 +1550,25 @@ int main(int argc, char* argv[])
             last_heartbeat = now;
         }
 
+        // Figures changed by the backend (Python / IPC) are the program's
+        // doing, not unsaved edits of the user.
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
+        if (window_mgr)
+        {
+            for (auto* w : window_mgr->windows())
+            {
+                if (w && w->ui_ctx)
+                    w->ui_ctx->document.absorb_external_changes();
+            }
+        }
+#endif
+
         // ── Standard session tick (same as inproc) ───────────────────────
-        // A PNG capture with its own theme draws the captured frame with it.
+        // A PNG capture with its own theme draws the captured frame with it;
+        // every capture suspends the colour vision deficiency preview.
         std::optional<spectra::ui::ScopedExportTheme> capture_theme;
-        if (png_export.awaiting_capture() && !png_export.theme().empty())
+        if (png_export.awaiting_capture()
+            && spectra::ui::ScopedExportTheme::needed_for(&theme_mgr, png_export.theme()))
         {
             capture_theme.emplace(&theme_mgr, png_export.theme());
             session.redraw_tracker().mark_dirty("themed export");

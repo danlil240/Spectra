@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <spectra/fwd.hpp>
+
 #include <vector>
 
 namespace spectra
@@ -9,6 +11,14 @@ namespace spectra
 
 struct CommandContext;
 struct CommandDescriptor;
+class FigureManager;
+class DocumentSession;
+
+// (ImGui builds only.)  Closes figure @p id the way Ctrl+W does: asks Save / Don't Save / Cancel
+// when it has unsaved changes, and closing the last figure leaves the start
+// page instead of the window.  Used by figure.close and the pane tab close
+// button, middle click and "Close" context menu item.
+void request_close_figure(FigureManager& fig_mgr, DocumentSession& document, FigureId id);
 
 // Each function returns a list of descriptors for its category.
 std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx);

@@ -26,6 +26,30 @@ inline std::string window_title_for_figure(std::string_view figure_title)
     return t;
 }
 
+// OS title with the window's file: "• <figure> — <file> — Spectra".  The
+// leading dot marks unsaved changes; @p document_name is empty for a window
+// that was never saved (the title is then window_title_for_figure()'s).
+inline std::string window_title_for_document(std::string_view figure_title,
+                                             std::string_view document_name,
+                                             bool             modified)
+{
+    // UTF-8 bytes of U+2022 BULLET: a "\u2022" literal follows the compiler's
+    // execution charset (MSVC without /utf-8 emits Windows-1252 0x95).
+    std::string t = modified ? "\xE2\x80\xA2 " : "";
+    if (!figure_title.empty())
+    {
+        t += figure_title;
+        t += " — ";
+    }
+    if (!document_name.empty())
+    {
+        t += document_name;
+        t += " — ";
+    }
+    t += "Spectra";
+    return t;
+}
+
 // Usable desktop area (monitor minus panels/docks), in screen coordinates.
 struct ScreenWorkArea
 {

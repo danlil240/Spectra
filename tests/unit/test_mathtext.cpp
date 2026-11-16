@@ -88,7 +88,7 @@ TEST(MathText, GreekAndSymbols)
 TEST(MathText, FunctionNamesAreUpright)
 {
     EXPECT_EQ(mathtext::to_plain_text("$\\sin(\\omega t) + \\log_{10} x$"),
-              "sin(\u03C9 t) + log10 x");
+              "sin(\xCF\x89 t) + log10 x");
 }
 
 TEST(MathText, HyphenBecomesMinusInMathOnly)

@@ -485,9 +485,11 @@ TEST(PdfExport, MathtextIsSetRunByRun)
     ASSERT_TRUE(pdf.ok()) << pdf.error();
     const auto text = extract_text(pdf);
     // Each run is its own string: Greek, subscript, base text, superscript (with a minus).
-    EXPECT_TRUE(contains(text, "\u03B1"));
+    EXPECT_TRUE(contains(text, "\xCE\xB1"));
     EXPECT_TRUE(contains(text, " = 10"));
-    EXPECT_TRUE(contains(text, "\u22123"));
+    EXPECT_TRUE(contains(text,
+                         "\xE2\x88\x92"
+                         "3"));
     EXPECT_TRUE(std::none_of(text.begin(),
                              text.end(),
                              [](const std::string& t)

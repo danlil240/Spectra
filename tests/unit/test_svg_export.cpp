@@ -1702,9 +1702,11 @@ TEST(SvgExport, MathtextBecomesTspans)
     const std::string svg = SvgExporter::to_string(fig);
     // Literal markup is gone: Greek glyph, a minus sign, scripts at 70% size.
     EXPECT_EQ(svg.find("\\alpha"), std::string::npos);
-    EXPECT_NE(svg.find(">\u03B1</tspan>"), std::string::npos);
+    EXPECT_NE(svg.find(">\xCE\xB1</tspan>"), std::string::npos);
     EXPECT_NE(svg.find("font-size=\"12.6\""), std::string::npos);
-    EXPECT_NE(svg.find(">\u22123</tspan>"), std::string::npos);
+    EXPECT_NE(svg.find(">\xE2\x88\x92"
+                       "3</tspan>"),
+              std::string::npos);
     EXPECT_NE(svg.find("> s</tspan>"), std::string::npos);
     // An escaped dollar is a plain text element with a literal '$'.
     EXPECT_NE(svg.find(">cost $ (USD)</text>"), std::string::npos);

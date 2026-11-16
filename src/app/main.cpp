@@ -1,4 +1,5 @@
-// spectra main — launches with empty welcome screen (no figure).
+// spectra main — launches with the start page (no figure), or opens the
+// files / layout given on the command line.
 // Use the menu bar to create figures, load CSV, etc.
 //
 // Auto-attach: if a Spectra daemon is already running (e.g. a topic publisher
@@ -10,6 +11,7 @@
 #include <spectra/logger.hpp>
 
 #include "ipc/transport.hpp"
+#include "ui/app/launch_files.hpp"
 #include "ui/native_dialog_policy.hpp"
 
 #ifndef _WIN32
@@ -224,74 +226,74 @@ int main(int argc, char* argv[])
 {
     spectra::init_native_dialog_policy(argc, argv);
 
-    std::string layout_path;
-    for (int i = 1; i < argc; ++i)
+    const spectra::LaunchArgs args = spectra::parse_launch_args(argc, argv);
+    if (!args.error.empty())
     {
-        if (std::strcmp(argv[i], "--layout") == 0 || std::strncmp(argv[i], "--layout=", 9) == 0)
+        std::cerr << "spectra: " << args.error << "\n";
+        return 2;
+    }
+    if (args.show_help)
+    {
+        std::cout << spectra::launch_usage();
+        return 0;
+    }
+    if (args.show_version)
+    {
+#ifdef SPECTRA_VERSION_STRING
+        std::cout << "spectra " << SPECTRA_VERSION_STRING << "\n";
+#else
+        std::cout << "spectra (version unknown)\n";
+#endif
+        return 0;
+    }
+    for (const std::string& w : args.warnings)
+        std::cerr << "spectra: warning: " << w << "\n";
+
+    std::string layout_path = args.layout;
+    if (!layout_path.empty())
+    {
+        std::error_code ec;
+        if (!std::filesystem::is_regular_file(layout_path, ec))
         {
-            if (argv[i][8] == '=')
-                layout_path = argv[i] + 9;
-            else if (i + 1 < argc)
-                layout_path = argv[++i];
-            if (layout_path.empty())
-            {
-                std::cerr << "spectra: --layout needs a file name\n";
-                return 2;
-            }
-            std::error_code ec;
-            if (!std::filesystem::is_regular_file(layout_path, ec))
-            {
-                std::cerr << "spectra: layout file not found: " << layout_path << "\n";
-                return 1;
-            }
+            std::cerr << "spectra: layout file not found: " << layout_path << "\n";
+            return 1;
+        }
+    }
+
+    // Positional files open as if dropped on the window.
+    std::vector<std::string> open_files;
+    for (const std::string& f : args.files)
+    {
+        std::error_code ec;
+        if (!std::filesystem::is_regular_file(f, ec))
+        {
+            std::cerr << "spectra: warning: file not found: " << f << "\n";
             continue;
         }
-        if (std::strcmp(argv[i], "--version") == 0 || std::strcmp(argv[i], "-v") == 0)
+        if (spectra::classify_open_file(f) == spectra::OpenFileKind::Unsupported)
         {
-#ifdef SPECTRA_VERSION_STRING
-            std::cout << "spectra " << SPECTRA_VERSION_STRING << "\n";
-#else
-            std::cout << "spectra (version unknown)\n";
-#endif
-            return 0;
+            std::cerr << "spectra: warning: unsupported file type: " << f
+                      << " (CSV, TSV, ULog, MCAP or .spectra layout expected)\n";
+            continue;
         }
-        if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0)
-        {
-            std::cout << "Usage: spectra [OPTIONS]\n"
-                      << "\n"
-                      << "GPU-accelerated scientific plotting application.\n"
-                      << "\n"
-                      << "Options:\n"
-                      << "  --layout FILE    Open a layout file (File > Save Layout) and\n"
-                      << "                   re-resolve its data bindings (topics, CSV files).\n"
-                      << "  --no-native-dialogs\n"
-                      << "                   Suppress native OS file dialogs (automation / fuzz).\n"
-                      << "  --version, -v    Print version and exit\n"
-                      << "  --help, -h       Show this help\n"
-                      << "\n"
-                      << "Environment:\n"
-                      << "  SPECTRA_NO_DAEMON_DISCOVERY=1   Stay in-process even if a\n"
-                      << "                                  Spectra daemon is running.\n"
-                      << "  SPECTRA_NO_NATIVE_DIALOGS=1     Suppress native file dialogs.\n"
-                      << "  SPECTRA_AUTOMATION=1            Alias for SPECTRA_NO_NATIVE_DIALOGS.\n";
-            return 0;
-        }
+        open_files.push_back(f);
     }
 
     // If a publisher (or another tool) has already spawned a daemon, attach
     // to it transparently so its topics are immediately visible.
     spectra::setup_dual_logging(spectra::default_console_log_level(spectra::LogLevel::Info),
                                 spectra::default_file_log_level());
-    // A layout is opened by this process (spectra-window cannot take one yet),
-    // so stay in-process when one is given.
-    if (layout_path.empty())
+    // Files and layouts are opened by this process (spectra-window cannot take
+    // them yet), so stay in-process when any are given.
+    if (layout_path.empty() && open_files.empty())
         maybe_attach_to_running_daemon();
-    else
+    else if (!layout_path.empty())
         SPECTRA_LOG_INFO("app", "Opening layout {} (in-process)", layout_path);
 
     spectra::AppConfig app_cfg;
     app_cfg.install_signal_handlers = true;   // Ctrl+C / SIGTERM → graceful shutdown
     app_cfg.open_layout             = layout_path;
+    app_cfg.open_files              = std::move(open_files);
     spectra::App app(app_cfg);
     if (!app.ok())
         return 1;

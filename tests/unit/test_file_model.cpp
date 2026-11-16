@@ -33,6 +33,7 @@
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/overlay/data_interaction.hpp"
     #include "ui/overlay/toast_queue.hpp"
+    #include "ui/settings/settings_store.hpp"
     #include "ui/shell/menu_bar.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/theme/theme.hpp"
@@ -787,14 +788,11 @@ TEST_F(FileModelFixture, FileMenuHasOpenSaveAndExportSubmenu)
             recent = &item;
     }
     // One save concept: no Save Workspace / Save Figure / Load Workspace items.
-    for (const char* gone : {"Save Workspace",
-                             "Load Workspace",
-                             "Save Figure...",
-                             "Load Figure...",
-                             "Export PNG",
-                             "Open Log..."})
+    for (const char* gone :
+         {"Save Workspace", "Load Workspace", "Save Figure...", "Load Figure...", "Export PNG"})
         EXPECT_EQ(std::find(labels.begin(), labels.end(), gone), labels.end()) << gone;
-    for (const char* want : {"Open...", "Open Recent", "Save", "Save As...", "Export", "Exit"})
+    for (const char* want :
+         {"Open...", "Open Log...", "Open Recent", "Save", "Save As...", "Export", "Exit"})
         EXPECT_NE(std::find(labels.begin(), labels.end(), want), labels.end()) << want;
     EXPECT_LT(std::find(labels.begin(), labels.end(), "Open...") - labels.begin(),
               std::find(labels.begin(), labels.end(), "Save") - labels.begin());
@@ -1072,6 +1070,57 @@ TEST_F(FileModelFixture, EditingDataTipsAndAnnotationsMarksTheDocument)
     ASSERT_TRUE(ui.document.save_to((config_dir_ / "review.spectra").string()));
     ui.document.detect_changes();
     EXPECT_FALSE(ui.document.is_modified());
+}
+
+// ─── Start page (#163) reconciliation ────────────────────────────────────────
+
+TEST_F(FileModelFixture, OpenPathAndOpenRecentShareTheFileModel)
+{
+    const fs::path dir = fresh_dir("open_path");
+    const FigureId id  = registry_.register_figure(figure_with_line());
+    auto&          ui  = build(id, true);
+    ASSERT_NE(ui.imgui_ui, nullptr);
+    ui::settings::SettingsStore store;
+    ui.imgui_ui->set_settings_store(&store);
+
+    // Saved workspace: listed by Open Recent next to recent data files.
+    const std::string doc_path = (dir / "run.spectra").string();
+    ASSERT_TRUE(ui.document.save_to(doc_path));
+    const std::string csv_path = (dir / "data.csv").string();
+    std::ofstream(csv_path) << "t,v\n0,1\n";
+    store.add_recent_file(csv_path);
+
+    auto& bar = ui.app_shell->menu_bar();
+    ui.app_shell->ensure_initialized();
+    ui::shell::SpectraAppShell::sync_recent_layouts_menu(bar, ui.imgui_ui.get());
+    std::vector<std::string> recent_labels;
+    for (const auto& item : bar.menu("File").items())
+        if (item.label == ui::shell::SpectraAppShell::RECENT_LAYOUTS_MENU)
+            for (const auto& sub : item.submenu)
+                recent_labels.push_back(sub.label);
+    ASSERT_GE(recent_labels.size(), 2u);
+    EXPECT_EQ(recent_labels[0], "data.csv");
+    EXPECT_EQ(recent_labels[1], "run.spectra");
+
+    // open_path() (start page, command line, drops) goes through the
+    // window's handler: a .spectra workspace opens as tabs, with a toast.
+    ui.toasts.clear();
+    EXPECT_TRUE(ui.imgui_ui->open_path(doc_path));
+    EXPECT_EQ(ui.fig_mgr->count(), 2u);
+    ASSERT_FALSE(ui.toasts.empty());
+    EXPECT_EQ(ui.toasts.toasts().back().kind, ui::ToastKind::Success);
+
+    // A missing file is reported and dropped from the recent list.
+    store.add_recent_file((dir / "gone.csv").string());
+    ui.toasts.clear();
+    EXPECT_FALSE(ui.imgui_ui->open_path((dir / "gone.csv").string()));
+    ASSERT_FALSE(ui.toasts.empty());
+    EXPECT_EQ(ui.toasts.toasts().back().kind, ui::ToastKind::Error);
+    const auto& files = store.data().recent_files;
+    EXPECT_EQ(std::find(files.begin(), files.end(), (dir / "gone.csv").string()), files.end());
+
+    ui.imgui_ui->set_settings_store(nullptr);
+    fs::remove_all(dir);
 }
 
 #endif   // SPECTRA_USE_IMGUI

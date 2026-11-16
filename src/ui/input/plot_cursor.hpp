@@ -66,7 +66,7 @@ inline bool plot_is_panning(const InputHandler& input)
     if (input.is_middle_pan_dragging())
         return true;
     return input.tool_mode() == ToolMode::Pan && input.mode() == InteractionMode::Dragging
-           && !input.box_zoom_rect().active;
+           && !input.box_zoom_rect().active && !input.is_tip_dragging();
 }
 
 // Command that selects @p tool ("tool.pan", ...).

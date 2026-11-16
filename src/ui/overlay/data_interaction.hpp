@@ -3,6 +3,8 @@
 #ifdef SPECTRA_USE_IMGUI
 
     #include <functional>
+    #include <string>
+    #include <vector>
     #include <spectra/figure.hpp>
     #include <spectra/fwd.hpp>
 
@@ -17,6 +19,12 @@
     #include "ui/workspace/overlay_snapshot.hpp"
 
 struct ImFont;
+struct ImDrawList;
+
+namespace spectra::ui
+{
+struct ThemeColors;
+}   // namespace spectra::ui
 
 namespace spectra
 {
@@ -103,7 +111,33 @@ class DataInteraction
     bool on_mouse_click(int button, double screen_x, double screen_y);
 
     // Pan-mode click behavior: datatip marker operations only (no series selection callbacks).
-    bool on_mouse_click_datatip_only(int button, double screen_x, double screen_y);
+    // Left click on a tip selects it (Shift: add to / remove from the
+    // selection; clicking the only selected tip removes it), on a sample pins
+    // a new, selected tip, on empty canvas clears the selection.
+    bool on_mouse_click_datatip_only(int button, double screen_x, double screen_y, int mods = 0);
+
+    // Data tip drag along its series (Pan tool).  begin returns false when
+    // no 2D tip is under the pointer.  end with moved == false is a click.
+    bool begin_marker_drag(double screen_x, double screen_y);
+    void update_marker_drag(double screen_x, double screen_y);
+    void end_marker_drag(double screen_x, double screen_y, bool moved, int mods);
+    void cancel_marker_drag();   // put the tip back where the drag started
+    bool is_marker_dragging() const { return drag_marker_ >= 0; }
+
+    // Step every selected 2D tip of the current figure @p delta samples along
+    // its series.  Returns true when any tip is selected (the key is consumed
+    // even at the end of the series).
+    bool step_selected_markers(int delta);
+    // Deselect all tips; true when something was selected.
+    bool   clear_marker_selection() { return markers_.clear_selection(); }
+    size_t selected_marker_count() const { return markers_.selected_count(); }
+
+    // Boxed multi-line readout (measure tool, tip deltas) centred above @p x, @p y.
+    static void draw_measurement_label(ImDrawList*                     dl,
+                                       float                           x,
+                                       float                           y,
+                                       const std::vector<std::string>& lines,
+                                       const ui::ThemeColors&          colors);
 
     // Select-mode click behavior: series selection callbacks only (no datatip marker mutations).
     bool on_mouse_click_series_only(double screen_x, double screen_y);
@@ -155,6 +189,7 @@ class DataInteraction
     void notify_series_removed(const Series* s)
     {
         markers_.remove_for_series(s);
+        drag_marker_ = -1;   // indices shifted
         if (nearest_.series == s)
             nearest_ = {};
     }
@@ -177,6 +212,7 @@ class DataInteraction
             // Clear markers — they hold raw Series* pointers that become
             // dangling when the figure (and its series) are destroyed.
             markers_.clear();
+            drag_marker_ = -1;
         }
     }
 
@@ -255,6 +291,16 @@ class DataInteraction
 
     // Pin / unpin a datatip at the current nearest point (2D or 3D). Returns true if handled.
     bool try_toggle_datatip_at_nearest();
+
+    // Click on 2D tip @p idx (select / Shift-toggle / remove the only selected).
+    void click_marker(size_t idx, int mods);
+
+    // Delta readout between the two selected tips of each axes.
+    void draw_marker_deltas(Figure& figure, ImDrawList* dl);
+
+    // Tip being dragged (-1: none) and the sample it started on.
+    int    drag_marker_      = -1;
+    size_t drag_start_point_ = 0;
 
     // Screen <-> data mapping of the hovered 2D axes (through its axis scales).
     AxisMapping active_mapping() const

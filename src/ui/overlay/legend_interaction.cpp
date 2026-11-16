@@ -123,8 +123,44 @@ void LegendInteraction::forget_figure(uintptr_t figure_id)
 
 // ─── Update ─────────────────────────────────────────────────────────────────
 
+std::vector<const Series*> LegendInteraction::dimmed_series(const Figure& figure) const
+{
+    // hovered_series_ may outlive its series: compare pointers before using it.
+    std::vector<const Series*> dimmed;
+    const Series*              hot = hovered_series_;
+    if (!hot)
+        return dimmed;
+    auto collect = [&](const AxesBase* axes)
+    {
+        if (!axes)
+            return false;
+        const Series* owner = nullptr;
+        for (const auto& s : axes->series())
+            if (s.get() == hot)
+                owner = s.get();
+        if (!owner)
+            return false;
+        if (owner->visible())
+            for (const auto& s : axes->series())
+                if (s && s.get() != owner && s->visible())
+                    dimmed.push_back(s.get());
+        return true;
+    };
+    for (const auto& ax : figure.all_axes())
+        if (collect(ax.get()))
+            return dimmed;
+    for (const auto& ax : figure.axes())
+        if (collect(ax.get()))
+            return dimmed;
+    return dimmed;
+}
+
 void LegendInteraction::update(float dt, Figure& figure)
 {
+    // The row hovered during the last legend draw emphasises its series.
+    hovered_series_     = hovered_this_frame_;
+    hovered_this_frame_ = nullptr;
+
     // Animate opacity for all tracked series
     for (auto& [series_ptr, state] : series_states_)
     {
@@ -202,6 +238,7 @@ bool LegendInteraction::draw(AxesBase&           axes,
                              uintptr_t           figure_id,
                              const FigureStyle*  figure_style)
 {
+    drawing_axes_ = &axes;   // for double-click solo in draw_entry_row
     // Labeled series not hidden from the legend (same list as the PNG / SVG legends).
     const std::vector<Series*> entries       = legend_layout::legend_entries(axes);
     const int                  labeled_count = static_cast<int>(entries.size());
@@ -595,12 +632,33 @@ bool LegendInteraction::draw_entry_row(Series&         s,
         ImGui::SetCursorScreenPos(ImVec2(row_x, row_y));
         if (ImGui::InvisibleButton(id, ImVec2(std::max(1.0f, width), row_h)))
         {
-            toggle_series(s);
+            if (suppress_click_ == &s)
+            {
+                suppress_click_ = nullptr;   // release of a double-click: already handled
+            }
+            else
+            {
+                toggle_series(s);
+                last_toggled_ = &s;
+            }
             clicked = true;
         }
 
         // Hover highlight
         const bool hovered = ImGui::IsItemHovered();
+        if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && drawing_axes_)
+        {
+            // Double-click: solo this series (again: restore).  The first
+            // click of the pair toggled it; take that back first.
+            if (last_toggled_ == &s)
+                toggle_series(s);
+            last_toggled_   = nullptr;
+            suppress_click_ = &s;
+            solo_.toggle(*drawing_axes_, s);
+            clicked = true;
+        }
+        if (hovered)
+            hovered_this_frame_ = &s;
         if (hovered)
         {
             dl->AddRectFilled(

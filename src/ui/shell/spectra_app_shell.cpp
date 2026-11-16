@@ -7,6 +7,7 @@
     #include "imgui.h"
     #include "io/export_registry.hpp"
     #include "ui/commands/command_registry.hpp"
+    #include "ui/commands/welcome_actions.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/imgui/imgui_integration.hpp"
     #include "ui/input/input.hpp"
@@ -17,6 +18,7 @@
     #include "ui/overlay/marker_actions.hpp"
     #include "ui/overlay/readout_format.hpp"
     #include "ui/settings/settings_panel.hpp"
+    #include "ui/settings/settings_store.hpp"
     #include "ui/shell/panel.hpp"
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
@@ -874,6 +876,7 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
     auto& file = bar.menu("File");
     file.add(command("New Figure", "figure.new"));
     file.add(command("Open...", "file.open"));
+    file.add(command("Open Log...", "file.open_log"));
     {
         MenuAction recent;
         recent.label   = RECENT_LAYOUTS_MENU;   // filled by sync_recent_layouts_menu()
@@ -1052,27 +1055,46 @@ void SpectraAppShell::sync_recent_layouts_menu(MenuBar& bar, spectra::ImGuiInteg
 {
     if (!imgui || !bar.has_menu("File"))
         return;
-    spectra::LayoutSession* session = imgui->layout_session();
+    spectra::LayoutSession*               session = imgui->layout_session();
+    spectra::ui::settings::SettingsStore* store   = imgui->settings_store();
+
+    // The start page's list: recent data files, then .spectra workspaces and
+    // layouts (opened, saved or restored).
+    static const std::vector<std::string>         none;
+    const std::vector<spectra::WelcomeRecentItem> recent =
+        spectra::build_welcome_recent(store ? store->data().recent_files : none,
+                                      session ? session->recent().entries() : none);
 
     std::vector<MenuAction> items;
-    if (!session || session->recent().empty())
+    if (recent.empty())
     {
         items.push_back({.label = "No Recent Files", .enabled = []() { return false; }});
     }
     else
     {
-        for (const std::string& path : session->recent().entries())
+        for (const auto& item : recent)
         {
-            const std::filesystem::path p(path);
-            items.push_back({.label    = p.filename().string(),
-                             .shortcut = p.parent_path().filename().string(),
-                             .icon     = static_cast<uint16_t>(Icon::Clock),
-                             // Deferred: opening edits the recent list this menu is built from.
-                             .on_click = [session, path]() { session->request_open(path); }});
+            const std::string path = item.path;
+            // Deferred: opening edits the recent lists this menu is built from.
+            std::function<void()> open =
+                item.layout && session
+                    ? std::function<void()>([session, path]() { session->request_open(path); })
+                    : std::function<void()>([imgui, path]() { imgui->request_open_path(path); });
+            items.push_back(
+                {.label    = item.name,
+                 .shortcut = item.folder,
+                 .icon     = static_cast<uint16_t>(item.layout ? Icon::Layout : Icon::FileText),
+                 .on_click = std::move(open)});
         }
         items.push_back({.separator = true});
-        items.push_back(
-            {.label = "Clear Recent", .on_click = [session]() { session->recent().clear(); }});
+        items.push_back({.label    = "Clear Recent",
+                         .on_click = [session, store]()
+                         {
+                             if (session)
+                                 session->recent().clear();
+                             if (store)
+                                 store->clear_recent_files();
+                         }});
     }
 
     for (auto& action : bar.menu("File").items_mut())

@@ -183,6 +183,12 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
     // data files (CSV/TSV, ULog, MCAP).
     auto open_any = [&, file_name_of](const std::string& path) -> bool
     {
+        std::error_code ec;
+        if (!std::filesystem::is_regular_file(path, ec))
+        {
+            toasts.error("Could not open " + file_name_of(path), "File not found: " + path);
+            return false;
+        }
         const std::string ext = logs::lowercase_extension(path);
         if (ext == "csv" || ext == "tsv" || ext == "txt")
         {
@@ -193,8 +199,8 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
         }
         if (ext != "spectra" && ext != "json" && ui_ctx.log_browser_panel.can_open(path))
         {
-            ui_ctx.log_browser_panel.set_visible(true);
-            if (ui_ctx.log_browser_panel.open_file(path))
+            // open_log_file() also shows the panel and records a recent file.
+            if (imgui_ui ? imgui_ui->open_log_file(path) : ui_ctx.log_browser_panel.open_file(path))
                 return true;
             toasts.error("Could not open " + file_name_of(path), "See the Log Browser for details");
             return false;
@@ -214,34 +220,19 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     "Ctrl+O",
                     "File",
                     static_cast<uint16_t>(ui::Icon::FolderOpen),
-                    [&, open_any]()
+                    [&]()
                     {
-                        if (!native_dialogs_enabled())
-                            return;
-                        DialogEnvGuard env_guard;
-                        char const*    filters[] =
-                            {"*.spectra", "*.csv", "*.tsv", "*.txt", "*.ulg", "*.mcap", "*.json"};
-                        std::string start = ui_ctx.layout_session.last_dir;
-                        if (start.empty() && !document.path().empty())
-                            start = std::filesystem::path(document.path()).parent_path().string();
-                        if (start.empty())
-                        {
-                            const char* home = std::getenv("HOME");
-                            start            = home ? home : "/";
-                        }
-                        if (start.back() != '/')
-                            start += '/';
-                        const char* result = tinyfd_openFileDialog(
-                            "Open",
-                            start.c_str(),
-                            static_cast<int>(std::size(filters)),
-                            filters,
-                            "Spectra files and data (.spectra, CSV, ULog, MCAP)",
-                            0);
-                        if (result)
-                            open_any(result);
+                        // Native dialog; the chosen file goes through open_path()
+                        // and from there to open_any (set_open_file_handler).
+                        if (imgui_ui)
+                            imgui_ui->open_file_with_dialog();
                     }});
     ui_ctx.open_file_fn = open_any;
+    // Start page recent list, command-line files, drops and the dialog above
+    // all route through ImGuiIntegration::open_path(): give it this window's
+    // handler so they get workspace sniffing and toasts too.
+    if (imgui_ui)
+        imgui_ui->set_open_file_handler(open_any);
 
     cmds.push_back({"file.open_log",
                     "Open Log...",

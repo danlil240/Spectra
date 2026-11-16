@@ -216,8 +216,6 @@ class ImGuiIntegration
     // Interaction state getters
     bool     should_reset_view() const { return reset_view_; }
     void     clear_reset_view() { reset_view_ = false; }
-    bool     should_reset_live_view() const { return reset_live_view_; }
-    void     clear_reset_live_view() { reset_live_view_ = false; }
     ToolMode get_interaction_mode() const { return interaction_mode_; }
     // The active tool.  ImGuiIntegration owns it (nav rail, tool commands and
     // shortcuts all set it here) and mirrors it to the input handler.
@@ -384,9 +382,33 @@ class ImGuiIntegration
     // the log browser.  No-op without a log browser or native dialogs.
     void open_log_with_dialog();
 
+    // Native "Open File" dialog (File > Open File..., start page): CSV/TSV,
+    // ULog, MCAP and .spectra layouts, routed by open_path().
+    void open_file_with_dialog();
+
+    // Opens @p path as if it were dropped on the window (classify_open_file()):
+    // CSV/TSV -> column picker, ULog/MCAP -> log browser, .spectra/.json ->
+    // layout.  Data files are added to the recent-files list.  Returns false
+    // (and logs why) for unsupported or missing files.
+    bool open_path(const std::string& path);
+    // When set (by the window's File commands), open_path() hands existing
+    // files to @p handler instead of routing them itself: it also opens
+    // .spectra workspaces and figures and reports results as toasts.
+    void set_open_file_handler(std::function<bool(const std::string&)> handler)
+    {
+        open_file_handler_ = std::move(handler);
+    }
+    // open_path() on the next frame (menu items whose click would edit the
+    // recent list the menu is built from).
+    void request_open_path(std::string path) { pending_open_paths_.push_back(std::move(path)); }
+    // Opens @p path in the log browser and records it as a recent file.
+    bool                         open_log_file(const std::string& path);
+    ui::settings::SettingsStore* settings_store() const { return settings_store_; }
+
     // Settings panel — owned externally (WindowUIContext).
     void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
-    // Settings store — owned externally; supplies persisted UI choices.
+    // Settings store — owned externally; supplies persisted UI choices and
+    // the recent data files shown on the start page.
     void                         set_settings_store(ui::settings::SettingsStore* store);
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
 
@@ -637,6 +659,8 @@ class ImGuiIntegration
     // Rail tooltip for a tool button: "Pan (P)" when the tool's command has a
     // key bound, else just the label.
     std::string tool_tooltip(const char* label, ToolMode mode) const;
+    // One MenuItem per tool (with its key), checked on the active one.
+    void draw_tool_menu_items();
 
     ImFont* icon_font() const { return font_icon_; }
     ImFont* heading_font() const { return font_heading_; }
@@ -674,6 +698,10 @@ class ImGuiIntegration
     void draw_plot_overlay_dialog();
 
     void draw_plot_overlays(Figure& figure);
+    // Measure tool: line, Δx/Δy legs, snap rings and the readout label.
+    void draw_measure_overlay();
+    // Live pill of one presented-buffer axes (live_index: its order among them).
+    void draw_live_pill(Figure& figure, Axes& axes, size_t live_index);
     void draw_topic_drop_target(Figure& figure);
     void draw_topic_drop_target_welcome();
     void draw_log_field_drop_target(Figure& figure);
@@ -757,7 +785,6 @@ class ImGuiIntegration
 
     // Interaction state
     bool     reset_view_       = false;
-    bool     reset_live_view_  = false;
     ToolMode interaction_mode_ = ToolMode::Pan;
 
     // Plot-area cursor (see plot_cursor()).  The GLFW crosshair cursor is
@@ -854,8 +881,10 @@ class ImGuiIntegration
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
 
     // Settings store — not owned.
-    ui::settings::SettingsStore* settings_store_      = nullptr;
-    bool                         transform_overwrite_ = false;
+    ui::settings::SettingsStore*            settings_store_ = nullptr;
+    std::function<bool(const std::string&)> open_file_handler_;
+    std::vector<std::string>                pending_open_paths_;
+    bool                                    transform_overwrite_ = false;
 
     // Tab bar (not owned)
     TabBar* tab_bar_ = nullptr;
@@ -1087,6 +1116,15 @@ class ImGuiIntegration
     void load_logo_textures(VulkanBackend& backend);
     void destroy_logo_textures();
     void draw_welcome_screen(float display_w, float display_h, float dt);
+    // Runs a welcome-screen action (registry command or WELCOME_*_ID pseudo id).
+    void run_welcome_action(const std::string& id);
+    // Shows the Topics panel (start page "Topics / connect...").
+    void show_topics_panel();
+    // In-canvas "drop a file" hint over each empty axes of @p figure.
+    void draw_empty_axes_hints(Figure& figure);
+    // Opens the deferred CSV dialog request and queued CSV files (drops,
+    // command line).  Called from build_ui() and build_empty_ui().
+    void process_pending_opens();
 
     // Native "Open CSV" dialog; on success parses the file and opens the column picker.
     // Shared by Data > Load from CSV, the canvas welcome button and the empty-app welcome.

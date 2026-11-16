@@ -385,7 +385,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.visible(ss->visible());
                 dup.plot_style(ss->plot_style());
                 if (!ss->color_values_data().empty())
-                    dup.color_values(ss->color_values_data()).colormap(ss->colormap());
+                    dup.color_values(ss->color_values_data()).colormap(ss->cmap());
                 if (ss->colormap_range_set())
                     dup.colormap_range(ss->colormap_min(), ss->colormap_max());
             }
@@ -413,6 +413,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.show_outliers(bp->show_outliers());
                 dup.notched(bp->notched());
                 dup.gradient(bp->gradient());
+                dup.fill_style(bp->fill_style());
                 if (!bp->label().empty())
                     dup.label(bp->label());
                 dup.visible(bp->visible());
@@ -428,6 +429,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.resolution(vn->resolution());
                 dup.show_box(vn->show_box());
                 dup.gradient(vn->gradient());
+                dup.fill_style(vn->fill_style());
                 if (!vn->label().empty())
                     dup.label(vn->label());
                 dup.visible(vn->visible());
@@ -440,6 +442,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.cumulative(hs->cumulative());
                 dup.density(hs->density());
                 dup.gradient(hs->gradient());
+                dup.fill_style(hs->fill_style());
                 if (!hs->label().empty())
                     dup.label(hs->label());
                 dup.visible(hs->visible());
@@ -453,6 +456,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.baseline(bs->baseline());
                 dup.orientation(bs->orientation());
                 dup.gradient(bs->gradient());
+                dup.fill_style(bs->fill_style());
                 dup.categories(bs->categories());
                 if (!bs->label().empty())
                     dup.label(bs->label());
@@ -544,7 +548,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 if (!sf->label().empty())
                     dup.label(sf->label());
                 dup.visible(sf->visible());
-                dup.colormap(sf->colormap_type());
+                dup.colormap(sf->cmap());
                 if (sf->colormap_range_set())
                     dup.colormap_range(sf->colormap_min(), sf->colormap_max());
                 dup.ambient(sf->ambient());

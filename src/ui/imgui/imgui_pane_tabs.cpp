@@ -5,6 +5,9 @@
 
     #include <format>
     #include <unordered_set>
+
+    #include "ui/overlay/live_status.hpp"
+    #include "ui/theme/theme_imgui.hpp"
     #include <spectra/window_defaults.hpp>
 
 namespace spectra
@@ -1069,6 +1072,98 @@ void ImGuiIntegration::draw_pane_tab_headers()
     }   // Phase 5 scope
 }
 
+void ImGuiIntegration::draw_live_pill(Figure& figure, Axes& axes, size_t live_index)
+{
+    const auto&              colors = theme_mgr_->colors();
+    const ui::LiveAxesStatus st     = ui::live_status(axes);
+    const std::string        label  = ui::live_pill_label(st);
+
+    Rect anchor = axes.viewport();
+    if (anchor.w <= 0.0f || anchor.h <= 0.0f)
+        anchor = layout_manager_->canvas_rect();
+
+    ImGui::PushFont(font_body_);
+    const float  icon_w  = 10.0f;
+    const float  pad_x   = 10.0f;
+    const ImVec2 text_sz = ImGui::CalcTextSize(label.c_str());
+    const ImVec2 pill_sz(pad_x + icon_w + 6.0f + text_sz.x + pad_x,
+                         std::max(24.0f, text_sz.y + 8.0f));
+
+    // Above the plot's top-right corner, clear of the legend's default slot.
+    float pill_x = anchor.x + anchor.w - pill_sz.x - 12.0f;
+    float pill_y = anchor.y - pill_sz.y - 8.0f;
+    if (pill_y < 4.0f)
+        pill_y = 4.0f;
+
+    const std::string window_id =
+        std::format("##live_overlay_{}_{}", static_cast<void*>(&figure), live_index);
+    ImGui::SetNextWindowPos(ImVec2(pill_x, pill_y), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(pill_sz, ImGuiCond_Always);
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoScrollWithMouse
+        | ImGuiWindowFlags_NoScrollbar;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    if (ImGui::Begin(window_id.c_str(), nullptr, flags))
+    {
+        ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
+        const bool clicked = ImGui::InvisibleButton("##live_pill", pill_sz);
+        const bool hovered = ImGui::IsItemHovered();
+        if (clicked)
+        {
+            if (st.following)
+                ui::pause_live_follow(axes);
+            else
+                ui::resume_live_follow(axes);
+        }
+
+        ImDrawList*      dl    = ImGui::GetWindowDrawList();
+        const ImVec2     p0    = ImGui::GetItemRectMin();
+        const ImVec2     p1    = ImGui::GetItemRectMax();
+        const ui::Color& state = st.following ? colors.success : colors.warning;
+        const float      r     = (p1.y - p0.y) * 0.5f;
+        dl->AddRectFilled(p0, p1, ui::to_imu32(colors.bg_elevated, hovered ? 1.0f : 0.92f), r);
+        dl->AddRect(p0, p1, ui::to_imu32(state, hovered ? 1.0f : 0.75f), r, 0, 1.0f);
+
+        const float cy = (p0.y + p1.y) * 0.5f;
+        const float ix = p0.x + pad_x;
+        if (st.following)
+        {
+            dl->AddCircleFilled(ImVec2(ix + icon_w * 0.5f, cy), 4.0f, ui::to_imu32(state, 1.0f));
+        }
+        else
+        {
+            const float bar_w = 2.6f;
+            const float bar_h = 9.0f;
+            dl->AddRectFilled(ImVec2(ix + 1.0f, cy - bar_h * 0.5f),
+                              ImVec2(ix + 1.0f + bar_w, cy + bar_h * 0.5f),
+                              ui::to_imu32(state, 1.0f),
+                              1.0f);
+            dl->AddRectFilled(ImVec2(ix + 6.0f, cy - bar_h * 0.5f),
+                              ImVec2(ix + 6.0f + bar_w, cy + bar_h * 0.5f),
+                              ui::to_imu32(state, 1.0f),
+                              1.0f);
+        }
+        dl->AddText(ImVec2(ix + icon_w + 6.0f, cy - text_sz.y * 0.5f),
+                    ui::to_imu32(colors.text_primary, 1.0f),
+                    label.c_str());
+
+        if (hovered)
+        {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            ImGui::BeginTooltip();
+            ImGui::TextUnformatted(st.following ? "Live: following new data. Click to pause."
+                                                : "Paused. Click or press End to follow new data.");
+            ImGui::EndTooltip();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+    ImGui::PopFont();
+}
+
 void ImGuiIntegration::draw_plot_overlays(Figure& figure)
 {
     if (!layout_manager_)
@@ -1113,139 +1208,17 @@ void ImGuiIntegration::draw_plot_overlays(Figure& figure)
         }
     }
 
-    // ── Live buffer reset chip (top-right) ───────────────────────────────
-    bool has_live_axes     = false;
-    bool has_live_viewport = false;
-    bool live_following    = false;
-    Rect live_viewport{};
-    for (const auto& ax_ptr : figure.axes())
+    // ── Live pill per live axes (top-right of its viewport) ──────────────
+    // "Following" while the view tracks new data, "Paused · N s behind" once
+    // the user panned/zoomed away; a click (or End) resumes following.
     {
-        if (ax_ptr && ax_ptr->has_presented_buffer())
+        size_t live_index = 0;
+        for (auto& ax_ptr : figure.axes_mut())
         {
-            has_live_axes     = true;
-            live_viewport     = ax_ptr->viewport();
-            has_live_viewport = (live_viewport.w > 0.0f && live_viewport.h > 0.0f);
-            live_following    = ax_ptr->is_presented_buffer_following();
-            break;
+            if (!ax_ptr || !ax_ptr->has_presented_buffer())
+                continue;
+            draw_live_pill(figure, *ax_ptr, live_index++);
         }
-    }
-
-    if (has_live_axes)
-    {
-        Rect   canvas  = layout_manager_->canvas_rect();
-        Rect   anchor  = has_live_viewport ? live_viewport : canvas;
-        ImVec2 chip_sz = ImVec2(36.0f, 24.0f);
-
-        // Keep the control in top-right, above legend's default top-right slot.
-        float chip_x = anchor.x + anchor.w - chip_sz.x - 12.0f;
-        float chip_y = anchor.y - chip_sz.y - 8.0f;
-        if (chip_y < 4.0f)
-            chip_y = 4.0f;
-        ImVec2 chip_pos = ImVec2(chip_x, chip_y);
-
-        const std::string overlay_id =
-            std::format("##live_overlay_{}", static_cast<void*>(&figure));
-
-        ImGui::SetNextWindowPos(chip_pos, ImGuiCond_Always);
-        ImGui::SetNextWindowSize(chip_sz, ImGuiCond_Always);
-        ImGui::SetNextWindowBgAlpha(0.0f);
-        ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
-                                 | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav
-                                 | ImGuiWindowFlags_NoScrollWithMouse
-                                 | ImGuiWindowFlags_NoScrollbar;
-
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-
-        if (ImGui::Begin(overlay_id.c_str(), nullptr, flags))
-        {
-            ImGui::SetCursorPos(ImVec2(0.0f, 0.0f));
-
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, chip_sz.y * 0.5f);
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
-            ImGui::PushStyleColor(ImGuiCol_Border,
-                                  ImVec4(colors.border_subtle.r,
-                                         colors.border_subtle.g,
-                                         colors.border_subtle.b,
-                                         0.85f));
-            ImGui::PushStyleColor(
-                ImGuiCol_Button,
-                ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.90f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                  ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.92f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-                                  ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                ImVec4(colors.text_inverse.r, colors.text_inverse.g, colors.text_inverse.b, 1.0f));
-
-            if (ImGui::Button("##live_follow_toggle", chip_sz))
-            {
-                if (live_following)
-                {
-                    for (auto& ax : figure.axes_mut())
-                    {
-                        if (ax && ax->has_presented_buffer())
-                        {
-                            AxisLimits xlim = ax->x_limits();
-                            ax->xlim(xlim.min, xlim.max);
-                        }
-                    }
-                }
-                else
-                {
-                    reset_live_view_ = true;
-                }
-            }
-
-            // Draw crisp transport glyphs for a cleaner, more professional control.
-            ImDrawList* win_dl   = ImGui::GetWindowDrawList();
-            ImVec2      rmin     = ImGui::GetItemRectMin();
-            ImVec2      rmax     = ImGui::GetItemRectMax();
-            ImVec2      center   = ImVec2((rmin.x + rmax.x) * 0.5f, (rmin.y + rmax.y) * 0.5f);
-            ImU32       icon_col = IM_COL32(static_cast<int>(colors.text_inverse.r * 255.0f),
-                                      static_cast<int>(colors.text_inverse.g * 255.0f),
-                                      static_cast<int>(colors.text_inverse.b * 255.0f),
-                                      255);
-
-            if (live_following)
-            {
-                float bar_h    = 9.0f;
-                float bar_w    = 2.6f;
-                float gap      = 3.0f;
-                float y0       = center.y - bar_h * 0.5f;
-                float y1       = center.y + bar_h * 0.5f;
-                float left_x0  = center.x - gap * 0.5f - bar_w;
-                float left_x1  = center.x - gap * 0.5f;
-                float right_x0 = center.x + gap * 0.5f;
-                float right_x1 = center.x + gap * 0.5f + bar_w;
-                win_dl->AddRectFilled(ImVec2(left_x0, y0), ImVec2(left_x1, y1), icon_col, 1.0f);
-                win_dl->AddRectFilled(ImVec2(right_x0, y0), ImVec2(right_x1, y1), icon_col, 1.0f);
-            }
-            else
-            {
-                float w = 8.5f;
-                float h = 10.0f;
-                win_dl->AddTriangleFilled(ImVec2(center.x - w * 0.45f, center.y - h * 0.5f),
-                                          ImVec2(center.x - w * 0.45f, center.y + h * 0.5f),
-                                          ImVec2(center.x + w * 0.55f, center.y),
-                                          icon_col);
-            }
-
-            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-            {
-                ImGui::BeginTooltip();
-                ImGui::TextUnformatted(live_following ? "Pause live-follow" : "Resume live-follow");
-                ImGui::EndTooltip();
-            }
-
-            ImGui::PopStyleColor(5);
-            ImGui::PopStyleVar(3);
-        }
-        ImGui::End();
-        ImGui::PopStyleVar(2);
     }
 
     // Selection highlight is now rendered by the GPU pipeline

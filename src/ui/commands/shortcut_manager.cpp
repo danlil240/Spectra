@@ -372,6 +372,7 @@ void ShortcutManager::register_defaults()
     bind({KEY_C, KeyMod::None}, "view.toggle_crosshair");
     bind({KEY_F, KeyMod::None}, "view.fullscreen");
     bind({KEY_HOME, KeyMod::None}, "view.home");
+    bind({KEY_END, KeyMod::None}, "view.follow_live");
 
     // Keyboard zoom (+/- keys) — accessible without mouse
     bind({KEY_EQUAL, KeyMod::None}, "view.zoom_in");

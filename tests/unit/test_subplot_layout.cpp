@@ -533,3 +533,116 @@ TEST(SubplotLayoutTransport, DiffOpsUpdateTheDaemonModel)
     EXPECT_EQ(ipc::share_axes_from_wire(99), ShareAxes::None);
     EXPECT_EQ(ipc::share_axes_from_wire(-1), ShareAxes::None);
 }
+
+TEST(SubplotLayoutTransport, DaemonLimitUpdatesReachSharePeers)
+{
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    for (int i = 0; i < 4; ++i)
+        model.add_axes(fid);
+    model.set_grid(fid, 2, 2);
+    model.set_axis_limits(fid, 0, 0.0, 10.0, 0.0, 1.0);
+    model.set_axis_limits(fid, 2, -5.0, 4.0, 0.0, 1.0);
+    // Linking merges the column's limits, like Axes::sharex() in the window.
+    model.set_figure_layout(fid, true, ShareAxes::Col, ShareAxes::None);
+    {
+        const auto a = model.snapshot().figures[0].axes;
+        EXPECT_DOUBLE_EQ(a[0].x_min, -5.0);
+        EXPECT_DOUBLE_EQ(a[2].x_max, 10.0);
+    }
+
+    // set_xlim(2, 3) on one shared axes (as the Python "xlim" property does).
+    model.set_axis_limits(fid, 0, 2.0, 3.0, 0.0, 1.0);
+    auto snap = model.snapshot();
+    auto a    = snap.figures[0].axes;
+    EXPECT_DOUBLE_EQ(a[2].x_min, 2.0);
+    EXPECT_DOUBLE_EQ(a[2].x_max, 3.0);
+    EXPECT_NE(a[1].x_max, 3.0);   // other column untouched
+
+    // A window reporting a pan through a diff op updates the peers too.
+    ipc::DiffOp op;
+    op.type       = ipc::DiffOp::Type::SET_AXIS_LIMITS;
+    op.figure_id  = fid;
+    op.axes_index = 2;
+    op.f1         = 4.0;
+    op.f2         = 6.0;
+    op.f3         = 0.0;
+    op.f4         = 1.0;
+    ASSERT_TRUE(model.apply_diff_op(op));
+    snap = model.snapshot();
+    EXPECT_DOUBLE_EQ(snap.figures[0].axes[0].x_min, 4.0);
+
+    // The export / window rebuild sees the same limits on both axes.
+    auto live = agent::build_figure_from_snapshot(snap.figures[0]);
+    ASSERT_TRUE(live);
+    EXPECT_DOUBLE_EQ(live->axes()[0]->x_limits().min, 4.0);
+    EXPECT_DOUBLE_EQ(live->axes()[0]->x_limits().max, 6.0);
+    EXPECT_DOUBLE_EQ(live->axes()[2]->x_limits().max, 6.0);
+}
+
+namespace
+{
+
+// Workspace data captured from a figure with its own limits per axes and the
+// given share modes.
+WorkspaceData capture_with_limits(ShareAxes sx, ShareAxes sy)
+{
+    Figure fig({.width = 640, .height = 480});
+    for (int i = 1; i <= 4; ++i)
+    {
+        auto& ax = fig.subplot(2, 2, i);
+        ax.xlim(i, 10.0 * i);
+        ax.ylim(-i, i);
+    }
+    fig.share_x(sx);
+    fig.share_y(sy);
+    std::vector<Figure*> figs{&fig};
+    return Workspace::capture(figs, 0, "night", true, 320.0f, false);
+}
+
+}   // namespace
+
+TEST(SubplotLayoutPersistence, ApplyingAnUnsharedWorkspaceDetachesOldGroups)
+{
+    const WorkspaceData data = capture_with_limits(ShareAxes::None, ShareAxes::None);
+
+    Figure fig({.width = 640, .height = 480});
+    for (int i = 1; i <= 4; ++i)
+        fig.subplot(2, 2, i).plot(X, Y);
+    fig.share_x(ShareAxes::All);
+    fig.share_y(ShareAxes::All);
+    std::vector<Figure*> targets{&fig};
+    ASSERT_TRUE(Workspace::apply(data, targets));
+
+    EXPECT_EQ(fig.share_x(), ShareAxes::None);
+    for (int i = 0; i < 4; ++i)
+    {
+        const Axes& ax = *fig.axes()[static_cast<size_t>(i)];
+        EXPECT_FALSE(ax.x_shared());
+        EXPECT_DOUBLE_EQ(ax.x_limits().min, i + 1.0) << i;
+        EXPECT_DOUBLE_EQ(ax.x_limits().max, 10.0 * (i + 1)) << i;
+        EXPECT_DOUBLE_EQ(ax.y_limits().min, -(i + 1.0)) << i;
+    }
+}
+
+TEST(SubplotLayoutPersistence, ApplyingSwitchesBetweenRowAndColumnSharing)
+{
+    // Saved with columns shared: each column has one x range.
+    WorkspaceData data = capture_with_limits(ShareAxes::Col, ShareAxes::None);
+
+    Figure fig({.width = 640, .height = 480});
+    for (int i = 1; i <= 4; ++i)
+        fig.subplot(2, 2, i).plot(X, Y);
+    fig.share_x(ShareAxes::Row);   // currently rows shared
+    std::vector<Figure*> targets{&fig};
+    ASSERT_TRUE(Workspace::apply(data, targets));
+
+    const auto& ax = fig.axes();
+    EXPECT_EQ(fig.share_x(), ShareAxes::Col);
+    EXPECT_EQ(ax[0]->shared_x_axes(), std::vector<Axes*>{ax[2].get()});
+    // Column limits come from the file (union of the column), not from the
+    // last axes restored while the row groups were still linked.
+    EXPECT_DOUBLE_EQ(ax[0]->x_limits().min, data.figures[0].axes[0].x_min);
+    EXPECT_DOUBLE_EQ(ax[1]->x_limits().max, data.figures[0].axes[1].x_max);
+    EXPECT_NE(ax[0]->x_limits().max, ax[1]->x_limits().max);
+}

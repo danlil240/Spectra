@@ -274,6 +274,14 @@ class FigureModel
 
     // Bump revision (caller must hold lock).
     void bump_revision() { ++revision_; }
+
+    // Shared axes (share_x / share_y, grouped as Figure::share_x() does):
+    // copy the limits of axes `axes_index` to its 2D share peers, so the
+    // snapshot (window rebuilds, exports) matches the linked live axes.
+    static void share_limits_from(FigureData& fd, uint32_t axes_index);
+    // Give every share group the union of its members' limits (as
+    // Axes::sharex() does when the windows link them).
+    static void merge_shared_limits(FigureData& fd);
 };
 
 }   // namespace spectra::daemon

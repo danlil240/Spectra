@@ -1477,6 +1477,19 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             fig->suptitle(fs.suptitle);
         }
 
+        // Detach the figure's current share groups first: with them active,
+        // restoring one axes' limits would overwrite its peers.  The target
+        // modes (the file's, else the figure's own) are linked again below.
+        auto share = [](int v)
+        {
+            return v >= 0 && v <= static_cast<int>(ShareAxes::Col) ? static_cast<ShareAxes>(v)
+                                                                   : ShareAxes::None;
+        };
+        const ShareAxes target_share_x = fs.has_layout ? share(fs.share_x) : fig->share_x();
+        const ShareAxes target_share_y = fs.has_layout ? share(fs.share_y) : fig->share_y();
+        fig->share_x(ShareAxes::None);
+        fig->share_y(ShareAxes::None);
+
         // Apply axes: use all_axes() if populated, else axes()
         const bool has_all_axes = !fig->all_axes().empty();
 
@@ -1562,18 +1575,8 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
         }
 
         // Shared axes, once the axes and their limits are in place.
-        if (fs.has_layout)
-        {
-            auto share = [](int v)
-            {
-                return v >= 0 && v <= static_cast<int>(ShareAxes::Col) ? static_cast<ShareAxes>(v)
-                                                                       : ShareAxes::None;
-            };
-            if (fig->share_x() != share(fs.share_x))
-                fig->share_x(share(fs.share_x));
-            if (fig->share_y() != share(fs.share_y))
-                fig->share_y(share(fs.share_y));
-        }
+        fig->share_x(target_share_x);
+        fig->share_y(target_share_y);
 
         // Layout series were created and styled by build_layout_figure().
         if (data.layout_only)

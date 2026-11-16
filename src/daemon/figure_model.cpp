@@ -4,6 +4,7 @@
 #include "../ipc/axes_format_state.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <spectra/color.hpp>
 
 namespace spectra::daemon
@@ -114,6 +115,7 @@ ipc::DiffOp FigureModel::set_axis_limits(uint64_t figure_id,
         ax.x_max = x_max;
         ax.y_min = y_min;
         ax.y_max = y_max;
+        share_limits_from(it->second, axes_index);
     }
     bump_revision();
 
@@ -707,9 +709,90 @@ ipc::DiffOp FigureModel::set_figure_layout(uint64_t  figure_id,
         it->second.constrained_layout = fs.constrained_layout;
         it->second.share_x            = fs.share_x;
         it->second.share_y            = fs.share_y;
+        merge_shared_limits(it->second);
     }
     bump_revision();
     return ipc::make_figure_layout_op(figure_id, fs);
+}
+
+namespace
+{
+
+// Share group of 2D axes slot `i` for a ShareAxes mode (Figure::share_x()
+// grouping); SIZE_MAX when the mode shares nothing.
+size_t share_group_key(uint8_t mode, size_t i, size_t cols)
+{
+    switch (static_cast<ShareAxes>(mode))
+    {
+        case ShareAxes::All:
+            return 0;
+        case ShareAxes::Row:
+            return i / cols;
+        case ShareAxes::Col:
+            return i % cols;
+        default:
+            return SIZE_MAX;
+    }
+}
+
+}   // namespace
+
+void FigureModel::share_limits_from(FigureData& fd, uint32_t axes_index)
+{
+    if (axes_index >= fd.axes.size() || fd.axes[axes_index].is_3d)
+        return;
+    const size_t cols = static_cast<size_t>(std::max<int32_t>(1, fd.grid_cols));
+    const auto&  src  = fd.axes[axes_index];
+    const size_t kx   = share_group_key(fd.share_x, axes_index, cols);
+    const size_t ky   = share_group_key(fd.share_y, axes_index, cols);
+    for (size_t j = 0; j < fd.axes.size(); ++j)
+    {
+        auto& dst = fd.axes[j];
+        if (j == axes_index || dst.is_3d)
+            continue;
+        if (kx != SIZE_MAX && share_group_key(fd.share_x, j, cols) == kx)
+        {
+            dst.x_min = src.x_min;
+            dst.x_max = src.x_max;
+        }
+        if (ky != SIZE_MAX && share_group_key(fd.share_y, j, cols) == ky)
+        {
+            dst.y_min = src.y_min;
+            dst.y_max = src.y_max;
+        }
+    }
+}
+
+void FigureModel::merge_shared_limits(FigureData& fd)
+{
+    const size_t cols  = static_cast<size_t>(std::max<int32_t>(1, fd.grid_cols));
+    auto         merge = [&](uint8_t mode, bool x)
+    {
+        for (size_t i = 0; i < fd.axes.size(); ++i)
+        {
+            const size_t k = share_group_key(mode, i, cols);
+            if (k == SIZE_MAX || fd.axes[i].is_3d)
+                continue;
+            double lo = x ? fd.axes[i].x_min : fd.axes[i].y_min;
+            double hi = x ? fd.axes[i].x_max : fd.axes[i].y_max;
+            for (size_t j = 0; j < fd.axes.size(); ++j)
+            {
+                if (fd.axes[j].is_3d || share_group_key(mode, j, cols) != k)
+                    continue;
+                lo = std::min(lo, x ? fd.axes[j].x_min : fd.axes[j].y_min);
+                hi = std::max(hi, x ? fd.axes[j].x_max : fd.axes[j].y_max);
+            }
+            for (size_t j = 0; j < fd.axes.size(); ++j)
+            {
+                if (fd.axes[j].is_3d || share_group_key(mode, j, cols) != k)
+                    continue;
+                (x ? fd.axes[j].x_min : fd.axes[j].y_min) = lo;
+                (x ? fd.axes[j].x_max : fd.axes[j].y_max) = hi;
+            }
+        }
+    };
+    merge(fd.share_x, true);
+    merge(fd.share_y, false);
 }
 
 void FigureModel::set_live_fps(uint64_t figure_id, float fps)
@@ -873,6 +956,7 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.axes[op.axes_index].x_max = op.f2;
             it->second.axes[op.axes_index].y_min = op.f3;
             it->second.axes[op.axes_index].y_max = op.f4;
+            share_limits_from(it->second, op.axes_index);
             break;
 
         case ipc::DiffOp::Type::SET_SERIES_COLOR:
@@ -997,6 +1081,8 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.constrained_layout = fs.constrained_layout;
             it->second.share_x            = fs.share_x;
             it->second.share_y            = fs.share_y;
+            if (op.type == ipc::DiffOp::Type::SET_FIGURE_LAYOUT)
+                merge_shared_limits(it->second);
             break;
         }
 

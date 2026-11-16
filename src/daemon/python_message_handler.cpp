@@ -496,7 +496,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         "opacity",     "xlabel",         "ylabel",       "axes_title",     "label",
         "legend",      "legend_visible", "add_knob",     "annotation",     "clear_annotations",
         "data_origin", "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
-        "categories",  "line_style",     "marker_style", "palette_index", "draw_style"};
+        "categories",  "line_style",     "marker_style", "palette_index",  "draw_style"};
     bool known = false;
     for (const auto* p : known_props)
     {

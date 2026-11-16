@@ -56,6 +56,7 @@ from typing import (
     Union,
 )
 
+from . import _colors
 from ._protocol import DEFAULT_WINDOW_HEIGHT, DEFAULT_WINDOW_WIDTH
 
 # Type alias for data that can be list, tuple, or numpy array
@@ -195,49 +196,12 @@ def _mark_datetime_x(ax, is_datetime: bool) -> None:
 
 
 def _parse_color(color: Union[str, Tuple, List, None]) -> Optional[Tuple[float, float, float, float]]:
-    """Parse color from name, hex, or tuple."""
-    if color is None:
-        return None
-    if isinstance(color, (tuple, list)):
-        if len(color) == 3:
-            return (float(color[0]), float(color[1]), float(color[2]), 1.0)
-        elif len(color) == 4:
-            return (float(color[0]), float(color[1]), float(color[2]), float(color[3]))
-    if isinstance(color, str):
-        _NAMED = {
-            "red": (1.0, 0.2, 0.2, 1.0),
-            "r": (1.0, 0.2, 0.2, 1.0),
-            "green": (0.2, 0.8, 0.2, 1.0),
-            "g": (0.2, 0.8, 0.2, 1.0),
-            "blue": (0.2, 0.4, 1.0, 1.0),
-            "b": (0.2, 0.4, 1.0, 1.0),
-            "yellow": (1.0, 0.9, 0.1, 1.0),
-            "y": (1.0, 0.9, 0.1, 1.0),
-            "cyan": (0.0, 0.9, 0.9, 1.0),
-            "c": (0.0, 0.9, 0.9, 1.0),
-            "magenta": (0.9, 0.1, 0.9, 1.0),
-            "m": (0.9, 0.1, 0.9, 1.0),
-            "white": (1.0, 1.0, 1.0, 1.0),
-            "w": (1.0, 1.0, 1.0, 1.0),
-            "black": (0.0, 0.0, 0.0, 1.0),
-            "k": (0.0, 0.0, 0.0, 1.0),
-            "orange": (1.0, 0.5, 0.0, 1.0),
-            "purple": (0.6, 0.2, 0.9, 1.0),
-            "pink": (1.0, 0.4, 0.7, 1.0),
-            "gray": (0.5, 0.5, 0.5, 1.0),
-            "grey": (0.5, 0.5, 0.5, 1.0),
-        }
-        lower = color.lower().strip()
-        if lower in _NAMED:
-            return _NAMED[lower]
-        # Hex color
-        if lower.startswith("#") and len(lower) in (7, 9):
-            r = int(lower[1:3], 16) / 255.0
-            g = int(lower[3:5], 16) / 255.0
-            b = int(lower[5:7], 16) / 255.0
-            a = int(lower[7:9], 16) / 255.0 if len(lower) == 9 else 1.0
-            return (r, g, b, a)
-    return None
+    """Parse a colour (name, ``C<n>``, ``tab:*``, hex, CSS4, grey level or tuple) to RGBA.
+
+    ``None`` stays ``None``; an unknown or malformed colour raises ValueError
+    with a "did you mean" suggestion.  See spectra._colors for the full list.
+    """
+    return _colors.to_rgba(color)
 
 
 # Named colours that map to a MATLAB colour letter.  These are sent as the
@@ -285,6 +249,12 @@ def _stat_style_kwargs(fill_alpha: Optional[float], edge_width: Optional[float],
     return out
 
 
+def _check_color(color: Any) -> None:
+    """Raise ValueError for an invalid colour before anything is created."""
+    if color is not None and _color_letter(color) is None:
+        _parse_color(color)
+
+
 def _apply_color(series: Any, color: Union[str, Tuple, List, None]) -> None:
     """Colour a series: named letter colours stay theme-aware, others are RGB."""
     if series is None or color is None:
@@ -292,6 +262,11 @@ def _apply_color(series: Any, color: Union[str, Tuple, List, None]) -> None:
     letter = _color_letter(color)
     if letter is not None and hasattr(series, "set_color_letter"):
         series.set_color_letter(letter)
+        return
+    slot = _colors.palette_index(color)
+    if slot is not None and hasattr(series, "set_palette_index"):
+        # "C<n>": the window resolves palette slot n for its theme and palette.
+        series.set_palette_index(slot)
         return
     c = _parse_color(color)
     if c:
@@ -558,6 +533,7 @@ def plot(
 
     Returns the Series object for further customization.
     """
+    _check_color(color)
     if len(args) == 1 and _is_dataframe(args[0]):
         return _plot_dataframe(args[0], color=color, width=width, label=label, **kwargs)
     x, y = _parse_xy_args(args)
@@ -632,6 +608,7 @@ def scatter(
 
     Returns the Series object.
     """
+    _check_color(color)
     x, y = _parse_xy_args(args)
     ax = _state._ensure_axes()
     series = ax.scatter(x, y, label=label)
@@ -659,6 +636,7 @@ def stem(
         sp.stem(y)
         sp.stem(x, y, color="r", baseline=0.5)
     """
+    _check_color(color)
     x, y = _parse_xy_args(args)
     ax = _state._ensure_axes()
     series = ax.stem(x, y, baseline=float(baseline),
@@ -726,6 +704,7 @@ def errorbar(
     Returns ``(data_series, bar_series)``; ``data_series`` is ``None`` when
     ``fmt="none"``.
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     if len(xv) != len(yv):
@@ -831,6 +810,7 @@ def hist(
         sp.hist(data)
         sp.hist(data, bins=50, color="orange", density=True)
     """
+    _check_color(color)
     if not isinstance(bins, int) or isinstance(bins, bool):
         raise TypeError("bins must be an int (number of equal-width bins)")
     if bins < 1:
@@ -877,6 +857,7 @@ def bar(
         sp.bar([1, 2, 3], [10, 20, 15])
         sp.bar(["a", "b", "c"], [3, 5, 2], color="g")
     """
+    _check_color(color)
     bw = float(width) if width is not None else float(bar_width)
     names = None
     if not isinstance(x, str):
@@ -943,6 +924,7 @@ def fill_between(
         sp.fill_between(x, lower, upper, alpha=0.3)
         sp.fill_between(x, y)          # down to 0
     """
+    _check_color(color)
     xv = _to_list(x)
     a = _to_list(y1)
     if isinstance(y2, (int, float)):
@@ -983,6 +965,7 @@ def boxplot(
     Each dataset is a list/array of values. Statistics (median, Q1, Q3,
     whiskers, outliers) are computed automatically.
     """
+    _check_color(color)
     import math
 
     if positions is None:
@@ -1087,6 +1070,7 @@ def violin_plot(
 
     Draws a mirrored kernel density estimate for each dataset.
     """
+    _check_color(color)
     import math
 
     if positions is None:
@@ -1184,6 +1168,7 @@ def hline(
 
     Set ``interactive=True`` (or use ``ihline``) to drag a slider that moves the line.
     """
+    _check_color(color)
     if interactive:
         return ihline(y, ymin, ymax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
@@ -1207,6 +1192,7 @@ def vline(
 
     Set ``interactive=True`` (or use ``ivline``) to drag a slider that moves the line.
     """
+    _check_color(color)
     if interactive:
         return ivline(x, xmin, xmax, color=color, label=label, knob_name=knob_name)
     ax = _state._ensure_axes()
@@ -1244,6 +1230,7 @@ def fplot(
   Set ``interactive=True`` with *params* ``[(name, value, min, max), ...]`` to
   expose sliders for each coefficient (or use ``ifplot``).
     """
+    _check_color(color)
     if interactive:
         return ifplot(func, xmin, xmax, n=n, color=color, width=width, label=label,
                       params=params or [], **kwargs)
@@ -1458,6 +1445,7 @@ def ifplot(
         sp.ifplot(lambda x, a, b: a * x * x + b, -3, 3,
                   params=[("a", 0.2, -1, 1), ("b", 0, -2, 2)])
     """
+    _check_color(color)
     param_specs = params or []
     ax = _state._ensure_axes()
 
@@ -1637,6 +1625,7 @@ def plot3(
         sp.plot3(x, y, z)
         sp.plot3(x, y, z, color="red", label="helix")
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)
@@ -1663,6 +1652,7 @@ def scatter3(
         sp.scatter3(x, y, z)
         sp.scatter3(x, y, z, color="blue", size=3)
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)
@@ -1689,6 +1679,7 @@ def surf(
         Z = np.sin(X) * np.cos(Y)
         sp.surf(X, Y, Z)
     """
+    _check_color(color)
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)

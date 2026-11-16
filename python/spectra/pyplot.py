@@ -24,6 +24,7 @@ layout is always computed automatically.
 from __future__ import annotations
 
 import math
+import re
 import warnings
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -72,7 +73,7 @@ _LINESTYLES = ("--", "-.", "-", ":")
 
 
 def _parse_fmt(fmt: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """matplotlib fmt "[color][marker][line]" -> (color letter, marker, linestyle)."""
+    """matplotlib fmt "[color][marker][line]" -> (colour letter or "C<n>", marker, linestyle)."""
     color = marker = line = None
     rest = fmt
     while rest:
@@ -81,6 +82,11 @@ def _parse_fmt(fmt: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
                 line, rest = ls, rest[len(ls):]
                 break
         else:
+            m = re.match(r"C\d+", rest)
+            if m and color is None:
+                # "C1--": palette slot colour, as in matplotlib.
+                color, rest = m.group(0), rest[m.end():]
+                continue
             ch, rest = rest[0], rest[1:]
             if ch in _COLOR_CHARS and color is None:
                 color = ch

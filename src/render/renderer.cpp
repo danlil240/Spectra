@@ -1,5 +1,7 @@
 #include "renderer.hpp"
 
+#include "render/line_geometry.hpp"
+
 #include <cmath>
 
 #include <algorithm>
@@ -200,6 +202,52 @@ void Renderer::prepare_mesh_sorted_indices(SeriesGpuData&            gpu,
     upload_sorted_indices(gpu);
 }
 
+void Renderer::store_line_points(SeriesGpuData& gpu,
+                                 const Series&  series,
+                                 const float*   xy,
+                                 size_t         n)
+{
+    const LineStyle ls = series.plot_style().line_style;
+    if (ls == LineStyle::Solid || ls == LineStyle::None)
+    {
+        std::vector<float>().swap(gpu.line_points);
+        return;
+    }
+    gpu.line_points.assign(xy, xy + n * 2);
+    ++gpu.line_points_serial;
+}
+
+BufferHandle Renderer::prepare_dash_phase_buffer(SeriesGpuData& gpu, float dash_total)
+{
+    const size_t n = gpu.uploaded_count;
+    if (n < 2 || gpu.line_points.size() != n * 2 || !(dash_total > 0.0f))
+        return {};
+
+    const SeriesGpuData::DashPhaseKey key{gpu.line_points_serial,
+                                          line_px_per_unit_x_,
+                                          line_px_per_unit_y_,
+                                          static_cast<double>(dash_total)};
+    const uint32_t                    slot = backend_.current_flight_frame() % FRAME_BUFFER_SLOTS;
+    auto&                             buf  = gpu.dash_phase_buffer[slot];
+    if (buf && gpu.dash_phase_key[slot] == key)
+        return buf;
+
+    build_line_dash_phase(gpu.line_points, key.px_x, key.px_y, key.period, dash_phase_scratch_);
+    const size_t bytes = dash_phase_scratch_.size() * sizeof(float);
+    if (!buf || gpu.dash_phase_capacity[slot] < bytes)
+    {
+        if (buf)
+            backend_.destroy_buffer(buf);
+        buf                           = backend_.create_buffer(BufferUsage::Storage, bytes * 2);
+        gpu.dash_phase_capacity[slot] = buf ? bytes * 2 : 0;
+    }
+    if (!buf)
+        return {};
+    backend_.upload_buffer(buf, dash_phase_scratch_.data(), bytes);
+    gpu.dash_phase_key[slot] = key;
+    return buf;
+}
+
 void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
 {
     if (gpu.ssbo)
@@ -211,6 +259,9 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
     if (gpu.outlier_buffer)
         backend_.destroy_buffer(gpu.outlier_buffer);
     for (auto& b : gpu.sorted_index_buffer)
+        if (b)
+            backend_.destroy_buffer(b);
+    for (auto& b : gpu.dash_phase_buffer)
         if (b)
             backend_.destroy_buffer(b);
     if (gpu.image_texture)
@@ -1044,6 +1095,8 @@ void Renderer::render_axes(AxesBase&   axes,
         // Centered projection: maps [-half_range, +half_range] → NDC.
         // Translation term m[12] = 0 exactly, avoiding catastrophic cancellation.
         build_ortho_projection(-half_rx, half_rx, -half_ry, half_ry, ubo.projection);
+        line_px_per_unit_x_ = half_rx > 0.0 ? viewport.w / (2.0 * half_rx) : 0.0;
+        line_px_per_unit_y_ = half_ry > 0.0 ? viewport.h / (2.0 * half_ry) : 0.0;
 
         // Identity view matrix (2D)
         ubo.view[0]  = 1.0f;
@@ -1071,6 +1124,9 @@ void Renderer::render_axes(AxesBase&   axes,
     ubo.viewport_width  = viewport.w;
     ubo.viewport_height = viewport.h;
     ubo.time            = 0.0f;
+    ubo.viewport_x      = viewport.x;
+    ubo.viewport_y      = viewport.y;
+    ubo.pixel_scale     = backend_.pixel_scale();
 
     backend_.upload_buffer(frame_ubo_buffer_, &ubo, sizeof(FrameUBO));
     backend_.bind_buffer(frame_ubo_buffer_, 0);

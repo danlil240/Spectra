@@ -1350,8 +1350,12 @@ void WebGPUBackend::end_frame_error_scope()
     frame_scope_open_      = false;
     frame_scope_in_flight_ = true;
 
+    // AllowProcessEvents: the callback runs inside wgpuInstanceProcessEvents()
+    // on this (render) thread, which end_frame() pumps every frame.  Native
+    // Dawn may run AllowSpontaneous callbacks on another thread, which would
+    // race with begin_frame_error_scope() on the frame-scope fields.
     WGPUPopErrorScopeCallbackInfo cb{};
-    cb.mode      = WGPUCallbackMode_AllowSpontaneous;
+    cb.mode      = WGPUCallbackMode_AllowProcessEvents;
     cb.userdata1 = this;
     cb.callback  = [](WGPUPopErrorScopeStatus status,
                      WGPUErrorType           type,

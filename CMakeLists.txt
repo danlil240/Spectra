@@ -734,6 +734,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/commands/welcome_actions.cpp
         src/ui/commands/shortcut_manager.cpp
         src/ui/commands/undo_manager.cpp
+        src/ui/commands/series_transform.cpp
         src/ui/workspace/workspace.cpp
         src/ui/workspace/workspace_autosave.cpp
         src/ui/workspace/layout.cpp

@@ -1072,18 +1072,17 @@ void Renderer::render_axes(AxesBase&   axes,
     // could be overwritten by a later flight frame while a previous frame's
     // GPU work was still reading it, causing border misalignment during fast zoom).
 
-    // Render 3D bounding box, tick marks, and axis arrows (all depth-tested)
+    // Render the 3D back-pane grid first (depth-tested, no depth write), then
+    // the bounding box, tick marks and axis arrows (all depth-tested), then the
+    // series, so nothing in front of the back panes is covered by the grid.
+    // 2D grid is rendered in screen-space by render_plot_geometry().
     if (auto* axes3d = dynamic_cast<Axes3D*>(&axes))
     {
+        render_grid(axes, viewport);
         render_bounding_box(*axes3d, viewport);
         render_tick_marks(*axes3d, viewport);
         render_arrows(*axes3d, viewport);
     }
-
-    // Render 3D grid BEFORE series so series appears on top.
-    // 2D grid is rendered in screen-space by render_plot_geometry().
-    if (dynamic_cast<Axes3D*>(&axes))
-        render_grid(axes, viewport);
 
     // For 3D axes, sort series by distance from camera for correct transparency.
     // Opaque series render first (front-to-back for early-Z benefit),
@@ -1241,6 +1240,11 @@ void Renderer::render_axes(AxesBase&   axes,
             }
 
             bool is_transparent = effective_alpha < 0.99f;
+            // Colormap alpha makes a surface translucent per vertex.
+            const bool cmap_alpha =
+                gpu_it != series_gpu_data_.end() && gpu_it->second.type == SeriesType::Surface3D
+                && static_cast<SurfaceSeries*>(series_ptr.get())->colormap_alpha();
+            is_transparent = is_transparent || cmap_alpha;
             // A translucent solid surface or mesh draws its own triangles back
             // to front, so its far folds do not blend over its near ones.
             if (gpu_it != series_gpu_data_.end())
@@ -1248,7 +1252,7 @@ void Renderer::render_axes(AxesBase&   axes,
                 auto&       gd            = gpu_it->second;
                 const float style_opacity = series_ptr->plot_style().opacity;
                 gd.sorted_ready_slot      = -1;
-                const bool blends         = effective_alpha * style_opacity < 0.99f;
+                const bool blends         = effective_alpha * style_opacity < 0.99f || cmap_alpha;
                 if (blends && gd.type == SeriesType::Surface3D)
                 {
                     auto* surf = static_cast<SurfaceSeries*>(series_ptr.get());

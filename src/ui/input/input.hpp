@@ -88,6 +88,10 @@ class InputHandler
     }
     Axes*     active_axes() const { return active_axes_; }
     AxesBase* active_axes_base() const { return active_axes_base_; }
+    // 2D axes of the last mouse press inside a plot ("current plot" for menus,
+    // which the hover-driven active_axes() no longer points at).  May be stale:
+    // check that it still belongs to the figure before using it.
+    Axes* last_pressed_axes() const { return last_pressed_axes_; }
 
     // Mouse button event: begin/end drag or box zoom
     void on_mouse_button(int button, int action, int mods, double x, double y);
@@ -154,9 +158,20 @@ class InputHandler
     InteractionMode mode() const { return mode_; }
     void            set_mode(InteractionMode new_mode) { mode_ = new_mode; }
 
-    // Current tool mode (selected by toolbar)
+    // Current tool mode.  With the ImGui UI, ImGuiIntegration owns the tool
+    // (ImGuiIntegration::set_interaction_mode) and mirrors it here.
     ToolMode tool_mode() const { return tool_mode_; }
     void     set_tool_mode(ToolMode new_tool);
+
+    // Esc handling, in order.  cancel_active_gesture() aborts the gesture in
+    // progress: a box-zoom (or Ctrl+drag) / select / ROI drag, a measurement
+    // still being placed, an annotation drag (restored to where it started) or
+    // a pending annotation.  dismiss_tool_results() clears finished results
+    // that stay on screen (a measurement, an ROI selection).  Each returns
+    // true when it changed something.
+    bool cancel_active_gesture();
+    bool dismiss_tool_results();
+    bool has_active_gesture() const;
 
     // Cursor readout (for overlay rendering)
     const CursorReadout& cursor_readout() const { return cursor_readout_; }
@@ -245,10 +260,11 @@ class InputHandler
     void handle_mouse_button_annotate(int button, int action, double x, double y);
     void handle_mouse_move_annotate(double x, double y);
 
-    Figure*          figure_           = nullptr;
-    FigureViewModel* figure_vm_        = nullptr;
-    Axes*            active_axes_      = nullptr;
-    AxesBase*        active_axes_base_ = nullptr;
+    Figure*          figure_            = nullptr;
+    FigureViewModel* figure_vm_         = nullptr;
+    Axes*            active_axes_       = nullptr;
+    AxesBase*        active_axes_base_  = nullptr;
+    Axes*            last_pressed_axes_ = nullptr;
 
     // 3D orbit drag state
     bool                   is_3d_orbit_drag_   = false;

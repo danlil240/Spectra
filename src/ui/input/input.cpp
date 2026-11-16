@@ -85,6 +85,104 @@ void InputHandler::set_tool_mode(ToolMode new_tool)
     tool_mode_ = new_tool;
 }
 
+// ─── Esc: cancel gestures, dismiss results ──────────────────────────────────
+
+bool InputHandler::has_active_gesture() const
+{
+    if (box_zoom_.active || ctrl_box_zoom_active_ || select_rect_active_ || region_dragging_)
+        return true;
+    if (measure_dragging_ || measure_click_state_ == 1)
+        return true;
+    if (annotate_dragging_ || annotate_press_active_)
+        return true;
+    return data_interaction_ && data_interaction_->annotations().is_editing();
+}
+
+bool InputHandler::cancel_active_gesture()
+{
+    bool cancelled = false;
+
+    // Box zoom drag (BoxZoom tool, or Ctrl+drag in Pan): drop the rectangle.
+    if (box_zoom_.active || ctrl_box_zoom_active_)
+    {
+        cancel_box_zoom();
+        cancelled = true;
+    }
+
+    // Select tool rectangle.
+    if (select_rect_active_)
+    {
+        select_rect_active_ = false;
+        cancelled           = true;
+    }
+
+    // ROI drag in progress: drop the half-drawn region.
+    if (region_dragging_)
+    {
+        region_dragging_ = false;
+        if (data_interaction_)
+            data_interaction_->dismiss_region_select();
+        cancelled = true;
+    }
+
+    // Measurement being placed (drag, or first point of the two-click mode).
+    if (measure_dragging_ || measure_click_state_ == 1)
+    {
+        if (measure_dragging_ && mode_ == InteractionMode::Dragging)
+            mode_ = InteractionMode::Idle;
+        measure_dragging_    = false;
+        measure_click_state_ = 0;
+        measure_axes_        = nullptr;
+        cancelled            = true;
+    }
+
+    // Annotation drag: put it back where the drag started.
+    if (annotate_dragging_)
+    {
+        if (data_interaction_)
+            data_interaction_->annotations().cancel_drag();
+        annotate_dragging_ = false;
+        if (mode_ == InteractionMode::Dragging)
+            mode_ = InteractionMode::Idle;
+        cancelled = true;
+    }
+
+    // Annotate press that would place a new annotation on release.
+    if (annotate_press_active_)
+    {
+        annotate_press_active_ = false;
+        cancelled              = true;
+    }
+
+    // Pending annotation (text being typed): an empty one is removed.
+    if (data_interaction_ && data_interaction_->annotations().is_editing())
+    {
+        data_interaction_->annotations().cancel_editing();
+        cancelled = true;
+    }
+
+    if (cancelled)
+        SPECTRA_LOG_DEBUG("input", "Esc: cancelled active gesture");
+    return cancelled;
+}
+
+bool InputHandler::dismiss_tool_results()
+{
+    bool dismissed = false;
+    if (measure_click_state_ == 2)
+    {
+        measure_click_state_ = 0;
+        measure_axes_        = nullptr;
+        dismissed            = true;
+    }
+    if (data_interaction_ && data_interaction_->has_region_selection())
+    {
+        data_interaction_->dismiss_region_select();
+        dismissed = true;
+    }
+    return dismissed;
+}
+
 // ─── Interaction bounds ─────────────────────────────────────────────────────
 
 void InputHandler::set_interaction_rect(const Rect& r)
@@ -226,14 +324,15 @@ void InputHandler::clear_figure_cache(Figure* fig)
             }
         }
 
-        figure_           = nullptr;
-        active_axes_      = nullptr;
-        active_axes_base_ = nullptr;
-        drag3d_axes_      = nullptr;
-        measure_axes_     = nullptr;
-        mode_             = InteractionMode::Idle;
-        is_3d_orbit_drag_ = false;
-        is_3d_pan_drag_   = false;
+        figure_            = nullptr;
+        active_axes_       = nullptr;
+        active_axes_base_  = nullptr;
+        last_pressed_axes_ = nullptr;
+        drag3d_axes_       = nullptr;
+        measure_axes_      = nullptr;
+        mode_              = InteractionMode::Idle;
+        is_3d_orbit_drag_  = false;
+        is_3d_pan_drag_    = false;
     }
 }
 
@@ -314,6 +413,8 @@ void InputHandler::on_mouse_button(int button, int action, int mods, double x, d
         AxesBase* hit_base = hit_test_all_axes(x, y);
         active_axes_base_  = hit_base;
         active_axes_       = dynamic_cast<Axes*>(hit_base);
+        if (action == ACTION_PRESS && active_axes_)
+            last_pressed_axes_ = active_axes_;
         if (hit_base)
         {
             const auto& vp = hit_base->viewport();
@@ -535,15 +636,17 @@ void InputHandler::on_mouse_move(double x, double y)
     // Middle-mouse pan (works in all tool modes)
     if (middle_pan_dragging_ && active_axes_)
     {
-        const auto& vp        = viewport_for_axes(active_axes_);
-        double      dx_screen = x - middle_pan_start_x_;
-        double      dy_screen = y - middle_pan_start_y_;
-        double      x_range   = middle_pan_xlim_max_ - middle_pan_xlim_min_;
-        double      y_range   = middle_pan_ylim_max_ - middle_pan_ylim_min_;
-        double      dx_data   = -dx_screen * x_range / vp.w;
-        double      dy_data   = dy_screen * y_range / vp.h;
-        set_axes_xlim(active_axes_, middle_pan_xlim_min_ + dx_data, middle_pan_xlim_max_ + dx_data);
-        set_axes_ylim(active_axes_, middle_pan_ylim_min_ + dy_data, middle_pan_ylim_max_ + dy_data);
+        // Same as the left-drag pan: shift by a fraction of the axis-space
+        // span so a log axis pans by ratios (never below zero).
+        const auto&      vp     = viewport_for_axes(active_axes_);
+        const double     frac_x = -(x - middle_pan_start_x_) / vp.w;
+        const double     frac_y = (y - middle_pan_start_y_) / vp.h;
+        const AxisLimits start_x{middle_pan_xlim_min_, middle_pan_xlim_max_};
+        const AxisLimits start_y{middle_pan_ylim_min_, middle_pan_ylim_max_};
+        const AxisLimits new_x = pan_limits(active_axes_->xscale(), start_x, frac_x);
+        const AxisLimits new_y = pan_limits(active_axes_->yscale(), start_y, frac_y);
+        set_axes_xlim(active_axes_, new_x.min, new_x.max);
+        set_axes_ylim(active_axes_, new_y.min, new_y.max);
         if (axis_link_mgr_)
             axis_link_mgr_->propagate_limits(active_axes_,
                                              active_axes_->x_limits(),
@@ -693,13 +796,10 @@ void InputHandler::on_key(int key, int action, int mods)
 
     if (key == KEY_ESCAPE)
     {
-        // Cancel box zoom if active
-        cancel_box_zoom();
-        // Dismiss region selection if active
-        if (data_interaction_ && data_interaction_->has_region_selection())
-        {
-            data_interaction_->dismiss_region_select();
-        }
+        // Reached when no ShortcutManager handles Esc (embed, adapters); with
+        // one, the app.cancel command runs the same steps.
+        if (!cancel_active_gesture())
+            dismiss_tool_results();
         return;
     }
 

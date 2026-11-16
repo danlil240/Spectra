@@ -14,12 +14,16 @@ summarise the main changes rather than listing every commit.
 ### Changed
 - Small UX fixes: the nav rail "Markers" button opens a data-tip list (go to / remove / clear all, undoable) instead of deleting every tip; "Toggle Dark/Light Theme" switches between the last-used dark and light themes (remembered in settings) and the command palette lists every theme and data palette; Python colours accept `C0`-`C9`, `tab:*`, short hex and CSS4 names and raise `ValueError` with a suggestion for unknown names; sequential palettes (viridis, monochrome) spread a few auto-coloured series across the ramp.
 
+- 3D surfaces map their colormap over the data z range (or `SurfaceSeries::colormap_range()` when set), so zooming or panning no longer recolours them, and `colormap_alpha()` now works; the colorbar and SVG/PDF export use the same range. 3D grid panes sit on the faces farthest from the camera and are depth-tested, and the new `Axes3D::box_style(BoxStyle::Back | Full | None)` (default Back) drops the box edges that crossed in front of the data.
+- Transforms menu and Custom Formula dialog: a transform applies to the selected series, else to the visible series of the current (last clicked) plot instead of every plot; by default it adds a "<name> · <transform>" copy next to each source (dashed, same colour), with an "Overwrite current series" toggle (saved in settings) that renames the series instead; every apply is one undoable step (Ctrl+Z / Ctrl+Y), the view autoscales when the range changes a lot, and in overwrite mode a unit-changing transform (derivative, FFT, log) suffixes the y label when it covered the whole plot.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed
 
 - Browser builds embed a DejaVu Sans symbol subset as the text fallback font, so symbols Inter lacks (for example ∇, ∮, ⇌) no longer render as boxes.
 - The WebGPU backend prefers a UNORM surface format, matching the Vulkan swapchain, so theme colours are not gamma-shifted on native Dawn.
+- The browser (WebGPU) demo no longer shows a blank canvas on browsers whose preferred canvas format is RGBA8Unorm (Chrome on Android, Linux and ChromeOS): pipelines are rebuilt whenever the swapchain format changes. The demo page now shows GPU errors, device loss, a missing adapter and wasm aborts as a red status with the error text, and only says "Running" after the first frame rendered without errors.
+- Tool shortcuts work again (P pan, Z zoom, S select, M measure, new N annotate and I ROI) and the nav rail follows them and shows each key in its tooltip; Esc cancels the gesture in progress before closing the palette; middle-button pan and arrow/+/- keys pan log axes by ratios and move linked axes (one undo step); the mouse cursor shows the active tool over the plot.
 
 - WebGPU windows, including the browser demo, now respond to the mouse and keyboard (pan, scroll zoom, box zoom, reset). Only Vulkan windows had input wired before.
 

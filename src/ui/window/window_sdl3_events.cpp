@@ -370,7 +370,11 @@ void WindowManager::process_sdl3_events()
                                 }
                             }
 
-                            input_handler.on_scroll(event.wheel.x, event.wheel.y, cx, cy);
+                            input_handler.on_scroll(event.wheel.x,
+                                                    event.wheel.y,
+                                                    cx,
+                                                    cy,
+                                                    sdl3_to_spectra_mods(SDL_GetModState()));
 
                             if (prev_ctx)
                                 ImGui::SetCurrentContext(prev_ctx);
@@ -380,10 +384,12 @@ void WindowManager::process_sdl3_events()
                         {
                             float cx = 0.0f, cy = 0.0f;
                             SDL_GetMouseState(&cx, &cy);
-                            wctx->ui_ctx->input_handler.on_scroll(event.wheel.x,
-                                                                  event.wheel.y,
-                                                                  cx,
-                                                                  cy);
+                            wctx->ui_ctx->input_handler.on_scroll(
+                                event.wheel.x,
+                                event.wheel.y,
+                                cx,
+                                cy,
+                                sdl3_to_spectra_mods(SDL_GetModState()));
                         }
     #endif
                         request_redraw("sdl_scroll");

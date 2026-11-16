@@ -6,7 +6,7 @@ from typing import Optional
 
 from . import _protocol as P
 from . import _codec as codec
-from ._errors import ConnectionError, ProtocolError
+from ._errors import ConnectionError, ProtocolError, TimeoutError
 from ._log import log
 
 
@@ -68,6 +68,14 @@ class Transport:
             return bool(data)
         except OSError:
             return False
+
+    def set_timeout(self, seconds: Optional[float]) -> None:
+        """Set how long a blocking send/recv may wait (None = forever)."""
+        if self._sock is not None:
+            self._sock.settimeout(seconds)
+
+    def get_timeout(self) -> Optional[float]:
+        return None if self._sock is None else self._sock.gettimeout()
 
     def fileno(self) -> int:
         if self._sock is None:
@@ -175,6 +183,14 @@ class Transport:
         while len(buf) < nbytes:
             try:
                 chunk = self._sock.recv(nbytes - len(buf))
+            except socket.timeout as e:
+                if len(buf) == 0:
+                    # Nothing of the reply arrived yet: the stream is still in
+                    # sync, so the caller may retry or carry on.
+                    raise TimeoutError(f"Recv timed out after {self._sock.gettimeout()} s") from e
+                # Half a message read: the stream cannot be resynchronised.
+                self.close()
+                raise ConnectionError(f"Recv failed mid-message: {e}") from e
             except OSError as e:
                 raise ConnectionError(f"Recv failed: {e}") from e
             if not chunk:

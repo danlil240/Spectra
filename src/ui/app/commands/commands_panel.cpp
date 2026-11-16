@@ -80,6 +80,23 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                                 !imgui_ui->is_plugins_panel_visible());
                     }});
 
+    cmds.push_back(
+        {"panel.toggle_data",
+         "Toggle Data Sidebar",
+         "Ctrl+B",
+         "Panel",
+         static_cast<uint16_t>(ui::Icon::Database),
+         [&, toggle_shell_panel]()
+         {
+             if (app_shell)
+                 toggle_shell_panel("core.data", "Show data sidebar", "Hide data sidebar");
+             else if (imgui_ui)
+             {
+                 auto& lm = imgui_ui->get_layout_manager();
+                 lm.set_left_panel_visible(!lm.is_left_panel_visible());
+             }
+         }});
+
     cmds.push_back({"panel.toggle_topics",
                     "Toggle Topics Panel",
                     "Ctrl+Shift+T",

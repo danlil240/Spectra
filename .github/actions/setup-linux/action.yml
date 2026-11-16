@@ -27,7 +27,13 @@ runs:
         set -euo pipefail
         sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
         if [ "$TOOLCHAIN_PPA" = "true" ]; then
-          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          # Launchpad's API sometimes drops the connection mid-reply
+          # (IncompleteRead); retry before failing the job.
+          for attempt in 1 2 3 4 5; do
+            sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test && break
+            if [ "$attempt" = 5 ]; then exit 1; fi
+            sleep $((attempt * 10))
+          done
         fi
         sudo apt-get update
         # shellcheck disable=SC2086  # EXTRA_PACKAGES is a word list on purpose

@@ -422,6 +422,20 @@ void Axes::resume_follow()
     }
 }
 
+static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x);
+
+std::optional<double> Axes::presented_buffer_head() const
+{
+    if (!presented_buffer_seconds_.has_value())
+        return std::nullopt;
+    if (presented_buffer_right_edge_.has_value())
+        return presented_buffer_right_edge_;
+    double latest_x = 0.0;
+    if (latest_x_value(series_, latest_x))
+        return latest_x;
+    return std::nullopt;
+}
+
 void Axes::set_presented_buffer_right_edge(double x)
 {
     if (std::isfinite(x))
@@ -526,11 +540,33 @@ static void consume_chunked_axis(const ChunkedLineSeries& cs,
         extent.consume(best);
 }
 
-// Extent of a grid-valued series (ImageSeries: its extent; ContourSeries:
-// its node coordinates).  Returns false for other series.  These extents are
-// "sticky": autoscale padding never grows the limits past them (see
-// data_extent_with_mode), so images fill the plot area like in matplotlib.
-static bool consume_grid_extent(const Series& s, AxisExtent& x, AxisExtent& y)
+// Value of `v` when every finite sample equals it (NaN when there are none or
+// they differ): a band whose lower (or upper) edge is one constant, such as
+// fill_between(x, y) down to 0.
+static float constant_value(std::span<const float> v)
+{
+    float value = std::numeric_limits<float>::quiet_NaN();
+    for (float f : v)
+    {
+        if (!std::isfinite(f))
+            continue;
+        if (std::isnan(value))
+            value = f;
+        else if (f != value)
+            return std::numeric_limits<float>::quiet_NaN();
+    }
+    return value;
+}
+
+// Sticky edges of a series, matplotlib-style: autoscale padding never grows
+// the limits past them when they are also the edge of all the data (see
+// data_extent_with_mode).  ImageSeries contribute their extent and
+// ContourSeries their node coordinates (so images fill the plot area); bars,
+// histograms and stems their baseline, and a band its constant lower/upper
+// edge (fill to a baseline), so bars stand on the axis instead of floating
+// above it.  Every sticky value is also part of the series' own data extent.
+// Returns false for series without sticky edges.
+static bool consume_sticky_extent(const Series& s, AxisExtent& x, AxisExtent& y)
 {
     if (const auto* img = dynamic_cast<const ImageSeries*>(&s))
     {
@@ -549,6 +585,41 @@ static bool consume_grid_extent(const Series& s, AxisExtent& x, AxisExtent& y)
         consume_finite_extent(ct->x_coords(), x, 0.0);
         consume_finite_extent(ct->y_coords(), y, 0.0);
         return true;
+    }
+
+    const double xoff = s.x_offset();
+    const double yoff = s.y_offset();
+    if (const auto* bs = dynamic_cast<const BarSeries*>(&s))
+    {
+        if (bs->point_count() == 0)
+            return false;
+        const bool horizontal = bs->orientation() == BarOrientation::Horizontal;
+        consume_finite_value(bs->baseline(), horizontal ? x : y, horizontal ? xoff : yoff);
+        return true;
+    }
+    if (const auto* hs = dynamic_cast<const HistogramSeries*>(&s))
+    {
+        if (hs->point_count() == 0)
+            return false;
+        consume_finite_value(0.0f, y, yoff);   // bins rise from y = 0
+        return true;
+    }
+    if (const auto* stem = dynamic_cast<const StemSeries*>(&s))
+    {
+        if (stem->stem_x().empty())
+            return false;
+        consume_finite_value(stem->baseline(), y, yoff);
+        return true;
+    }
+    if (const auto* band = dynamic_cast<const BandSeries*>(&s))
+    {
+        if (band->sample_count() == 0)
+            return false;
+        const float lo = constant_value(band->lower_values());
+        const float hi = constant_value(band->upper_values());
+        consume_finite_value(lo, y, yoff);
+        consume_finite_value(hi, y, yoff);
+        return std::isfinite(lo) || std::isfinite(hi);
     }
     return false;
 }
@@ -616,7 +687,7 @@ static void data_extent_raw(const std::vector<std::unique_ptr<Series>>& series,
             consume_chunked_axis(*cs, false, xoff, x);
             consume_chunked_axis(*cs, true, yoff, y);
         }
-        consume_grid_extent(*s, x, y);
+        consume_sticky_extent(*s, x, y);
         if (zoom_center)
         {
             if (auto* cu = dynamic_cast<const CustomSeries*>(s.get()); cu && cu->has_bounds())
@@ -729,15 +800,19 @@ static void data_extent_with_mode(const AxisExtent& x,
     if (!pad)
         return;
 
-    // Sticky edges of grid-valued series (sx/sy): padding stops at an image
-    // edge that is also the edge of all the data.
+    // Sticky edges (sx/sy, see consume_sticky_extent): padding stops at an
+    // image edge or a bar baseline that is also the edge of all the data.
+    // Every sticky value is a data value, so only the outermost ones can
+    // coincide with the data edge and the [min, max] range of them suffices.
     auto stick = [](AxisLimits& lim, const AxisExtent& all, const AxisExtent& sticky, ScaleType sc)
     {
         if (sc != ScaleType::Linear || !sticky.valid() || !all.valid())
             return;
         if (all.min >= sticky.min && lim.min < sticky.min)
             lim.min = sticky.min;
-        if (all.max <= sticky.max && lim.max > sticky.max)
+        // Data constant at the sticky value (e.g. all-zero bars): sticking both
+        // sides would collapse the range, so only the lower side sticks.
+        if (all.max <= sticky.max && lim.max > sticky.max && sticky.max > lim.min)
             lim.max = sticky.max;
     };
     stick(x_lim, x, sx, x_scale);
@@ -934,7 +1009,7 @@ const Axes::DataExtentCache& Axes::data_extent_cached() const
     for (const auto& s : series_)
     {
         if (s && !s->excluded_from_autoscale())
-            consume_grid_extent(*s, sx, sy);
+            consume_sticky_extent(*s, sx, sy);
     }
     extent_cache_.key   = std::move(key);
     extent_cache_.x[0]  = x.min;

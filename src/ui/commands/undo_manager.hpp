@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -76,6 +77,11 @@ class UndoManager
     std::string undo_description() const;
     std::string redo_description() const;
 
+    // Bumped by every change of the stacks (push outside a group, undo,
+    // redo, clear, end_group, remove_owned).  Lets a caller tell whether its
+    // action is still the newest one with nothing undone / redone since.
+    uint64_t revision() const;
+
     // Number of items in undo/redo stacks.
     size_t undo_count() const;
     size_t redo_count() const;
@@ -100,6 +106,7 @@ class UndoManager
     mutable std::mutex      mutex_;
     std::vector<UndoAction> undo_stack_;
     std::vector<UndoAction> redo_stack_;
+    uint64_t                revision_ = 0;
 
     // Group state
     bool                    grouping_ = false;

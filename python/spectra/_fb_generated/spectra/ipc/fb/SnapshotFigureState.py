@@ -137,8 +137,36 @@ class SnapshotFigureState(object):
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 5
 
+    # SnapshotFigureState
+    def Suptitle(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(26))
+        if o != 0:
+            return self._tab.String(o + self._tab.Pos)
+        return None
+
+    # SnapshotFigureState
+    def ConstrainedLayout(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(28))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 1
+
+    # SnapshotFigureState
+    def ShareX(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(30))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotFigureState
+    def ShareY(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(32))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
 def SnapshotFigureStateStart(builder):
-    builder.StartObject(11)
+    builder.StartObject(15)
 
 def Start(builder):
     SnapshotFigureStateStart(builder)
@@ -220,6 +248,30 @@ def SnapshotFigureStateAddLegendPosition(builder, legendPosition):
 
 def AddLegendPosition(builder, legendPosition):
     SnapshotFigureStateAddLegendPosition(builder, legendPosition)
+
+def SnapshotFigureStateAddSuptitle(builder, suptitle):
+    builder.PrependUOffsetTRelativeSlot(11, flatbuffers.number_types.UOffsetTFlags.py_type(suptitle), 0)
+
+def AddSuptitle(builder, suptitle):
+    SnapshotFigureStateAddSuptitle(builder, suptitle)
+
+def SnapshotFigureStateAddConstrainedLayout(builder, constrainedLayout):
+    builder.PrependUint8Slot(12, constrainedLayout, 1)
+
+def AddConstrainedLayout(builder, constrainedLayout):
+    SnapshotFigureStateAddConstrainedLayout(builder, constrainedLayout)
+
+def SnapshotFigureStateAddShareX(builder, shareX):
+    builder.PrependUint8Slot(13, shareX, 0)
+
+def AddShareX(builder, shareX):
+    SnapshotFigureStateAddShareX(builder, shareX)
+
+def SnapshotFigureStateAddShareY(builder, shareY):
+    builder.PrependUint8Slot(14, shareY, 0)
+
+def AddShareY(builder, shareY):
+    SnapshotFigureStateAddShareY(builder, shareY)
 
 def SnapshotFigureStateEnd(builder):
     return builder.EndObject()

@@ -756,6 +756,12 @@ TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text,
                                                     FontSize           size,
                                                     float              scale) const
 {
+    if (mathtext::has_markup(text))
+    {
+        const MathLayout ml = layout_math(text, size, scale);
+        return {ml.width, ml.height};
+    }
+
     const auto& fd    = font(size);
     const auto  si    = static_cast<size_t>(size);
     float       width = 0.0f;
@@ -803,6 +809,11 @@ void TextRenderer::draw_text(const std::string& text,
         return;
     if (!(scale > 0.0f))
         scale = 1.0f;
+    if (mathtext::has_markup(text))
+    {
+        queue_math_text(vertices_, text, x, y, 0.0f, size, color_rgba, align, valign, scale);
+        return;
+    }
 
     const auto& fd          = font(size);
     const float line_height = fd.line_height * scale;
@@ -855,6 +866,96 @@ void TextRenderer::draw_text(const std::string& text,
     }
 }
 
+TextRenderer::MathLayout TextRenderer::layout_math(const std::string& text,
+                                                   FontSize           size,
+                                                   float              scale) const
+{
+    if (!(scale > 0.0f))
+        scale = 1.0f;
+    const auto& fd = font(size);
+    const auto  si = static_cast<size_t>(size);
+
+    MathLayout ml;
+    ml.runs             = mathtext::parse(text);
+    ml.width            = mathtext::layout(ml.runs,
+                                [&](std::string_view run, float run_scale)
+                                {
+                                    float w = 0.0f;
+                                    for (size_t i = 0; i < run.size();)
+                                    {
+                                        uint32_t cp = 0;
+                                        i += decode_utf8(run, i, cp);
+                                        if (const GlyphInfo* g = glyph_for(si, cp))
+                                            w += g->x_advance;
+                                    }
+                                    return w * scale * run_scale;
+                                });
+    const float ascent  = fd.ascent * scale;
+    const float descent = -fd.descent * scale;   // stb descent is negative
+    const auto  o       = mathtext::overhang(ml.runs, fd.pixel_size * scale, ascent, descent);
+    ml.height           = fd.line_height * scale + o.above + o.below;
+    ml.baseline         = o.above + ascent;
+    return ml;
+}
+
+void TextRenderer::queue_math_text(std::vector<TextVertex>& target,
+                                   const std::string&       text,
+                                   float                    x,
+                                   float                    y,
+                                   float                    z,
+                                   FontSize                 size,
+                                   uint32_t                 color,
+                                   TextAlign                align,
+                                   TextVAlign               valign,
+                                   float                    scale,
+                                   float                    cos_a,
+                                   float                    sin_a)
+{
+    const MathLayout ml = layout_math(text, size, scale);
+    const auto       si = static_cast<size_t>(size);
+    const auto&      fd = font(size);
+
+    float offset_x = 0.0f;
+    if (align == TextAlign::Center)
+        offset_x = -ml.width * 0.5f;
+    else if (align == TextAlign::Right)
+        offset_x = -ml.width;
+    float offset_y = 0.0f;
+    if (valign == TextVAlign::Middle)
+        offset_y = -ml.height * 0.5f;
+    else if (valign == TextVAlign::Bottom)
+        offset_y = -ml.height;
+
+    const float origin_x = x + offset_x;
+    const float baseline = y + offset_y + ml.baseline;
+    const float shift_px = fd.pixel_size * scale;
+    for (const mathtext::Run& run : ml.runs)
+    {
+        if (run.kind != mathtext::Run::Kind::Text)
+            continue;
+        const float s        = scale * run.scale;
+        float       cursor_x = origin_x + run.x;
+        const float cursor_y = baseline - run.shift * shift_px;
+        for (size_t i = 0; i < run.text.size();)
+        {
+            uint32_t cp = 0;
+            i += decode_utf8(run.text, i, cp);
+            const GlyphInfo* gp = glyph_for(si, cp);
+            if (!gp)
+                continue;
+            GlyphInfo g = *gp;
+            g.x_offset *= s;
+            g.y_offset *= s;
+            g.width *= s;
+            g.height *= s;
+            g.x_advance *= s;
+            if (g.width > 0 && g.height > 0)
+                append_glyph(target, g, cursor_x, cursor_y, z, color, cos_a, sin_a, x, y);
+            cursor_x += g.x_advance;
+        }
+    }
+}
+
 void TextRenderer::draw_text_depth(const std::string& text,
                                    float              x,
                                    float              y,
@@ -869,6 +970,20 @@ void TextRenderer::draw_text_depth(const std::string& text,
         return;
     if (!(scale > 0.0f))
         scale = 1.0f;
+    if (mathtext::has_markup(text))
+    {
+        queue_math_text(depth_vertices_,
+                        text,
+                        x,
+                        y,
+                        ndc_depth,
+                        size,
+                        color_rgba,
+                        align,
+                        valign,
+                        scale);
+        return;
+    }
 
     const auto& fd          = font(size);
     const float line_height = fd.line_height * scale;
@@ -929,6 +1044,22 @@ void TextRenderer::draw_text_rotated(const std::string& text,
     const float line_height = fd.line_height * scale;
     float       cos_a       = std::cos(angle_rad);
     float       sin_a       = std::sin(angle_rad);
+    if (mathtext::has_markup(text))
+    {
+        queue_math_text(vertices_,
+                        text,
+                        x,
+                        y,
+                        0.0f,
+                        size,
+                        color_rgba,
+                        align,
+                        valign,
+                        scale,
+                        cos_a,
+                        sin_a);
+        return;
+    }
 
     // Compute alignment offset (in unrotated text space)
     float offset_x = 0.0f;

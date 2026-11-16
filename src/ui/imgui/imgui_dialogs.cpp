@@ -7,6 +7,7 @@
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "axes_context_menu_model.hpp"
+    #include "ui/docking/split_view.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/ui_interaction_log.hpp"
 
@@ -271,215 +272,53 @@ void ImGuiIntegration::draw_plot_overlay_dialog()
     plot_overlay_dialog_.draw();
 }
 
-void ImGuiIntegration::draw_theme_settings()
+void ImGuiIntegration::draw_cvd_preview_badge()
 {
-    // Modal: ImGui dims everything behind it with a scrim (ImGuiCol_ModalWindowDimBg).
-    // show_theme_settings_ stays the source of truth; the popup follows it.
-    static constexpr const char* k_popup_id = "Theme Settings";
-    if (show_theme_settings_ && !ImGui::IsPopupOpen(k_popup_id))
-        ImGui::OpenPopup(k_popup_id);
-    if (!ImGui::IsPopupOpen(k_popup_id))
+    if (!theme_mgr_ || theme_mgr_->cvd_preview() == ui::CVDType::None || !layout_manager_)
+        return;
+    const Rect canvas = layout_manager_->canvas_rect();
+    if (canvas.w < 1.0f || canvas.h < 1.0f)
         return;
 
-    const auto& colors        = ui::theme();
-    auto&       theme_manager = *theme_mgr_;
-
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f),
-                            ImGuiCond_Appearing,
-                            ImVec2(0.5f, 0.5f));
-    ImGui::SetNextWindowSizeConstraints(ImVec2(380.0f, 0.0f), ImVec2(720.0f, 900.0f));
-
-    static const char* const available_themes[] = {"night", "dark", "light", "high_contrast"};
-
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoCollapse
-                             | ImGuiWindowFlags_AlwaysAutoResize;
-
-    // Modern modal styling (opaque background: the glass panel transparency would
-    // let the plot show through behind the dialog's text)
+    const auto& c = ui::theme();
+    // Top-left of the canvas, clear of the centred figure title and the legend.
+    // (Below the figure tab strip of the pane, above the plot area's top edge.)
+    ImGui::SetNextWindowPos(ImVec2(canvas.x + ui::tokens::SPACE_3,
+                                   canvas.y + SplitPane::PANE_TAB_HEIGHT + ui::tokens::SPACE_1),
+                            ImGuiCond_Always);
+    // Size to content (also overrides any size request left over this frame).
+    ImGui::SetNextWindowSize(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
+    // Pill: half the badge height (a huge rounding makes ImGui grow the window).
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding,
+                        (ImGui::GetTextLineHeight() + 2.0f * ui::tokens::SPACE_1) * 0.5f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
-                        ImVec2(ui::tokens::SPACE_6, ui::tokens::SPACE_5));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_LG);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.5f);
-    ImGui::PushStyleColor(
-        ImGuiCol_PopupBg,   // modals draw their background with PopupBg
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
-    ImGui::PushStyleColor(
-        ImGuiCol_Border,
-        ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
-    ImGui::PushStyleColor(
-        ImGuiCol_TitleBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
-    ImGui::PushStyleColor(
-        ImGuiCol_TitleBgActive,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
-
-    bool is_open = show_theme_settings_;
-    if (ImGui::BeginPopupModal(k_popup_id, &is_open, flags))
+                        ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_1));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.96f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(c.warning.r, c.warning.g, c.warning.b, 0.8f));
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    if (ImGui::Begin("##cvd_preview_badge", nullptr, flags))
     {
-        ImGui::PushFont(font_heading_);
-        ImGui::PushStyleColor(
-            ImGuiCol_Text,
-            ImVec4(colors.text_primary.r, colors.text_primary.g, colors.text_primary.b, 1.0f));
-        ImGui::TextUnformatted("Appearance");
-        ImGui::PopStyleColor();
-        ImGui::PopFont();
-
-        ImGui::Dummy(ImVec2(0, 4));
-        ImGui::PushStyleColor(
-            ImGuiCol_Separator,
-            ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Dummy(ImVec2(0, 8));
-
-        // Theme selection buttons — card-like
-        for (const char* theme_id : available_themes)
-        {
-            const std::string display_name = theme_manager.display_name(theme_id);
-            bool              is_current   = (theme_manager.current_theme_name() == theme_id);
-
-            if (is_current)
-            {
-                ImGui::PushStyleColor(ImGuiCol_Button,
-                                      ImVec4(colors.accent_muted.r,
-                                             colors.accent_muted.g,
-                                             colors.accent_muted.b,
-                                             0.35f));
-                ImGui::PushStyleColor(
-                    ImGuiCol_Text,
-                    ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 1.0f));
-            }
-            else
-            {
-                ImGui::PushStyleColor(
-                    ImGuiCol_Button,
-                    ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.6f));
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      ImVec4(colors.text_primary.r,
-                                             colors.text_primary.g,
-                                             colors.text_primary.b,
-                                             1.0f));
-            }
-
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                  ImVec4(colors.accent_subtle.r,
-                                         colors.accent_subtle.g,
-                                         colors.accent_subtle.b,
-                                         0.5f));
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonActive,
-                ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.6f));
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_MD);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                                ImVec2(ui::tokens::SPACE_4, ui::tokens::SPACE_3));
-
-            std::string label =
-                is_current ? std::string("  ") + display_name : std::string("    ") + display_name;
-
-            if (ImGui::Button(label.c_str(), ImVec2(-1, 0)))
-            {
-                theme_manager.set_theme(theme_id);
-                theme_manager.reset_glass_defaults();
-                theme_manager.save_current_as_default();
-            }
-
-            ImGui::PopStyleVar(2);
-            ImGui::PopStyleColor(4);
-            ImGui::Dummy(ImVec2(0, 2));
-        }
-
-        ImGui::Dummy(ImVec2(0, 8));
-        ImGui::PushStyleColor(
-            ImGuiCol_Separator,
-            ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Dummy(ImVec2(0, 6));
-
-        ImGui::PushFont(font_heading_);
-        ImGui::TextUnformatted("Glass / Transparency");
-        ImGui::PopFont();
-        ImGui::Dummy(ImVec2(0, 4));
-
-        ui::ThemeGlassSettings glass         = theme_manager.glass();
-        bool                   glass_changed = false;
-
-        auto glass_slider = [&](const char* label, float* value)
-        {
-            ImGui::PushID(label);
-            ImGui::TextUnformatted(label);
-            ImGui::SetNextItemWidth(-1.0f);
-            if (ImGui::SliderFloat("##v", value, 0.0f, 1.0f, "%.2f"))
-                glass_changed = true;
-            ImGui::PopID();
-        };
-
-        glass_slider("Master Glass Intensity", &glass.master_intensity);
-        glass_slider("Panel Transparency", &glass.panel_alpha);
-        glass_slider("Plot Background Transparency", &glass.plot_alpha);
-        glass_slider("Toolbar Transparency", &glass.toolbar_alpha);
-        glass_slider("Glow Strength", &glass.glow_strength);
-
-        if (ui::widgets::checkbox_field("Blur Enabled (experimental)", glass.blur_enabled))
-            glass_changed = true;
+        ImGui::TextColored(ImVec4(c.warning.r, c.warning.g, c.warning.b, 1.0f),
+                           "%s",
+                           ui::icon_str(ui::Icon::Eye));
+        ImGui::SameLine();
+        ImGui::Text("Color vision preview: %s", ui::cvd_type_label(theme_mgr_->cvd_preview()));
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Off"))
+            theme_mgr_->set_cvd_preview(ui::CVDType::None);
         if (ImGui::IsItemHovered())
-        {
-            ImGui::SetTooltip("Real backdrop blur is not enabled in this build.\n"
-                              "Glass styling uses layered translucency and glow instead.");
-        }
-
-        if (glass_changed)
-        {
-            theme_manager.set_glass_settings(glass, true);
-            theme_manager.save_current_as_default();
-        }
-
-        ImGui::Dummy(ImVec2(0, 4));
-        if (ImGui::Button("Reset Theme Defaults", ImVec2(-1, 0)))
-        {
-            theme_manager.reset_glass_defaults();
-            theme_manager.save_current_as_default();
-        }
-
-        ImGui::Dummy(ImVec2(0, 8));
-        ImGui::PushStyleColor(
-            ImGuiCol_Separator,
-            ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.3f));
-        ImGui::Separator();
-        ImGui::PopStyleColor();
-        ImGui::Dummy(ImVec2(0, 4));
-
-        // Close button — right-aligned, pill-shaped
-        float close_w = 90.0f;
-        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - close_w + ImGui::GetCursorPosX());
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, ui::tokens::RADIUS_PILL);
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
-                            ImVec2(ui::tokens::SPACE_5, ui::tokens::SPACE_2));
-        ImGui::PushStyleColor(
-            ImGuiCol_Button,
-            ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 0.5f));
-        ImGui::PushStyleColor(
-            ImGuiCol_ButtonHovered,
-            ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
-        if (ImGui::Button("Close", ImVec2(close_w, 0)))
-        {
-            is_open = false;
-        }
-        ImGui::PopStyleColor(2);
-        ImGui::PopStyleVar(2);
-
-        if (!is_open)
-            ImGui::CloseCurrentPopup();
-        ImGui::EndPopup();
+            ImGui::SetTooltip("Show the real colours (View > Color Vision Preview)");
     }
-    ImGui::PopStyleColor(4);
-    ImGui::PopStyleVar(3);
-
-    if (!is_open)
-    {
-        show_theme_settings_ = false;
-    }
+    ImGui::End();
+    ImGui::PopStyleColor(2);
+    ImGui::PopStyleVar(5);
 }
 
 // ─── Axes Right-Click Context Menu ───────────────────────────────────────────

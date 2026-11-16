@@ -366,6 +366,9 @@ void TransitionEngine::update(float dt)
             a.cam->fov        = a.end.fov;
             a.cam->ortho_size = a.end.ortho_size;
             a.cam->target     = a.end.target;
+            // Projection is not interpolated: it switches once the move ends
+            // (callers going to perspective switch it before animating).
+            a.cam->projection_mode = a.end.projection_mode;
             a.cam->update_position_from_orbit();
             a.finished = true;
         }

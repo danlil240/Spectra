@@ -678,12 +678,11 @@ void Renderer::begin_render_pass()
     truncated_text_regions_.clear();
     ++render_pass_serial_;
 
-    const auto& theme_colors = theme_mgr_.colors();
-    Color       bg_color     = Color(theme_colors.bg_canvas.r,
-                           theme_colors.bg_canvas.g,
-                           theme_colors.bg_canvas.b,
-                           theme_colors.bg_canvas.a);
-    backend_.begin_render_pass(bg_color);
+    // The clear is the theme canvas every plot without a background override
+    // shows, so it follows the colour vision deficiency preview too.
+    const ui::Color canvas =
+        ui::simulate_cvd(theme_mgr_.colors().bg_canvas, theme_mgr_.cvd_preview());
+    backend_.begin_render_pass(Color(canvas.r, canvas.g, canvas.b, canvas.a));
     backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
 
@@ -708,17 +707,22 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
 
     // Everything below is drawn on the figure's plot surface: its background
     // override when set, otherwise the theme canvas (see plot_colors()).
-    const ui::ThemeColors surface_colors = theme_mgr_.plot_surface_colors(figure.style());
+    // A colour vision deficiency preview (view only, suspended for exports)
+    // simulates the surface, ink and series colours (see series_view_color()).
+    cvd_preview_                         = theme_mgr_.cvd_preview();
+    const ui::ThemeColors actual_surface = theme_mgr_.plot_surface_colors(figure.style());
+    const ui::ThemeColors surface_colors = ui::simulate_cvd(actual_surface, cvd_preview_);
     plot_colors_                         = &surface_colors;
 
     // Auto-coloured series follow the active theme's data palette (P0-6) and
     // format-letter colours ("r--") its dark / light shade set (P1-5), both
     // chosen for the plot surface.  Auto colours are kept visible on the canvas
-    // the plot area renders with (S07).
+    // the plot area renders with (S07).  Resolved against the real surface:
+    // the preview only simulates what is drawn.
     ui::resolve_auto_series_colors(figure,
                                    theme_mgr_.plot_surface_data_palette(figure.style()),
-                                   ui::is_light_plot_background(surface_colors),
-                                   ui::effective_figure_background(figure.style(), surface_colors));
+                                   ui::is_light_plot_background(actual_surface),
+                                   ui::effective_figure_background(figure.style(), actual_surface));
 
     uint32_t w = figure.width();
     uint32_t h = figure.height();
@@ -797,6 +801,15 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     render_annotations(figure);
 
     plot_colors_ = nullptr;
+    cvd_preview_ = ui::CVDType::None;
+}
+
+Color Renderer::series_view_color(const Color& c) const
+{
+    if (cvd_preview_ == ui::CVDType::None)
+        return c;
+    const ui::Color s = ui::simulate_cvd(ui::Color(c.r, c.g, c.b, c.a), cvd_preview_);
+    return Color{s.r, s.g, s.b, s.a};
 }
 
 const ui::ThemeColors& Renderer::plot_colors() const

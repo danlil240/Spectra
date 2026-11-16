@@ -17,6 +17,8 @@
 namespace spectra
 {
 
+struct AxesShareGroup;
+
 /// @brief How Axes::auto_fit() chooses axis limits.
 enum class AutoscaleMode
 {
@@ -173,6 +175,9 @@ class Axes : public AxesBase
 {
    public:
     Axes() = default;
+    ~Axes() override;
+    Axes(const Axes&)            = delete;
+    Axes& operator=(const Axes&) = delete;
 
     // Series creation — returns reference for fluent API
     /// @brief Add a line series from x/y data.
@@ -334,6 +339,36 @@ class Axes : public AxesBase
     void yaxis_datetime(bool enabled) { y_datetime_ = enabled; }
     bool yaxis_datetime() const { return y_datetime_; }
 
+    // Shared axes (matplotlib's sharex / sharey)
+    /// @brief Share the x axis with @p other.  All axes of a share group show the
+    /// same x limits: setting them on one (xlim(), pan, zoom) sets them on all,
+    /// auto_fit() resets all, and autoscaling fits the data of the whole group.
+    /// Explicit limits already set on members are merged (their union) on joining.
+    void sharex(Axes& other);
+    /// @brief Share the y axis with @p other (see sharex()).
+    void sharey(Axes& other);
+    /// @brief Leave the x share group; the current limits stay.
+    void unshare_x();
+    /// @brief Leave the y share group; the current limits stay.
+    void unshare_y();
+    /// @brief True when this axes shares its x / y axis with at least one other axes.
+    bool x_shared() const;
+    bool y_shared() const;
+    /// @brief The other axes this one shares its x / y axis with.
+    std::vector<Axes*> shared_x_axes() const;
+    std::vector<Axes*> shared_y_axes() const;
+
+    /// @brief Whether the x / y tick labels are drawn.  The figure layout hides
+    /// them on the inner axes of a shared column / row, so only the outer axes
+    /// (bottom row for x, left column for y) carry them.
+    bool x_tick_labels_visible() const { return x_tick_labels_visible_; }
+    bool y_tick_labels_visible() const { return y_tick_labels_visible_; }
+    void set_tick_labels_visible(bool x, bool y)
+    {
+        x_tick_labels_visible_ = x;
+        y_tick_labels_visible_ = y;
+    }
+
     // Accessors
     /// @brief Current x-axis limits (explicit or auto-fitted).
     AxisLimits x_limits() const;
@@ -411,7 +446,17 @@ class Axes : public AxesBase
         double                     sy[3] = {0.0, 0.0, 0.0};
         bool                       valid = false;
     };
-    const DataExtentCache&  data_extent_cached() const;   // caller holds extent_mutex_
+    const DataExtentCache& data_extent_cached() const;   // caller holds extent_mutex_
+    // Union of the cached data extents of every member of a share group, x
+    // (x_axis) or y: ext/sticky are [min, max, min_pos] as in DataExtentCache.
+    // Locks each member's extent_mutex_ in turn; the caller holds none.
+    static void group_extent(const AxesShareGroup& g,
+                             bool                  x_axis,
+                             double (&ext)[3],
+                             double (&sticky)[3]);
+    // Autoscaled limits from the (group) data extents and the autoscale mode.
+    void auto_limits(AxisLimits& xl, AxisLimits& yl) const;
+
     mutable std::mutex      extent_mutex_;
     mutable DataExtentCache extent_cache_;
 
@@ -430,6 +475,12 @@ class Axes : public AxesBase
     std::optional<float>  presented_buffer_seconds_;
     bool                  presented_buffer_following_ = false;
     std::optional<double> presented_buffer_right_edge_;
+
+    // Share groups (sharex()/sharey()); null when not shared.
+    std::shared_ptr<AxesShareGroup> share_x_;
+    std::shared_ptr<AxesShareGroup> share_y_;
+    bool                            x_tick_labels_visible_ = true;
+    bool                            y_tick_labels_visible_ = true;
 
     // Topic-driven continuous auto-zoom state (see set_topic_auto_zoom).
     bool                      topic_auto_zoom_ = false;

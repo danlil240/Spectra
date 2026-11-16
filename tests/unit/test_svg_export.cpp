@@ -1093,8 +1093,12 @@ TEST(SvgExport, FittedLabelsMatchRasterHelper)
                     }
                     ASSERT_NE(t, nullptr) << prefix;
                     EXPECT_EQ(t->content, fit->text) << prefix;
-                    EXPECT_FLOAT_EQ(t->font_px,
-                                    svg_plot_label_font_px(static_cast<LabelFont>(fit->size)))
+                    // Titles shrink smoothly: the exporter writes the tier size times the scale
+                    // (rounded in the file).
+                    EXPECT_NEAR(
+                        t->font_px,
+                        svg_plot_label_font_px(static_cast<LabelFont>(fit->size)) * fit->scale,
+                        0.01f)
                         << prefix;
                 }
             }
@@ -1726,6 +1730,25 @@ TEST(SvgExport, PluginSeriesIsDrawnThroughTheHostHook)
     const auto svg2 = svg_export_to_string(fig, SvgStyle{}, host);
     EXPECT_EQ(svg2.find("plugin-series"), std::string::npos);
     EXPECT_NE(svg2.find("not exported: its vector export callback failed"), std::string::npos);
+}
+
+TEST(SvgExport, MathtextBecomesTspans)
+{
+    auto fig = make_line_figure();
+    fig.axes()[0]->title("$\\alpha_1 = 10^{-3}$ s");
+    fig.axes()[0]->xlabel("cost \\$ (USD)");
+    fig.compute_layout();
+    const std::string svg = SvgExporter::to_string(fig);
+    // Literal markup is gone: Greek glyph, a minus sign, scripts at 70% size.
+    EXPECT_EQ(svg.find("\\alpha"), std::string::npos);
+    EXPECT_NE(svg.find(">\xCE\xB1</tspan>"), std::string::npos);
+    EXPECT_NE(svg.find("font-size=\"12.6\""), std::string::npos);
+    EXPECT_NE(svg.find(">\xE2\x88\x92"
+                       "3</tspan>"),
+              std::string::npos);
+    EXPECT_NE(svg.find("> s</tspan>"), std::string::npos);
+    // An escaped dollar is a plain text element with a literal '$'.
+    EXPECT_NE(svg.find(">cost $ (USD)</text>"), std::string::npos);
 }
 
 }   // namespace spectra

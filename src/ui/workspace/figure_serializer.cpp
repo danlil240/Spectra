@@ -79,6 +79,16 @@ enum ChunkTag : uint16_t
     // Box style (BoxStyle) of a 3D axes.  Version-free: older readers skip it
     // and keep the default box.
     TAG_AXES3D_BOX = 0x0050,
+    // Figure layout: constrained-layout flag, sharex / sharey modes and the
+    // suptitle.  Written after the axes chunks so loading can re-link the
+    // shared axes.  Version-free: older readers skip it.
+    TAG_FIGURE_LAYOUT = 0x0051,
+    // Equal aspect ("axis equal") flag of a 3D axes.  Version-free: older
+    // readers skip it and show the axes with independent ranges.
+    TAG_AXES3D_EQUAL = 0x0060,
+    // Per-point colour values (+ colormap and range) and sizes of the 3D
+    // scatter in the preceding TAG_SERIES_SCAT3D chunk.  Version-free.
+    TAG_SCAT3D_POINT_ATTRS = 0x0061,
 
     TAG_END = 0xFFFF,
 };
@@ -637,6 +647,14 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
         w.end_chunk(bpos);
     }
 
+    if (axes.equal_aspect())
+    {
+        auto epos = w.begin_chunk(TAG_AXES3D_EQUAL);
+        w.write_i32(axes_index);
+        w.write_u8(1);
+        w.end_chunk(epos);
+    }
+
     // Write 3D series
     for (const auto& sp : axes.series())
     {
@@ -663,6 +681,17 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_floats(ss->y_data());
             w.write_floats(ss->z_data());
             w.end_series_chunk(spos, *sp);
+            if (!ss->color_values_data().empty() || !ss->sizes_data().empty())
+            {
+                auto apos = w.begin_chunk(TAG_SCAT3D_POINT_ATTRS);
+                w.write_u8(encode_colormap(ss->cmap()));
+                w.write_u8(static_cast<uint8_t>(ss->colormap_range_set()));
+                w.write_f32(ss->colormap_min());
+                w.write_f32(ss->colormap_max());
+                w.write_floats(ss->color_values_data());
+                w.write_floats(ss->sizes_data());
+                w.end_chunk(apos);
+            }
         }
         else if (auto* surf = dynamic_cast<SurfaceSeries*>(sp.get()))
         {
@@ -799,6 +828,16 @@ bool FigureSerializer::save(const std::string&     path,
         }
     }
 
+    // Figure layout (after the axes, see TAG_FIGURE_LAYOUT)
+    {
+        auto pos = w.begin_chunk(TAG_FIGURE_LAYOUT);
+        w.write_u8(static_cast<uint8_t>(figure.style().constrained_layout));
+        w.write_u8(static_cast<uint8_t>(figure.share_x()));
+        w.write_u8(static_cast<uint8_t>(figure.share_y()));
+        w.write_string(figure.suptitle());
+        w.end_chunk(pos);
+    }
+
     // Write overlay state (if provided)
     if (overlay)
     {
@@ -888,6 +927,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
     std::vector<AxesBase*> axes_ptrs;
     // Bar series of the last TAG_SERIES_BAR chunk (target of TAG_BAR_CATEGORIES).
     BarSeries* last_bar = nullptr;
+    // 3D scatter of the last TAG_SERIES_SCAT3D chunk (target of TAG_SCAT3D_POINT_ATTRS).
+    ScatterSeries3D* last_scatter3d = nullptr;
     // Series of the last series chunk (target of TAG_STAT_STYLE).
     Series* last_series = nullptr;
 
@@ -1542,7 +1583,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
 
             case TAG_SERIES_SCAT3D:
             {
-                int idx = r.read_i32();
+                last_scatter3d = nullptr;
+                int idx        = r.read_i32();
                 if (idx < 0 || idx >= static_cast<int>(axes_ptrs.size()))
                 {
                     r.skip(len - 4);
@@ -1573,7 +1615,8 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto y = r.read_floats();
                 auto z = r.read_floats();
 
-                auto& s = axes->scatter3d(x, y, z);
+                auto& s        = axes->scatter3d(x, y, z);
+                last_scatter3d = &s;
                 s.label(lbl).color(col).visible(vis);
                 s.line_style(ls_e).marker_style(ms_e).marker_size(msz).opacity(opac);
                 s.size(sz).blend_mode(bm);
@@ -1841,6 +1884,54 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                                           : nullptr;
                 if (axes && r.good() && style <= static_cast<uint8_t>(BoxStyle::None))
                     axes->box_style(static_cast<BoxStyle>(style));
+                break;
+            }
+
+            case TAG_FIGURE_LAYOUT:
+            {
+                auto share_mode = [](uint8_t v) {
+                    return v <= static_cast<uint8_t>(ShareAxes::Col) ? static_cast<ShareAxes>(v)
+                                                                     : ShareAxes::None;
+                };
+                figure.style().constrained_layout = r.read_u8() != 0;
+                const ShareAxes sx                = share_mode(r.read_u8());
+                const ShareAxes sy                = share_mode(r.read_u8());
+                figure.suptitle(r.read_string());
+                if (r.good())
+                {
+                    figure.share_x(sx);
+                    figure.share_y(sy);
+                }
+                break;
+            }
+
+            case TAG_AXES3D_EQUAL:
+            {
+                const int32_t ai   = r.read_i32();
+                const bool    on   = r.read_u8() != 0;
+                Axes3D*       axes = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                         ? dynamic_cast<Axes3D*>(axes_ptrs[static_cast<size_t>(ai)])
+                                         : nullptr;
+                if (axes && r.good())
+                    axes->equal_aspect(on);
+                break;
+            }
+
+            case TAG_SCAT3D_POINT_ATTRS:
+            {
+                const uint8_t cmap      = r.read_u8();
+                const bool    range_set = r.read_u8() != 0;
+                const float   cmin      = r.read_f32();
+                const float   cmax      = r.read_f32();
+                auto          values    = r.read_floats();
+                auto          sizes     = r.read_floats();
+                if (!last_scatter3d || !r.good())
+                    break;
+                last_scatter3d->colormap(decode_colormap(cmap));
+                last_scatter3d->color_values(values);
+                if (range_set)
+                    last_scatter3d->colormap_range(cmin, cmax);
+                last_scatter3d->sizes(sizes);
                 break;
             }
 

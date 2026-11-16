@@ -18,7 +18,9 @@
 //    then place it there (legend_layout::effective_position).
 //
 // Every layout path (Figure::compute_layout for headless export, the window,
-// the Qt and embed surfaces) goes through apply_subplot_layout().
+// the Qt and embed surfaces) goes through layout_figure(), which also sizes
+// the grid spacing (FigureStyle margins / gaps, constrained layout) and the
+// suptitle band.
 
 #include <spectra/axes.hpp>
 #include <spectra/fwd.hpp>
@@ -66,5 +68,74 @@ void apply_subplot_layout(Figure&                  fig,
                           const std::vector<Rect>& rects,
                           const Margins&           margins,
                           float                    text_scale = 1.0f);
+
+/// Room already free around the plot areas of each grid column (left) and
+/// row (top, bottom), in pixels: the outer margin or the gap to the
+/// neighbour minus what the neighbour needs.  The margins only grow by what
+/// is missing.
+struct SubplotRoom
+{
+    std::vector<float> left;     // per column
+    std::vector<float> top;      // per row
+    std::vector<float> bottom;   // per row
+};
+
+/// Same, with the room given per column / row (@p room).  Leaves the axes'
+/// text scale as it is.
+void apply_subplot_layout(Figure& fig, const std::vector<Rect>& rects, const SubplotRoom& room);
+
+/// Room a 2D axes needs around its plot area for its decorations, in pixels:
+/// tick marks and labels, axis labels, offset labels and title, as the
+/// renderer and the SVG exporter draw them (plus a small clearance).
+struct AxesDecorations
+{
+    float left   = 0.0f;
+    float right  = 0.0f;
+    float top    = 0.0f;
+    float bottom = 0.0f;
+};
+
+/// Decorations of @p axes at its current viewport (tick count and label
+/// overhang follow the viewport size) and its AxisStyle sizes / text scale.
+AxesDecorations measure_decorations(const Axes& axes);
+
+/// Height of the band the suptitle takes above the grid (0 without one), at
+/// text scale @p text_scale (the UI scale on screen, 1 for exports).
+float suptitle_band_height(const Figure& fig, float text_scale = 1.0f);
+/// Text scale the figure was last laid out with (its axes' text_scale()).
+float figure_text_scale(const Figure& fig);
+/// Font size and scale the suptitle is drawn with (FontSize::Title tier).
+inline constexpr float SUPTITLE_FONT_PX = 18.0f;
+inline constexpr float SUPTITLE_SCALE   = 1.15f;
+
+/// Spacing of @p fig's grid: style gaps (manual layout) or, with
+/// FigureStyle::constrained_layout, margins and gaps grown to fit the measured
+/// decorations of @p decor (one per grid slot, row-major; default-constructed
+/// for empty or 3D slots).  @p outer is the minimum outer margin; the result
+/// never takes more than MAX_SPACING_FRACTION of @p width / @p height.  The
+/// style gaps are multiplied by @p gap_scale (the text scale).
+GridSpacing            compute_figure_spacing(const Figure&                       fig,
+                                              const std::vector<AxesDecorations>& decor,
+                                              float                               width,
+                                              float                               height,
+                                              const Margins&                      outer,
+                                              float                               gap_scale = 1.0f);
+inline constexpr float MAX_SPACING_FRACTION = 0.6f;
+
+/// Lay out @p fig's whole subplot grid in @p content (window / image pixels;
+/// content.y already includes any scroll offset) with minimum outer margins
+/// @p outer: suptitle band, spacing (manual or constrained), axes viewports,
+/// suptitle_rect() and the tick labels hidden on inner shared axes.  Returns
+/// the total content height (more than content.h when min_subplot_height
+/// makes the grid scroll).  Every layout path goes through here.
+/// @p text_scale (the UI scale on screen, 1 for exports) is stored on every
+/// axes (AxesBase::text_scale()) before anything is measured: the decorations,
+/// the style gaps and the suptitle band scale with it.  @p outer is expected
+/// to be scaled by the caller.
+float layout_figure(Figure&        fig,
+                    const Rect&    content,
+                    const Margins& outer,
+                    float          min_subplot_height = 0.0f,
+                    float          text_scale         = 1.0f);
 
 }   // namespace spectra

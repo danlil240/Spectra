@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <vector>
 
+#include "mathtext.hpp"
+
 namespace spectra
 {
 
@@ -111,12 +113,16 @@ FittedLabel fit_label_to_width(const std::string&  text,
         ends.push_back(i);
     }
 
-    auto candidate = [&](size_t k)
+    // A math label cut inside a $...$ segment is closed again so it still renders as math.
+    const bool is_math   = mathtext::is_math_text(text);
+    auto       candidate = [&](size_t k)
     {
         size_t len = ends[k];
         while (len > 0 && text[len - 1] == ' ')
             --len;
         std::string s = text.substr(0, len);
+        if (is_math)
+            mathtext::close_truncated(s);
         s.append(ellipsis);
         return s;
     };

@@ -257,6 +257,65 @@ TEST(AxisTextStyleLayout, BottomMarginHoldsTheXOffsetWithoutXLabel)
     EXPECT_LT(bottom_label_extent(ax, m), with_offset - m.tick_px);
 }
 
+// Constrained layout (FigureStyle::constrained_layout) measures the decorations
+// with the AxisStyle sizes and the text scale: a stacked grid opens the gap
+// between the rows for a large title / x label / tick labels.
+TEST(AxisTextStyleLayout, ConstrainedLayoutMeasuresWithAxisStyleSizes)
+{
+    Figure fig({.width = 800, .height = 900});
+    auto&  top    = plot_axes(fig, 2, 1, 1);
+    auto&  bottom = plot_axes(fig, 2, 1, 2);
+    ASSERT_TRUE(fig.style().constrained_layout);
+    fig.compute_layout();
+    const AxesDecorations plain_top = measure_decorations(top);
+    const AxesDecorations plain_bot = measure_decorations(bottom);
+    const float           plain_gap = bottom.viewport().y - (top.viewport().y + top.viewport().h);
+
+    top.axis_style().tick_size     = 30.0f;
+    top.axis_style().label_size    = 30.0f;
+    bottom.axis_style().title_size = 40.0f;
+    fig.compute_layout();
+    const AxesDecorations big_top = measure_decorations(top);
+    const AxesDecorations big_bot = measure_decorations(bottom);
+    EXPECT_GT(big_top.bottom, plain_top.bottom);
+    EXPECT_GT(big_bot.top, plain_bot.top);
+    EXPECT_FLOAT_EQ(big_top.bottom, bottom_label_extent(top, axis_text_metrics(top)));
+    EXPECT_FLOAT_EQ(big_bot.top, top_label_extent(bottom, axis_text_metrics(bottom)));
+    const float gap = bottom.viewport().y - (top.viewport().y + top.viewport().h);
+    EXPECT_GT(gap, plain_gap);
+    // The labels of the two rows do not overlap.
+    EXPECT_GE(gap + 0.5f, big_top.bottom + big_bot.top);
+}
+
+// layout_figure() stores the text scale before measuring: the decorations,
+// the gaps and the suptitle band scale with it, and exports go back to 1.
+TEST(AxisTextStyleLayout, LayoutFigureAppliesTheTextScale)
+{
+    Figure fig({.width = 900, .height = 900});
+    auto&  a = plot_axes(fig, 2, 1, 1);
+    plot_axes(fig, 2, 1, 2);
+    fig.suptitle("Overview");
+    const Rect    content{0.0f, 0.0f, 900.0f, 900.0f};
+    const Margins outer{70.0f, 20.0f, 60.0f, 40.0f};
+
+    layout_figure(fig, content, outer, 0.0f, 1.0f);
+    const float band1 = fig.suptitle_rect().h;
+    const float top1  = measure_decorations(a).top;
+
+    layout_figure(fig, content, outer, 0.0f, 2.0f);
+    EXPECT_EQ(a.text_scale(), 2.0f);
+    EXPECT_FLOAT_EQ(fig.suptitle_rect().h, band1 * 2.0f);
+    EXPECT_FLOAT_EQ(figure_text_scale(fig), 2.0f);
+    EXPECT_GT(measure_decorations(a).top, top1 * 1.9f);
+    // The suptitle band stays above the first row's title.
+    EXPECT_LE(fig.suptitle_rect().y + fig.suptitle_rect().h,
+              a.viewport().y - measure_decorations(a).top + 0.5f);
+
+    fig.compute_layout();
+    EXPECT_EQ(a.text_scale(), 1.0f);
+    EXPECT_FLOAT_EQ(fig.suptitle_rect().h, band1);
+}
+
 // ─── SVG / PDF ──────────────────────────────────────────────────────────────
 
 TEST(AxisTextStyleSvg, DefaultSizesAndThemeColours)

@@ -21,6 +21,7 @@
 #include "core/axes3d_box.hpp"
 #include "core/axis_scale.hpp"
 #include "core/axis_text_style.hpp"
+#include "core/figure_layout.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
 #include "text_fit.hpp"
@@ -149,6 +150,26 @@ void Renderer::render_plot_text(Figure& figure)
     const std::string_view label_ellipsis =
         text_renderer_.has_glyph(0x2026, FontSize::Label) ? LABEL_ELLIPSIS : "...";
 
+    // ── Figure suptitle, centred above the subplot grid (rect from the layout) ──
+    if (!figure.suptitle().empty())
+    {
+        // Scaled with the axes text (UI scale on screen), like the layout's band.
+        const Rect& r   = figure.suptitle_rect();
+        const float s   = SUPTITLE_SCALE * figure_text_scale(figure);
+        const auto  ext = text_renderer_.measure_text(figure.suptitle(), FontSize::Title, s);
+        if (r.w > 0.0f && r.y + ext.height >= 0.0f && r.y <= static_cast<float>(fig_h))
+        {
+            text_renderer_.draw_text(figure.suptitle(),
+                                     r.x + r.w * 0.5f,
+                                     r.y,
+                                     FontSize::Title,
+                                     title_col,
+                                     TextAlign::Center,
+                                     TextVAlign::Top,
+                                     s);
+        }
+    }
+
     // ── 2D Axes: tick labels, axis labels, title ──
     for (auto& axes_ptr : figure.axes())
     {
@@ -230,6 +251,19 @@ void Renderer::render_plot_text(Figure& figure)
 
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
+        // Inner axes of a shared column / row draw no tick labels (figure layout).
+        if (!axes.x_tick_labels_visible())
+        {
+            x_ticks.labels.clear();
+            x_ticks.positions.clear();
+            x_ticks.offset_label.clear();
+        }
+        if (!axes.y_tick_labels_visible())
+        {
+            y_ticks.labels.clear();
+            y_ticks.positions.clear();
+            y_ticks.offset_label.clear();
+        }
 
         // X tick labels — skip labels that would overlap
         {
@@ -1029,8 +1063,11 @@ Rect Renderer::figure_background_region(const Figure& figure)
     if (!any)
         return Rect{0.0f, 0.0f, fw, fh};
 
+    y0 -= style.margin_top * scale;
+    if (figure.suptitle_rect().h > 0.0f)
+        y0 = std::min(y0, figure.suptitle_rect().y);
     x0 = std::clamp(x0 - style.margin_left * scale, 0.0f, fw);
-    y0 = std::clamp(y0 - style.margin_top * scale, 0.0f, fh);
+    y0 = std::clamp(y0, 0.0f, fh);
     x1 = std::clamp(x1 + style.margin_right * scale, 0.0f, fw);
     y1 = std::clamp(y1 + style.margin_bottom * scale, 0.0f, fh);
     return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
@@ -1077,12 +1114,14 @@ void Renderer::render_figure_background(Figure& figure)
 
     backend_.bind_pipeline(overlay_pipeline_);
     // Same colour space as the theme canvas clear, so an override equal to the
-    // theme colour is indistinguishable from "auto".
+    // theme colour is indistinguishable from "auto" (with or without the
+    // colour vision deficiency preview, which both go through).
+    const Color         bg = series_view_color(style.background);
     SeriesPushConstants pc{};
-    pc.color[0] = style.background.r;
-    pc.color[1] = style.background.g;
-    pc.color[2] = style.background.b;
-    pc.color[3] = style.background.a;
+    pc.color[0] = bg.r;
+    pc.color[1] = bg.g;
+    pc.color[2] = bg.b;
+    pc.color[3] = bg.a;
     backend_.push_constants(pc);
     backend_.bind_buffer(fig_gpu.background_buffer[slot], 0);
     backend_.draw(6);

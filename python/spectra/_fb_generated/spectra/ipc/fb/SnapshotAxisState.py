@@ -154,8 +154,43 @@ class SnapshotAxisState(object):
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return False
 
+    # SnapshotAxisState
+    def LightMode(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotAxisState
+    def Fog(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
+        return 0.0
+
+    # SnapshotAxisState
+    def LightAnglesSet(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotAxisState
+    def LightAzimuth(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
+        return 0.0
+
+    # SnapshotAxisState
+    def LightElevation(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(44))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
+        return 0.0
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(16)
+    builder.StartObject(21)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -261,6 +296,36 @@ def SnapshotAxisStateAddYDatetime(builder, yDatetime):
 
 def AddYDatetime(builder, yDatetime):
     SnapshotAxisStateAddYDatetime(builder, yDatetime)
+
+def SnapshotAxisStateAddLightMode(builder, lightMode):
+    builder.PrependUint8Slot(16, lightMode, 0)
+
+def AddLightMode(builder, lightMode):
+    SnapshotAxisStateAddLightMode(builder, lightMode)
+
+def SnapshotAxisStateAddFog(builder, fog):
+    builder.PrependFloat32Slot(17, fog, 0.0)
+
+def AddFog(builder, fog):
+    SnapshotAxisStateAddFog(builder, fog)
+
+def SnapshotAxisStateAddLightAnglesSet(builder, lightAnglesSet):
+    builder.PrependBoolSlot(18, lightAnglesSet, 0)
+
+def AddLightAnglesSet(builder, lightAnglesSet):
+    SnapshotAxisStateAddLightAnglesSet(builder, lightAnglesSet)
+
+def SnapshotAxisStateAddLightAzimuth(builder, lightAzimuth):
+    builder.PrependFloat32Slot(19, lightAzimuth, 0.0)
+
+def AddLightAzimuth(builder, lightAzimuth):
+    SnapshotAxisStateAddLightAzimuth(builder, lightAzimuth)
+
+def SnapshotAxisStateAddLightElevation(builder, lightElevation):
+    builder.PrependFloat32Slot(20, lightElevation, 0.0)
+
+def AddLightElevation(builder, lightElevation):
+    SnapshotAxisStateAddLightElevation(builder, lightElevation)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

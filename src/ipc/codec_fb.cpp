@@ -336,7 +336,12 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.x_scale,
                                              ax.y_scale,
                                              ax.x_datetime,
-                                             ax.y_datetime);
+                                             ax.y_datetime,
+                                             ax.light_mode,
+                                             ax.fog,
+                                             ax.light_angles_set,
+                                             ax.light_azimuth,
+                                             ax.light_elevation);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -356,10 +361,15 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
         ax.y_label = fb->y_label()->str();
     if (fb->title())
         ax.title = fb->title()->str();
-    ax.x_scale    = fb->x_scale();
-    ax.y_scale    = fb->y_scale();
-    ax.x_datetime = fb->x_datetime();
-    ax.y_datetime = fb->y_datetime();
+    ax.x_scale          = fb->x_scale();
+    ax.y_scale          = fb->y_scale();
+    ax.x_datetime       = fb->x_datetime();
+    ax.y_datetime       = fb->y_datetime();
+    ax.light_mode       = fb->light_mode();
+    ax.fog              = fb->fog();
+    ax.light_angles_set = fb->light_angles_set();
+    ax.light_azimuth    = fb->light_azimuth();
+    ax.light_elevation  = fb->light_elevation();
     if (fb->annotations())
     {
         for (const auto* fa : *fb->annotations())
@@ -421,6 +431,9 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_y_origin(s.y_origin);
     b.add_line_style(s.line_style);
     b.add_marker_style(s.marker_style);
+    b.add_depth_shade(s.depth_shade);
+    b.add_show_edges(s.show_edges);
+    b.add_contour_levels(s.contour_levels);
     if (!s.data.empty())
         b.add_data(data_off);
     if (!s.categories.empty())
@@ -435,22 +448,25 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
         s.name = fb->name()->str();
     if (fb->series_type())
         s.type = fb->series_type()->str();
-    s.color_r      = fb->color_r();
-    s.color_g      = fb->color_g();
-    s.color_b      = fb->color_b();
-    s.color_a      = fb->color_a();
-    s.line_width   = fb->line_width();
-    s.marker_size  = fb->marker_size();
-    s.visible      = fb->visible();
-    s.opacity      = fb->opacity();
-    s.point_count  = fb->point_count();
-    s.axes_index   = fb->axes_index();
-    s.color_index  = fb->color_index();
-    s.color_letter = fb->color_letter();
-    s.x_origin     = fb->x_origin();
-    s.y_origin     = fb->y_origin();
-    s.line_style   = fb->line_style();
-    s.marker_style = fb->marker_style();
+    s.color_r        = fb->color_r();
+    s.color_g        = fb->color_g();
+    s.color_b        = fb->color_b();
+    s.color_a        = fb->color_a();
+    s.line_width     = fb->line_width();
+    s.marker_size    = fb->marker_size();
+    s.visible        = fb->visible();
+    s.opacity        = fb->opacity();
+    s.point_count    = fb->point_count();
+    s.axes_index     = fb->axes_index();
+    s.color_index    = fb->color_index();
+    s.color_letter   = fb->color_letter();
+    s.x_origin       = fb->x_origin();
+    s.y_origin       = fb->y_origin();
+    s.line_style     = fb->line_style();
+    s.marker_style   = fb->marker_style();
+    s.depth_shade    = fb->depth_shade();
+    s.show_edges     = fb->show_edges();
+    s.contour_levels = fb->contour_levels();
     if (fb->data())
     {
         s.data.reserve(fb->data()->size());

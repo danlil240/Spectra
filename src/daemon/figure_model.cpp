@@ -3,6 +3,7 @@
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/series_style_state.hpp"
+#include "../ipc/style3d_state.hpp"
 
 #include <algorithm>
 #include <spectra/color.hpp>
@@ -598,6 +599,50 @@ ipc::DiffOp FigureModel::set_series_marker_style(uint64_t figure_id,
     return op;
 }
 
+ipc::DiffOp FigureModel::update_series_style_3d(
+    uint64_t                                              figure_id,
+    uint32_t                                              series_index,
+    const std::function<void(ipc::SnapshotSeriesState&)>& edit)
+{
+    std::lock_guard          lock(mu_);
+    ipc::SnapshotSeriesState current;
+    auto                     it = figures_.find(figure_id);
+    if (it != figures_.end() && series_index < it->second.series.size())
+    {
+        edit(it->second.series[series_index]);
+        current = it->second.series[series_index];
+    }
+    bump_revision();
+
+    ipc::DiffOp op;
+    ipc::series_style_3d_to_op(current, op);
+    op.figure_id    = figure_id;
+    op.series_index = series_index;
+    return op;
+}
+
+ipc::DiffOp FigureModel::update_axes_light_3d(
+    uint64_t                                            figure_id,
+    uint32_t                                            axes_index,
+    const std::function<void(ipc::SnapshotAxisState&)>& edit)
+{
+    std::lock_guard        lock(mu_);
+    ipc::SnapshotAxisState current;
+    auto                   it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+    {
+        edit(it->second.axes[axes_index]);
+        current = it->second.axes[axes_index];
+    }
+    bump_revision();
+
+    ipc::DiffOp op;
+    ipc::axes_light_3d_to_op(current, op);
+    op.figure_id  = figure_id;
+    op.axes_index = axes_index;
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_opacity(uint64_t figure_id, uint32_t series_index, float opacity)
 {
     std::lock_guard lock(mu_);
@@ -1012,6 +1057,18 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
                 return false;
             it->second.legend_position =
                 ipc::legend_position_to_wire(ipc::legend_position_from_wire(op.f1));
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_STYLE_3D:
+            if (it == figures_.end() || op.series_index >= it->second.series.size())
+                return false;
+            ipc::series_style_3d_from_op(op, it->second.series[op.series_index]);
+            break;
+
+        case ipc::DiffOp::Type::SET_AXES_LIGHT_3D:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            ipc::axes_light_3d_from_op(op, it->second.axes[op.axes_index]);
             break;
 
         case ipc::DiffOp::Type::SET_SERIES_LINE_STYLE:

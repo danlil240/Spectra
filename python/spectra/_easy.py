@@ -1763,13 +1763,16 @@ def plot3(
     color: Union[str, Tuple, List, None] = None,
     width: Optional[float] = None,
     label: str = "",
+    depthshade: Optional[bool] = None,
 ):
     """3D line plot — rendered with GPU-accelerated Axes3D.
+
+    ``depthshade=True`` fades the far parts of the line towards the background.
 
     Usage::
 
         sp.plot3(x, y, z)
-        sp.plot3(x, y, z, color="red", label="helix")
+        sp.plot3(x, y, z, color="red", label="helix", depthshade=True)
     """
     _check_color(color)
     xv = _to_list(x)
@@ -1778,6 +1781,8 @@ def plot3(
     ax = _state._ensure_axes3d()
     series = ax._add_series_3d("line3d", xv, yv, zv, label=label)
     _apply_series_style(series, color=color, width=width)
+    if depthshade is not None:
+        series.set_depth_shade(depthshade)
     _auto_fit_axes3d(ax, xv, yv, zv)
     _state._show_if_pending()
     return series
@@ -1790,13 +1795,17 @@ def scatter3(
     color: Union[str, Tuple, List, None] = None,
     size: Optional[float] = None,
     label: str = "",
+    depthshade: Optional[bool] = None,
 ):
     """3D scatter plot — rendered with GPU-accelerated Axes3D.
+
+    Points fade with depth by default (matplotlib's ``depthshade``);
+    ``depthshade=False`` draws them all in full colour.
 
     Usage::
 
         sp.scatter3(x, y, z)
-        sp.scatter3(x, y, z, color="blue", size=3)
+        sp.scatter3(x, y, z, color="blue", size=3, depthshade=False)
     """
     _check_color(color)
     xv = _to_list(x)
@@ -1805,6 +1814,8 @@ def scatter3(
     ax = _state._ensure_axes3d()
     series = ax._add_series_3d("scatter3d", xv, yv, zv, label=label)
     _apply_series_style(series, color=color, size=size)
+    if depthshade is not None:
+        series.set_depth_shade(depthshade)
     _auto_fit_axes3d(ax, xv, yv, zv)
     _state._show_if_pending()
     return series
@@ -1816,14 +1827,21 @@ def surf(
     z: ArrayLike,
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
+    edges: bool = False,
+    contours: Union[bool, int] = False,
 ):
     """Surface plot — rendered with GPU-accelerated Axes3D.
+
+    ``edges=True`` draws the grid lines over the faces; ``contours=True`` (or
+    a level count) projects contour lines onto the floor of the box, like
+    MATLAB's ``surfc``.
 
     Usage::
 
         X, Y = np.meshgrid(np.linspace(-3, 3, 50), np.linspace(-3, 3, 50))
         Z = np.sin(X) * np.cos(Y)
         sp.surf(X, Y, Z)
+        sp.surf(X, Y, Z, edges=True, contours=12)
     """
     _check_color(color)
     xv = _to_list(x)
@@ -1832,6 +1850,10 @@ def surf(
     ax = _state._ensure_axes3d()
     series = ax._add_series_3d("surface", xv, yv, zv, label=label or "surface")
     _apply_color(series, color)
+    if edges:
+        series.set_show_edges(True)
+    if contours is not False and contours is not None:
+        series.set_contour_projection(True, 10 if contours is True else int(contours))
     _auto_fit_axes3d(ax, xv, yv, zv)
     _state._show_if_pending()
     return series

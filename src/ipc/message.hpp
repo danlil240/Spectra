@@ -268,6 +268,12 @@ struct SnapshotAxisState
     uint8_t y_scale    = 0;
     bool    x_datetime = false;
     bool    y_datetime = false;
+    // 3D light (Axes3D::light_mode / fog / light_angles).
+    uint8_t light_mode       = 0;   // spectra::LightMode
+    float   fog              = 0.0f;
+    bool    light_angles_set = false;
+    float   light_azimuth    = 0.0f;
+    float   light_elevation  = 0.0f;
 };
 
 // SnapshotSeriesState::line_style / marker_style value meaning "not set".
@@ -307,6 +313,12 @@ struct SnapshotSeriesState
     // default (solid lines, circle scatter markers).
     uint8_t line_style   = SERIES_STYLE_UNSET;
     uint8_t marker_style = SERIES_STYLE_UNSET;
+    // 3D styles: depth shade (SERIES_STYLE_UNSET = the type's default, else
+    // 0 / 1), surface edges over faces, surface floor contour level count
+    // (0 = no contour projection).
+    uint8_t depth_shade    = SERIES_STYLE_UNSET;
+    bool    show_edges     = false;
+    int32_t contour_levels = 0;
 };
 
 // A single figure's full state.
@@ -406,6 +418,12 @@ struct DiffOp
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
         SET_SERIES_LINE_STYLE = 40,   // f1=spectra::LineStyle
         SET_SERIES_MARKER_STYLE = 41,   // f1=spectra::MarkerStyle
+        // 3D series style: f1=depth shade (SERIES_STYLE_UNSET / 0 / 1),
+        // f2=edges over faces (0/1), f3=floor contour levels (0 = off).
+        SET_SERIES_STYLE_3D = 44,
+        // 3D axes light: f1=spectra::LightMode, f2=fog (0..1), f3/f4=light
+        // azimuth/elevation in degrees (applied when bool_val).
+        SET_AXES_LIGHT_3D = 45,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

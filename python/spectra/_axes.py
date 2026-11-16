@@ -266,6 +266,43 @@ class Axes:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_light_mode(self, mode: str) -> None:
+        """3D axes light: ``"fixed"`` (a direction tied to the data axes) or
+        ``"headlight"`` (from the camera, follows it while orbiting)."""
+        mode = str(mode).lower()
+        if mode not in ("fixed", "headlight"):
+            raise ValueError("light mode must be 'fixed' or 'headlight'")
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="light_mode",
+            str_val=mode,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_light_angles(self, azimuth: float, elevation: float) -> None:
+        """3D axes fixed light direction: azimuth (degrees from +X towards +Y)
+        and elevation (degrees above the XY plane), like MATLAB's lightangle."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="light_angles",
+            f1=float(azimuth),
+            f2=float(elevation),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_fog(self, strength: float) -> None:
+        """3D axes fog: fade every series towards the background with distance
+        from the camera; 0 (off) to 1 (strongest)."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="fog",
+            f1=float(strength),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def set_xlabel(self, label: str) -> None:
         payload = codec.encode_req_update_property(
             figure_id=self._figure_id,

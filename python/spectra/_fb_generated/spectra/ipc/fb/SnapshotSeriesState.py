@@ -197,8 +197,29 @@ class SnapshotSeriesState(object):
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 255
 
+    # SnapshotSeriesState
+    def DepthShade(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(44))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
+    # SnapshotSeriesState
+    def ShowEdges(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(46))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotSeriesState
+    def ContourLevels(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(48))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
+        return 0
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(20)
+    builder.StartObject(23)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -334,6 +355,24 @@ def SnapshotSeriesStateAddMarkerStyle(builder, markerStyle):
 
 def AddMarkerStyle(builder, markerStyle):
     SnapshotSeriesStateAddMarkerStyle(builder, markerStyle)
+
+def SnapshotSeriesStateAddDepthShade(builder, depthShade):
+    builder.PrependUint8Slot(20, depthShade, 255)
+
+def AddDepthShade(builder, depthShade):
+    SnapshotSeriesStateAddDepthShade(builder, depthShade)
+
+def SnapshotSeriesStateAddShowEdges(builder, showEdges):
+    builder.PrependBoolSlot(21, showEdges, 0)
+
+def AddShowEdges(builder, showEdges):
+    SnapshotSeriesStateAddShowEdges(builder, showEdges)
+
+def SnapshotSeriesStateAddContourLevels(builder, contourLevels):
+    builder.PrependInt32Slot(22, contourLevels, 0)
+
+def AddContourLevels(builder, contourLevels):
+    SnapshotSeriesStateAddContourLevels(builder, contourLevels)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

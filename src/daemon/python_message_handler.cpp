@@ -6,6 +6,7 @@
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/codec.hpp"
 #include "../ipc/series_style_state.hpp"
+#include "../ipc/style3d_state.hpp"
 #include "figure_export.hpp"
 #include "ui/app/figure_snapshot.hpp"
 
@@ -70,6 +71,72 @@ static bool apply_property_update(FigureModel&              fig_model,
             return false;
         diff.ops.push_back(
             fig_model.set_series_marker_style(figure_id, series_index, static_cast<uint8_t>(ms)));
+    }
+    else if (property == "depth_shade")
+    {
+        // 3D line / scatter depth shade (bool_val).
+        diff.ops.push_back(fig_model.update_series_style_3d(
+            figure_id,
+            series_index,
+            [&](ipc::SnapshotSeriesState& ss) { ss.depth_shade = bool_val ? 1 : 0; }));
+    }
+    else if (property == "show_edges")
+    {
+        // Surface edge lines over the faces (bool_val).
+        diff.ops.push_back(fig_model.update_series_style_3d(figure_id,
+                                                            series_index,
+                                                            [&](ipc::SnapshotSeriesState& ss)
+                                                            { ss.show_edges = bool_val; }));
+    }
+    else if (property == "contour_projection")
+    {
+        // Surface floor contours: bool_val on/off, f1 = level count (>= 1).
+        if (bool_val && !(std::isfinite(f1) && f1 >= 1.0))
+            return false;
+        const auto levels =
+            bool_val ? static_cast<int32_t>(std::min(f1, double{ipc::MAX_CONTOUR_LEVELS})) : 0;
+        diff.ops.push_back(fig_model.update_series_style_3d(figure_id,
+                                                            series_index,
+                                                            [&](ipc::SnapshotSeriesState& ss)
+                                                            { ss.contour_levels = levels; }));
+    }
+    else if (property == "light_mode")
+    {
+        // 3D axes light: str_val "fixed" or "headlight".
+        if (str_val != "fixed" && str_val != "headlight")
+            return false;
+        const uint8_t mode = str_val == "headlight" ? 1 : 0;
+        diff.ops.push_back(fig_model.update_axes_light_3d(figure_id,
+                                                          axes_index,
+                                                          [&](ipc::SnapshotAxisState& sa)
+                                                          { sa.light_mode = mode; }));
+    }
+    else if (property == "light_angles")
+    {
+        // 3D axes fixed light direction: f1 = azimuth, f2 = elevation (degrees).
+        if (!std::isfinite(f1) || !std::isfinite(f2))
+            return false;
+        diff.ops.push_back(fig_model.update_axes_light_3d(figure_id,
+                                                          axes_index,
+                                                          [&](ipc::SnapshotAxisState& sa)
+                                                          {
+                                                              sa.light_angles_set = true;
+                                                              sa.light_azimuth =
+                                                                  static_cast<float>(f1);
+                                                              sa.light_elevation =
+                                                                  static_cast<float>(f2);
+                                                          }));
+    }
+    else if (property == "fog")
+    {
+        // 3D axes fog strength f1 in [0, 1].
+        if (!std::isfinite(f1))
+            return false;
+        const auto fog = static_cast<float>(std::clamp(f1, 0.0, 1.0));
+        diff.ops.push_back(fig_model.update_axes_light_3d(figure_id,
+                                                          axes_index,
+                                                          [&](ipc::SnapshotAxisState& sa)
+                                                          { sa.fog = fog; }));
     }
     else if (property == "palette_index")
     {
@@ -477,12 +544,15 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {
-        "color",       "color_letter",   "xlim",         "ylim",           "zlim",
-        "title",       "grid",           "visible",      "line_width",     "marker_size",
-        "opacity",     "xlabel",         "ylabel",       "axes_title",     "label",
-        "legend",      "legend_visible", "add_knob",     "annotation",     "clear_annotations",
-        "data_origin", "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
-        "categories",  "line_style",     "marker_style", "palette_index"};
+        "color",          "color_letter", "xlim",       "ylim",
+        "zlim",           "title",        "grid",       "visible",
+        "line_width",     "marker_size",  "opacity",    "xlabel",
+        "ylabel",         "axes_title",   "label",      "legend",
+        "legend_visible", "add_knob",     "annotation", "clear_annotations",
+        "data_origin",    "xscale",       "yscale",     "xaxis_datetime",
+        "yaxis_datetime", "categories",   "line_style", "marker_style",
+        "palette_index",  "depth_shade",  "show_edges", "contour_projection",
+        "light_mode",     "light_angles", "fog"};
     bool known = false;
     for (const auto* p : known_props)
     {

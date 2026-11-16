@@ -20,7 +20,7 @@ layout(push_constant) uniform SeriesPC {
 layout(location = 0) in vec2 v_uv;
 layout(location = 1) in vec3 v_model_pos;
 layout(location = 2) flat in float v_point_size;   // marker diameter (px) of this point
-layout(location = 3) flat in vec4 v_point_color;   // rgb + 1 when the point has its own colour
+layout(location = 3) flat in vec4 v_point_color;   // own rgb + colormap alpha; a < 0: series colour
 
 layout(location = 0) out vec4 out_color;
 
@@ -230,7 +230,9 @@ void main() {
 
     if (alpha < 0.002) discard;
 
-    vec3 base_color = v_point_color.a > 0.5 ? v_point_color.rgb : color.rgb;
+    bool own_color = v_point_color.a >= 0.0;
+    vec3 base_color = own_color ? v_point_color.rgb : color.rgb;
+    float point_alpha = own_color ? v_point_color.a : 1.0;
     // Default scatter dot: tint a ~1 px rim towards white (_pad2[1] > 0) or
     // black (_pad2[1] < 0) so dark or light colors stay visible on the canvas.
     if (has_edge) {
@@ -240,5 +242,5 @@ void main() {
         base_color = mix(base_color, mix(base_color, target, abs(_pad2[1])), rim);
     }
 
-    out_color = vec4(base_color, color.a * opacity * alpha);
+    out_color = vec4(base_color, color.a * point_alpha * opacity * alpha);
 }

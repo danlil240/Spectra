@@ -56,11 +56,24 @@ void Renderer::upload_image_textures(const ImageSeries& image, SeriesGpuData& gp
     {
         if (gpu.lut_texture)
             backend_.destroy_texture(gpu.lut_texture);
-        const auto lut = image_colormap::build_lut(image.colormap(), image.levels());
+        const auto lut = image_colormap::build_lut(image.cmap(), image.levels());
         gpu.lut_texture =
             backend_.create_texture(static_cast<uint32_t>(lut.size() / 4), 1, lut.data());
         gpu.lut_generation = image.lut_generation();
     }
+}
+
+TextureHandle Renderer::colormap_lut(SeriesGpuData& gpu, const Colormap& cm)
+{
+    if (gpu.lut_texture && gpu.lut_colormap == cm)
+        return gpu.lut_texture;
+    if (gpu.lut_texture)
+        backend_.destroy_texture(gpu.lut_texture);   // deferred by the backend
+    const auto lut = cm.rgba8();
+    gpu.lut_texture =
+        backend_.create_texture(static_cast<uint32_t>(Colormap::LUT_SIZE), 1, lut.data());
+    gpu.lut_colormap = cm;
+    return gpu.lut_texture;
 }
 
 void Renderer::upload_series_data(Series& series)
@@ -528,7 +541,7 @@ void Renderer::upload_series_data(Series&   series,
             return;
 
         // A 3D scatter with per-point colours or sizes uploads two vec4 per
-        // point, (x, y, z, size) and (r, g, b, has_colour); see scatter3d.vert.
+        // point, (x, y, z, size) and (r, g, b, colormap alpha or -1); see scatter3d.vert.
         const bool   per_point = scatter3d && (scatter3d->has_colormap() || scatter3d->has_sizes());
         const size_t stride    = per_point ? 8 : 4;
         size_t       byte_size = count * stride * sizeof(float);
@@ -562,7 +575,10 @@ void Renderer::upload_series_data(Series&   series,
                 p[4]          = c.r;
                 p[5]          = c.g;
                 p[6]          = c.b;
-                p[7]          = own_color ? 1.0f : 0.0f;
+                // w: the colormap entry's alpha (point_color() already holds
+                // the series alpha, which the shader applies), -1 = no colour.
+                const float series_a = scatter3d->color().a;
+                p[7] = own_color ? (series_a > 1e-6f ? c.a / series_a : 1.0f) : -1.0f;
             }
         }
 

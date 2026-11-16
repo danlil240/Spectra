@@ -381,7 +381,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.visible(ss->visible());
                 dup.plot_style(ss->plot_style());
                 if (!ss->color_values_data().empty())
-                    dup.color_values(ss->color_values_data()).colormap(ss->colormap());
+                    dup.color_values(ss->color_values_data()).colormap(ss->cmap());
                 if (ss->colormap_range_set())
                     dup.colormap_range(ss->colormap_min(), ss->colormap_max());
             }
@@ -533,7 +533,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 dup.plot_style(ss3->plot_style());
                 dup.blend_mode(ss3->blend_mode());
                 dup.opacity(ss3->opacity());
-                dup.colormap(ss3->colormap());
+                dup.colormap(ss3->cmap());
                 dup.color_values(ss3->color_values_data());
                 if (ss3->colormap_range_set())
                     dup.colormap_range(ss3->colormap_min(), ss3->colormap_max());
@@ -546,7 +546,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
                 if (!sf->label().empty())
                     dup.label(sf->label());
                 dup.visible(sf->visible());
-                dup.colormap(sf->colormap_type());
+                dup.colormap(sf->cmap());
                 if (sf->colormap_range_set())
                     dup.colormap_range(sf->colormap_min(), sf->colormap_max());
                 dup.ambient(sf->ambient());

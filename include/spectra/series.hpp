@@ -7,6 +7,7 @@
 #include <memory>
 #include <span>
 #include <spectra/color.hpp>
+#include <spectra/colormap.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/plot_style.hpp>
 #include <string>
@@ -628,14 +629,36 @@ class ScatterSeries : public Series
     /// through the active colormap to produce per-point colors.
     ScatterSeries& color_values(std::span<const float> values);
 
-    /// Set the colormap type used to map color_values to RGBA.
+    /// Set the colormap type used to map color_values to RGBA (keeps colormap_reversed()).
     ScatterSeries& colormap(ColormapType cm)
     {
-        colormap_type_ = cm;
-        dirty_         = true;
+        colormap_ = Colormap(cm, colormap_.is_reversed());
+        dirty_    = true;
         return *this;
     }
-    ColormapType colormap() const { return colormap_type_; }
+    /// Set the colormap: built-in, reversed or user (Colormap::from_colors).
+    ScatterSeries& colormap(const Colormap& cm)
+    {
+        colormap_ = cm;
+        dirty_    = true;
+        return *this;
+    }
+    /// Set the colormap by matplotlib name ("viridis", "RdBu_r"); unknown names give None.
+    ScatterSeries& colormap(const std::string& name)
+    {
+        return colormap(Colormap::from_name(name).value_or(Colormap{}));
+    }
+    ColormapType    colormap() const { return colormap_.type(); }
+    const Colormap& cmap() const { return colormap_; }
+
+    /// Reverse the colormap (high values take the low end), like matplotlib's "_r" maps.
+    ScatterSeries& colormap_reversed(bool reversed)
+    {
+        colormap_ = colormap_.reversed(reversed);
+        dirty_    = true;
+        return *this;
+    }
+    bool colormap_reversed() const { return colormap_.is_reversed(); }
 
     /// Set the colormap value range [min, max]. Values outside this range
     /// are clamped. When not set, uses the data range of color_values_.
@@ -654,8 +677,8 @@ class ScatterSeries : public Series
     std::span<const float> color_values_data() const { return color_values_; }
     bool                   has_colormap() const
     {
-        return colormap_type_ != ColormapType::None && color_values_.size() == x_.size()
-               && x_.size() == y_.size() && !x_.empty();
+        return !colormap_.is_none() && color_values_.size() == x_.size() && x_.size() == y_.size()
+               && !x_.empty();
     }
     float colormap_min() const { return colormap_min_; }
     float colormap_max() const { return colormap_max_; }
@@ -677,10 +700,10 @@ class ScatterSeries : public Series
     bool               x_sorted_   = true;
     // Colormap support
     std::vector<float> color_values_;
-    ColormapType       colormap_type_ = ColormapType::None;
-    float              colormap_min_  = 0.0f;
-    float              colormap_max_  = 1.0f;
-    bool               colormap_set_  = false;
+    Colormap           colormap_;
+    float              colormap_min_ = 0.0f;
+    float              colormap_max_ = 1.0f;
+    bool               colormap_set_ = false;
 
     // Derive colormap_min_/colormap_max_ from the finite color_values_.
     void recompute_colormap_range();

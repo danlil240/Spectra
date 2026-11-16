@@ -18,6 +18,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/color.hpp>
+#include <spectra/colormap.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 #include <spectra/series_image.hpp>
@@ -40,22 +41,21 @@ inline constexpr float RESERVED_WIDTH = GAP + BAR_WIDTH + TICK_LENGTH + LABEL_GA
 // Never give the colorbar more than this fraction of a (narrow) layout cell.
 inline constexpr float MAX_RESERVED_FRACTION = 0.3f;
 
-// Which colormap mapping the series uses on the GPU.  Scatter and surface
-// shaders use different colormap approximations, so the bar must sample the
-// matching one to show the same colours as the plot.
+// Kind of series the bar describes.  Every series maps values through the same
+// Colormap lookup table; Image bars are banded when levels are set.
 enum class Mapping
 {
-    Scatter,   // scatter.frag apply_colormap (3-stop piecewise linear)
-    Surface,   // surface3d.frag apply_colormap == SurfaceSeries::sample_colormap
-    Image,     // heatmap.frag lookup table (image_colormap), banded when levels are set
+    Scatter,   // scatter.frag (Colormap LUT)
+    Surface,   // surface3d.frag (Colormap LUT)
+    Image,     // image2d.frag (image_colormap LUT), banded when levels are set
 };
 
 struct Source
 {
-    ColormapType cmap    = ColormapType::None;
-    Mapping      mapping = Mapping::Scatter;
-    double       vmin    = 0.0;
-    double       vmax    = 1.0;
+    Colormap cmap;
+    Mapping  mapping = Mapping::Scatter;
+    double   vmin    = 0.0;
+    double   vmax    = 1.0;
     // Mapping::Image only: band edges of a filled contour (empty = continuous).
     std::vector<float> levels;
 };
@@ -71,22 +71,14 @@ inline std::optional<Source> find_source(const AxesBase& axes)
         {
             if (!sc->has_colormap())
                 continue;
-            return Source{sc->colormap(),
-                          Mapping::Scatter,
-                          sc->colormap_min(),
-                          sc->colormap_max(),
-                          {}};
+            return Source{sc->cmap(), Mapping::Scatter, sc->colormap_min(), sc->colormap_max(), {}};
         }
         if (const auto* s3 = dynamic_cast<const ScatterSeries3D*>(sp.get()))
         {
             if (!s3->has_colormap())
                 continue;
-            // ScatterSeries3D::point_color samples SurfaceSeries::sample_colormap.
-            return Source{s3->colormap(),
-                          Mapping::Surface,
-                          s3->colormap_min(),
-                          s3->colormap_max(),
-                          {}};
+            // ScatterSeries3D::point_color samples the same Colormap LUT.
+            return Source{s3->cmap(), Mapping::Surface, s3->colormap_min(), s3->colormap_max(), {}};
         }
         if (const auto* sf = dynamic_cast<const SurfaceSeries*>(sp.get()))
         {
@@ -94,23 +86,19 @@ inline std::optional<Source> find_source(const AxesBase& axes)
                 continue;
             // surface3d.frag maps the data z over the series' effective
             // colormap range (explicit colormap_range, else the data z range).
-            return Source{sf->colormap_type(),
-                          Mapping::Surface,
-                          sf->colormap_min(),
-                          sf->colormap_max(),
-                          {}};
+            return Source{sf->cmap(), Mapping::Surface, sf->colormap_min(), sf->colormap_max(), {}};
         }
         if (const auto* img = dynamic_cast<const ImageSeries*>(sp.get()))
         {
             if (!img->has_colormap())
                 continue;
-            return Source{img->colormap(), Mapping::Image, img->vmin(), img->vmax(), img->levels()};
+            return Source{img->cmap(), Mapping::Image, img->vmin(), img->vmax(), img->levels()};
         }
         if (const auto* ct = dynamic_cast<const ContourSeries*>(sp.get()))
         {
             if (!ct->uses_colormap())
                 continue;
-            return Source{ct->colormap(), Mapping::Image, ct->vmin(), ct->vmax(), {}};
+            return Source{ct->cmap(), Mapping::Image, ct->vmin(), ct->vmax(), {}};
         }
     }
     return std::nullopt;
@@ -157,57 +145,11 @@ inline Rect bar_rect(const Rect& vp, bool is_3d)
     return r;
 }
 
-// Colour of the colormap at t in [0, 1], matching the GPU shader for mapping.
-inline Color sample(ColormapType cm, Mapping mapping, float t)
+// Colour of the colormap at t in [0, 1]: the same lookup table every shader
+// reads, whatever the mapping.
+inline Color sample(const Colormap& cm, Mapping /*mapping*/, float t)
 {
-    t = std::clamp(t, 0.0f, 1.0f);
-    if (mapping == Mapping::Surface)
-        return SurfaceSeries::sample_colormap(cm, t);
-    if (mapping == Mapping::Image)
-        return image_colormap::sample(cm, t);
-
-    // Mirror of apply_colormap() in src/gpu/shaders/scatter.frag — keep in sync.
-    auto three_stop = [t](Color c0, Color c1, Color c2)
-    {
-        const Color& a = t < 0.5f ? c0 : c1;
-        const Color& b = t < 0.5f ? c1 : c2;
-        const float  u = t < 0.5f ? t * 2.0f : (t - 0.5f) * 2.0f;
-        return Color{a.r + (b.r - a.r) * u, a.g + (b.g - a.g) * u, a.b + (b.b - a.b) * u, 1.0f};
-    };
-    switch (cm)
-    {
-        case ColormapType::Viridis:
-            return three_stop({0.267f, 0.005f, 0.329f},
-                              {0.128f, 0.567f, 0.551f},
-                              {0.993f, 0.906f, 0.144f});
-        case ColormapType::Plasma:
-            return three_stop({0.050f, 0.030f, 0.528f},
-                              {0.798f, 0.280f, 0.470f},
-                              {0.940f, 0.975f, 0.131f});
-        case ColormapType::Inferno:
-            return three_stop({0.001f, 0.000f, 0.014f},
-                              {0.735f, 0.216f, 0.330f},
-                              {0.988f, 0.998f, 0.645f});
-        case ColormapType::Magma:
-            return three_stop({0.001f, 0.000f, 0.014f},
-                              {0.716f, 0.215f, 0.475f},
-                              {0.987f, 0.991f, 0.750f});
-        case ColormapType::Jet:
-        {
-            auto ch = [t](float c)
-            { return std::clamp(1.5f - std::abs(4.0f * t - c), 0.0f, 1.0f); };
-            return Color{ch(3.0f), ch(2.0f), ch(1.0f), 1.0f};
-        }
-        case ColormapType::Coolwarm:
-            return three_stop({0.230f, 0.299f, 0.754f},
-                              {0.865f, 0.865f, 0.865f},
-                              {0.706f, 0.016f, 0.150f});
-        case ColormapType::Grayscale:
-            return Color{t, t, t, 1.0f};
-        case ColormapType::None:
-        default:
-            return Color{0.5f, 0.5f, 0.5f, 1.0f};
-    }
+    return cm.sample(std::clamp(t, 0.0f, 1.0f));
 }
 
 // Colour of the bar at t in [0, 1] for source: sample() for a continuous

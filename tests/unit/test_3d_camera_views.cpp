@@ -566,3 +566,40 @@ TEST(ViewPresetPlan, OrthoZoomCarriesBackToPerspective)
     auto iso = plan_view_preset(o, Camera::ViewPreset::Isometric, true);
     EXPECT_NEAR(iso.target.distance, 6.0f, 1e-3f);
 }
+
+TEST(Scatter3DPointAttrs, ReversedNamedAndUserColormaps)
+{
+    std::vector<float> x{0, 1}, y{0, 1}, z{0, 1}, v{0.0f, 1.0f};
+    ScatterSeries3D    s(x, y, z);
+    s.color_values(v).colormap("viridis_r");
+    ASSERT_TRUE(s.has_colormap());
+    EXPECT_TRUE(s.colormap_reversed());
+    EXPECT_EQ(s.colormap(), ColormapType::Viridis);
+    const Color hi = Colormap(ColormapType::Viridis).sample(0.0f);
+    EXPECT_FLOAT_EQ(s.point_color(1).r, hi.r);   // reversed: max value -> low end
+
+    // A translucent user table carries its alpha into the point colour.
+    const std::vector<Color> stops{Color{1, 0, 0, 0.25f}, Color{0, 0, 1, 1.0f}};
+    s.colormap(Colormap::from_colors(stops));
+    EXPECT_NEAR(s.point_color(0).a, 0.25f, 0.02f);
+}
+
+TEST(Camera3DSerialization, ReversedScatterColormapRoundTrips)
+{
+    const std::string path =
+        (std::filesystem::temp_directory_path() / "spectra_test_3d_cmap_rev.spectra").string();
+    Figure             src({640, 480});
+    auto&              ax = src.subplot3d(1, 1, 1);
+    std::vector<float> x{0, 1}, y{0, 1}, z{0, 1}, v{1, 2};
+    ax.scatter3d(x, y, z).color_values(v).colormap("plasma_r");
+    ASSERT_TRUE(FigureSerializer::save(path, src));
+    Figure dst({640, 480});
+    ASSERT_TRUE(FigureSerializer::load(path, dst));
+    std::remove(path.c_str());
+    auto* lax = dynamic_cast<Axes3D*>(dst.all_axes()[0].get());
+    ASSERT_NE(lax, nullptr);
+    auto* s = dynamic_cast<ScatterSeries3D*>(lax->series()[0].get());
+    ASSERT_NE(s, nullptr);
+    EXPECT_EQ(s->colormap(), ColormapType::Plasma);
+    EXPECT_TRUE(s->colormap_reversed());
+}

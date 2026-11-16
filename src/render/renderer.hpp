@@ -81,6 +81,8 @@ ExportViewport compute_export_viewport(uint32_t figure_width,
 // `axes`.  Zero when lighting is disabled: the shaders then draw the flat base
 // colour.  Otherwise the axes' light_dir(), or a default direction when that is
 // (near) zero, so a zero vector always means "unlit".
+// LightMode::Headlight: the direction towards the camera, expressed in data
+// space (the shaders apply the model matrix to it).
 vec3 shader_light_dir(const Axes3D& axes);
 
 // Region a 3D axes may draw into: its viewport `vp` grown into the layout margins
@@ -229,6 +231,9 @@ class Renderer
     // only; exports do not set it.
     void                   set_dimmed_series(std::vector<const Series*> dimmed);
     static constexpr float DIMMED_SERIES_ALPHA = 0.2f;
+    // How far a depth-shaded 3D scatter / line fades towards the background at
+    // the far corner of the axes box (ScatterSeries3D::depth_shade).
+    static constexpr float DEPTH_SHADE_STRENGTH = 0.55f;
 
     // Set the series type registry for custom plugin series types.
     // The Renderer subscribes to the registry's unregister notifications so a
@@ -327,6 +332,8 @@ class Renderer
                                    float* m);
 
     void render_arrows(Axes3D& axes, const Rect& viewport);
+    // Fills the depth cue fields of a 3D axes' frame UBO (its view must be set).
+    void set_depth_cue(FrameUBO& ubo, const Axes3D& axes);
 
     // Screen-space plot annotations (render_annotations.cpp): per-axes legend
     // and colorbar, drawn after the series and plot geometry so they sit on top.
@@ -515,6 +522,12 @@ class Renderer
         size_t       fill_vertex_count    = 0;
         size_t       fill_vertex_capacity = 0;   // Allocated vertex capacity
         BufferHandle outlier_buffer;             // SSBO for box plot outlier points
+        // SurfaceSeries: edge line indices into ssbo (show_edges) and the
+        // contour projection's line-list vertices (contour_projection).
+        BufferHandle aux_index_buffer;
+        size_t       aux_index_count = 0;
+        BufferHandle aux_vertex_buffer;
+        size_t       aux_vertex_count = 0;
         size_t       outlier_count    = 0;
         size_t       outlier_capacity = 0;   // Allocated outlier capacity
         SeriesType   type             = SeriesType::Unknown;
@@ -593,6 +606,9 @@ class Renderer
     // Incremented by begin_render_pass(); tags per-pass state such as
     // SeriesGpuData::sorted_ready_serial.
     uint64_t render_pass_serial_ = 0;
+    // Data z of the 3D box floor (back z pane) the current axes' surface
+    // contour projections are drawn on; set per 3D axes before its series.
+    float contour_floor_z_ = 0.0f;
 
     // Sorts the triangles of @p series' translucent ranges back to front for
     // @p cam (re-sorting only when the camera, model matrix, geometry or

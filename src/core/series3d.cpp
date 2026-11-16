@@ -5,6 +5,8 @@
 #include <limits>
 #include <spectra/series3d.hpp>
 
+#include "contour.hpp"
+
 namespace spectra
 {
 
@@ -359,6 +361,42 @@ void SurfaceSeries::generate_mesh()
     }
 
     mesh_generated_ = true;
+}
+
+std::vector<float> SurfaceSeries::contour_segments() const
+{
+    std::vector<float> out;
+    if (rows_ < 2 || cols_ < 2)
+        return out;
+    const auto uc = static_cast<size_t>(cols_);
+    const auto ur = static_cast<size_t>(rows_);
+    if (z_values_.size() != uc * ur || x_grid_.size() < uc || y_grid_.size() < ur)
+        return out;
+
+    // Fractional grid index -> grid coordinate (linear between nodes).
+    auto grid_at = [](const std::vector<float>& g, float f)
+    {
+        const float  cl = std::clamp(f, 0.0f, static_cast<float>(g.size() - 1));
+        const auto   i0 = static_cast<size_t>(cl);
+        const size_t i1 = std::min(i0 + 1, g.size() - 1);
+        const float  t  = cl - static_cast<float>(i0);
+        return g[i0] + (g[i1] - g[i0]) * t;
+    };
+    auto push = [&](float x, float y, float level)
+    { out.insert(out.end(), {x, y, level, 0.0f, 0.0f, 0.0f}); };
+
+    for (float level : contour::auto_levels(z_min_, z_max_, contour_levels_, false))
+    {
+        for (const auto& line : contour::trace(z_values_, uc, ur, level))
+        {
+            for (size_t k = 0; k + 1 < line.x.size() && k + 1 < line.y.size(); ++k)
+            {
+                push(grid_at(x_grid_, line.x[k]), grid_at(y_grid_, line.y[k]), level);
+                push(grid_at(x_grid_, line.x[k + 1]), grid_at(y_grid_, line.y[k + 1]), level);
+            }
+        }
+    }
+    return out;
 }
 
 void SurfaceSeries::generate_wireframe_mesh()

@@ -98,12 +98,24 @@ class LineSeries3D : public Series
 
     bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
 
+    // Depth shading (a depth cue like matplotlib's depthshade): the farther a
+    // part of the line is from the camera, the more it fades towards the
+    // plot background, so front and back read apart.  Off by default for
+    // lines; Axes3D::fog() applies a cue to every series.
+    LineSeries3D& depth_shade(bool enabled)
+    {
+        depth_shade_ = enabled;
+        return *this;
+    }
+    bool depth_shade() const { return depth_shade_; }
+
    private:
     std::vector<float> x_;
     std::vector<float> y_;
     std::vector<float> z_;
-    float              line_width_ = 2.0f;
-    BlendMode          blend_mode_ = BlendMode::Alpha;
+    float              line_width_  = 2.0f;
+    BlendMode          blend_mode_  = BlendMode::Alpha;
+    bool               depth_shade_ = false;
 };
 
 class ScatterSeries3D : public Series
@@ -255,6 +267,17 @@ class ScatterSeries3D : public Series
     // Largest marker diameter of any point.
     float max_point_size() const;
 
+    // Depth shading (matplotlib's depthshade): points farther from the camera
+    // fade towards the plot background, so the front and back of a cloud read
+    // apart.  On by default (a subtle fade); false draws every point in its
+    // full colour.
+    ScatterSeries3D& depth_shade(bool enabled)
+    {
+        depth_shade_ = enabled;
+        return *this;
+    }
+    bool depth_shade() const { return depth_shade_; }
+
    private:
     void recompute_colormap_range();
 
@@ -270,6 +293,7 @@ class ScatterSeries3D : public Series
     float              colormap_min_ = 0.0f;
     float              colormap_max_ = 1.0f;
     bool               colormap_set_ = false;
+    bool               depth_shade_  = true;
 };
 
 struct SurfaceMesh
@@ -462,6 +486,48 @@ class SurfaceSeries : public Series
                || colormap_.has_transparency();
     }
 
+    // Edge lines over the faces (MATLAB's surf EdgeColor, matplotlib's
+    // plot_surface edgecolor): the grid lines drawn on top of the shaded
+    // surface in edge_color().  Off by default; ignored in wireframe() mode.
+    SurfaceSeries& show_edges(bool enabled)
+    {
+        show_edges_ = enabled;
+        dirty_      = true;
+        return *this;
+    }
+    bool           show_edges() const { return show_edges_; }
+    SurfaceSeries& edge_color(const Color& c)
+    {
+        edge_color_ = c;
+        return *this;
+    }
+    const Color& edge_color() const { return edge_color_; }
+
+    // Contour projection (MATLAB's surfc): iso-lines of the surface drawn on
+    // the floor of the 3D box (the bottom pane, or the top pane when the
+    // camera looks up from below), coloured through the colormap.  Off by
+    // default.  contour_levels() is the approximate number of "nice" levels.
+    SurfaceSeries& contour_projection(bool enabled)
+    {
+        contour_projection_ = enabled;
+        dirty_              = true;
+        return *this;
+    }
+    bool           contour_projection() const { return contour_projection_; }
+    SurfaceSeries& contour_levels(int n)
+    {
+        contour_levels_ = std::max(n, 1);
+        dirty_          = true;
+        return *this;
+    }
+    int contour_levels() const { return contour_levels_; }
+
+    // Iso-line segments of the contour projection as a line list: two
+    // vertices per segment, each {x, y, level, 0, 0, 0} (the surface vertex
+    // layout; the level is the data value the colormap maps).  Empty when
+    // the grid is too small or flat.
+    std::vector<float> contour_segments() const;
+
    private:
     std::vector<float> x_grid_;
     std::vector<float> y_grid_;
@@ -491,6 +557,11 @@ class SurfaceSeries : public Series
     bool      colormap_alpha_ = false;
     float     cmap_alpha_min_ = 0.1f;
     float     cmap_alpha_max_ = 1.0f;
+
+    bool  show_edges_         = false;
+    Color edge_color_         = {0.0f, 0.0f, 0.0f, 0.35f};
+    bool  contour_projection_ = false;
+    int   contour_levels_     = 10;
 };
 
 class MeshSeries : public Series

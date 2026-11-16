@@ -44,7 +44,16 @@ layout(location = 3) out float v_value;
 
 void main() {
     vec3 pos = in_position + vec3(data_offset_x, data_offset_y, 0.0);
+    // dash_pattern[5]: 1 = edge lines over the faces, 2 = contour projection
+    // with every vertex moved to the floor z dash_pattern[6] (data units).
+    float mode = dash_pattern[5];
+    if (mode > 1.5) pos.z = dash_pattern[6];
     vec4 world_pos = model * vec4(pos, 1.0);
+    // Edge lines are pulled slightly towards the camera so they win the depth
+    // test against the faces they lie on.
+    if (mode > 0.5 && mode < 1.5) {
+        world_pos.xyz += normalize(camera_pos - world_pos.xyz) * 0.012;
+    }
     v_world_pos = world_pos.xyz;
     v_value     = in_position.z;
 

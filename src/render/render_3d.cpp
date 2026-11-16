@@ -527,11 +527,20 @@ void Renderer::render_arrows(Axes3D& axes, const Rect& /*viewport*/)
         arrow_ubo.camera_pos[2]   = cam.position.z;
         if (axes.lighting_enabled())
         {
-            vec3 ld                = axes.light_dir();
+            // The arrows are in box space (identity model): a headlight is
+            // simply the direction towards the camera.
+            vec3 ld = axes.light_dir();
+            if (axes.light_mode() == LightMode::Headlight)
+            {
+                const vec3 to_cam = cam.position - cam.target;
+                if (vec3_length_sq(to_cam) > 1e-12)
+                    ld = vec3_normalize(to_cam);
+            }
             arrow_ubo.light_dir[0] = ld.x;
             arrow_ubo.light_dir[1] = ld.y;
             arrow_ubo.light_dir[2] = ld.z;
         }
+        set_depth_cue(arrow_ubo, axes);
 
         backend_.upload_buffer(frame_ubo_buffer_, &arrow_ubo, sizeof(FrameUBO));
         backend_.bind_buffer(frame_ubo_buffer_, 0);

@@ -1,5 +1,26 @@
 #version 450
 
+// Per-frame UBO (set 0, binding 0) — must match FrameUBO in backend.hpp
+layout(set = 0, binding = 0) uniform FrameUBO {
+    mat4 projection;
+    mat4 view;
+    mat4 model;
+    vec2 viewport_size;
+    float time;
+    float _pad0;
+    vec3 camera_pos;
+    float near_plane;
+    vec3 light_dir;
+    float far_plane;
+    vec2 viewport_origin;
+    float pixel_scale;
+    float _pad1;
+    vec3 depth_cue_color;
+    float fog;
+    float depth_cue_near;
+    float depth_cue_far;
+};
+
 // Per-series push constant — must match SeriesPushConstants in backend.hpp
 layout(push_constant) uniform SeriesPC {
     vec4  color;
@@ -113,6 +134,18 @@ float sdf_hexagon(vec2 p) {
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
+
+// Depth cue (series depth shade / Axes3D::fog): fade `rgb` towards the plot
+// background by `strength` times the fragment's depth within the axes box
+// (0 at its nearest corner, 1 at its farthest).  `world_pos` is box space.
+vec3 apply_depth_cue(vec3 rgb, vec3 world_pos, float strength) {
+    float s = max(strength, fog);
+    float span = depth_cue_far - depth_cue_near;
+    if (s <= 0.0 || span <= 1e-6) return rgb;
+    float d = -(view * vec4(world_pos, 1.0)).z;
+    float t = clamp((d - depth_cue_near) / span, 0.0, 1.0);
+    return mix(rgb, depth_cue_color, s * t);
+}
 
 void main() {
     // Discard points outside the bounding box
@@ -242,5 +275,7 @@ void main() {
         base_color = mix(base_color, mix(base_color, target, abs(_pad2[1])), rim);
     }
 
+    // dash_total = depth shade strength (ScatterSeries3D::depth_shade).
+    base_color = apply_depth_cue(base_color, v_model_pos, dash_total);
     out_color = vec4(base_color, color.a * point_alpha * opacity * alpha);
 }

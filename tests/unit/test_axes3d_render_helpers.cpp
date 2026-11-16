@@ -93,6 +93,31 @@ TEST(Axes3DLighting, ShaderLightDirIsZeroOnlyWhenDisabled)
     EXPECT_EQ(vec3_length_sq(ld), 0.0);
 }
 
+TEST(Axes3DLighting, HeadlightPointsAtTheCamera)
+{
+    Axes3D ax;
+    ax.xlim(0.0, 10.0);   // anisotropic data ranges: the direction is in data space
+    ax.ylim(-1.0, 1.0);
+    ax.zlim(0.0, 100.0);
+    ax.camera().set_azimuth(30.0f).set_elevation(20.0f);
+    ax.light_dir(1.0f, 0.0f, 0.0f);
+    ax.light_mode(LightMode::Headlight);
+    const vec3 ld = shader_light_dir(ax);
+    ASSERT_GT(vec3_length_sq(ld), 0.1);
+
+    // Through the model matrix (as the shaders apply it) it points at the camera.
+    Camera cam = ax.camera();
+    cam.apply_orbit_changes();
+    const mat4 m      = ax.data_to_normalized_matrix();
+    const vec3 world  = vec3_normalize({ld.x * m.m[0], ld.y * m.m[5], ld.z * m.m[10]});
+    const vec3 to_cam = vec3_normalize(cam.position - cam.target);
+    EXPECT_NEAR(vec3_dot(world, to_cam), 1.0, 1e-4);
+
+    // Lighting off still wins.
+    ax.lighting_enabled(false);
+    EXPECT_EQ(vec3_length_sq(shader_light_dir(ax)), 0.0);
+}
+
 TEST(Axes3DCellRect, GrowsIntoFigureMarginsWithinTheFigure)
 {
     FigureStyle style;   // margins: left 70, right 20, top 40, bottom 60

@@ -2692,8 +2692,12 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
     if (vec3_dot(ld, ld) < 0.001)
         ld = {0.5, 0.7, 1.0};
     Lighting3D base_light;
-    base_light.cam_pos    = cam.position;
-    base_light.light      = pj.model_dir(ld);
+    base_light.cam_pos = cam.position;
+    base_light.light   = pj.model_dir(ld);
+    // Headlight (shader_light_dir): from the camera, already in box space.
+    if (axes.lighting_enabled() && axes.light_mode() == LightMode::Headlight
+        && vec3_length_sq(cam.position - cam.target) > 1e-12)
+        base_light.light = vec3_normalize(cam.position - cam.target);
     base_light.fill_light = pj.model_dir({-0.3, -0.5, 0.4});
     base_light.enabled    = axes.lighting_enabled();
     {
@@ -2716,6 +2720,27 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
         l.shininess  = shin > 1.0f ? shin : 32.0f;
         return l;
     };
+
+    // Depth cue (apply_depth_cue in the 3D shaders): fade towards the
+    // background by strength (series depth shade, at least Axes3D::fog())
+    // times the depth of the point within the box.
+    const mat4 view_m   = cam.view_matrix();
+    float      cue_near = 0.0f, cue_far = 0.0f;
+    axes3d_box::depth_cue_range(view_m, cue_near, cue_far);
+    auto cue = [&](const Color& base, const vec3& data_pos, float strength)
+    {
+        const float sv = std::max(strength, axes.fog());
+        if (!(sv > 0.0f))
+            return base;
+        const float t =
+            sv * axes3d_box::depth_cue_t(view_m, cue_near, cue_far, pj.to_world(data_pos));
+        const Color& bg = st.background;
+        return Color{base.r + (bg.r - base.r) * t,
+                     base.g + (bg.g - base.g) * t,
+                     base.b + (bg.b - base.b) * t,
+                     base.a};
+    };
+    constexpr float DEPTH_SHADE = 0.55f;   // Renderer::DEPTH_SHADE_STRENGTH
 
     // surface3d.frag discards fragments outside the normalized box.
     constexpr double BOX        = Axes3D::box_half_size() + 1e-3;
@@ -2753,7 +2778,11 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                 ok    = finite3(dv[k]) && inside_box(wv[k]);
             }
             if (ok)
-                add_triangle(group, dv, lt.shade({base, base, base}, wv, nn));
+                add_triangle(group,
+                             dv,
+                             cue(lt.shade({base, base, base}, wv, nn),
+                                 (dv[0] + dv[1] + dv[2]) * (1.0 / 3.0),
+                                 0.0f));
         }
     };
 
@@ -2772,13 +2801,17 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                 stroke_group_style("line3d", col, l3->width() + LINE_AA_EXTRA_PX, alpha);
             ls.cap = VectorLineCap::Round;
             groups.push_back({std::move(ls), -1, false});
-            const auto x = l3->x_data(), y = l3->y_data(), z = l3->z_data();
+            const auto  x = l3->x_data(), y = l3->y_data(), z = l3->z_data();
+            const float shade  = l3->depth_shade() ? DEPTH_SHADE : 0.0f;
+            const bool  cueing = shade > 0.0f || axes.fog() > 0.0f;
             for (size_t i = 0; i + 1 < l3->point_count(); ++i)
             {
                 const vec3 a{x[i], y[i], z[i]};
                 const vec3 b{x[i + 1], y[i + 1], z[i + 1]};
-                if (finite3(a) && finite3(b))
-                    add_segment(gi, a, b, nullptr);
+                if (!finite3(a) || !finite3(b))
+                    continue;
+                const Color cc = cueing ? cue(col, (a + b) * 0.5, shade) : col;
+                add_segment(gi, a, b, cueing ? &cc : nullptr);
             }
         }
         else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
@@ -2813,6 +2846,12 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                     if (!(sz > 0.0f))
                         continue;
                     p.symbol = c.marker_symbol(mk.style, sz, mk.edge_mix);
+                }
+                const float shade = s3->depth_shade() ? DEPTH_SHADE : 0.0f;
+                if (shade > 0.0f || axes.fog() > 0.0f)
+                {
+                    p.color     = cue(p.has_color ? p.color : col, {x[i], y[i], z[i]}, shade);
+                    p.has_color = true;
                 }
                 prims.push_back(p);
             }
@@ -2935,12 +2974,89 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                             if (!ok)
                                 continue;
                             const size_t n0 = prims.size();
-                            add_triangle(gi, dv, lt.shade(base, wv, nv));
+                            add_triangle(gi,
+                                         dv,
+                                         cue(lt.shade(base, wv, nv),
+                                             (dv[0] + dv[1] + dv[2]) * (1.0 / 3.0),
+                                             0.0f));
                             if (cmap_alpha && prims.size() > n0)
                                 prims.back().opacity =
                                     alpha * alpha_at((dv[0].z + dv[1].z + dv[2].z) / 3.0);
                         }
                     }
+            }
+
+            // Edge lines over the faces (surface3d.vert pulls them towards the
+            // camera; here they sort just in front of the faces they lie on).
+            if (surf->show_edges() && !surf->wireframe())
+            {
+                const Color& ec = surf->edge_color();
+                const auto   eg = static_cast<uint32_t>(groups.size());
+                groups.push_back({stroke_group_style("surface-edges",
+                                                     Color{ec.r, ec.g, ec.b, 1.0f},
+                                                     0.8f,
+                                                     ec.a * alpha),
+                                  -1,
+                                  false});
+                auto vtx = [&](size_t i, size_t j) { return vec3{xg[j], yg[i], zv[i * uc + j]}; };
+                // Sort depth of an edge point moved 1% of the box towards the
+                // camera, so the edge paints over the faces around it.
+                const mat4 vp_world     = mat4_mul(proj, view_m);
+                auto       pulled_depth = [&](const vec3& d)
+                {
+                    vec3       w   = pj.to_world(d);
+                    const vec3 dir = cam.position - w;
+                    if (vec3_length_sq(dir) > 1e-12)
+                        w += vec3_normalize(dir) * (0.01 * 2.0 * Axes3D::box_half_size());
+                    const vec4 cp = mat4_mul_vec4(vp_world, vec4{w, 1.0});
+                    return std::fabs(cp.w) > 1e-12 ? static_cast<float>(cp.z / cp.w) : 1.0f;
+                };
+                auto edge = [&](const vec3& a, const vec3& b)
+                {
+                    if (!finite3(a) || !finite3(b))
+                        return;
+                    if (!inside_box(pj.to_world(a)) || !inside_box(pj.to_world(b)))
+                        return;
+                    const size_t n0 = prims.size();
+                    const Color  cc = cue(Color{ec.r, ec.g, ec.b, 1.0f}, (a + b) * 0.5, 0.0f);
+                    add_segment(eg, a, b, axes.fog() > 0.0f ? &cc : nullptr);
+                    if (prims.size() > n0)
+                        prims.back().depth = 0.5f * (pulled_depth(a) + pulled_depth(b));
+                };
+                for (size_t i = 0; i < ur; ++i)
+                    for (size_t j = 0; j < uc; ++j)
+                    {
+                        if (j + 1 < uc)
+                            edge(vtx(i, j), vtx(i, j + 1));
+                        if (i + 1 < ur)
+                            edge(vtx(i, j), vtx(i + 1, j));
+                    }
+            }
+
+            // Contour projection on the box floor (the back z pane).
+            if (surf->contour_projection())
+            {
+                const double    floor_z = axes3d_box::back_plane(faces, 2, lo, hi);
+                const Colormap& cmd     = surf->cmap();
+                const double    c_lo    = surf->colormap_min();
+                const double    c_rng   = static_cast<double>(surf->colormap_max()) - c_lo;
+                const auto      cg      = static_cast<uint32_t>(groups.size());
+                groups.push_back(
+                    {stroke_group_style("surface-contours", col, 1.0f, 1.0f), -1, false});
+                const std::vector<float> segs = surf->contour_segments();
+                for (size_t k = 0; k + 12 <= segs.size(); k += 12)
+                {
+                    const double level = segs[k + 2];
+                    const vec3   a{segs[k], segs[k + 1], floor_z};
+                    const vec3   b{segs[k + 6], segs[k + 7], floor_z};
+                    float        t = 0.5f;
+                    if (std::fabs(c_rng) > 1e-30)
+                        t = static_cast<float>(std::clamp((level - c_lo) / c_rng, 0.0, 1.0));
+                    Color lc = cmd.is_none() ? col : cmd.sample(t);
+                    lc.a     = 1.0f;
+                    lc       = cue(lc, (a + b) * 0.5, 0.0f);
+                    add_segment(cg, a, b, &lc);
+                }
             }
         }
         else if (auto* mesh = dynamic_cast<const MeshSeries*>(&s))

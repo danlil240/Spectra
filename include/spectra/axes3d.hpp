@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <memory>
 #include <spectra/axes.hpp>
 #include <spectra/camera.hpp>
@@ -19,6 +20,13 @@ enum class BoxStyle
     Back,   // the three back panes (with the grid) plus the edges that carry ticks
     Full,   // all twelve box edges
     None,   // no box edges
+};
+
+// Where the 3D key light comes from (Axes3D::light_mode).
+enum class LightMode
+{
+    Fixed,       // light_dir(): a direction fixed to the data axes
+    Headlight,   // from the camera: faces towards the viewer are always lit
 };
 
 class Axes3D : public AxesBase
@@ -120,6 +128,25 @@ class Axes3D : public AxesBase
     void lighting_enabled(bool enabled) { lighting_enabled_ = enabled; }
     bool lighting_enabled() const { return lighting_enabled_; }
 
+    // Fixed (default) lights along light_dir(); Headlight follows the camera,
+    // like MATLAB's camlight headlight, so the side being looked at stays lit
+    // while orbiting.
+    void      light_mode(LightMode mode) { light_mode_ = mode; }
+    LightMode light_mode() const { return light_mode_; }
+
+    // light_dir() as azimuth (degrees from +X towards +Y) and elevation
+    // (degrees above the XY plane), like MATLAB's lightangle.
+    void  light_angles(float azimuth_deg, float elevation_deg);
+    float light_azimuth() const;
+    float light_elevation() const;
+
+    // Fog: every 3D series fades towards the plot background with distance
+    // from the camera; 0 (default) is off, 1 the strongest.  A depth cue for
+    // lines, surfaces and meshes (scatter points have their own
+    // ScatterSeries3D::depth_shade, on by default).
+    void  fog(float strength) { fog_ = std::clamp(strength, 0.0f, 1.0f); }
+    float fog() const { return fog_; }
+
     // Deprecated aliases
     void set_light_dir(float x, float y, float z) { light_dir_ = {x, y, z}; }
     void set_light_dir(vec3 dir) { light_dir_ = dir; }
@@ -197,6 +224,8 @@ class Axes3D : public AxesBase
     BoxStyle                visible_box_style_  = BoxStyle::Back;
     vec3                    light_dir_          = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
     bool                    lighting_enabled_   = true;
+    LightMode               light_mode_         = LightMode::Fixed;
+    float                   fog_                = 0.0f;
     bool                    equal_aspect_       = false;
     AxisArrowHover          hovered_axis_arrow_ = AxisArrowHover::None;
 };

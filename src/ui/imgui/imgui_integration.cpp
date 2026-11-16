@@ -33,6 +33,7 @@
     #include "ui/overlay/measure_math.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme_imgui.hpp"
+    #include "ui/overlay/toast_queue.hpp"
     #include "ui/overlay/view_cube.hpp"
     #include "ui/ui_interaction_log.hpp"
 
@@ -490,6 +491,9 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     // The FPS badge still reads live after rendering stopped: draw one more
     // frame so it can settle to "Idle".
     if (fps_badge_.needs_settle_frame(ui::FpsBadgeState::Clock::now()))
+        return true;
+    // Toasts age (and fade) per frame; export watches poll the file per frame.
+    if (toasts_ && toasts_->needs_frames())
         return true;
     return false;
 }
@@ -1106,6 +1110,9 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_knobs_panel();
     }
 
+    // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
+    draw_file_model_overlays();
+
     // Draw command palette overlay (Agent F) — must be last to render on top
     if (command_palette_)
     {
@@ -1419,6 +1426,9 @@ void ImGuiIntegration::build_empty_ui()
     draw_topic_drop_target_welcome();
     draw_log_field_drop_target_welcome();
 
+    // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
+    draw_file_model_overlays();
+
     // Command palette overlay (Ctrl+K / Tools menu) — last so it renders on top.
     if (command_palette_)
         command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
@@ -1576,8 +1586,12 @@ bool ImGuiIntegration::open_path(const std::string& path)
         SPECTRA_LOG_WARN("app", "Cannot open {}: file not found", path);
         if (settings_store_)
             settings_store_->forget_recent_file(path);
+        if (open_file_handler_)
+            open_file_handler_(path);   // reports it (toast)
         return false;
     }
+    if (open_file_handler_)
+        return open_file_handler_(path);
     const auto is_log = [this](const std::string& p)
     { return log_browser_panel_ && log_browser_panel_->can_open(p); };
     switch (classify_open_file(path, is_log))
@@ -1604,6 +1618,15 @@ bool ImGuiIntegration::open_path(const std::string& path)
 
 void ImGuiIntegration::process_pending_opens()
 {
+    // Recent-file menu clicks, one frame later.
+    if (!pending_open_paths_.empty())
+    {
+        std::vector<std::string> paths;
+        paths.swap(pending_open_paths_);
+        for (const auto& p : paths)
+            open_path(p);
+    }
+
     // Deferred CSV open request (canvas welcome button).
     if (pending_open_csv_)
     {

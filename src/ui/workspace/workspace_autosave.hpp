@@ -69,6 +69,9 @@ class WorkspaceAutosave
     /// Force an immediate save regardless of timers.
     bool save_now();
 
+    /// Forget pending changes (they were saved elsewhere or discarded).
+    void clear_dirty() { dirty_ = false; }
+
     // ── Status ──
 
     /// True if there are unsaved changes.

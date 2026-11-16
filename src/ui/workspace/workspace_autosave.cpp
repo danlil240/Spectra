@@ -115,7 +115,7 @@ bool WorkspaceAutosave::save_now()
     // Write to a temp file first, then rename for atomicity
     std::string tmp_path = autosave_path_ + ".tmp";
     {
-        std::ofstream f(tmp_path, std::ios::trunc);
+        std::ofstream f(tmp_path, std::ios::binary | std::ios::trunc);
         if (!f.is_open())
         {
             SPECTRA_LOG_WARN("workspace", "Could not open autosave temp file: {}", tmp_path);

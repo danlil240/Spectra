@@ -2,6 +2,7 @@
 
 #include <spectra/figure_registry.hpp>
 
+#include "commands/command_groups.hpp"
 #include "register_commands.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "render/vulkan/window_context.hpp"
@@ -195,6 +196,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
             }
             *guard_ptr = false;
         });
+    // TabBar is not drawn (pane tabs are); FigureManager::close_figure()
+    // calls remove_tab(), which lands here for a figure already closing.
     ui->figure_tabs->set_tab_close_callback(
         [fig_mgr_ptr](size_t index)
         {
@@ -266,6 +269,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         ui->imgui_ui->set_series_clipboard(options.series_clipboard);
         ui->imgui_ui->set_topics_panel(&ui->topics_panel);
         ui->imgui_ui->set_layout_session(&ui->layout_session);
+        ui->imgui_ui->set_document_session(&ui->document);
+        ui->imgui_ui->set_toast_queue(&ui->toasts);
         ui->layout_session.set_figure_registry(options.registry);
         ui->layout_session.topic_names_fn = [ui_raw = ui.get()]()
         { return ui_raw->topics_panel.topic_names(); };
@@ -348,8 +353,11 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     {
         ui->imgui_ui->set_pane_tab_duplicate_cb([fig_mgr_ptr](FigureId index)
                                                 { fig_mgr_ptr->duplicate_figure(index); });
-        ui->imgui_ui->set_pane_tab_close_cb([fig_mgr_ptr](FigureId index)
-                                            { fig_mgr_ptr->queue_close(index); });
+        // Close button, middle click and "Close" in the tab menu: same
+        // unsaved-changes prompt as Ctrl+W.
+        ui->imgui_ui->set_pane_tab_close_cb(
+            [fig_mgr_ptr, doc_ptr = &ui->document](FigureId index)
+            { request_close_figure(*fig_mgr_ptr, *doc_ptr, index); });
         ui->imgui_ui->set_pane_tab_split_right_cb(
             [dock_ptr](FigureId index)
             {
@@ -448,6 +456,9 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     bindings.window_mgr = options.window_manager;
     #endif
     register_standard_commands(bindings);
+    if (options.enable_autosave && !options.headless
+        && options.mode == WindowUIContextBuildMode::Full)
+        ui->document.enable_autosave(DocumentSession::default_autosave_dir());
 
     if (options.export_format_registry)
     {

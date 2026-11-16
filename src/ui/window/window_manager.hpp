@@ -87,6 +87,11 @@ class WindowManager
     // iteration.
     void request_close(uint32_t window_id);
 
+    // Unsaved-changes guard for closing @p wctx: true = close now.  A window
+    // whose document is modified shows Save / Don't Save / Cancel instead and
+    // closes itself once the user picks Save or Don't Save.
+    bool confirm_close(WindowContext& wctx);
+
     // Destroy a window immediately.  Waits for GPU idle on that window's
     // resources before cleanup.  Do NOT call while iterating windows().
     void destroy_window(uint32_t window_id);

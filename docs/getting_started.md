@@ -240,6 +240,30 @@ fig.show();  // Window can be resized by the user
 
 The plot will automatically scale to fill the resized window while maintaining aspect ratios and margins.
 
+## Files, Saving and Recovery
+
+In the Spectra app the **File** menu works on the window's `.spectra` file:
+
+| Action | Shortcut | What it does |
+|--------|----------|--------------|
+| Open... | Ctrl+O | Opens a `.spectra` workspace, figure or layout, or a data file (CSV/TSV, ULog, MCAP). Dropping a file on the window does the same. |
+| Open Recent | | Recently saved or opened `.spectra` files. |
+| Save | Ctrl+S | Saves every figure tab of the window, with its data, to the window's `.spectra` file (asks for a name the first time). |
+| Save As... | Ctrl+Shift+S | Saves under a new name. |
+| Export > PNG | Ctrl+E | Image of the active figure. |
+| Export > SVG / PDF | Ctrl+Shift+E (SVG) | Vector export of the active figure. |
+| Export > CSV Data | | The active figure's 2D line and scatter series as CSV. |
+| Export > Layout | | Data bindings only (topics, CSV columns), no data. |
+| Close Figure | Ctrl+W, Q | Closes the active figure; the last one returns to the start page. |
+| Exit | Ctrl+Q | Quits. |
+
+A dot in the window title and on a tab marks unsaved changes. Closing the window or
+quitting with unsaved changes asks Save / Don't Save / Cancel. While there are unsaved
+changes, Spectra autosaves them to `<config dir>/autosave/` every minute; if Spectra
+did not exit cleanly, the next start offers to restore them. Changes made by your
+program (animation callbacks, data streamed from Python) are not counted as unsaved
+edits.
+
 ## Python API
 
 Spectra provides a Python client that communicates with the C++ backend via IPC

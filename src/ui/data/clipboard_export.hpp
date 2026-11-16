@@ -1,5 +1,6 @@
 #pragma once
 
+#include <spectra/fwd.hpp>
 #include <spectra/series.hpp>
 #include <string>
 #include <vector>
@@ -17,5 +18,14 @@ namespace spectra
 //
 // Missing values (when series have different lengths) are left empty.
 std::string series_to_tsv(const std::vector<const Series*>& series);
+
+// Same table with @p sep between cells; with ',' (File > Export > CSV Data)
+// header cells holding a comma, quote or newline are quoted (RFC 4180).
+std::string series_to_delimited(const std::vector<const Series*>& series, char sep);
+
+// Writes every 2D line / scatter series of @p figure as CSV (File > Export >
+// CSV Data).  False with a reason in @p error when there is nothing to export
+// or the file cannot be written.
+bool export_figure_csv(const Figure& figure, const std::string& path, std::string* error = nullptr);
 
 }   // namespace spectra

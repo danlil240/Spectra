@@ -270,8 +270,9 @@ void ImGuiIntegration::draw_canvas_content(Figure& figure)
 
             // Keyboard hint
             ImGui::PushFont(font_body_);
-            const char* hint = "Ctrl+K  Command Palette  |  Ctrl+T  New Tab  |  Ctrl+S  Export PNG";
-            ImVec2      hint_sz = ImGui::CalcTextSize(hint);
+            const char* hint =
+                "Ctrl+K  Command Palette  |  Ctrl+T  New Tab  |  Ctrl+O  Open  |  Ctrl+S  Save";
+            ImVec2 hint_sz = ImGui::CalcTextSize(hint);
             ImGui::SetCursorScreenPos(ImVec2(cx - hint_sz.x * 0.5f, btn_y + btn_h + 24.0f));
             ImGui::PushStyleColor(ImGuiCol_Text,
                                   ImVec4(colors.text_tertiary.r,

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <string>
 #include <memory>
 #include <spectra/fwd.hpp>
 #include <unordered_map>
@@ -33,6 +35,8 @@
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
     #include "ui/workspace/layout_session.hpp"
+    #include "ui/workspace/document_session.hpp"
+    #include "ui/overlay/toast_queue.hpp"
     #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/settings/settings_store.hpp"
@@ -101,6 +105,17 @@ struct WindowUIContext
 
     // Opened layout files: binding providers, recent layouts, Data Bindings window.
     LayoutSession layout_session;
+
+    // Notifications (save/export/open results), drawn bottom-right.
+    ui::ToastQueue toasts;
+
+    // This window's .spectra file: path, unsaved changes, close prompt,
+    // autosave (wired by make_file_commands / build_window_ui_context).
+    DocumentSession document;
+
+    // Opens any file the user hands to this window (File > Open..., drag and
+    // drop): .spectra, CSV/TSV, ULog/MCAP.  Set by make_file_commands().
+    std::function<bool(const std::string&)> open_file_fn;
 
     // Log browser (ULog / MCAP files).  Readers come from the app's
     // LogReaderRegistry when one is wired, else the built-in set.

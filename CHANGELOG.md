@@ -13,6 +13,7 @@ summarise the main changes rather than listing every commit.
 
 ### Changed
 
+- Bars, histograms, box plots and violins now draw flat, nearly opaque fills (alpha 0.88) with a thin 1 px edge in a theme-aware shade of the fill instead of translucent gradients (opt back in with `gradient(true)`); new `fill_alpha()`, `edge_width()` and `edge_color()` setters (also in Python `bar`/`hist` and pyplot `alpha`/`edgecolor`/`linewidth`), box-plot medians in a contrasting ink, histogram bins separated by edges, and autoscale no longer pads below the baseline of bars, histograms, stems and bands filled to a constant (matplotlib-style sticky edges).
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed

@@ -492,20 +492,39 @@ def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
     return _sp.scatter(x, y, size=size, opacity=alpha, **style)
 
 
+def _fill_style(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Pop matplotlib's patch style keywords (edgecolor, linewidth, alpha)."""
+    out: Dict[str, Any] = {}
+    edge = _pop_alias(kwargs, "edgecolor", "ec")
+    if edge is not None and str(edge).lower() != "none":
+        out["edge_color"] = edge
+    width = _pop_alias(kwargs, "linewidth", "lw")
+    if edge is not None and str(edge).lower() == "none":
+        width = 0.0
+    if width is not None:
+        out["edge_width"] = float(width)
+    alpha = kwargs.pop("alpha", None)
+    if alpha is not None:
+        out["fill_alpha"] = float(alpha)
+    return out
+
+
 def bar(x, height, width=0.8, bottom=None, align="center", **kwargs):
     style = _style(kwargs)
+    style.update(_fill_style(kwargs))
     if align != "center":
         _ignore("bar", {"align": align})
-    _ignore("bar", {k: v for k, v in kwargs.items() if k not in ("edgecolor", "linewidth")})
+    _ignore("bar", kwargs)
     return _sp.bar(x, height, bar_width=float(width),
                    bottom=float(bottom) if bottom is not None else 0.0, **style)
 
 
 def barh(y, width, height=0.8, left=None, align="center", **kwargs):
     style = _style(kwargs)
+    style.update(_fill_style(kwargs))
     if align != "center":
         _ignore("barh", {"align": align})
-    _ignore("barh", {k: v for k, v in kwargs.items() if k not in ("edgecolor", "linewidth")})
+    _ignore("barh", kwargs)
     return _sp.bar(y, width, bar_width=float(height),
                    bottom=float(left) if left is not None else 0.0, horizontal=True, **style)
 
@@ -513,8 +532,8 @@ def barh(y, width, height=0.8, left=None, align="center", **kwargs):
 def hist(x, bins=10, density=False, cumulative=False, **kwargs):
     """Histogram; returns ``(counts, bin_edges, series)`` like matplotlib."""
     style = _style(kwargs)
+    style.update(_fill_style(kwargs))
     kwargs.pop("histtype", None)
-    kwargs.pop("alpha", None)
     _ignore("hist", kwargs)
     if not isinstance(bins, int) or isinstance(bins, bool):
         raise TypeError("spectra.pyplot.hist: bins must be an int (equal-width bins)")

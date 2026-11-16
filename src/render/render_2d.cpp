@@ -22,6 +22,7 @@
 #include "ui/workspace/plugin_guard.hpp"
 
 #include "core/axis_scale.hpp"
+#include "render/line_geometry.hpp"
 #include "render/scatter_marker.hpp"
 #include "ui/theme/theme.hpp"
 
@@ -69,6 +70,22 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
         r.pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
     }
     return r;
+}
+
+void Renderer::draw_polyline(SeriesPushConstants pc,
+                             SeriesGpuData&      gpu,
+                             uint32_t            first_seg,
+                             uint32_t            seg_count)
+{
+    if (seg_count == 0 || !gpu.ssbo)
+        return;
+    const BufferHandle phase =
+        pc.dash_count > 0 ? prepare_dash_phase_buffer(gpu, pc.dash_total) : BufferHandle{};
+    set_line_polyline(pc, first_seg, first_seg + seg_count, static_cast<bool>(phase));
+    backend_.bind_pipeline(line_pipeline_);
+    backend_.push_constants(pc);
+    backend_.bind_buffer(phase ? phase : gpu.ssbo, 0);
+    backend_.draw(seg_count * 6, first_seg * 6);
 }
 
 void Renderer::render_series(Series&             series,
@@ -165,11 +182,8 @@ void Renderer::render_series(Series&             series,
 
             if (style.has_line() && seg_count > 0)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = line->width();
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.draw(seg_count * 6, first_seg * 6);
+                draw_polyline(pc, gpu, first_seg, seg_count);
             }
             if (style.has_marker() && pt_count > 0)
             {
@@ -203,11 +217,8 @@ void Renderer::render_series(Series&             series,
 
             if (style.has_line() && seg_count > 0)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = cl->width();
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                backend_.draw(seg_count * 6, 0);
+                draw_polyline(pc, gpu, 0, seg_count);
             }
             if (style.has_marker() && pt_count > 0)
             {
@@ -393,12 +404,8 @@ void Renderer::render_series(Series&             series,
             // Draw outline
             if (bp->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = 1.5f;
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(bp->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(bp->point_count()) - 1);
             }
             // Render outliers as scatter points (using persistent buffer from upload)
             if (gpu.outlier_buffer && gpu.outlier_count > 0)
@@ -428,12 +435,8 @@ void Renderer::render_series(Series&             series,
             // Draw outline
             if (vn->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = 1.5f;
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(vn->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(vn->point_count()) - 1);
             }
             break;
         }
@@ -453,12 +456,8 @@ void Renderer::render_series(Series&             series,
             // Draw outline
             if (hist->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = 1.0f;
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(hist->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(hist->point_count()) - 1);
             }
             break;
         }
@@ -478,12 +477,8 @@ void Renderer::render_series(Series&             series,
             // Draw outline
             if (bs->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = 1.5f;
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(bs->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(bs->point_count()) - 1);
             }
             break;
         }
@@ -501,12 +496,8 @@ void Renderer::render_series(Series&             series,
             }
             if (band->show_edges() && band->edge_width() > 0.0f && band->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = band->edge_width();
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                const uint32_t segments = static_cast<uint32_t>(band->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(band->point_count()) - 1);
             }
             break;
         }
@@ -516,13 +507,9 @@ void Renderer::render_series(Series&             series,
             // Draw stems as line segments
             if (stem->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width  = stem->stem_width();
                 pc.marker_type = 0;   // suppress markers on line vertices (NaN breaks)
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(stem->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(stem->point_count()) - 1);
                 // Draw head markers if enabled
                 if (stem->show_heads())
                 {
@@ -571,12 +558,8 @@ void Renderer::render_series(Series&             series,
             // Draw outline
             if (sh->point_count() > 1)
             {
-                backend_.bind_pipeline(line_pipeline_);
                 pc.line_width = 1.5f;
-                backend_.push_constants(pc);
-                backend_.bind_buffer(gpu.ssbo, 0);
-                uint32_t segments = static_cast<uint32_t>(sh->point_count()) - 1;
-                backend_.draw(segments * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(sh->point_count()) - 1);
             }
             break;
         }
@@ -760,14 +743,11 @@ void Renderer::render_series(Series&             series,
                 pc.dash_total = dp.total;
                 pc.dash_count = dp.count;
             }
-            backend_.bind_pipeline(line_pipeline_);
             pc.line_width  = ct->width();
             pc.marker_type = 0;
-            backend_.bind_buffer(gpu.ssbo, 0);
             if (!ct->uses_colormap())
             {
-                backend_.push_constants(pc);
-                backend_.draw(static_cast<uint32_t>(n - 1) * 6);
+                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(n - 1));
                 break;
             }
             // One draw per level, each in its colormap colour.
@@ -784,9 +764,10 @@ void Renderer::render_series(Series&             series,
                 pc.color[1]   = c.g;
                 pc.color[2]   = c.b;
                 pc.color[3]   = c.a * alpha;
-                backend_.push_constants(pc);
-                backend_.draw(static_cast<uint32_t>(count - 1) * 6,
-                              static_cast<uint32_t>(r.first_point) * 6);
+                draw_polyline(pc,
+                              gpu,
+                              static_cast<uint32_t>(r.first_point),
+                              static_cast<uint32_t>(count - 1));
             }
             break;
         }
@@ -875,11 +856,8 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
 
                 if (seg_count > 0)
                 {
-                    backend_.bind_pipeline(line_pipeline_);
                     pc.line_width = 1.5f;
-                    backend_.push_constants(pc);
-                    backend_.bind_buffer(gpu.ssbo, 0);
-                    backend_.draw(seg_count * 6, first_seg * 6);
+                    draw_polyline(pc, gpu, first_seg, seg_count);
                 }
                 if (pt_count > 0)
                 {
@@ -902,11 +880,8 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
 
                 if (seg_count > 0)
                 {
-                    backend_.bind_pipeline(line_pipeline_);
                     pc.line_width = 1.5f;
-                    backend_.push_constants(pc);
-                    backend_.bind_buffer(gpu.ssbo, 0);
-                    backend_.draw(seg_count * 6, 0);
+                    draw_polyline(pc, gpu, 0, seg_count);
                 }
                 if (pt_count > 0)
                 {

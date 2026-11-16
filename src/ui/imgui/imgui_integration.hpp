@@ -996,6 +996,15 @@ class ImGuiIntegration
         get_figure_ptr_ = std::move(cb);
     }
 
+    // Reverse lookup Figure* -> FigureId (0 / INVALID_FIGURE_ID when unknown).
+    // With get_figure_ptr_ it lets undo entries re-resolve a figure by id
+    // instead of keeping a pointer that dies when its tab is closed.
+    std::function<FigureId(const Figure*)> get_figure_id_;
+    void set_figure_id_callback(std::function<FigureId(const Figure*)> cb)
+    {
+        get_figure_id_ = std::move(cb);
+    }
+
    private:
     // Theme settings window state
     bool show_theme_settings_ = false;

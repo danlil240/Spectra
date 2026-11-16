@@ -45,6 +45,9 @@ class _InlineSettings:
         self.theme = DEFAULT_INLINE_THEME
         self.hook_shell: Any = None  # IPython shell the hook is registered on
         self.pending: List[Any] = []  # figures to show after the current cell
+        # True once the current cell drew into a figure: the cell end detaches
+        # the current figure even when a rich display already showed it.
+        self.cell_touched = False
         self.warned_render = False
 
 
@@ -116,6 +119,7 @@ def use_window() -> None:
     """
     _settings.mode = "window"
     _settings.pending.clear()
+    _settings.cell_touched = False
     _unregister_hook()
 
 
@@ -150,14 +154,17 @@ def _unregister_hook() -> None:
 
 def _post_run_cell(*_args: Any) -> None:
     """After each cell: show the figures it drew into, then start fresh."""
-    if _settings.mode == "window" or not _settings.pending:
+    if _settings.mode == "window":
         return
     flush()
 
 
 def track(fig: Any) -> None:
     """Remember ``fig`` for display after the current cell (inline mode)."""
-    if fig is not None and not any(f is fig for f in _settings.pending):
+    if fig is None:
+        return
+    _settings.cell_touched = True
+    if not any(f is fig for f in _settings.pending):
         _settings.pending.append(fig)
 
 
@@ -175,7 +182,9 @@ def flush() -> None:
     """
     figs = list(_settings.pending)
     _settings.pending.clear()
-    if not figs:
+    touched = _settings.cell_touched
+    _settings.cell_touched = False
+    if not figs and not touched:
         return
     shell = _ipython_shell()
     if shell is not None:

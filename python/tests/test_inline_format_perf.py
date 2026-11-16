@@ -320,6 +320,7 @@ def jupyter(monkeypatch):
     _inline._settings.mode = None
     _inline._settings.hook_shell = None
     _inline._settings.pending.clear()
+    _inline._settings.cell_touched = False
     st = _easy._state
     monkeypatch.setattr(st, "_current_fig", None)
     monkeypatch.setattr(st, "_current_axes", None)
@@ -387,6 +388,24 @@ def test_repr_of_last_expression_is_not_shown_twice(jupyter):
     assert fig._repr_png_().startswith(b"\x89PNG")  # IPython's displayhook
     shell.events.trigger("post_run_cell")
     assert shown == []
+
+
+def test_figure_shown_by_last_expression_is_still_detached(jupyter):
+    """`sp.plot(y); sp.gcf()`: the displayhook renders the figure before
+    post_run_cell, and the next cell must still start a new figure."""
+    shell, shown = jupyter
+    fig = _FakeFigure(6)
+    st = _easy._state
+    st._current_fig = fig
+    st._show_if_pending()  # the plot call
+    assert fig._repr_png_().startswith(b"\x89PNG")  # displayhook consumes it
+    assert _inline._settings.pending == []
+    shell.events.trigger("post_run_cell")
+    assert shown == []  # not shown twice
+    assert st._current_fig is None  # but detached: the next plot starts fresh
+    st._current_fig = fig
+    shell.events.trigger("post_run_cell")  # an untouched cell keeps the figure
+    assert st._current_fig is fig
 
 
 def test_show_does_not_block_inline(jupyter, monkeypatch):

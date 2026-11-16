@@ -452,6 +452,7 @@ class _EasyState:
         from . import _inline
 
         _inline._settings.pending.clear()
+        _inline._settings.cell_touched = False
         self._knob_values.clear()
         if self._session is not None:
             try:

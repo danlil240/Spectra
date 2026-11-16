@@ -148,7 +148,7 @@ bool Axes3D::compute_auto_limits(vec3& lo, vec3& hi) const
     return true;
 }
 
-AxisLimits Axes3D::x_limits() const
+AxisLimits Axes3D::raw_x_limits() const
 {
     if (xlim_)
         return *xlim_;
@@ -158,7 +158,7 @@ AxisLimits Axes3D::x_limits() const
     return {0.0, 1.0};
 }
 
-AxisLimits Axes3D::y_limits() const
+AxisLimits Axes3D::raw_y_limits() const
 {
     if (ylim_)
         return *ylim_;
@@ -168,7 +168,7 @@ AxisLimits Axes3D::y_limits() const
     return {0.0, 1.0};
 }
 
-AxisLimits Axes3D::z_limits() const
+AxisLimits Axes3D::raw_z_limits() const
 {
     if (zlim_)
         return *zlim_;
@@ -176,6 +176,44 @@ AxisLimits Axes3D::z_limits() const
     if (compute_auto_limits(lo, hi))
         return {lo.z, hi.z};
     return {0.0, 1.0};
+}
+
+AxisLimits Axes3D::effective_limits(int axis) const
+{
+    if (!equal_aspect_)
+        return axis == 0 ? raw_x_limits() : axis == 1 ? raw_y_limits() : raw_z_limits();
+    const AxisLimits raw[3] = {raw_x_limits(), raw_y_limits(), raw_z_limits()};
+
+    // Widen every axis about its centre to the largest span.
+    double span = 0.0;
+    for (const AxisLimits& l : raw)
+    {
+        const double s = l.max - l.min;
+        if (std::isfinite(s))
+            span = std::max(span, std::abs(s));
+    }
+    const AxisLimits& l = raw[axis];
+    const double      s = l.max - l.min;
+    if (!(span > 0.0) || !std::isfinite(s) || std::abs(s) >= span)
+        return l;
+    const double center = (l.min + l.max) * 0.5;
+    const double half   = (s < 0.0 ? -span : span) * 0.5;
+    return {center - half, center + half};
+}
+
+AxisLimits Axes3D::x_limits() const
+{
+    return effective_limits(0);
+}
+
+AxisLimits Axes3D::y_limits() const
+{
+    return effective_limits(1);
+}
+
+AxisLimits Axes3D::z_limits() const
+{
+    return effective_limits(2);
 }
 
 TickResult Axes3D::compute_x_ticks() const

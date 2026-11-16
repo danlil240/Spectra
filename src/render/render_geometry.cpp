@@ -1018,12 +1018,14 @@ void Renderer::render_figure_background(Figure& figure)
 
     backend_.bind_pipeline(overlay_pipeline_);
     // Same colour space as the theme canvas clear, so an override equal to the
-    // theme colour is indistinguishable from "auto".
+    // theme colour is indistinguishable from "auto" (with or without the
+    // colour vision deficiency preview, which both go through).
+    const Color         bg = series_view_color(style.background);
     SeriesPushConstants pc{};
-    pc.color[0] = style.background.r;
-    pc.color[1] = style.background.g;
-    pc.color[2] = style.background.b;
-    pc.color[3] = style.background.a;
+    pc.color[0] = bg.r;
+    pc.color[1] = bg.g;
+    pc.color[2] = bg.b;
+    pc.color[3] = bg.a;
     backend_.push_constants(pc);
     backend_.bind_buffer(fig_gpu.background_buffer[slot], 0);
     backend_.draw(6);

@@ -244,7 +244,8 @@ class ImGuiIntegration
     bool  is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
     const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }
-    bool                         is_theme_settings_visible() const { return show_theme_settings_; }
+    // Appearance is the Settings modal's first tab (the former Theme Settings).
+    bool is_theme_settings_visible() const;
 
     // Status bar data setters (called by app loop with real data)
     // Double precision: x can sit at epoch scale (~1.7e9).
@@ -409,7 +410,7 @@ class ImGuiIntegration
     bool open_path(const std::string& path);
 
     // Settings panel — owned externally (WindowUIContext).
-    void set_settings_panel(ui::settings::SettingsPanel* p) { settings_panel_ = p; }
+    void set_settings_panel(ui::settings::SettingsPanel* p);
     // Settings store — owned externally; supplies persisted UI choices and
     // the recent data files shown on the start page.
     void                         set_settings_store(ui::settings::SettingsStore* store);
@@ -671,6 +672,7 @@ class ImGuiIntegration
     ImFont* menubar_font() const { return font_menubar_; }
     ImFont* title_font() const { return font_title_; }
     ImFont* body_font() const { return font_body_; }
+    ImFont* section_font() const { return font_section_; }
 
     // Vision command-bar window frame (styled backdrop). Pair with end_command_bar().
     bool begin_command_bar();
@@ -695,10 +697,11 @@ class ImGuiIntegration
     void draw_timeline_panel();
     void draw_curve_editor_panel();
     void draw_plugins_panel();
-    void draw_theme_settings();
     void draw_knobs_panel();
     void draw_csv_dialog();
     void draw_custom_transform_dialog();
+    // Pill at the top of the canvas naming the active CVD preview, with "Off".
+    void draw_cvd_preview_badge();
     void draw_plot_overlay_dialog();
 
     void draw_plot_overlays(Figure& figure);
@@ -779,11 +782,12 @@ class ImGuiIntegration
     std::unique_ptr<ImFontAtlas> owned_font_atlas_;
 
     // Fonts at different sizes
-    ImFont* font_body_    = nullptr;   // 16px — body text, controls
-    ImFont* font_heading_ = nullptr;   // 12.5px — section headers (uppercase)
-    ImFont* font_icon_    = nullptr;   // 20px — icon bar symbols
-    ImFont* font_title_   = nullptr;   // 18px — panel title
-    ImFont* font_menubar_ = nullptr;   // 15px — menubar items
+    ImFont* font_body_    = nullptr;   // FONT_BODY (16px) — body text, controls
+    ImFont* font_heading_ = nullptr;   // FONT_SM (11.5px) — compact caps labels, rail labels
+    ImFont* font_icon_    = nullptr;   // ICON_MD (20px) — icon bar symbols
+    ImFont* font_title_   = nullptr;   // FONT_2XL (20px) SemiBold — panel / dialog titles
+    ImFont* font_menubar_ = nullptr;   // FONT_MD (14px) — menubar items
+    ImFont* font_section_ = nullptr;   // FONT_XL (17px) SemiBold — section headings
 
     // System fallback fonts (maths symbols, CJK) merged behind Inter; the
     // atlas references this data, so it must outlive imgui_context_.
@@ -1034,7 +1038,6 @@ class ImGuiIntegration
 
    private:
     // Theme settings window state
-    bool show_theme_settings_ = false;
 
     // CSV plot callback (set by App)
     CsvPlotCallback csv_plot_cb_;

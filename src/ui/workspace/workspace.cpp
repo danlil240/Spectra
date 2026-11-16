@@ -174,6 +174,7 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
                << ",\n";
             os << "          \"lighting_enabled\": " << (a3.lighting_enabled ? "true" : "false")
                << ",\n";
+            os << "          \"equal_aspect\": " << (a3.equal_aspect ? "true" : "false") << ",\n";
             os << "          \"light_dir_x\": " << a3.light_dir_x << ",\n";
             os << "          \"light_dir_y\": " << a3.light_dir_y << ",\n";
             os << "          \"light_dir_z\": " << a3.light_dir_z << "\n";
@@ -848,6 +849,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 a3.grid_planes  = static_cast<int>(read_number_value(a3_json, "grid_planes", 1));
                 a3.show_bounding_box = read_bool_value(a3_json, "show_bounding_box", true);
                 a3.lighting_enabled  = read_bool_value(a3_json, "lighting_enabled", true);
+                a3.equal_aspect      = read_bool_value(a3_json, "equal_aspect", false);
                 a3.light_dir_x = static_cast<float>(read_number_value(a3_json, "light_dir_x", 1));
                 a3.light_dir_y = static_cast<float>(read_number_value(a3_json, "light_dir_y", 1));
                 a3.light_dir_z = static_cast<float>(read_number_value(a3_json, "light_dir_z", 1));
@@ -1140,6 +1142,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 a3.grid_planes       = static_cast<int>(ax3d->grid_planes());
                 a3.show_bounding_box = ax3d->show_bounding_box();
                 a3.lighting_enabled  = ax3d->lighting_enabled();
+                a3.equal_aspect      = ax3d->equal_aspect();
                 auto ld              = ax3d->light_dir();
                 a3.light_dir_x       = ld.x;
                 a3.light_dir_y       = ld.y;
@@ -1495,6 +1498,7 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                         ax3d->set_grid_planes(a3.grid_planes);
                         ax3d->show_bounding_box(a3.show_bounding_box);
                         ax3d->set_lighting_enabled(a3.lighting_enabled);
+                        ax3d->equal_aspect(a3.equal_aspect);
                         ax3d->set_light_dir(a3.light_dir_x, a3.light_dir_y, a3.light_dir_z);
                         break;
                     }

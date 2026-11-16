@@ -23,14 +23,18 @@ constexpr float RADIUS_LG   = 12.0f;    // r12: panels, floating toolbars, conta
 constexpr float RADIUS_XL   = 16.0f;    // Large panels (rarely used)
 constexpr float RADIUS_PILL = 999.0f;   // Pill buttons, scrollbar thumbs
 
-// Font Scale (Inter) — typography hierarchy
+// Font Scale (Inter) — typography hierarchy.  ImGuiIntegration::load_fonts()
+// bakes the UI fonts at these sizes (pixels at 100% UI scale): FONT_BODY body,
+// FONT_SM compact caps / rail labels, FONT_MD menubar, FONT_XL SemiBold section
+// headings, FONT_2XL SemiBold titles.  Headings are never smaller than body text.
 constexpr float FONT_XS   = 10.5f;   // Status bar, badges, dimmer chrome
-constexpr float FONT_SM   = 11.5f;   // Inspector labels, secondary text
-constexpr float FONT_BASE = 13.0f;   // Body text, controls, menu items
-constexpr float FONT_MD   = 14.0f;   // Input values, tree items
-constexpr float FONT_LG   = 15.0f;   // Section headers
-constexpr float FONT_XL   = 17.0f;   // Panel titles
-constexpr float FONT_2XL  = 20.0f;   // Plot titles (via Vulkan text renderer)
+constexpr float FONT_SM   = 11.5f;   // Inspector labels, secondary text, caps labels
+constexpr float FONT_BASE = 13.0f;   // Dense controls (inspector rows)
+constexpr float FONT_MD   = 14.0f;   // Input values, tree items, menubar
+constexpr float FONT_LG   = 15.0f;   // Sub-section headers
+constexpr float FONT_BODY = 16.0f;   // Body text, controls, menu items (font_body_)
+constexpr float FONT_XL   = 17.0f;   // Section headings (SemiBold, font_section_)
+constexpr float FONT_2XL  = 20.0f;   // Panel / dialog titles (SemiBold, font_title_)
 constexpr float FONT_MONO = 12.0f;   // Data readout, coordinates
 
 // Layout Rhythm (8px grid)

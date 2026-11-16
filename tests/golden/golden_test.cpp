@@ -266,6 +266,33 @@ static void scene_grid_only(App& /*app*/, Figure& fig)
     ax.title("Grid Only");
 }
 
+// Mathtext ($...$) in the title, both axis labels (the Y one rotated), legend entries and
+// an annotation: Greek letters, symbols, sub/superscripts (stacked and nested).
+static void scene_mathtext(App& /*app*/, Figure& fig)
+{
+    auto& ax = fig.subplot(1, 1, 1);
+
+    constexpr size_t   N = 200;
+    std::vector<float> x(N);
+    std::vector<float> y1(N);
+    std::vector<float> y2(N);
+    for (size_t i = 0; i < N; ++i)
+    {
+        x[i]  = static_cast<float>(i) * 0.05f;
+        y1[i] = std::sin(x[i] * 1.5f);
+        y2[i] = std::exp(-x[i] * 0.3f) * std::cos(x[i] * 3.0f);
+    }
+
+    ax.line(x, y1).label("$\\sin(\\omega t)$, $\\omega = 1.5$").color(rgb(0.2f, 0.6f, 1.0f));
+    ax.line(x, y2).label("$e^{-t/\\tau}\\cos(2\\pi f t)$").color(colors::red);
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(-1.5f, 1.5f);
+    ax.title("$\\alpha_1 = 10^{-3}$ s, $\\Delta T \\approx 5\\degree$C");
+    ax.xlabel("Time $t$ ($\\mu$s)");
+    ax.ylabel("$\\sigma_{xy}^2$ [V$^2$]");
+    ax.text(5.0f, 1.2f, "$x_i^2 \\pm \\delta$, cost \\$5");
+}
+
 // Flat stat fills: opaque fills, thin edges, contrasting box medians, and
 // bars/histograms standing on their baseline (sticky autoscale).
 static void scene_stat_fills(App& /*app*/, Figure& fig)
@@ -335,6 +362,11 @@ TEST(GoldenImage, EmptyAxes)
 TEST(GoldenImage, GridOnly)
 {
     run_golden_test("grid_only", scene_grid_only);
+}
+
+TEST(GoldenImage, MathText)
+{
+    run_golden_test("mathtext", scene_mathtext);
 }
 
 TEST(GoldenImage, StatFills)

@@ -1283,7 +1283,18 @@ void Inspector::draw_axes3d_properties(Axes3D& ax, int index)
             int         mode    = static_cast<int>(cam.projection_mode);
             if (widgets::combo_field("Projection", mode, modes, 2))
             {
-                cam.set_projection(static_cast<Camera::ProjectionMode>(mode));
+                const auto new_mode = static_cast<Camera::ProjectionMode>(mode);
+                // Keep the framing: an orthographic camera shows the target
+                // plane at the size the perspective one did.
+                if (new_mode == Camera::ProjectionMode::Orthographic
+                    && cam.projection_mode != new_mode)
+                    cam.set_ortho_size(cam.perspective_matched_ortho_size());
+                cam.set_projection(new_mode);
+            }
+            bool equal = ax.equal_aspect();
+            if (widgets::checkbox_field("Equal Aspect", equal))
+            {
+                ax.equal_aspect(equal);
             }
             float az = cam.azimuth;
             if (widgets::drag_field("Azimuth", az, 0.5f, -360.0f, 360.0f, "%.1f deg"))

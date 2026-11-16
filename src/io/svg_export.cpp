@@ -321,6 +321,16 @@ class SvgWriter final : public VectorWriter
 
     void text(const VectorText& t) override
     {
+        if (mathtext::has_markup(t.text))
+        {
+            math_text(t);
+            return;
+        }
+        plain_text(t);
+    }
+
+    void plain_text(const VectorText& t)
+    {
         indent(t.indent);
         body_ += "<text";
         class_attr(t.cls);
@@ -335,15 +345,69 @@ class SvgWriter final : public VectorWriter
         text_length_attr(t.text, t.font_px);
         if (t.medium_weight)
             body_ += " font-weight=\"500\"";
+        halo_attrs(t);
+        if (t.rotated)
+            body_ += " transform=\"rotate(" + num(t.rot_deg) + " " + num(t.rot_x) + " "
+                     + num(t.rot_y) + ")\"";
+        body_ += ">" + xml_escape(t.text) + "</text>\n";
+    }
+
+    // Halo: the glyph outlines stroked in the halo colour, painted under the
+    // fill (inherited by every <tspan> of a mathtext label).
+    void halo_attrs(const VectorText& t)
+    {
         if (t.halo && t.halo_width > 0.0f)
             body_ += " stroke=\"" + hex(t.halo_color) + "\""
                      + opacity_attr("stroke-opacity", t.halo_color.a) + " stroke-width=\""
                      + num(2.0 * t.halo_width)
                      + "\" stroke-linejoin=\"round\" paint-order=\"stroke\"";
+    }
+
+    // Mathtext ($...$): one <tspan> per run, each placed at its laid-out pen position
+    // (absolute x, so anchoring is resolved here) with its own size and baseline.
+    void math_text(const VectorText& t)
+    {
+        std::vector<mathtext::Run> runs;
+        const float                width = inter_mathtext_layout(t.text, t.font_px, runs);
+        if (runs.empty())
+            return;
+        if (runs.size() == 1 && runs[0].scale == 1.0f && runs[0].shift == 0.0f)
+        {
+            // Plain text that only had "\$" escapes.
+            VectorText plain = t;
+            plain.text       = runs[0].text;
+            plain_text(plain);
+            return;
+        }
+        const double x0 = t.anchor == VectorAnchor::Middle ? t.x - width * 0.5
+                          : t.anchor == VectorAnchor::End  ? t.x - width
+                                                           : t.x;
+        indent(t.indent);
+        body_ += "<text";
+        class_attr(t.cls);
+        body_ +=
+            " x=\"" + num(x0) + "\" y=\"" + num(t.y) + "\" font-size=\"" + num(t.font_px) + "\"";
+        body_ += " fill=\"" + hex(t.color) + "\"" + opacity_attr("fill-opacity", t.color.a);
+        if (t.medium_weight)
+            body_ += " font-weight=\"500\"";
+        halo_attrs(t);
         if (t.rotated)
             body_ += " transform=\"rotate(" + num(t.rot_deg) + " " + num(t.rot_x) + " "
                      + num(t.rot_y) + ")\"";
-        body_ += ">" + xml_escape(t.text) + "</text>\n";
+        body_ += ">";
+        for (const mathtext::Run& r : runs)
+        {
+            if (r.kind != mathtext::Run::Kind::Text || r.text.empty())
+                continue;
+            const float px = t.font_px * r.scale;
+            body_ += "<tspan x=\"" + num(x0 + r.x) + "\" y=\""
+                     + num(t.y - static_cast<double>(r.shift) * t.font_px) + "\"";
+            if (r.scale != 1.0f)
+                body_ += " font-size=\"" + num(px) + "\"";
+            text_length_attr(r.text, px);
+            body_ += ">" + xml_escape(r.text) + "</tspan>";
+        }
+        body_ += "</text>\n";
     }
 
     void note_skipped_series(std::string_view type_name,

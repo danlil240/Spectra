@@ -583,6 +583,28 @@ TEST(PlotExtrasSvg, AnnotationBoxHaloRotation)
     EXPECT_NE(svg.find("<polygon", group), std::string::npos);
 }
 
+// Mathtext annotations keep the box, halo and rotation in SVG too.
+TEST(PlotExtrasSvg, MathtextAnnotationBoxHaloRotation)
+{
+    Figure fig({400, 300});
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.xlim(0, 10);
+    ax.ylim(0, 10);
+    ax.text(5, 5, "$\\alpha_1$ peak").bbox(true).halo(true).rotation(30.0f);
+    fig.compute_layout();
+    const std::string svg   = SvgExporter::to_string(fig);
+    const auto        group = svg.find("class=\"annotations\"");
+    ASSERT_NE(group, std::string::npos);
+    EXPECT_NE(svg.find("<polygon", group), std::string::npos);
+    const auto tspan = svg.find("<tspan", group);
+    ASSERT_NE(tspan, std::string::npos);
+    const auto text_open = svg.rfind("<text", tspan);
+    const auto tag       = svg.substr(text_open, svg.find('>', text_open) - text_open);
+    EXPECT_NE(tag.find("paint-order=\"stroke\""), std::string::npos) << tag;
+    EXPECT_NE(tag.find("rotate(-30"), std::string::npos) << tag;
+    EXPECT_EQ(svg.find('$', group), std::string::npos);
+}
+
 TEST(PlotExtrasSvg, DensityModeSplitsTranslucentPieces)
 {
     Figure             fig({400, 300});

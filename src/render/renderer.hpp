@@ -23,6 +23,7 @@ namespace spectra::ui
 {
 class ThemeManager;
 struct ThemeColors;
+enum class CVDType;
 }   // namespace spectra::ui
 
 #include <array>
@@ -382,6 +383,12 @@ class Renderer
     const ui::ThemeColors* plot_colors_ = nullptr;
     const ui::ThemeColors& plot_colors() const;
 
+    // Colour vision deficiency preview of the current render_figure_content()
+    // call (ThemeManager::cvd_preview(); None for exports).  plot_colors()
+    // already carries it; series / legend colours go through series_view_color().
+    ui::CVDType cvd_preview_{};   // value 0: CVDType::None
+    Color       series_view_color(const Color& c) const;
+
     // See unsupported_series().  unsupported_warned_ persists across frames so
     // each kind is logged only once.
     std::vector<std::string_view> unsupported_series_;
@@ -553,6 +560,8 @@ class Renderer
         uint64_t      lut_generation = 0;
         // Scatter / surface: the colormap lut_texture was built from.
         Colormap lut_colormap;
+        // Colour vision deficiency preview lut_texture was simulated for.
+        ui::CVDType lut_cvd{};
         // Plugin custom series type fields
         std::string custom_type_name;   // Links to SeriesTypeRegistry entry
         // Opaque per-series state owned by the plugin.  The plugin allocates it
@@ -697,6 +706,9 @@ class Renderer
     // surface series, rebuilt when the colormap changes; read by
     // scatter_colormap.frag and surface3d.frag as set 2.  Invalid on failure.
     TextureHandle colormap_lut(SeriesGpuData& gpu, const Colormap& cm);
+    // An RGBA8 lookup table through the active CVD preview (cvd_preview_).
+    template <typename Lut>
+    void simulate_lut(Lut& rgba8) const;
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);

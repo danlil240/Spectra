@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "backend.hpp"
+#include "core/mathtext.hpp"
 
 namespace spectra
 {
@@ -316,6 +317,33 @@ class TextRenderer
                      PipelineHandle           pipeline,
                      float                    screen_width,
                      float                    screen_height);
+
+    // Mathtext ("$\\alpha_1$", see core/mathtext.hpp): runs laid out at preset `size`
+    // times `scale`.  `width` / `height` are the text box (the line height grown by any
+    // script overhang); `baseline` is the baseline's offset from the box top.
+    struct MathLayout
+    {
+        std::vector<mathtext::Run> runs;
+        float                      width    = 0.0f;
+        float                      height   = 0.0f;
+        float                      baseline = 0.0f;
+    };
+    MathLayout layout_math(const std::string& text, FontSize size, float scale) const;
+
+    // Queues mathtext glyphs (draw_text / draw_text_rotated / draw_text_depth when the
+    // text contains a '$').  Rotation is about (x, y).
+    void queue_math_text(std::vector<TextVertex>& target,
+                         const std::string&       text,
+                         float                    x,
+                         float                    y,
+                         float                    z,
+                         FontSize                 size,
+                         uint32_t                 color,
+                         TextAlign                align,
+                         TextVAlign               valign,
+                         float                    scale,
+                         float                    cos_a = 1.0f,
+                         float                    sin_a = 0.0f);
 
     // Helper: get font data for a size
     const FontData& font(FontSize s) const { return fonts_[static_cast<size_t>(s)]; }

@@ -295,7 +295,7 @@ class _EasyState:
         self._axes_bounds: dict = {}  # id(axes) -> [xmin, xmax, ymin, ymax]
         self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
         self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
-        self._axes_bars: dict = {}  # (figure_id, axes_index) -> [(x, heights, bottom, horizontal)]
+        self._axes_bars: dict = {}  # (figure_id, axes_index) -> [(x, h, bottom, horiz, width)]
         self._axes_sticky: dict = {}  # (figure_id, axes_index) -> ([x sticky], [y sticky])
         self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
@@ -866,38 +866,30 @@ def bar(
     series = ax.bar(names if names is not None else xv, hv, width=bw, bottom=float(bottom),
                     horizontal=horizontal, label=label, stacked=stacked)
     _apply_color(series, color)
-    hw = bw / 2.0
-    pos = [v - hw for v in xv] + [v + hw for v in xv]
     ax_key = (ax._figure_id, ax._index)
-    bars = _state._axes_bars.setdefault(ax_key, [])
-    bars.append((xv, hv, float(bottom), bool(horizontal)))
-    ext, origin = _bar_value_extent(bars, ax.bar_mode, bool(horizontal))
-    # Bars grow from the baseline: autoscale keeps no margin below it.
-    _state._axes_sticky.setdefault(ax_key, ([], []))[0 if horizontal else 1].append(origin)
-    if horizontal:
-        _auto_fit_axes(ax, ext, pos)
-    else:
+    _state._axes_bars.setdefault(ax_key, []).append(
+        (xv, hv, float(bottom), bool(horizontal), bw))
+    if not horizontal:
         _mark_datetime_x(ax, names is None and _is_datetime_like(x))
-        _auto_fit_axes(ax, pos, ext)
+    _refit_bars(ax)
     _state._show_if_pending()
     return series
 
 
-def _bar_value_extent(bars, mode: str, horizontal: bool):
-    """Values a bar axes must show and the value the bars grow from.
+def _bar_value_extent(same, mode: str):
+    """Values the bars of one orientation must show, and their baselines.
 
     Mirrors Axes::sync_bar_layout(): stacked bars (two or more series of one
     orientation) stack from the first series' bottom, positives and
     negatives separately; otherwise each bar spans bottom .. height.
     """
-    same = [b for b in bars if b[3] == horizontal]
     if mode != "stacked" or len(same) < 2:
-        _, hv, bottom, _ = same[-1]
-        return list(hv) + [bottom], bottom
+        ext = [v for b in same for v in b[1]] + [b[2] for b in same]
+        return ext, sorted({b[2] for b in same})
     origin = same[0][2]
     tops: dict = {}
     ext = [origin]
-    for xv, hv, _, _ in same:
+    for xv, hv, *_ in same:
         for p, h in zip(xv, hv):
             if not (math.isfinite(p) and math.isfinite(h)):
                 continue
@@ -909,7 +901,35 @@ def _bar_value_extent(bars, mode: str, horizontal: bool):
                 neg_top += h
                 ext.append(neg_top)
             tops[p] = (pos_top, neg_top)
-    return ext, origin
+    return ext, [origin]
+
+
+def _refit_bars(ax) -> None:
+    """Fit the axes limits to its bars (both orientations) in its bar mode.
+
+    Called after each bar() and whenever the axes' bar mode changes, since
+    the mode is axes-wide: switching to stacked grows the stacks of every
+    orientation, not only the new bar's.  Limits only ever grow (bounds
+    accumulate across calls).  Bar baselines become sticky edges.
+    """
+    ax_key = (ax._figure_id, ax._index)
+    bars = _state._axes_bars.get(ax_key)
+    if not bars:
+        return
+    sticky = _state._axes_sticky.setdefault(ax_key, ([], []))
+    mode = getattr(ax, "bar_mode", "grouped")
+    for horizontal in (False, True):
+        same = [b for b in bars if b[3] == horizontal]
+        if not same:
+            continue
+        ext, origins = _bar_value_extent(same, mode)
+        pos = [p + d * b[4] / 2.0 for b in same for p in b[0] for d in (-1.0, 1.0)]
+        axis = sticky[0 if horizontal else 1]
+        axis.extend(o for o in origins if o not in axis)
+        if horizontal:
+            _auto_fit_axes(ax, ext, pos)
+        else:
+            _auto_fit_axes(ax, pos, ext)
 
 
 def barh(

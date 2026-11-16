@@ -219,6 +219,62 @@ TEST(BarLayout, VerticalAndHorizontalSeriesDoNotGroupTogether)
     EXPECT_FLOAT_EQ(b.layout_offset(), 0.0f);
 }
 
+TEST(BarLayout, StackingMatchesLogicalPositionsWithOffsets)
+{
+    // Same stored positions, different x offsets: different categories.
+    Axes ax;
+    ax.bar_mode(BarMode::Stacked);
+    auto& a = ax.bar(std::vector<float>{0.0f}, std::vector<float>{2.0f});
+    auto& b = ax.bar(std::vector<float>{0.0f}, std::vector<float>{3.0f});
+    b.x_offset(10.0);
+    ax.sync_bar_layout();
+    EXPECT_FLOAT_EQ(a.bar_top(0), 2.0f);
+    EXPECT_FLOAT_EQ(b.bar_base(0), 0.0f);
+    EXPECT_FLOAT_EQ(b.bar_top(0), 3.0f);
+
+    // Different stored positions, same logical category: they stack.
+    Axes  ax2;
+    auto& c = ax2.bar(std::vector<float>{10.0f}, std::vector<float>{2.0f});
+    auto& d = ax2.bar(std::vector<float>{0.0f}, std::vector<float>{3.0f});
+    d.x_offset(10.0);
+    ax2.bar_mode(BarMode::Stacked);
+    ax2.sync_bar_layout();
+    EXPECT_FLOAT_EQ(c.bar_base(0), 0.0f);
+    EXPECT_FLOAT_EQ(d.bar_base(0), 2.0f);
+    EXPECT_FLOAT_EQ(d.bar_top(0), 5.0f);
+
+    // A value offset is honoured too: stored bases are relative to it.
+    Axes  ax3;
+    auto& e = ax3.bar(std::vector<float>{0.0f}, std::vector<float>{2.0f});
+    auto& f = ax3.bar(std::vector<float>{0.0f}, std::vector<float>{3.0f});
+    f.y_offset(100.0);
+    ax3.bar_mode(BarMode::Stacked);
+    ax3.sync_bar_layout();
+    EXPECT_FLOAT_EQ(e.bar_top(0), 2.0f);
+    EXPECT_FLOAT_EQ(f.bar_base(0), 2.0f - 100.0f);   // logical 2
+    EXPECT_FLOAT_EQ(f.bar_top(0), 5.0f - 100.0f);    // logical 5
+    EXPECT_NEAR(ax3.y_limits().max, 5.25, 1e-6);
+}
+
+TEST(BarLayout, GroupingMatchesLogicalPositionsWithOffsets)
+{
+    Axes  ax;
+    auto& a = ax.bar(std::vector<float>{0.0f}, std::vector<float>{2.0f});
+    auto& b = ax.bar(std::vector<float>{0.0f}, std::vector<float>{3.0f});
+    b.x_offset(10.0);
+    ax.sync_bar_layout();
+    EXPECT_FLOAT_EQ(a.layout_offset(), 0.0f);   // not sharing a category
+    EXPECT_FLOAT_EQ(b.layout_offset(), 0.0f);
+
+    Axes  ax2;
+    auto& c = ax2.bar(std::vector<float>{10.0f}, std::vector<float>{2.0f});
+    auto& d = ax2.bar(std::vector<float>{0.0f}, std::vector<float>{3.0f});
+    d.x_offset(10.0);
+    ax2.sync_bar_layout();
+    EXPECT_FLOAT_EQ(c.layout_offset(), -0.2f);
+    EXPECT_FLOAT_EQ(d.layout_offset(), 0.2f);
+}
+
 // ─── Sticky baseline ────────────────────────────────────────────────────────
 
 TEST(BarAutoscale, PositiveBarsSitOnTheAxis)

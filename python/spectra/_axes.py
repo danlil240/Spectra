@@ -320,7 +320,13 @@ class Axes:
             f1=float(_BAR_MODES[mode]),
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+        changed = mode != self._bar_mode
         self._bar_mode = mode
+        if changed:
+            # The easy API fits limits client-side: refit its bars to the mode.
+            from . import _easy
+
+            _easy._refit_bars(self)
 
     @property
     def bar_mode(self) -> str:

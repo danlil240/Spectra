@@ -222,6 +222,25 @@ def test_bar_stacked_fits_the_stack(fake):
     assert lo < -3 and hi > 6  # 2+4 up, -1-2 down
 
 
+def test_bar_mode_change_refits_every_orientation(fake):
+    ax, _ = fake
+    sp.barh([0], [5])
+    sp.barh([0], [5])
+    assert ax.limits[0] == (0.0, 5.25)  # grouped: side by side
+    sp.bar([1], [1], stacked=True)  # axes-wide: the horizontal bars stack too
+    assert ax.limits[0][0] == 0.0 and ax.limits[0][1] >= 10.0
+
+
+def test_set_bar_mode_refits_easy_api_bars(fake):
+    ax, _ = fake
+    sp.bar([0, 1], [2, 3])
+    sp.bar([0, 1], [2, 3])
+    assert ax.limits[1] == (0.0, 3.15)
+    ax.bar_mode = "stacked"  # what Axes.set_bar_mode("stacked") records before refitting
+    easy._refit_bars(ax)
+    assert ax.limits[1] == (0.0, 6.3)
+
+
 def test_pyplot_bar_sequence_bottom_stacks(fake_plt):
     ax, _ = fake_plt
     plt.bar([0, 1], [1, 2])
@@ -241,8 +260,16 @@ def test_axes_set_bar_mode_sends_property():
 
     a = Axes(_Session(), 1, 0)
     assert a.bar_mode == "grouped"
-    a.set_bar_mode("overlay")
-    assert a.bar_mode == "overlay" and len(sent) == 1 and sent[0][0] == P.REQ_UPDATE_PROPERTY
+    calls = []
+    orig = easy._refit_bars
+    easy._refit_bars = calls.append
+    try:
+        a.set_bar_mode("overlay")
+        a.set_bar_mode("overlay")  # unchanged: no refit
+    finally:
+        easy._refit_bars = orig
+    assert calls == [a]
+    assert a.bar_mode == "overlay" and len(sent) == 2 and sent[0][0] == P.REQ_UPDATE_PROPERTY
     with pytest.raises(ValueError):
         a.set_bar_mode("sideways")
 

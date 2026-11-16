@@ -921,29 +921,45 @@ static AxisExtent to_extent(const double (&v)[3])
 // Gap between neighbouring bars of a group, as a fraction of a slot.
 static constexpr float BAR_GROUP_GAP = 0.1f;
 
-// Side-by-side layout of the series that share a bar position with another
-// series; the others keep the plain layout.
+// Offsets of a bar series along its category and value axes: logical value =
+// stored float + offset (Series::x_offset()/y_offset(), as drawn and autoscaled).
+static double bar_category_offset(const BarSeries& b)
+{
+    return b.orientation() == BarOrientation::Vertical ? b.x_offset() : b.y_offset();
+}
+
+static double bar_value_offset(const BarSeries& b)
+{
+    return b.orientation() == BarOrientation::Vertical ? b.y_offset() : b.x_offset();
+}
+
+// Side-by-side layout of the series that share a bar position (in logical,
+// offset-applied coordinates) with another series; the others keep the
+// plain layout.
 static void layout_grouped_bars(const std::vector<BarSeries*>& bars)
 {
-    std::map<float, int> users;   // position -> number of series with a bar there
+    std::map<double, int> users;   // logical position -> number of series with a bar there
     for (const BarSeries* b : bars)
     {
-        std::set<float> own;
+        const double     off = bar_category_offset(*b);
+        std::set<double> own;
         for (float p : b->bar_positions())
             if (std::isfinite(p))
-                own.insert(p);
-        for (float p : own)
+                own.insert(static_cast<double>(p) + off);
+        for (double p : own)
             ++users[p];
     }
 
     std::vector<BarSeries*> group;
     for (BarSeries* b : bars)
     {
-        const bool shared = std::any_of(b->bar_positions().begin(),
+        const double off    = bar_category_offset(*b);
+        const bool   shared = std::any_of(b->bar_positions().begin(),
                                         b->bar_positions().end(),
                                         [&](float p)
                                         {
-                                            const auto it = users.find(p);
+                                            const auto it =
+                                                users.find(static_cast<double>(p) + off);
                                             return it != users.end() && it->second > 1;
                                         });
         if (shared)
@@ -970,8 +986,10 @@ static void layout_grouped_bars(const std::vector<BarSeries*>& bars)
 }
 
 // Stacked layout: each bar starts where the bars of the earlier series at the
-// same position end.  Positive and negative values stack separately, both
-// from the first series' baseline.
+// same logical position end.  Positive and negative values stack separately,
+// both from the first series' baseline.  Stacking runs in logical
+// (offset-applied) coordinates; each series stores its bases relative to its
+// own value offset.
 static void layout_stacked_bars(const std::vector<BarSeries*>& bars)
 {
     if (bars.size() < 2)
@@ -980,29 +998,35 @@ static void layout_stacked_bars(const std::vector<BarSeries*>& bars)
             b->reset_layout();
         return;
     }
-    const float                                origin = bars.front()->baseline();
-    std::map<float, std::pair<double, double>> tops;   // position -> {positive, negative} top
+    const BarSeries& first = *bars.front();
+    const double     origin =
+        static_cast<double>(first.baseline()) + bar_value_offset(first);   // logical
+    std::map<double, std::pair<double, double>> tops;   // position -> {positive, negative} top
     for (BarSeries* b : bars)
     {
-        const auto&        pos = b->bar_positions();
-        const auto&        h   = b->bar_heights();
-        const size_t       n   = std::min(pos.size(), h.size());
-        std::vector<float> bases(n, origin);
+        const double       cat_off    = bar_category_offset(*b);
+        const double       val_off    = bar_value_offset(*b);
+        const auto&        pos        = b->bar_positions();
+        const auto&        h          = b->bar_heights();
+        const size_t       n          = std::min(pos.size(), h.size());
+        const float        own_origin = static_cast<float>(origin - val_off);
+        std::vector<float> bases(n, own_origin);
         for (size_t i = 0; i < n; ++i)
         {
             if (!std::isfinite(pos[i]))
                 continue;
-            auto& top = tops.try_emplace(pos[i], origin, origin).first->second;
+            auto& top = tops.try_emplace(static_cast<double>(pos[i]) + cat_off, origin, origin)
+                            .first->second;
             if (!std::isfinite(h[i]))
             {
-                bases[i] = static_cast<float>(top.first);
+                bases[i] = static_cast<float>(top.first - val_off);
                 continue;
             }
             double& acc = h[i] >= 0.0f ? top.first : top.second;
-            bases[i]    = static_cast<float>(acc);
+            bases[i]    = static_cast<float>(acc - val_off);
             acc += static_cast<double>(h[i]);
         }
-        b->set_layout(0.0f, -1.0f, std::move(bases), true, origin);
+        b->set_layout(0.0f, -1.0f, std::move(bases), true, own_origin);
     }
 }
 

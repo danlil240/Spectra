@@ -71,6 +71,14 @@ static bool apply_property_update(FigureModel&              fig_model,
         diff.ops.push_back(
             fig_model.set_series_marker_style(figure_id, series_index, static_cast<uint8_t>(ms)));
     }
+    else if (property == "palette_index")
+    {
+        // Matplotlib-style "C<n>": data-palette slot n, resolved per theme.
+        if (f1 >= 0.0 && f1 < 1.0e6)
+            diff.ops.push_back(fig_model.set_series_palette_index(figure_id,
+                                                                  series_index,
+                                                                  static_cast<int32_t>(f1)));
+    }
     else if (property == "data_origin")
     {
         // Double-precision data origins of a 2D series (f1 = x, f2 = y): the
@@ -469,12 +477,12 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
 
     // Check for unknown property before applying
     static const char* known_props[] = {
-        "color",       "color_letter",   "xlim",        "ylim",           "zlim",
-        "title",       "grid",           "visible",     "line_width",     "marker_size",
-        "opacity",     "xlabel",         "ylabel",      "axes_title",     "label",
-        "legend",      "legend_visible", "add_knob",    "annotation",     "clear_annotations",
-        "data_origin", "xscale",         "yscale",      "xaxis_datetime", "yaxis_datetime",
-        "categories",  "line_style",     "marker_style"};
+        "color",       "color_letter",   "xlim",         "ylim",           "zlim",
+        "title",       "grid",           "visible",      "line_width",     "marker_size",
+        "opacity",     "xlabel",         "ylabel",       "axes_title",     "label",
+        "legend",      "legend_visible", "add_knob",     "annotation",     "clear_annotations",
+        "data_origin", "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
+        "categories",  "line_style",     "marker_style", "palette_index"};
     bool known = false;
     for (const auto* p : known_props)
     {

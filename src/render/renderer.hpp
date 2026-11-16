@@ -578,7 +578,7 @@ class Renderer
 
     // Flat fill + thin outline of a bar / histogram / box / violin series
     // (render_2d.cpp).
-    void draw_stat_fill(const SeriesGpuData&       gpu,
+    void draw_stat_fill(SeriesGpuData&             gpu,
                         const SeriesPushConstants& pc,
                         const StatFillStyle&       style,
                         size_t                     outline_points);

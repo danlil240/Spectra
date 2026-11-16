@@ -79,9 +79,9 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
         item.icon      = icon;
         item.label     = label;
         item.id        = label;
-        item.tooltip   = label;
+        item.tooltip   = imgui_->tool_tooltip(label, mode);
         item.is_active = [imgui = imgui_, mode]() { return imgui->interaction_mode_ == mode; };
-        item.on_click  = [imgui = imgui_, mode]() { imgui->interaction_mode_ = mode; };
+        item.on_click  = [imgui = imgui_, mode]() { imgui->set_interaction_mode(mode); };
         out.push_back(std::move(item));
     };
 
@@ -283,7 +283,8 @@ void SpectraNavRail::draw()
                                                imgui_->font_icon_,
                                                label_font,
                                                btn_w,
-                                               scale))
+                                               scale,
+                                               item.tooltip.c_str()))
             {
                 if (item.on_click)
                     item.on_click();

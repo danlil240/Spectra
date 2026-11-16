@@ -12,13 +12,17 @@
 //   5. Struct layout constraints required by the WebGPU uniform buffer rules.
 
 #include <gtest/gtest.h>
+#include <cstdint>
 #include <cstring>
+#include <initializer_list>
+#include <vector>
 
 // WGSL shader embedding: always available once the WGSL sources exist.
 // Does NOT require SPECTRA_USE_WEBGPU or Dawn.
 #include "shader_wgsl.hpp"
 
 #include "render/backend.hpp"
+#include "render/webgpu/wgpu_pipeline_support.hpp"
 
 #ifdef SPECTRA_USE_WEBGPU
     #include "render/webgpu/wgpu_backend.hpp"
@@ -163,6 +167,65 @@ TEST(WebGPUHandles, InvalidTextureHandle)
     TextureHandle h{};
     EXPECT_FALSE(static_cast<bool>(h));
     EXPECT_EQ(h.id, 0u);
+}
+
+// ─── Surface format selection (always run) ───────────────────────────────────
+//
+// Values mirror webgpu.h (WGPUTextureFormat_*); the helper is header-only so
+// it is testable without Dawn.  The pipelines' colour target must use the same
+// format the swapchain is configured with, or every render pass fails
+// validation (blank canvas on browsers that prefer rgba8unorm).
+
+namespace
+{
+constexpr uint32_t FMT_UNDEFINED   = 0x00;
+constexpr uint32_t FMT_RGBA8       = 0x16;
+constexpr uint32_t FMT_RGBA8_SRGB  = 0x17;
+constexpr uint32_t FMT_BGRA8       = 0x1B;
+constexpr uint32_t FMT_BGRA8_SRGB  = 0x1C;
+constexpr uint32_t FMT_RGBA16FLOAT = 0x28;
+
+uint32_t pick(std::initializer_list<uint32_t> formats)
+{
+    std::vector<uint32_t> v(formats);
+    return webgpu_pick_surface_format<uint32_t>(v, FMT_RGBA8, FMT_BGRA8, FMT_UNDEFINED);
+}
+}   // namespace
+
+TEST(WebGPUSurfaceFormat, BrowserPreferringRgbaGetsRgba)
+{
+    // Chrome on Android / Linux / ChromeOS: getPreferredCanvasFormat() = rgba8unorm.
+    EXPECT_EQ(pick({FMT_RGBA8, FMT_BGRA8, FMT_RGBA16FLOAT}), FMT_RGBA8);
+}
+
+TEST(WebGPUSurfaceFormat, BrowserPreferringBgraGetsBgra)
+{
+    EXPECT_EQ(pick({FMT_BGRA8, FMT_RGBA8, FMT_RGBA16FLOAT}), FMT_BGRA8);
+}
+
+TEST(WebGPUSurfaceFormat, SkipsLeadingSrgbForUnorm)
+{
+    // Native Dawn often lists an sRGB format first; UNORM keeps theme colours 1:1.
+    EXPECT_EQ(pick({FMT_BGRA8_SRGB, FMT_BGRA8}), FMT_BGRA8);
+    EXPECT_EQ(pick({FMT_RGBA8_SRGB, FMT_RGBA16FLOAT, FMT_RGBA8}), FMT_RGBA8);
+}
+
+TEST(WebGPUSurfaceFormat, NoUnormFallsBackToPreferred)
+{
+    EXPECT_EQ(pick({FMT_RGBA16FLOAT, FMT_BGRA8_SRGB}), FMT_RGBA16FLOAT);
+}
+
+TEST(WebGPUSurfaceFormat, EmptyListReturnsFallback)
+{
+    EXPECT_EQ(pick({}), FMT_UNDEFINED);
+}
+
+TEST(WebGPUSurfaceFormat, IsConstexpr)
+{
+    constexpr uint32_t formats[] = {FMT_RGBA16FLOAT, FMT_RGBA8};
+    static_assert(webgpu_pick_surface_format<uint32_t>(formats, FMT_RGBA8, FMT_BGRA8, 0u)
+                  == FMT_RGBA8);
+    SUCCEED();
 }
 
 // ─── Backend class tests (require SPECTRA_USE_WEBGPU=ON) ─────────────────────

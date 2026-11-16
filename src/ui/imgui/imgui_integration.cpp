@@ -185,6 +185,21 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
 
     ImGui_ImplGlfw_InitForVulkan(window, install_callbacks);
 
+    // ImGui has no crosshair cursor; GLFW does.  Applied by hand over the plot
+    // for the zoom / measure / ROI tools (see apply_os_cursor_after_backend).
+    // Silence the error callback like ImGui's backend does for its cursors:
+    // some platforms lack the shape and return nullptr.
+    {
+        GLFWerrorfun prev_error_cb = glfwSetErrorCallback(nullptr);
+        crosshair_cursor_          = glfwCreateStandardCursor(GLFW_CROSSHAIR_CURSOR);
+        arrow_cursor_              = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+        glfwSetErrorCallback(prev_error_cb);
+        #ifndef __EMSCRIPTEN__
+        // Emscripten's GLFW port has no glfwGetError.
+        (void)glfwGetError(nullptr);
+        #endif
+    }
+
     ImGui_ImplVulkan_InitInfo ii{};
     ii.Instance                     = backend.instance();
     ii.PhysicalDevice               = backend.physical_device();
@@ -360,6 +375,18 @@ void ImGuiIntegration::shutdown()
     if (!headless_)
     {
     #ifdef SPECTRA_USE_GLFW
+        if (crosshair_cursor_)
+        {
+            // GLFW resets any window still showing it to the default cursor.
+            glfwDestroyCursor(static_cast<GLFWcursor*>(crosshair_cursor_));
+            crosshair_cursor_  = nullptr;
+            crosshair_applied_ = false;
+        }
+        if (arrow_cursor_)
+        {
+            glfwDestroyCursor(static_cast<GLFWcursor*>(arrow_cursor_));
+            arrow_cursor_ = nullptr;
+        }
         ImGui_ImplGlfw_Shutdown();
     #elif defined(SPECTRA_USE_SDL3)
         ImGui_ImplSDL3_Shutdown();
@@ -474,7 +501,9 @@ void ImGuiIntegration::new_frame()
         return;
     ImGui_ImplVulkan_NewFrame();
     #ifdef SPECTRA_USE_GLFW
+    apply_os_cursor_before_backend();
     ImGui_ImplGlfw_NewFrame();
+    apply_os_cursor_after_backend();
     #elif defined(SPECTRA_USE_SDL3)
     ImGui_ImplSDL3_NewFrame();
     #endif
@@ -1060,7 +1089,101 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         command_palette_->draw(io.DisplaySize.x, io.DisplaySize.y);
     }
 
+    // After every widget had its say on the cursor this frame.
+    update_plot_cursor();
+
     ui::log_imgui_frame_activations();
+}
+
+// ─── Tool mode and plot cursor ──────────────────────────────────────────────
+
+void ImGuiIntegration::set_interaction_mode(ToolMode mode)
+{
+    interaction_mode_ = mode;
+    if (input_handler_)
+        input_handler_->set_tool_mode(mode);
+}
+
+std::string ImGuiIntegration::tool_tooltip(const char* label, ToolMode mode) const
+{
+    const std::string key =
+        menu_shortcut_text(shortcut_manager_, command_registry_, tool_command_id(mode));
+    if (key.empty())
+        return label;
+    return std::string(label) + " (" + key + ")";
+}
+
+void ImGuiIntegration::update_plot_cursor()
+{
+    plot_cursor_ = PlotCursor::Default;
+    if (!input_handler_ || !canvas_visible_)
+        return;
+
+    const bool   panning = plot_is_panning(*input_handler_);
+    const ImVec2 mouse   = ImGui::GetIO().MousePos;
+    bool         over    = false;
+    if (!panning && ImGui::IsMousePosValid(&mouse) && !wants_capture_mouse()
+        && ImGui::GetMouseCursor() == ImGuiMouseCursor_Arrow)
+    {
+        over = input_handler_->hit_test_all_axes(mouse.x, mouse.y) != nullptr;
+    }
+    plot_cursor_ = plot_cursor_for(input_handler_->tool_mode(), over, panning);
+
+    switch (plot_cursor_)
+    {
+        case PlotCursor::Default:
+            break;
+        case PlotCursor::OpenHand:
+            // GLFW/ImGui have no open-hand shape: the hand (pointer) is closest.
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            break;
+        case PlotCursor::Grabbing:
+            // No grab shape either: the four-way move cursor reads as "dragging".
+            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+            break;
+        case PlotCursor::Crosshair:
+            // With a GLFW crosshair the backend keeps the arrow and the
+            // crosshair is set on the window after it (new_frame).  Without
+            // one (SDL3, headless hosts) the arrow is the closest ImGui shape:
+            // ResizeAll looks like a cross but already means "dragging".
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Arrow);
+            break;
+        case PlotCursor::Text:
+            ImGui::SetMouseCursor(ImGuiMouseCursor_TextInput);
+            break;
+    }
+}
+
+void ImGuiIntegration::apply_os_cursor_before_backend()
+{
+    #ifdef SPECTRA_USE_GLFW
+    // Leaving the crosshair: restore the arrow (what ImGui's backend believes
+    // is set) *before* the backend runs, so a shape it sets this frame (hand,
+    // resize) wins.  An explicit arrow, not nullptr: the window's default
+    // cursor is inherited from the root window and need not be an arrow.
+    if (crosshair_applied_ && plot_cursor_ != PlotCursor::Crosshair && glfw_window_)
+    {
+        glfwSetCursor(static_cast<GLFWwindow*>(glfw_window_),
+                      static_cast<GLFWcursor*>(arrow_cursor_));
+        crosshair_applied_ = false;
+    }
+    #endif
+}
+
+void ImGuiIntegration::apply_os_cursor_after_backend()
+{
+    #ifdef SPECTRA_USE_GLFW
+    // ImGui asked for the arrow (update_plot_cursor), which its backend may
+    // have just set; put the crosshair over it.  Re-applied every frame since
+    // the backend only sets a cursor when ImGui's shape changes.
+    if (plot_cursor_ == PlotCursor::Crosshair && crosshair_cursor_ && glfw_window_ && !headless_
+        && !(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange))
+    {
+        glfwSetCursor(static_cast<GLFWwindow*>(glfw_window_),
+                      static_cast<GLFWcursor*>(crosshair_cursor_));
+        crosshair_applied_ = true;
+    }
+    #endif
 }
 
 void ImGuiIntegration::build_empty_ui()
@@ -1069,6 +1192,7 @@ void ImGuiIntegration::build_empty_ui()
         return;
 
     current_figure_ = nullptr;
+    plot_cursor_    = PlotCursor::Default;   // no plot: hand the cursor back
 
     float dt = ImGui::GetIO().DeltaTime;
     if (theme_mgr_)
@@ -1886,6 +2010,31 @@ void ImGuiIntegration::apply_modern_style()
     // Apply theme colors through ThemeManager
     if (theme_mgr_)
         theme_mgr_->apply_to_imgui();
+}
+
+WidgetCursor ImGuiIntegration::widget_cursor() const
+{
+    switch (ImGui::GetMouseCursor())
+    {
+        case ImGuiMouseCursor_TextInput:
+            return WidgetCursor::TextInput;
+        case ImGuiMouseCursor_ResizeAll:
+            return WidgetCursor::ResizeAll;
+        case ImGuiMouseCursor_ResizeNS:
+            return WidgetCursor::ResizeNS;
+        case ImGuiMouseCursor_ResizeEW:
+            return WidgetCursor::ResizeEW;
+        case ImGuiMouseCursor_ResizeNESW:
+            return WidgetCursor::ResizeNESW;
+        case ImGuiMouseCursor_ResizeNWSE:
+            return WidgetCursor::ResizeNWSE;
+        case ImGuiMouseCursor_Hand:
+            return WidgetCursor::Hand;
+        case ImGuiMouseCursor_NotAllowed:
+            return WidgetCursor::NotAllowed;
+        default:
+            return WidgetCursor::Arrow;
+    }
 }
 
 }   // namespace spectra

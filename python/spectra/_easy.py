@@ -297,6 +297,10 @@ class _EasyState:
         self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
         self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
+        # sharex / sharey groups: (figure_id, axes_index) -> {"x": key, "y": key}
+        # and key -> member Axes proxies (limits are fitted to the whole group).
+        self._share_groups: dict = {}
+        self._share_members: dict = {}
         self._pending_knobs: List[dict] = []
         self._interactive_bindings: List = []
         self._interactive_started = False
@@ -398,6 +402,8 @@ class _EasyState:
         self._axes_scales.clear()
         self._datetime_axes.clear()
         self._subplot_cache.clear()
+        self._share_groups.clear()
+        self._share_members.clear()
         self._shutting_down = False
 
 
@@ -1472,22 +1478,100 @@ def _fit_range(lo: float, hi: float, pos_lo: float, scale: str):
     return lo_out, hi_out
 
 
+def _shared_bounds(ax_key, axis: str):
+    """(lo, hi, pos_lo) of ``axis`` over the share group of ``ax_key`` and its members.
+
+    Returns (None, ()) when the axes is not shared on that axis.
+    """
+    gk = _state._share_groups.get(ax_key, {}).get(axis)
+    if gk is None:
+        return None, ()
+    members = _state._share_members.get(gk, ())
+    i0, i1, ip = (0, 1, 4) if axis == "x" else (2, 3, 5)
+    lo = hi = pos = None
+    for m in members:
+        b = _state._axes_bounds.get((m._figure_id, m._index))
+        if b is None:
+            continue
+        lo = b[i0] if lo is None else min(lo, b[i0])
+        hi = b[i1] if hi is None else max(hi, b[i1])
+        if b[ip] is not None:
+            pos = b[ip] if pos is None else min(pos, b[ip])
+    if lo is None:
+        return None, members
+    return (lo, hi, pos), members
+
+
 def _apply_fit(ax) -> None:
-    """Set the axes limits from the accumulated data bounds and its scales."""
+    """Set the axes limits from the accumulated data bounds and its scales.
+
+    Shared axes (``subplots(sharex=...)``) fit the data of their whole group
+    and the limits go to every member.
+    """
     ax_key = (ax._figure_id, ax._index)
     b = _state._axes_bounds.get(ax_key)
     if b is None:
         return
     xscale, yscale = _state._axes_scales.get(ax_key, ("linear", "linear"))
-    xr = _fit_range(b[0], b[1], b[4], xscale)
-    yr = _fit_range(b[2], b[3], b[5], yscale)
+    xb, x_targets = (b[0], b[1], b[4]), (ax,)
+    yb, y_targets = (b[2], b[3], b[5]), (ax,)
+    gx, mx = _shared_bounds(ax_key, "x")
+    if gx is not None:
+        xb, x_targets = gx, mx
+    gy, my = _shared_bounds(ax_key, "y")
+    if gy is not None:
+        yb, y_targets = gy, my
+    xr = _fit_range(xb[0], xb[1], xb[2], xscale)
+    yr = _fit_range(yb[0], yb[1], yb[2], yscale)
     try:
         if xr is not None:
-            ax.set_xlim(*xr)
+            for t in x_targets:
+                t.set_xlim(*xr)
         if yr is not None:
-            ax.set_ylim(*yr)
+            for t in y_targets:
+                t.set_ylim(*yr)
     except Exception:
         pass
+
+
+def _share_axes(fig, axes_list, cols: int, sharex=False, sharey=False) -> None:
+    """Link the limits of a subplot grid like matplotlib's ``subplots(sharex=...)``.
+
+    ``axes_list`` is the grid in row-major order.  Modes: True/"all", "row",
+    "col", False/"none".  The windows link the axes too (pan / zoom one, all
+    follow) and hide the inner tick labels.
+    """
+    from ._figure import share_mode
+
+    modes = (("x", share_mode(sharex)), ("y", share_mode(sharey)))
+    fig.set_layout(sharex=sharex, sharey=sharey)
+    cols = max(1, int(cols))
+    for axis, mode in modes:
+        for i, ax in enumerate(axes_list):
+            ax_key = (ax._figure_id, ax._index)
+            groups = _state._share_groups.setdefault(ax_key, {})
+            old = groups.pop(axis, None)
+            if old is not None and ax in _state._share_members.get(old, []):
+                _state._share_members[old].remove(ax)
+            if mode == 0:
+                continue
+            r, c = divmod(i, cols)
+            part = 0 if mode == 1 else (r if mode == 2 else c)
+            gk = (id(fig), axis, mode, part)
+            groups[axis] = gk
+            _state._share_members.setdefault(gk, []).append(ax)
+    for ax in axes_list:
+        _apply_fit(ax)
+
+
+def suptitle(text: str):
+    """Set the title of the current figure, centred above all its subplots."""
+    _state._ensure_figure().suptitle(text)
+
+
+def tight_layout():
+    """Size the subplot spacing from the labels (constrained layout, on by default)."""
+    _state._ensure_figure().tight_layout()
 
 
 def _auto_fit_axes(ax, x: List[float], y: List[float]) -> None:
@@ -2062,12 +2146,15 @@ def plotn(*ys, labels: Optional[List[str]] = None):
     return series_list
 
 
-def subplots(rows: int, cols: int):
+def subplots(rows: int, cols: int, sharex=False, sharey=False):
     """Create a grid of subplots and return axes list.
+
+    ``sharex`` / ``sharey`` link the axis limits like matplotlib: True/"all",
+    "row", "col" or False.
 
     Usage::
 
-        axes = sp.subplots(2, 2)
+        axes = sp.subplots(2, 2, sharex="col")
         # axes[0], axes[1], axes[2], axes[3]
     """
     fig = _state._ensure_figure()
@@ -2075,6 +2162,8 @@ def subplots(rows: int, cols: int):
     for i in range(1, rows * cols + 1):
         ax = fig.subplot(rows, cols, i)
         axes_list.append(ax)
+    if sharex or sharey:
+        _share_axes(fig, axes_list, cols, sharex, sharey)
     _state._current_axes = axes_list[0] if axes_list else None
     _state._current_axes_key = (rows, cols, 1)
     return axes_list

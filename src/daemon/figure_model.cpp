@@ -681,6 +681,37 @@ ipc::DiffOp FigureModel::set_figure_title(uint64_t figure_id, const std::string&
     return op;
 }
 
+ipc::DiffOp FigureModel::set_figure_suptitle(uint64_t figure_id, const std::string& text)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it != figures_.end())
+        it->second.suptitle = text;
+    bump_revision();
+    return ipc::make_figure_suptitle_op(figure_id, text);
+}
+
+ipc::DiffOp FigureModel::set_figure_layout(uint64_t  figure_id,
+                                           bool      constrained,
+                                           ShareAxes share_x,
+                                           ShareAxes share_y)
+{
+    std::lock_guard          lock(mu_);
+    ipc::SnapshotFigureState fs;
+    fs.constrained_layout = constrained ? 1 : 0;
+    fs.share_x            = static_cast<uint8_t>(share_x);
+    fs.share_y            = static_cast<uint8_t>(share_y);
+    auto it               = figures_.find(figure_id);
+    if (it != figures_.end())
+    {
+        it->second.constrained_layout = fs.constrained_layout;
+        it->second.share_x            = fs.share_x;
+        it->second.share_y            = fs.share_y;
+    }
+    bump_revision();
+    return ipc::make_figure_layout_op(figure_id, fs);
+}
+
 void FigureModel::set_live_fps(uint64_t figure_id, float fps)
 {
     std::lock_guard lock(mu_);
@@ -736,17 +767,21 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
             next_figure_id_ = id + 1;
 
         FigureData fd;
-        fd.id              = id;
-        fd.title           = fig.title;
-        fd.width           = fig.width;
-        fd.height          = fig.height;
-        fd.grid_rows       = fig.grid_rows;
-        fd.grid_cols       = fig.grid_cols;
-        fd.live_fps        = fig.live_fps;
-        fd.legend_position = fig.legend_position;
-        fd.axes            = fig.axes;
-        fd.series          = fig.series;
-        figures_[id]       = std::move(fd);
+        fd.id                 = id;
+        fd.title              = fig.title;
+        fd.width              = fig.width;
+        fd.height             = fig.height;
+        fd.grid_rows          = fig.grid_rows;
+        fd.grid_cols          = fig.grid_cols;
+        fd.live_fps           = fig.live_fps;
+        fd.legend_position    = fig.legend_position;
+        fd.suptitle           = fig.suptitle;
+        fd.constrained_layout = fig.constrained_layout;
+        fd.share_x            = fig.share_x;
+        fd.share_y            = fig.share_y;
+        fd.axes               = fig.axes;
+        fd.series             = fig.series;
+        figures_[id]          = std::move(fd);
         figure_order_.push_back(id);
         ids.push_back(id);
     }
@@ -769,16 +804,20 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
             continue;
         const auto&              fd = it->second;
         ipc::SnapshotFigureState fig;
-        fig.figure_id       = fd.id;
-        fig.title           = fd.title;
-        fig.width           = fd.width;
-        fig.height          = fd.height;
-        fig.grid_rows       = fd.grid_rows;
-        fig.grid_cols       = fd.grid_cols;
-        fig.live_fps        = fd.live_fps;
-        fig.legend_position = fd.legend_position;
-        fig.axes            = fd.axes;
-        fig.series          = fd.series;
+        fig.figure_id          = fd.id;
+        fig.title              = fd.title;
+        fig.width              = fd.width;
+        fig.height             = fd.height;
+        fig.grid_rows          = fd.grid_rows;
+        fig.grid_cols          = fd.grid_cols;
+        fig.live_fps           = fd.live_fps;
+        fig.legend_position    = fd.legend_position;
+        fig.suptitle           = fd.suptitle;
+        fig.constrained_layout = fd.constrained_layout;
+        fig.share_x            = fd.share_x;
+        fig.share_y            = fd.share_y;
+        fig.axes               = fd.axes;
+        fig.series             = fd.series;
         snap.figures.push_back(std::move(fig));
     }
     snap.knobs = knobs_;
@@ -798,16 +837,20 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
             continue;
         const auto&              fd = it->second;
         ipc::SnapshotFigureState fig;
-        fig.figure_id       = fd.id;
-        fig.title           = fd.title;
-        fig.width           = fd.width;
-        fig.height          = fd.height;
-        fig.grid_rows       = fd.grid_rows;
-        fig.grid_cols       = fd.grid_cols;
-        fig.live_fps        = fd.live_fps;
-        fig.legend_position = fd.legend_position;
-        fig.axes            = fd.axes;
-        fig.series          = fd.series;
+        fig.figure_id          = fd.id;
+        fig.title              = fd.title;
+        fig.width              = fd.width;
+        fig.height             = fd.height;
+        fig.grid_rows          = fd.grid_rows;
+        fig.grid_cols          = fd.grid_cols;
+        fig.live_fps           = fd.live_fps;
+        fig.legend_position    = fd.legend_position;
+        fig.suptitle           = fd.suptitle;
+        fig.constrained_layout = fd.constrained_layout;
+        fig.share_x            = fd.share_x;
+        fig.share_y            = fd.share_y;
+        fig.axes               = fd.axes;
+        fig.series             = fd.series;
         snap.figures.push_back(std::move(fig));
     }
     snap.knobs = knobs_;
@@ -938,6 +981,24 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.legend_position =
                 ipc::legend_position_to_wire(ipc::legend_position_from_wire(op.f1));
             break;
+
+        case ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
+        case ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
+        {
+            if (it == figures_.end())
+                return false;
+            ipc::SnapshotFigureState fs;
+            fs.suptitle           = it->second.suptitle;
+            fs.constrained_layout = it->second.constrained_layout;
+            fs.share_x            = it->second.share_x;
+            fs.share_y            = it->second.share_y;
+            ipc::apply_figure_layout_op(fs, op);
+            it->second.suptitle           = fs.suptitle;
+            it->second.constrained_layout = fs.constrained_layout;
+            it->second.share_x            = fs.share_x;
+            it->second.share_y            = fs.share_y;
+            break;
+        }
 
         case ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {

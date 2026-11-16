@@ -129,6 +129,21 @@ struct WorkspaceData
         // LegendPosition (optional "legend_position" key); -1 = not in the
         // file, so apply() keeps the figure's current position.
         int legend_position = -1;
+        // Figure layout (optional keys; has_layout = false when the file has
+        // none, so apply() keeps the figure's own).  Margins / gaps in pixels,
+        // share modes are spectra::ShareAxes values.
+        bool        has_layout         = false;
+        float       margin_top         = 40.0f;
+        float       margin_bottom      = 60.0f;
+        float       margin_left        = 70.0f;
+        float       margin_right       = 20.0f;
+        float       subplot_hgap       = 40.0f;
+        float       subplot_vgap       = 50.0f;
+        float       min_subplot_height = 150.0f;
+        bool        constrained_layout = true;
+        int         share_x            = 0;
+        int         share_y            = 0;
+        std::string suptitle;
     };
 
     struct PanelState

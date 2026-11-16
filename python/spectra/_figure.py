@@ -12,13 +12,28 @@ if TYPE_CHECKING:
     from ._axes import Axes
 
 
+# Share modes of Figure.set_layout(sharex=..., sharey=...), as spectra::ShareAxes.
+_SHARE_MODES = {False: 0, "none": 0, True: 1, "all": 1, "row": 2, "col": 3}
+
+
+def share_mode(mode) -> int:
+    """matplotlib sharex/sharey value (True/"all", "row", "col", False/"none") -> ShareAxes."""
+    if mode is None:
+        return 0
+    key = mode.lower() if isinstance(mode, str) else bool(mode)
+    if key not in _SHARE_MODES:
+        raise ValueError(f"share mode must be True, False, 'all', 'row', 'col' or 'none', got {mode!r}")
+    return _SHARE_MODES[key]
+
+
 class Figure:
     """Proxy for a figure managed by the spectra-backend.
 
     All mutations are sent to the backend via IPC.
     """
 
-    __slots__ = ("_session", "_id", "_title", "_axes_list", "_visible", "_shown_once", "_window_id")
+    __slots__ = ("_session", "_id", "_title", "_axes_list", "_visible", "_shown_once", "_window_id",
+                 "_suptitle", "_layout")
 
     def __init__(self, session: Session, figure_id: int, title: str = "") -> None:
         self._session = session
@@ -28,6 +43,8 @@ class Figure:
         self._visible = False
         self._shown_once = False
         self._window_id: int = 0
+        self._suptitle = ""
+        self._layout = [True, 0, 0]  # constrained, sharex, sharey
 
     @property
     def id(self) -> int:
@@ -46,6 +63,46 @@ class Figure:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
         self._title = value
+
+    def suptitle(self, text: str) -> None:
+        """Set the figure title drawn centred above the subplot grid ("" removes it)."""
+        text = str(text)
+        payload = codec.encode_req_update_property(
+            figure_id=self._id,
+            prop="suptitle",
+            str_val=text,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+        self._suptitle = text
+
+    def get_suptitle(self) -> str:
+        return self._suptitle
+
+    def set_layout(self, constrained: Optional[bool] = None, sharex=None, sharey=None) -> None:
+        """Change the subplot layout.
+
+        ``constrained`` sizes margins and gaps from the labels so they never
+        overlap (on by default).  ``sharex`` / ``sharey`` link axis limits
+        between subplots like matplotlib: ``True``/``"all"``, ``"row"``,
+        ``"col"`` or ``False``/``"none"``; arguments left as None keep their value.
+        """
+        if constrained is not None:
+            self._layout[0] = bool(constrained)
+        for i, mode in ((1, sharex), (2, sharey)):
+            if mode is not None:
+                self._layout[i] = share_mode(mode)
+        payload = codec.encode_req_update_property(
+            figure_id=self._id,
+            prop="figure_layout",
+            f1=1.0 if self._layout[0] else 0.0,
+            f2=float(self._layout[1]),
+            f3=float(self._layout[2]),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def tight_layout(self) -> None:
+        """Turn on constrained layout (labels sized into the subplot spacing)."""
+        self.set_layout(constrained=True)
 
     def subplot(self, rows: int, cols: int, index: int) -> Axes:
         """Create or get a subplot axes. Uses 1-based MATLAB-style indexing."""

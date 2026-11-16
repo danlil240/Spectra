@@ -255,6 +255,8 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
     }
 
     fig->legend().position = ipc::legend_position_from_wire(snap.legend_position);
+    // Suptitle, constrained layout and shared axes (after the axes exist).
+    ipc::apply_figure_layout_state(*fig, snap);
 
     // Apply live streaming FPS from snapshot
     if (snap.live_fps > 0.0f)

@@ -157,6 +157,10 @@ table SnapshotFigureState {
     series: [SnapshotSeriesState];
     live_fps: float = 0.0;
     legend_position: uint8 = 5;   // spectra::LegendPosition (5 = Best)
+    suptitle: string;             // Figure::suptitle()
+    constrained_layout: uint8 = 1;   // FigureStyle::constrained_layout
+    share_x: uint8 = 0;           // spectra::ShareAxes of Figure::share_x()
+    share_y: uint8 = 0;           // spectra::ShareAxes of Figure::share_y()
 }
 
 table SnapshotKnobState {
@@ -204,6 +208,8 @@ enum DiffOpType : uint8 {
     SET_AXIS_SCALE     = 29,
     SET_LEGEND_POSITION = 30,
     SET_SERIES_CATEGORIES = 31,
+    SET_FIGURE_SUPTITLE = 32,
+    SET_FIGURE_LAYOUT = 33,
 }
 
 table DiffOp {

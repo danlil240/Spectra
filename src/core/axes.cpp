@@ -24,6 +24,12 @@
 namespace spectra
 {
 
+// Members of one sharex()/sharey() group, shared by all of them.
+struct AxesShareGroup
+{
+    std::vector<Axes*> members;
+};
+
 void AxesBase::set_viewport(const Rect& r, float outside_legend_width)
 {
     Rect cell            = r;
@@ -320,6 +326,22 @@ void Axes::xlim(double min, double max)
         auto yl = y_limits();
         event_system_->axes_limits_changed().emit({this, xl.min, xl.max, yl.min, yl.max});
     }
+    if (share_x_)
+    {
+        for (Axes* m : share_x_->members)
+        {
+            if (m == this)
+                continue;
+            m->presented_buffer_following_ = false;
+            m->xlim_                       = AxisLimits{min, max};
+            if (m->event_system_)
+            {
+                auto xl = m->x_limits();
+                auto yl = m->y_limits();
+                m->event_system_->axes_limits_changed().emit({m, xl.min, xl.max, yl.min, yl.max});
+            }
+        }
+    }
 }
 
 void Axes::ylim(double min, double max)
@@ -333,11 +355,156 @@ void Axes::ylim(double min, double max)
         auto yl = y_limits();
         event_system_->axes_limits_changed().emit({this, xl.min, xl.max, yl.min, yl.max});
     }
+    if (share_y_)
+    {
+        for (Axes* m : share_y_->members)
+        {
+            if (m == this)
+                continue;
+            m->ylim_ = AxisLimits{min, max};
+            if (m->event_system_)
+            {
+                auto xl = m->x_limits();
+                auto yl = m->y_limits();
+                m->event_system_->axes_limits_changed().emit({m, xl.min, xl.max, yl.min, yl.max});
+            }
+        }
+    }
 }
 
 void Axes::clear_ylim()
 {
     ylim_.reset();
+    if (share_y_)
+    {
+        for (Axes* m : share_y_->members)
+            m->ylim_.reset();
+    }
+}
+
+// --- Shared axes ---
+
+Axes::~Axes()
+{
+    unshare_x();
+    unshare_y();
+}
+
+namespace
+{
+
+// Put `self` in `other`'s group (creating it), leaving its own group first.
+// Explicit limits of the members are merged into their union.
+void join_share_group(Axes*                            self,
+                      Axes*                            other,
+                      std::shared_ptr<AxesShareGroup>& self_group,
+                      std::shared_ptr<AxesShareGroup>& other_group)
+{
+    if (!other_group)
+    {
+        other_group = std::make_shared<AxesShareGroup>();
+        other_group->members.push_back(other);
+    }
+    self_group = other_group;
+    self_group->members.push_back(self);
+}
+
+}   // namespace
+
+void Axes::sharex(Axes& other)
+{
+    if (&other == this || (share_x_ && share_x_ == other.share_x_))
+        return;
+    unshare_x();
+    join_share_group(this, &other, share_x_, other.share_x_);
+    std::optional<AxisLimits> u;
+    for (Axes* m : share_x_->members)
+    {
+        if (!m->xlim_)
+            continue;
+        u = u ? AxisLimits{std::min(u->min, m->xlim_->min), std::max(u->max, m->xlim_->max)}
+              : *m->xlim_;
+    }
+    if (u)
+    {
+        for (Axes* m : share_x_->members)
+            m->xlim_ = u;
+    }
+}
+
+void Axes::sharey(Axes& other)
+{
+    if (&other == this || (share_y_ && share_y_ == other.share_y_))
+        return;
+    unshare_y();
+    join_share_group(this, &other, share_y_, other.share_y_);
+    std::optional<AxisLimits> u;
+    for (Axes* m : share_y_->members)
+    {
+        if (!m->ylim_)
+            continue;
+        u = u ? AxisLimits{std::min(u->min, m->ylim_->min), std::max(u->max, m->ylim_->max)}
+              : *m->ylim_;
+    }
+    if (u)
+    {
+        for (Axes* m : share_y_->members)
+            m->ylim_ = u;
+    }
+}
+
+void Axes::unshare_x()
+{
+    if (!share_x_)
+        return;
+    auto group = std::move(share_x_);
+    std::erase(group->members, this);
+    if (group->members.size() == 1)
+        group->members.front()->share_x_.reset();   // a group of one is no group
+}
+
+void Axes::unshare_y()
+{
+    if (!share_y_)
+        return;
+    auto group = std::move(share_y_);
+    std::erase(group->members, this);
+    if (group->members.size() == 1)
+        group->members.front()->share_y_.reset();
+}
+
+bool Axes::x_shared() const
+{
+    return share_x_ && share_x_->members.size() > 1;
+}
+
+bool Axes::y_shared() const
+{
+    return share_y_ && share_y_->members.size() > 1;
+}
+
+std::vector<Axes*> Axes::shared_x_axes() const
+{
+    std::vector<Axes*> out;
+    if (share_x_)
+    {
+        for (Axes* m : share_x_->members)
+            if (m != this)
+                out.push_back(m);
+    }
+    return out;
+}
+
+std::vector<Axes*> Axes::shared_y_axes() const
+{
+    std::vector<Axes*> out;
+    if (share_y_)
+    {
+        for (Axes* m : share_y_->members)
+            if (m != this)
+                out.push_back(m);
+    }
+    return out;
 }
 
 void Axes::title(const std::string& t)
@@ -953,6 +1120,57 @@ const Axes::DataExtentCache& Axes::data_extent_cached() const
     return extent_cache_;
 }
 
+void Axes::group_extent(const AxesShareGroup& g, bool x_axis, double (&ext)[3], double (&sticky)[3])
+{
+    const AxisExtent empty;
+    ext[0] = sticky[0] = empty.min;
+    ext[1] = sticky[1] = empty.max;
+    ext[2] = sticky[2] = empty.min_pos;
+    for (const Axes* m : g.members)
+    {
+        std::lock_guard lock(m->extent_mutex_);
+        const auto&     c = m->data_extent_cached();
+        const double*   e = x_axis ? c.x : c.y;
+        const double*   s = x_axis ? c.sx : c.sy;
+        ext[0]            = std::min(ext[0], e[0]);
+        ext[1]            = std::max(ext[1], e[1]);
+        ext[2]            = std::min(ext[2], e[2]);
+        sticky[0]         = std::min(sticky[0], s[0]);
+        sticky[1]         = std::max(sticky[1], s[1]);
+        sticky[2]         = std::min(sticky[2], s[2]);
+    }
+}
+
+void Axes::auto_limits(AxisLimits& xl, AxisLimits& yl) const
+{
+    double ex[3];
+    double ey[3];
+    double esx[3];
+    double esy[3];
+    {
+        std::lock_guard lock(extent_mutex_);
+        const auto&     c = data_extent_cached();
+        std::copy(std::begin(c.x), std::end(c.x), ex);
+        std::copy(std::begin(c.y), std::end(c.y), ey);
+        std::copy(std::begin(c.sx), std::end(c.sx), esx);
+        std::copy(std::begin(c.sy), std::end(c.sy), esy);
+    }
+    // Shared axes autoscale to the data of the whole group.
+    if (x_shared())
+        group_extent(*share_x_, true, ex, esx);
+    if (y_shared())
+        group_extent(*share_y_, false, ey, esy);
+    data_extent_with_mode(to_extent(ex),
+                          to_extent(ey),
+                          to_extent(esx),
+                          to_extent(esy),
+                          autoscale_mode_,
+                          xscale_,
+                          yscale_,
+                          xl,
+                          yl);
+}
+
 AxisLimits Axes::x_limits() const
 {
     const AxisLimits lim = x_limits_unclamped();
@@ -994,19 +1212,7 @@ AxisLimits Axes::x_limits_unclamped() const
         return xlim_.value_or(AxisLimits{0.0, 1.0});
     AxisLimits xl;
     AxisLimits yl;
-    {
-        std::lock_guard lock(extent_mutex_);
-        const auto&     ext = data_extent_cached();
-        data_extent_with_mode(to_extent(ext.x),
-                              to_extent(ext.y),
-                              to_extent(ext.sx),
-                              to_extent(ext.sy),
-                              autoscale_mode_,
-                              xscale_,
-                              yscale_,
-                              xl,
-                              yl);
-    }
+    auto_limits(xl, yl);
     return xl;
 }
 
@@ -1059,19 +1265,7 @@ AxisLimits Axes::y_limits_unclamped() const
 
     AxisLimits xl;
     AxisLimits yl;
-    {
-        std::lock_guard lock(extent_mutex_);
-        const auto&     ext = data_extent_cached();
-        data_extent_with_mode(to_extent(ext.x),
-                              to_extent(ext.y),
-                              to_extent(ext.sx),
-                              to_extent(ext.sy),
-                              autoscale_mode_,
-                              xscale_,
-                              yscale_,
-                              xl,
-                              yl);
-    }
+    auto_limits(xl, yl);
     return yl;
 }
 
@@ -1079,6 +1273,16 @@ void Axes::auto_fit()
 {
     xlim_.reset();
     ylim_.reset();
+    if (share_x_)
+    {
+        for (Axes* m : share_x_->members)
+            m->xlim_.reset();
+    }
+    if (share_y_)
+    {
+        for (Axes* m : share_y_->members)
+            m->ylim_.reset();
+    }
 }
 
 void Axes::set_topic_auto_zoom(bool enabled)

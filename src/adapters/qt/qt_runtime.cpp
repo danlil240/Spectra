@@ -622,15 +622,7 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
         fig_margins.top    = fig_style.margin_top;
         fig_margins.bottom = fig_style.margin_bottom;
 
-        const auto rects = compute_subplot_layout(canvas.w,
-                                                  canvas.h,
-                                                  figure.grid_rows(),
-                                                  figure.grid_cols(),
-                                                  fig_margins,
-                                                  canvas.x,
-                                                  canvas.y);
-
-        apply_subplot_layout(figure, rects, fig_margins);
+        layout_figure(figure, canvas, fig_margins);
 
         layout_applied = true;
     }

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -128,6 +129,21 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << R"(      "custom_tab_title": ")" << escape_json(fig.custom_tab_title) << "\",\n";
         if (fig.legend_position >= 0)
             os << "      \"legend_position\": " << fig.legend_position << ",\n";
+        if (fig.has_layout)
+        {
+            os << "      \"margin_top\": " << fig.margin_top << ",\n";
+            os << "      \"margin_bottom\": " << fig.margin_bottom << ",\n";
+            os << "      \"margin_left\": " << fig.margin_left << ",\n";
+            os << "      \"margin_right\": " << fig.margin_right << ",\n";
+            os << "      \"subplot_hgap\": " << fig.subplot_hgap << ",\n";
+            os << "      \"subplot_vgap\": " << fig.subplot_vgap << ",\n";
+            os << "      \"min_subplot_height\": " << fig.min_subplot_height << ",\n";
+            os << "      \"constrained_layout\": " << (fig.constrained_layout ? "true" : "false")
+               << ",\n";
+            os << "      \"share_x\": " << fig.share_x << ",\n";
+            os << "      \"share_y\": " << fig.share_y << ",\n";
+            os << R"(      "suptitle": ")" << escape_json(fig.suptitle) << "\",\n";
+        }
 
         // Axes
         os << "      \"axes\": [\n";
@@ -692,6 +708,25 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
         // Optional key (any version); -1 = absent
         fig.legend_position = static_cast<int>(read_number_value(fig_json, "legend_position", -1));
 
+        // Optional figure layout keys (any version)
+        if (read_number_value(fig_json, "subplot_hgap", -1.0) >= 0.0)
+        {
+            auto num = [&](const char* key, float def)
+            { return static_cast<float>(read_number_value(fig_json, key, def)); };
+            fig.has_layout         = true;
+            fig.margin_top         = num("margin_top", fig.margin_top);
+            fig.margin_bottom      = num("margin_bottom", fig.margin_bottom);
+            fig.margin_left        = num("margin_left", fig.margin_left);
+            fig.margin_right       = num("margin_right", fig.margin_right);
+            fig.subplot_hgap       = num("subplot_hgap", fig.subplot_hgap);
+            fig.subplot_vgap       = num("subplot_vgap", fig.subplot_vgap);
+            fig.min_subplot_height = num("min_subplot_height", fig.min_subplot_height);
+            fig.constrained_layout = read_bool_value(fig_json, "constrained_layout", true);
+            fig.share_x            = static_cast<int>(read_number_value(fig_json, "share_x", 0));
+            fig.share_y            = static_cast<int>(read_number_value(fig_json, "share_y", 0));
+            fig.suptitle           = read_string_value(fig_json, "suptitle");
+        }
+
         // Axes
         auto ax_objects = parse_json_array(fig_json, "axes");
         for (const auto& ax_json : ax_objects)
@@ -1057,6 +1092,21 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
         fs.grid_rows            = fig->grid_rows();
         fs.grid_cols            = fig->grid_cols();
         fs.legend_position      = static_cast<int>(fig->legend().position);
+        {
+            const auto& st        = fig->style();
+            fs.has_layout         = true;
+            fs.margin_top         = st.margin_top;
+            fs.margin_bottom      = st.margin_bottom;
+            fs.margin_left        = st.margin_left;
+            fs.margin_right       = st.margin_right;
+            fs.subplot_hgap       = st.subplot_hgap;
+            fs.subplot_vgap       = st.subplot_vgap;
+            fs.min_subplot_height = st.min_subplot_height;
+            fs.constrained_layout = st.constrained_layout;
+            fs.share_x            = static_cast<int>(fig->share_x());
+            fs.share_y            = static_cast<int>(fig->share_y());
+            fs.suptitle           = fig->suptitle();
+        }
 
         // Capture axes: use all_axes() if populated (mixed/3D figures),
         // otherwise fall back to axes() (2D-only figures).
@@ -1410,6 +1460,23 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             && fs.legend_position <= static_cast<int>(LegendPosition::OutsideRight))
             fig->legend().position = static_cast<LegendPosition>(fs.legend_position);
 
+        // Files without layout keys keep the figure's layout.
+        if (fs.has_layout)
+        {
+            auto  len = [](float v, float def) { return std::isfinite(v) && v >= 0.0f ? v : def; };
+            auto& st  = fig->style();
+            const FigureStyle def;
+            st.margin_top         = len(fs.margin_top, def.margin_top);
+            st.margin_bottom      = len(fs.margin_bottom, def.margin_bottom);
+            st.margin_left        = len(fs.margin_left, def.margin_left);
+            st.margin_right       = len(fs.margin_right, def.margin_right);
+            st.subplot_hgap       = len(fs.subplot_hgap, def.subplot_hgap);
+            st.subplot_vgap       = len(fs.subplot_vgap, def.subplot_vgap);
+            st.min_subplot_height = len(fs.min_subplot_height, def.min_subplot_height);
+            st.constrained_layout = fs.constrained_layout;
+            fig->suptitle(fs.suptitle);
+        }
+
         // Apply axes: use all_axes() if populated, else axes()
         const bool has_all_axes = !fig->all_axes().empty();
 
@@ -1492,6 +1559,20 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
         {
             for (size_t ai = 0; ai < fs.axes.size() && ai < fig->axes().size(); ++ai)
                 apply_to_axes_base(fig->axes()[ai].get(), ai);
+        }
+
+        // Shared axes, once the axes and their limits are in place.
+        if (fs.has_layout)
+        {
+            auto share = [](int v)
+            {
+                return v >= 0 && v <= static_cast<int>(ShareAxes::Col) ? static_cast<ShareAxes>(v)
+                                                                       : ShareAxes::None;
+            };
+            if (fig->share_x() != share(fs.share_x))
+                fig->share_x(share(fs.share_x));
+            if (fig->share_y() != share(fs.share_y))
+                fig->share_y(share(fs.share_y));
         }
 
         // Layout series were created and styled by build_layout_figure().

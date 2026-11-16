@@ -6,6 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <spectra/figure.hpp>
+
 #include "../ipc/message.hpp"
 
 namespace spectra::daemon
@@ -191,6 +193,16 @@ class FigureModel
     // Set figure title. Returns a DiffOp.
     ipc::DiffOp set_figure_title(uint64_t figure_id, const std::string& title);
 
+    // Set the figure suptitle (Figure::suptitle()). Returns a DiffOp.
+    ipc::DiffOp set_figure_suptitle(uint64_t figure_id, const std::string& text);
+
+    // Set constrained layout and the sharex / sharey modes (spectra::ShareAxes).
+    // Returns a DiffOp.
+    ipc::DiffOp set_figure_layout(uint64_t  figure_id,
+                                  bool      constrained,
+                                  ShareAxes share_x,
+                                  ShareAxes share_y);
+
     // Set live streaming FPS for a figure. 0 disables live streaming.
     void set_live_fps(uint64_t figure_id, float fps);
 
@@ -248,6 +260,10 @@ class FigureModel
         int32_t                               grid_cols       = 1;
         float                                 live_fps        = 0.0f;
         uint8_t                               legend_position = 5;   // LegendPosition::Best
+        std::string                           suptitle;
+        uint8_t                               constrained_layout = 1;
+        uint8_t                               share_x            = 0;   // ShareAxes
+        uint8_t                               share_y            = 0;
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;
     };

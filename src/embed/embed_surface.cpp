@@ -371,14 +371,7 @@ struct EmbedSurface::Impl
                 fig_margins.bottom = af_style.margin_bottom;
                 if (canvas.w > 0.0f && canvas.h > 0.0f)
                 {
-                    const auto rects = compute_subplot_layout(canvas.w,
-                                                              canvas.h,
-                                                              active_fig->grid_rows_,
-                                                              active_fig->grid_cols_,
-                                                              fig_margins,
-                                                              canvas.x,
-                                                              canvas.y);
-                    apply_subplot_layout(*active_fig, rects, fig_margins);
+                    layout_figure(*active_fig, canvas, fig_margins);
                 }
             }
 

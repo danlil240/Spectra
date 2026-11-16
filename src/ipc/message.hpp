@@ -313,6 +313,12 @@ struct SnapshotFigureState
     uint32_t    window_group    = 0;      // Figures with the same non-zero group share one window
     float       live_fps        = 0.0f;   // >0 = Python live-streaming at this FPS
     uint8_t     legend_position = 5;      // spectra::LegendPosition (5 = Best)
+    // Figure layout: suptitle, FigureStyle::constrained_layout and the
+    // spectra::ShareAxes modes of Figure::share_x() / share_y().
+    std::string                      suptitle;
+    uint8_t                          constrained_layout = 1;
+    uint8_t                          share_x            = 0;
+    uint8_t                          share_y            = 0;
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;
 };
@@ -373,6 +379,9 @@ struct DiffOp
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
+        SET_FIGURE_SUPTITLE   = 32,   // str_val=suptitle ("" removes it)
+        // f1=constrained layout (0/1), f2=share x, f3=share y (spectra::ShareAxes)
+        SET_FIGURE_LAYOUT = 33,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

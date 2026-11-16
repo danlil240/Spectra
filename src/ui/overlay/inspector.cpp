@@ -11,8 +11,11 @@
     #include <spectra/axes.hpp>
     #include <spectra/axes3d.hpp>
     #include <spectra/camera.hpp>
+    #include <spectra/colormap.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <spectra/series3d.hpp>
+    #include <spectra/series_image.hpp>
     #include <spectra/style.hpp>
     #include <vector>
 
@@ -1484,6 +1487,35 @@ void Inspector::draw_reference_lines(Axes& ax)
 
 // ─── Series Properties ──────────────────────────────────────────────────────
 
+// Colormap picker (None + every built-in map, "custom" while a user lookup
+// table is set) and a Reversed toggle, for any series with the colormap API.
+template <typename S>
+static void draw_colormap_controls(S& series)
+{
+    const Colormap&           cm = series.cmap();
+    std::vector<const char*>  names{"none"};
+    std::vector<ColormapType> types{ColormapType::None};
+    for (ColormapType t : builtin_colormaps())
+    {
+        names.push_back(colormap_name(t).data());
+        types.push_back(t);
+    }
+    if (cm.is_custom())
+    {
+        names.push_back("custom");
+        types.push_back(ColormapType::Custom);
+    }
+    const auto it  = std::find(types.begin(), types.end(), cm.type());
+    int        idx = it == types.end() ? 0 : static_cast<int>(it - types.begin());
+    if (widgets::combo_field("Colormap", idx, names.data(), static_cast<int>(names.size()))
+        && types[static_cast<size_t>(idx)] != cm.type()
+        && types[static_cast<size_t>(idx)] != ColormapType::Custom)
+        series.colormap(types[static_cast<size_t>(idx)]);
+    bool reversed = cm.is_reversed();
+    if (!cm.is_none() && widgets::toggle_field("Reversed", reversed))
+        series.colormap_reversed(reversed);
+}
+
 void Inspector::draw_series_properties(Series& s, int /*index*/)
 {
     const auto& c = theme();
@@ -1629,7 +1661,16 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 {
                     scatter->size(sz);
                 }
+                // Per-point values: colour them through a colormap.
+                if (!scatter->color_values_data().empty())
+                    draw_colormap_controls(*scatter);
             }
+            if (auto* surface = dynamic_cast<SurfaceSeries*>(&s))
+                draw_colormap_controls(*surface);
+            if (auto* image = dynamic_cast<ImageSeries*>(&s); image && !image->is_rgba())
+                draw_colormap_controls(*image);
+            if (auto* contour = dynamic_cast<ContourSeries*>(&s))
+                draw_colormap_controls(*contour);
 
             // Label editing
             std::string lbl = s.label();

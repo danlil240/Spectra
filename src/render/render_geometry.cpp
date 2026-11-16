@@ -399,7 +399,7 @@ void Renderer::render_plot_text(Figure& figure)
                     text_renderer_.set_clip_rect(vp.x, vp.y, vp.x + vp.w, vp.y + vp.h);
                     clipped = true;
                 }
-                const auto lut  = image_colormap::build_lut(img->colormap(), img->levels());
+                const auto lut  = image_colormap::build_lut(img->cmap(), img->levels());
                 const auto vals = img->data();
                 for (size_t r = 0; r < img->rows(); ++r)
                 {

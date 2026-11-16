@@ -220,6 +220,11 @@ void WebGPUBackend::shutdown()
         wgpuPipelineLayoutRelease(pl_texture_);
         pl_texture_ = nullptr;
     }
+    if (pl_ssbo_texture_)
+    {
+        wgpuPipelineLayoutRelease(pl_ssbo_texture_);
+        pl_ssbo_texture_ = nullptr;
+    }
     if (pl_vertex_)
     {
         wgpuPipelineLayoutRelease(pl_vertex_);
@@ -547,6 +552,16 @@ void WebGPUBackend::create_pipeline_layouts()
         desc.bindGroupLayouts     = bgls;
         pl_texture_               = wgpuDeviceCreatePipelineLayout(device_, &desc);
     }
+
+    // pl_ssbo_texture_: group 0 + group 1 (storage) + group 2 (colormap LUT texture)
+    {
+        WGPUBindGroupLayout          bgls[] = {bgl_group0_, bgl_group1_ssbo_, bgl_group1_texture_};
+        WGPUPipelineLayoutDescriptor desc{};
+        desc.label                = WGPU_LABEL("PL_SSBO_Texture");
+        desc.bindGroupLayoutCount = 3;
+        desc.bindGroupLayouts     = bgls;
+        pl_ssbo_texture_          = wgpuDeviceCreatePipelineLayout(device_, &desc);
+    }
 }
 
 bool WebGPUBackend::create_default_resources()
@@ -840,9 +855,12 @@ WGPUPipelineLayout WebGPUBackend::layout_for_type(PipelineType type) const
     {
         case PipelineType::Line:
         case PipelineType::Scatter:
+            return pl_ssbo_;
+
+        // Colormap lookup table texture as group 2.
         case PipelineType::ScatterColormap:
         case PipelineType::Heatmap:
-            return pl_ssbo_;
+            return pl_ssbo_texture_;
 
         case PipelineType::Text:
         case PipelineType::TextDepth:
@@ -861,6 +879,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
     // Select WGSL source and configuration for this pipeline type.
     const char* wgsl_source   = nullptr;
     const char* vs_entry      = "vs_main";
+    const char* fs_entry      = "fs_main";
     bool        enable_depth  = false;
     bool        line_topology = false;
 
@@ -887,10 +906,11 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
             break;
 
         case PipelineType::ScatterColormap:
-            // Same fragment shader as Scatter; the vertex stage reads a vec4
-            // (x, y, value, pad) SSBO and passes the value on for the colormap.
+            // The vertex stage reads a vec4 (x, y, value, pad) SSBO and passes
+            // the value on; fs_colormap maps it through the group 2 LUT.
             wgsl_source = wgsl::scatter_wgsl;
             vs_entry    = "vs_colormap";
+            fs_entry    = "fs_colormap";
             break;
 
         case PipelineType::Heatmap:
@@ -1019,7 +1039,7 @@ WGPURenderPipeline WebGPUBackend::create_pipeline_for_type(PipelineType type)
 
     WGPUFragmentState frag_state{};
     frag_state.module      = shader;
-    frag_state.entryPoint  = WGPU_LABEL("fs_main");
+    frag_state.entryPoint  = WGPU_LABEL(fs_entry);
     frag_state.targetCount = 1;
     frag_state.targets     = &color_target;
 
@@ -1564,7 +1584,7 @@ void WebGPUBackend::bind_index_buffer(BufferHandle handle)
                                         it->second.size);
 }
 
-void WebGPUBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
+void WebGPUBackend::bind_texture(TextureHandle handle, uint32_t binding)
 {
     if (!pass_encoder_)
         return;
@@ -1575,7 +1595,7 @@ void WebGPUBackend::bind_texture(TextureHandle handle, uint32_t /*binding*/)
 
     auto& entry = it->second;
     if (entry.bind_group)
-        wgpuRenderPassEncoderSetBindGroup(pass_encoder_, 1, entry.bind_group, 0, nullptr);
+        wgpuRenderPassEncoderSetBindGroup(pass_encoder_, 1 + binding, entry.bind_group, 0, nullptr);
 }
 
 void WebGPUBackend::push_constants(const SeriesPushConstants& pc)

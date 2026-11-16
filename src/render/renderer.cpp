@@ -1313,10 +1313,11 @@ void Renderer::render_axes(AxesBase&   axes,
             }
 
             bool is_transparent = effective_alpha < 0.99f;
-            // Colormap alpha makes a surface translucent per vertex.
+            // Colormap alpha, or a translucent user colormap, makes a surface
+            // translucent per vertex.
             const bool cmap_alpha =
                 gpu_it != series_gpu_data_.end() && gpu_it->second.type == SeriesType::Surface3D
-                && static_cast<SurfaceSeries*>(series_ptr.get())->colormap_alpha();
+                && static_cast<SurfaceSeries*>(series_ptr.get())->is_transparent();
             is_transparent = is_transparent || cmap_alpha;
             // A translucent solid surface or mesh draws its own triangles back
             // to front, so its far folds do not blend over its near ones.

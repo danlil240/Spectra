@@ -266,6 +266,26 @@ class BinaryReader
     std::ifstream& f_;
 };
 
+// ─── Colormap byte ──────────────────────────────────────────────────────────
+// Low 7 bits: ColormapType; bit 7: reversed.  A user lookup table is not
+// stored and loads as Viridis.
+
+static constexpr uint8_t COLORMAP_REVERSED_BIT = 0x80;
+
+static uint8_t encode_colormap(const Colormap& cm)
+{
+    return static_cast<uint8_t>(static_cast<uint8_t>(cm.type())
+                                | (cm.is_reversed() ? COLORMAP_REVERSED_BIT : 0));
+}
+
+static Colormap decode_colormap(uint8_t v)
+{
+    auto type = static_cast<ColormapType>(v & static_cast<uint8_t>(~COLORMAP_REVERSED_BIT));
+    if (type == ColormapType::Custom)
+        type = ColormapType::Viridis;
+    return Colormap(type, (v & COLORMAP_REVERSED_BIT) != 0);
+}
+
 // ─── Save implementation ────────────────────────────────────────────────────
 
 static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
@@ -339,7 +359,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_f32(ss->size());
             w.write_floats(ss->x_data());
             w.write_floats(ss->y_data());
-            w.write_u8(static_cast<uint8_t>(ss->colormap()));
+            w.write_u8(encode_colormap(ss->cmap()));
             w.write_f32(ss->colormap_min());
             w.write_f32(ss->colormap_max());
             w.write_u8(static_cast<uint8_t>(ss->colormap_range_set()));
@@ -564,7 +584,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             auto spos = w.begin_chunk(TAG_SERIES_SURFACE);
             w.write_i32(axes_index);
             w.write_series_common(*surf);
-            w.write_u8(static_cast<uint8_t>(surf->colormap_type()));
+            w.write_u8(encode_colormap(surf->cmap()));
             w.write_f32(surf->colormap_min());
             w.write_f32(surf->colormap_max());
             w.write_f32(surf->ambient());
@@ -1083,14 +1103,14 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 auto x_data = r.read_floats();
                 auto y_data = r.read_floats();
 
-                ColormapType       cmap          = ColormapType::None;
+                Colormap           cmap;
                 float              cmap_min      = 0.0f;
                 float              cmap_max      = 1.0f;
                 bool               cmap_explicit = false;
                 std::vector<float> color_values;
                 if (version >= 5)
                 {
-                    cmap          = static_cast<ColormapType>(r.read_u8());
+                    cmap          = decode_colormap(r.read_u8());
                     cmap_min      = r.read_f32();
                     cmap_max      = r.read_f32();
                     cmap_explicit = r.read_u8() != 0;
@@ -1506,7 +1526,7 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                 bool        inleg = (version >= 3) ? (r.read_u8() != 0) : true;
                 bool        isref = (version >= 4) ? (r.read_u8() != 0) : (excl && !inleg);
 
-                auto  cmap     = static_cast<ColormapType>(r.read_u8());
+                auto  cmap     = decode_colormap(r.read_u8());
                 float cmap_min = r.read_f32();
                 float cmap_max = r.read_f32();
                 float amb      = r.read_f32();

@@ -422,6 +422,20 @@ void Axes::resume_follow()
     }
 }
 
+static bool latest_x_value(const std::vector<std::unique_ptr<Series>>& series, double& latest_x);
+
+std::optional<double> Axes::presented_buffer_head() const
+{
+    if (!presented_buffer_seconds_.has_value())
+        return std::nullopt;
+    if (presented_buffer_right_edge_.has_value())
+        return presented_buffer_right_edge_;
+    double latest_x = 0.0;
+    if (latest_x_value(series_, latest_x))
+        return latest_x;
+    return std::nullopt;
+}
+
 void Axes::set_presented_buffer_right_edge(double x)
 {
     if (std::isfinite(x))

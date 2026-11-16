@@ -3,9 +3,10 @@
 // Renders instanced SDF scatter markers.  Each instance is one data point read
 // from a storage buffer; 6 vertices per instance form a screen-space quad.
 //
-// Two vertex entry points share the fragment shader:
-//   vs_main     — PipelineType::Scatter, SSBO of vec2 (x, y)
-//   vs_colormap — PipelineType::ScatterColormap, SSBO of vec4 (x, y, value, pad)
+// Entry points:
+//   vs_main + fs_main         — PipelineType::Scatter, SSBO of vec2 (x, y)
+//   vs_colormap + fs_colormap — PipelineType::ScatterColormap, SSBO of vec4
+//                               (x, y, value, pad) and the colormap LUT (group 2)
 // The SSBO is declared as raw floats so both strides can use one binding.
 
 // ── Bind group 0: per-frame and per-series uniforms ─────────────────────────
@@ -111,49 +112,20 @@ fn vs_colormap(
     return out;
 }
 
-// ── Colormaps (same control points as scatter.frag) ──────────────────────────
+// ── Colormap lookup table (group 2, fs_colormap only) ────────────────────────
+// Colormap::rgba8() (src/core/colormap.cpp), n x 1 RGBA8; same lookup as
+// scatter.frag built with SPECTRA_COLORMAP_LUT.  fs_main never touches it, so
+// the plain Scatter pipeline layout has no group 2.
 
-fn mix3(a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, t: f32) -> vec3<f32> {
-    if t < 0.5 {
-        return mix(a, b, t * 2.0);
-    }
-    return mix(b, c, (t - 0.5) * 2.0);
-}
+@group(2) @binding(0) var lut_tex : texture_2d<f32>;
 
-fn apply_colormap(cm_type: i32, t_in: f32) -> vec3<f32> {
-    let t = clamp(t_in, 0.0, 1.0);
-    switch cm_type {
-        case 1: {   // Viridis
-            return mix3(vec3<f32>(0.267, 0.005, 0.329), vec3<f32>(0.128, 0.567, 0.551),
-                        vec3<f32>(0.993, 0.906, 0.144), t);
-        }
-        case 2: {   // Plasma
-            return mix3(vec3<f32>(0.050, 0.030, 0.528), vec3<f32>(0.798, 0.280, 0.470),
-                        vec3<f32>(0.940, 0.975, 0.131), t);
-        }
-        case 3: {   // Inferno
-            return mix3(vec3<f32>(0.001, 0.000, 0.014), vec3<f32>(0.735, 0.216, 0.330),
-                        vec3<f32>(0.988, 0.998, 0.645), t);
-        }
-        case 4: {   // Magma
-            return mix3(vec3<f32>(0.001, 0.000, 0.014), vec3<f32>(0.716, 0.215, 0.475),
-                        vec3<f32>(0.987, 0.991, 0.750), t);
-        }
-        case 5: {   // Jet
-            return clamp(vec3<f32>(1.5) - abs(4.0 * t - vec3<f32>(3.0, 2.0, 1.0)),
-                         vec3<f32>(0.0), vec3<f32>(1.0));
-        }
-        case 6: {   // Coolwarm
-            return mix3(vec3<f32>(0.230, 0.299, 0.754), vec3<f32>(0.865, 0.865, 0.865),
-                        vec3<f32>(0.706, 0.016, 0.150), t);
-        }
-        case 7: {   // Grayscale
-            return vec3<f32>(t);
-        }
-        default: {
-            return series_pc.color.rgb;
-        }
-    }
+// Nearest entry min(int(t * n), n - 1), as Colormap::sample().  Alpha is the
+// table's (user colormaps may be translucent).
+fn apply_colormap(t_in: f32) -> vec4<f32> {
+    let t   = clamp(t_in, 0.0, 1.0);
+    let n   = i32(textureDimensions(lut_tex).x);
+    let idx = clamp(i32(t * f32(n)), 0, n - 1);
+    return textureLoad(lut_tex, vec2<i32>(idx, 0), 0);
 }
 
 // WGSL has no isnan/isinf; NaN fails every comparison with itself.
@@ -239,10 +211,36 @@ fn sdf_hexagon(p_in: vec2<f32>) -> f32 {
     return length(p) * sign(p.y);
 }
 
-// ── Fragment shader ───────────────────────────────────────────────────────────
+// ── Fragment shaders ──────────────────────────────────────────────────────────
 
+// PipelineType::Scatter: one colour per series.
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return shade_marker(in, series_pc.color);
+}
+
+// PipelineType::ScatterColormap: _pad2.x > 0.5 and dash_count > 0 map the
+// per-point value over dash_pattern[0..1] through the group 2 lookup table.
+@fragment
+fn fs_colormap(in: VertexOutput) -> @location(0) vec4<f32> {
+    var base_color = series_pc.color;
+    if series_pc._pad2.x > 0.5 && series_pc.dash_count > 0 && is_finite(in.v_color_value) {
+        let value_min = series_pc.dash_pattern[0];
+        let value_max = series_pc.dash_pattern[1];
+        let range     = value_max - value_min;
+        var t         = 0.5;
+        if abs(range) > 1e-20 {
+            t = (in.v_color_value - value_min) / range;
+        }
+        let lut    = apply_colormap(t);
+        base_color = vec4<f32>(lut.rgb, base_color.a * lut.a);
+    }
+    return shade_marker(in, base_color);
+}
+
+// Marker shape, antialiasing and default-dot rim around base_color_in (rgb;
+// a = colour alpha before opacity and coverage).
+fn shade_marker(in: VertexOutput, base_color_in: vec4<f32>) -> vec4<f32> {
     let aa       = clamp(2.5 / series_pc.point_size, 0.01, 0.15);
     let stroke_w = clamp(4.0 / series_pc.point_size, 0.08, 0.25);
     let mt       = series_pc.marker_type;
@@ -286,17 +284,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if alpha < 0.002 { discard; }
 
-    var base_color = series_pc.color.rgb;
-    if series_pc._pad2.x > 0.5 && series_pc.dash_count > 0 && is_finite(in.v_color_value) {
-        let value_min = series_pc.dash_pattern[0];
-        let value_max = series_pc.dash_pattern[1];
-        let range     = value_max - value_min;
-        var t         = 0.5;
-        if abs(range) > 1e-20 {
-            t = (in.v_color_value - value_min) / range;
-        }
-        base_color = apply_colormap(series_pc.dash_count, t);
-    }
+    var base_color = base_color_in.rgb;
 
     // Default scatter dot: tint a ~1 px rim towards white (_pad2.y > 0) or
     // black (_pad2.y < 0) so dark or light colors stay visible on the canvas.
@@ -310,5 +298,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         base_color = mix(base_color, mix(base_color, edge_target, abs(series_pc._pad2.y)), rim);
     }
 
-    return vec4<f32>(base_color, series_pc.color.a * series_pc.opacity * alpha);
+    return vec4<f32>(base_color, base_color_in.a * series_pc.opacity * alpha);
 }

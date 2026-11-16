@@ -327,6 +327,7 @@ foreach(_ui_src
     src/ui/overlay/plot_overlay_dialog.cpp
     src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
+    src/ui/overlay/measure_math.cpp
     src/adapters/data_source_registry.cpp
     src/adapters/data_source_topics.cpp
     src/embed/embed_surface.cpp

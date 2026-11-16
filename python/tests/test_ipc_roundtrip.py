@@ -125,6 +125,8 @@ def _snapshot(session):
                     "line_width": se.LineWidth(),
                     "visible": se.Visible(),
                     "categories": [s(se.Categories(j)) for j in range(se.CategoriesLength())],
+                    "line_style": se.LineStyle(),
+                    "marker_style": se.MarkerStyle(),
                     "draw_style": (se.DrawStyle(), se.DenseMode()),
                 }
             )
@@ -397,3 +399,79 @@ def test_savefig_writes_png_and_svg(session, tmp_path):
         fig.savefig(tmp_path / "missing" / "x.png")
     assert err.value.code == 400
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.png", "out.svg", "rel.png"]
+
+
+# spectra::LineStyle / spectra::MarkerStyle wire values (include/spectra/plot_style.hpp).
+_LS_NONE, _LS_SOLID, _LS_DASHED, _LS_DOTTED, _LS_DASHDOT = 0, 1, 2, 3, 4
+_MS_NONE, _MS_CIRCLE, _MS_SQUARE, _MS_TRIANGLE_UP = 0, 2, 6, 8
+_UNSET = 255
+
+
+def test_line_and_marker_style_round_trip(session):
+    from spectra import BackendError
+    from spectra import _codec as codec
+
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    plain = ax.line([0.0, 1.0], [1.0, 2.0])
+    fmt = ax.line([0.0, 1.0], [2.0, 3.0])
+    fmt.set_format("r--o")
+    markers = ax.line([0.0, 1.0], [3.0, 4.0])
+    markers.set_format("g^")
+    kw = ax.scatter([0.0, 1.0], [4.0, 5.0])
+    kw.set_marker_style("square")
+    plain2 = ax.line([0.0, 1.0], [5.0, 6.0])
+    plain2.set_line_style("dashdot")
+
+    series = _snapshot(session)[fig.id]["series"]
+    styles = [(se["line_style"], se["marker_style"]) for se in series]
+    assert styles == [
+        (_UNSET, _UNSET),                # untouched: the series type's defaults
+        (_LS_DASHED, _MS_CIRCLE),        # "r--o"
+        (_LS_NONE, _MS_TRIANGLE_UP),     # "g^": markers only
+        (_UNSET, _MS_SQUARE),
+        (_LS_DASHDOT, _UNSET),
+    ]
+
+    # The backend validates the tokens too.
+    payload = codec.encode_req_update_property(
+        figure_id=fig.id, series_index=plain.index, prop="line_style", str_val="wavy")
+    with pytest.raises(BackendError):
+        session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+
+def test_figure_renders_inline_png(session, tmp_path):
+    from spectra import BackendError
+    from spectra import _inline
+
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    ax.line([0.0, 1.0, 2.0], [0.0, 1.0, 0.5]).set_format("r--o")
+    try:
+        fig.savefig(tmp_path / "probe.png", width=64, height=48)
+    except BackendError as e:
+        if e.code == 503:
+            pytest.skip(f"no Vulkan device in the backend: {e}")
+        raise
+    png = fig._repr_png_()
+    assert png is not None and png[:8] == b"\x89PNG\r\n\x1a\n"
+    # Default-sized figures render at the inline size.
+    assert int.from_bytes(png[16:20], "big") == _inline._settings.width
+    assert int.from_bytes(png[20:24], "big") == _inline._settings.height
+
+
+def test_large_numpy_series_round_trips_quickly(session):
+    np = pytest.importorskip("numpy")
+
+    n = 1_000_000
+    x = np.linspace(0.0, 10.0, n)
+    y = np.sin(x)
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    t0 = time.perf_counter()
+    ax.line(x, y)
+    elapsed = time.perf_counter() - t0
+    series = _snapshot(session)[fig.id]["series"]
+    assert series[0]["points"] == n
+    # 1M points used to take ~1.5 s in Python alone; vectorised it is ~0.1 s.
+    assert elapsed < 5.0

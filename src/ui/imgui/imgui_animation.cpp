@@ -90,8 +90,9 @@ void ImGuiIntegration::draw_timeline_panel()
     float panel_y      = io.DisplaySize.y - status_bar_h - panel_height;
     float nav_w        = layout_manager_ ? layout_manager_->nav_rail_animated_width() : 48.0f;
     float inspector_w  = layout_manager_ ? layout_manager_->inspector_animated_width() : 0.0f;
-    float panel_x      = nav_w;
-    float panel_w      = io.DisplaySize.x - nav_w - inspector_w;
+    float left_w       = layout_manager_ ? layout_manager_->left_panel_rect().w : 0.0f;
+    float panel_x      = nav_w + left_w;
+    float panel_w      = io.DisplaySize.x - panel_x - inspector_w;
 
     // Draw top-border accent line via background draw list
     ImDrawList* bg_dl      = ImGui::GetBackgroundDrawList();

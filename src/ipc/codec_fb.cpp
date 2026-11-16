@@ -435,6 +435,8 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_y_origin(s.y_origin);
     b.add_draw_style(s.draw_style);
     b.add_dense_mode(s.dense_mode);
+    b.add_line_style(s.line_style);
+    b.add_marker_style(s.marker_style);
     if (!s.data.empty())
         b.add_data(data_off);
     if (!s.categories.empty())
@@ -465,6 +467,8 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
     s.y_origin     = fb->y_origin();
     s.draw_style   = fb->draw_style();
     s.dense_mode   = fb->dense_mode();
+    s.line_style   = fb->line_style();
+    s.marker_style = fb->marker_style();
     if (fb->data())
     {
         s.data.reserve(fb->data()->size());

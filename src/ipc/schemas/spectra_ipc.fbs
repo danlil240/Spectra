@@ -144,6 +144,8 @@ table SnapshotSeriesState {
     x_origin: double = 0.0;    // double-precision data origin: x = x_origin + data x
     y_origin: double = 0.0;    // double-precision data origin: y = y_origin + data y
     categories: [string];      // bar category names
+    line_style: ubyte = 255;   // spectra::LineStyle, 255 = series type default
+    marker_style: ubyte = 255; // spectra::MarkerStyle, 255 = series type default
     draw_style: ubyte = 0;     // spectra::DrawStyle (line series)
     dense_mode: ubyte = 0;     // spectra::DenseLineMode (line series)
 }
@@ -207,6 +209,8 @@ enum DiffOpType : uint8 {
     SET_AXIS_SCALE     = 29,
     SET_LEGEND_POSITION = 30,
     SET_SERIES_CATEGORIES = 31,
+    SET_SERIES_LINE_STYLE = 40,
+    SET_SERIES_MARKER_STYLE = 41,
     SET_SERIES_DRAW_STYLE = 42,
 }
 

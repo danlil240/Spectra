@@ -184,21 +184,35 @@ class SnapshotSeriesState(object):
         return o == 0
 
     # SnapshotSeriesState
-    def DrawStyle(self):
+    def LineStyle(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
+    # SnapshotSeriesState
+    def MarkerStyle(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
+    # SnapshotSeriesState
+    def DrawStyle(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(44))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 0
 
     # SnapshotSeriesState
     def DenseMode(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(46))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 0
 
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(20)
+    builder.StartObject(22)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -323,14 +337,26 @@ def SnapshotSeriesStateStartCategoriesVector(builder, numElems):
 def StartCategoriesVector(builder, numElems):
     return SnapshotSeriesStateStartCategoriesVector(builder, numElems)
 
+def SnapshotSeriesStateAddLineStyle(builder, lineStyle):
+    builder.PrependUint8Slot(18, lineStyle, 255)
+
+def AddLineStyle(builder, lineStyle):
+    SnapshotSeriesStateAddLineStyle(builder, lineStyle)
+
+def SnapshotSeriesStateAddMarkerStyle(builder, markerStyle):
+    builder.PrependUint8Slot(19, markerStyle, 255)
+
+def AddMarkerStyle(builder, markerStyle):
+    SnapshotSeriesStateAddMarkerStyle(builder, markerStyle)
+
 def SnapshotSeriesStateAddDrawStyle(builder, drawStyle):
-    builder.PrependUint8Slot(18, drawStyle, 0)
+    builder.PrependUint8Slot(20, drawStyle, 0)
 
 def AddDrawStyle(builder, drawStyle):
     SnapshotSeriesStateAddDrawStyle(builder, drawStyle)
 
 def SnapshotSeriesStateAddDenseMode(builder, denseMode):
-    builder.PrependUint8Slot(19, denseMode, 0)
+    builder.PrependUint8Slot(21, denseMode, 0)
 
 def AddDenseMode(builder, denseMode):
     SnapshotSeriesStateAddDenseMode(builder, denseMode)

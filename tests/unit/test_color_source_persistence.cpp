@@ -134,6 +134,34 @@ TEST(ColorSourcePersistence, FigureFileKeepsSourceFor3DAndStatSeries)
     EXPECT_TRUE(found_3d);
 }
 
+TEST(ColorSourcePersistence, StatFillStyleRoundTrips)
+{
+    TempFile           tmp("spectra_stat_fill_style.spectra");
+    Figure             src;
+    std::vector<float> pos{1, 2, 3}, h{3, 1, 2};
+    auto&              bars = src.subplot(1, 2, 1).bar(pos, h);
+    bars.fill_alpha(0.4f).edge_width(2.5f).edge_color(Color{0.9f, 0.1f, 0.2f, 1.0f});
+    bars.categories({"a", "b", "c"});
+    const std::vector<float> values{1, 2, 3, 4, 5, 6, 7, 8};
+    src.subplot(1, 2, 2).histogram(values, 4);   // default style: no style chunk
+    ASSERT_TRUE(FigureSerializer::save(tmp.path(), src));
+
+    Figure dst;
+    ASSERT_TRUE(FigureSerializer::load(tmp.path(), dst));
+    ASSERT_EQ(dst.axes().size(), 2u);
+    auto* b = dynamic_cast<BarSeries*>(dst.axes()[0]->series()[0].get());
+    ASSERT_NE(b, nullptr);
+    EXPECT_FLOAT_EQ(b->fill_alpha(), 0.4f);
+    EXPECT_FLOAT_EQ(b->edge_width(), 2.5f);
+    ASSERT_TRUE(b->edge_color().has_value());
+    EXPECT_FLOAT_EQ(b->edge_color()->r, 0.9f);
+    EXPECT_EQ(b->categories().size(), 3u);
+    auto* hs = dynamic_cast<HistogramSeries*>(dst.axes()[1]->series()[0].get());
+    ASSERT_NE(hs, nullptr);
+    EXPECT_FLOAT_EQ(hs->fill_alpha(), STAT_DEFAULT_FILL_ALPHA);
+    EXPECT_FALSE(hs->edge_color().has_value());
+}
+
 TEST(ColorSourcePersistence, NotchedBoxPlotKeepsSampleCount)
 {
     TempFile                 tmp("spectra_color_source_box.spectra");

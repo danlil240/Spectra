@@ -32,6 +32,23 @@ void BoxZoomOverlay::update(float dt)
         rect_x1_ = static_cast<float>(bz.x1);
         rect_y1_ = static_cast<float>(bz.y1);
 
+        // A thin band zooms one axis only: show it spanning the plot.
+        if (const Axes* ax = input_handler_->active_axes())
+        {
+            const auto&       vp   = ax->viewport();
+            const BoxZoomKind kind = classify_box_zoom(bz.x1 - bz.x0, bz.y1 - bz.y0);
+            if (kind == BoxZoomKind::X)
+            {
+                rect_y0_ = vp.y;
+                rect_y1_ = vp.y + vp.h;
+            }
+            else if (kind == BoxZoomKind::Y)
+            {
+                rect_x0_ = vp.x;
+                rect_x1_ = vp.x + vp.w;
+            }
+        }
+
         // Fade in
         float target = 1.0f;
         opacity_ += (target - opacity_) * std::min(1.0f, FADE_IN_SPEED * dt);

@@ -147,7 +147,7 @@ std::vector<AutomationHandlerEntry> make_input_handlers()
 #ifdef SPECTRA_USE_IMGUI
                                automation::inject_scroll(ui_ctx, x, y, dx, dy);
 #endif
-                               ui_ctx->input_handler.on_scroll(x, y, dx, dy);
+                               ui_ctx->input_handler.on_scroll(dx, dy, x, y);
                                req.response_json = json_ok(req.id);
                            }));
 

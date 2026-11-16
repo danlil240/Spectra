@@ -15,8 +15,9 @@ Lets common matplotlib scripts run on Spectra by changing one import::
 Covered: plot, scatter, bar, barh, hist, errorbar, fill_between, stem,
 semilogx/semilogy/loglog, figure, subplot, subplots, xlabel/ylabel/title,
 legend, xlim/ylim, xscale/yscale, grid, savefig, show, close, gcf/gca and the
-matching ``Axes`` methods.  Keyword arguments Spectra cannot honour (line
-styles, markers on lines, ``bbox_inches`` ...) are ignored with one
+matching ``Axes`` methods.  Format strings ("r--o"), ``linestyle=`` and
+``marker=`` are honoured.  Keyword arguments Spectra cannot honour (dash
+tuples, per-point colours, ``bbox_inches`` ...) are ignored with one
 ``UserWarning`` per function and argument.  ``tight_layout`` is a no-op: the
 layout is always computed automatically.
 """
@@ -182,6 +183,10 @@ class Figure:
     def show(self) -> None:
         show()
 
+    def _repr_png_(self):
+        """Jupyter rich display: the figure as an inline PNG image."""
+        return self._fig._repr_png_()
+
     @property
     def spectra_figure(self):
         """The underlying :class:`spectra.Figure`."""
@@ -306,6 +311,8 @@ def close(fig=None) -> None:
 
 
 def show(*args, **kwargs) -> None:
+    """Show the figures: block until windows close, or (Jupyter inline mode)
+    display them under the cell and return at once."""
     _ignore("show", {k: v for k, v in kwargs.items() if k != "block"})
     _sp.show()
 
@@ -430,8 +437,26 @@ def _style(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _style_token(func: str, kind: str, value: Any) -> Optional[str]:
+    """matplotlib line style / marker -> Spectra token; warn once and drop unsupported ones."""
+    if value is None:
+        return None
+    from ._style import normalize_linestyle, normalize_marker
+
+    try:
+        return normalize_linestyle(value) if kind == "linestyle" else normalize_marker(value)
+    except ValueError:
+        _ignore(func, {f"{kind} {value!r}": True})
+        return None
+
+
 def plot(*args, **kwargs):
-    """plot([x], y, [fmt], ...): lines; a marker-only fmt ("o", ".") draws points."""
+    """plot([x], y, [fmt], ...): lines; a marker-only fmt ("o", ".") draws points.
+
+    ``fmt`` colours, line styles ("-", "--", ":", "-.") and markers ("o", "s",
+    "^", ...) are drawn like matplotlib, as are ``linestyle=``/``ls=`` and
+    ``marker=``.
+    """
     style = _style(kwargs)
     width = _pop_alias(kwargs, "linewidth", "lw")
     alpha = kwargs.pop("alpha", None)
@@ -450,20 +475,19 @@ def plot(*args, **kwargs):
     for x, y, fmt in _split_plot_args(args):
         fcolor, fmarker, fline = _parse_fmt(fmt) if fmt else (None, None, None)
         color = style.get("color", fcolor)
-        mk = marker or fmarker
-        ls = linestyle or fline
+        mk = _style_token("plot", "marker", marker if marker is not None else fmarker)
+        ls = _style_token("plot", "linestyle", linestyle if linestyle is not None else fline)
         pos = (y,) if x is None else (x, y)
-        points_only = mk is not None and ls is None and mk not in (",",)
+        points_only = mk not in (None, "none") and ls is None
+        size = float(markersize) if markersize is not None else None
         if points_only:
-            size = float(markersize) if markersize is not None else (3.0 if mk == "." else 6.0)
-            s = _sp.scatter(*pos, color=color, size=size, label=style["label"], opacity=alpha)
+            if size is None:
+                size = 3.0 if mk == "." else 6.0
+            s = _sp.scatter(*pos, color=color, size=size, label=style["label"], opacity=alpha,
+                            marker=mk)
         else:
-            if ls not in (None, "-", "solid"):
-                _ignore("plot", {f"linestyle {ls!r}": True})
-            if mk is not None:
-                _ignore("plot", {f"marker {mk!r} on a line": True})
             s = _sp.plot(*pos, color=color, width=width, label=style["label"], opacity=alpha,
-                         **line_kw)
+                         linestyle=ls, marker=mk, size=size, **line_kw)
         out.append(s)
     return out
 
@@ -569,26 +593,44 @@ def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
             size = max(1.0, math.sqrt(float(s)))
         else:
             _ignore("scatter", {"s (per-point sizes)": True})
-    if marker not in (None, "o", "."):
-        _ignore("scatter", {"marker": marker})
+    mk = _style_token("scatter", "marker", marker)
     _ignore("scatter", kwargs)
-    return _sp.scatter(x, y, size=size, opacity=alpha, **style)
+    return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style)
+
+
+def _fill_style(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Pop matplotlib's patch style keywords (edgecolor, linewidth, alpha)."""
+    out: Dict[str, Any] = {}
+    edge = _pop_alias(kwargs, "edgecolor", "ec")
+    if edge is not None and str(edge).lower() != "none":
+        out["edge_color"] = edge
+    width = _pop_alias(kwargs, "linewidth", "lw")
+    if edge is not None and str(edge).lower() == "none":
+        width = 0.0
+    if width is not None:
+        out["edge_width"] = float(width)
+    alpha = kwargs.pop("alpha", None)
+    if alpha is not None:
+        out["fill_alpha"] = float(alpha)
+    return out
 
 
 def bar(x, height, width=0.8, bottom=None, align="center", **kwargs):
     style = _style(kwargs)
+    style.update(_fill_style(kwargs))
     if align != "center":
         _ignore("bar", {"align": align})
-    _ignore("bar", {k: v for k, v in kwargs.items() if k not in ("edgecolor", "linewidth")})
+    _ignore("bar", kwargs)
     return _sp.bar(x, height, bar_width=float(width),
                    bottom=float(bottom) if bottom is not None else 0.0, **style)
 
 
 def barh(y, width, height=0.8, left=None, align="center", **kwargs):
     style = _style(kwargs)
+    style.update(_fill_style(kwargs))
     if align != "center":
         _ignore("barh", {"align": align})
-    _ignore("barh", {k: v for k, v in kwargs.items() if k not in ("edgecolor", "linewidth")})
+    _ignore("barh", kwargs)
     return _sp.bar(y, width, bar_width=float(height),
                    bottom=float(left) if left is not None else 0.0, horizontal=True, **style)
 
@@ -596,8 +638,8 @@ def barh(y, width, height=0.8, left=None, align="center", **kwargs):
 def hist(x, bins=10, density=False, cumulative=False, **kwargs):
     """Histogram; returns ``(counts, bin_edges, series)`` like matplotlib."""
     style = _style(kwargs)
+    style.update(_fill_style(kwargs))
     kwargs.pop("histtype", None)
-    kwargs.pop("alpha", None)
     _ignore("hist", kwargs)
     if not isinstance(bins, int) or isinstance(bins, bool):
         raise TypeError("spectra.pyplot.hist: bins must be an int (equal-width bins)")

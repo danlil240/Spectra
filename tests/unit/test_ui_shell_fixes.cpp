@@ -261,6 +261,27 @@ TEST_F(UiShellFixture, CorePanelListMatchesShellRegistry)
     }
 }
 
+// Every window built by build_window_ui_context (inproc main / detached
+// windows, multiproc agent) gets a Data sidebar plot target, not only the
+// first inproc window.
+TEST_F(UiShellFixture, DataSidebarTargetsTheWindowsActiveFigure)
+{
+    auto fig = std::make_unique<Figure>(FigureConfig{.width = 640, .height = 480});
+    fig->subplot(1, 1, 1);
+    initial_id_ = registry_.register_figure(std::move(fig));
+
+    auto& ui = build(true);
+    ASSERT_NE(ui.imgui_ui, nullptr);
+    EXPECT_EQ(ui.imgui_ui->data_sidebar(), &ui.data_sidebar);
+    const auto target = ui.data_sidebar.model().current_target();
+    Figure*    active = registry_.get(initial_id_);
+    ASSERT_NE(active, nullptr);
+    ASSERT_NE(target.axes, nullptr);
+    EXPECT_EQ(target.axes, active->axes().front().get());
+    EXPECT_EQ(target.figure_id, initial_id_);
+    EXPECT_EQ(target.axes_index, 0u);
+}
+
 TEST_F(UiShellFixture, FallbackPanelItemsTrackPanelState)
 {
     auto& ui = build(true);

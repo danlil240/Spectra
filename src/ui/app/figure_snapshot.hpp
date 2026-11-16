@@ -69,6 +69,12 @@ inline const AxesBase* snapshot_axes_at(const Figure& fig, size_t slot)
 //                per violin: x, n, values[n]]
 //   "band"      [fill_opacity, edge_width, show_edges, 0, n, x[n], lower[n], upper[n]]
 //   "stem"      [baseline, stem_width, show_heads, 0, n, x[n], y[n]]
+//
+// Bar, histogram, box and violin payloads may end with an optional fill-style
+// trailer (StatFillStyle); a payload without it keeps the default style, and
+// readers that predate it ignore it:
+//
+//   [STAT_STYLE_TAG, fill_alpha, edge_width, has_edge_color, r, g, b, a]
 
 namespace snapshot_detail
 {
@@ -79,6 +85,24 @@ constexpr float MAX_PAYLOAD_COUNT = 16'777'216.0f;   // 2^24, exact in float
 inline float flag(bool b)
 {
     return b ? 1.0f : 0.0f;
+}
+
+// Marks the fill-style trailer ('S' 'T'); exact in float.
+constexpr float  STAT_STYLE_TAG    = 21332.0f;
+constexpr size_t STAT_STYLE_FLOATS = 8;
+
+inline void append_fill_style(std::vector<float>& out, const StatFillStyle& st)
+{
+    const Color c = st.edge_color.value_or(Color{0.0f, 0.0f, 0.0f, 1.0f});
+    out.insert(out.end(),
+               {STAT_STYLE_TAG,
+                st.fill_alpha,
+                st.edge_width,
+                flag(st.edge_color.has_value()),
+                c.r,
+                c.g,
+                c.b,
+                c.a});
 }
 
 // Bounds-checked reader over a float payload.
@@ -120,6 +144,31 @@ class PayloadReader
     size_t                 pos_ = 0;
 };
 
+// Read the optional fill-style trailer; `st` keeps the defaults when there is
+// none.  A malformed trailer is ignored the same way.
+inline void read_fill_style(PayloadReader& rd, StatFillStyle& st)
+{
+    float v[STAT_STYLE_FLOATS]{};
+    if (rd.remaining() < STAT_STYLE_FLOATS)
+        return;
+    for (float& f : v)
+        rd.read(f);
+    if (v[0] != STAT_STYLE_TAG)
+        return;
+    for (float f : v)
+    {
+        if (!std::isfinite(f))
+            return;
+    }
+    st.fill_alpha = StatFillStyle::sanitize_alpha(v[1]);
+    st.edge_width = StatFillStyle::sanitize_width(v[2]);
+    if (v[3] != 0.0f)
+        st.edge_color = Color{std::clamp(v[4], 0.0f, 1.0f),
+                              std::clamp(v[5], 0.0f, 1.0f),
+                              std::clamp(v[6], 0.0f, 1.0f),
+                              std::clamp(v[7], 0.0f, 1.0f)};
+}
+
 }   // namespace snapshot_detail
 
 // Series type name used on the wire, or "" for a series the snapshot does not
@@ -160,6 +209,7 @@ inline bool is_stats_series_type(const std::string& t)
 // Fill ss.data / ss.point_count for `s`.  Returns false for an unsupported type.
 inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesState& ss)
 {
+    using snapshot_detail::append_fill_style;
     using snapshot_detail::flag;
     ss.data.clear();
     ss.point_count = 0;
@@ -224,6 +274,7 @@ inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesStat
             ss.data.insert(ss.data.end(), st.outliers.begin(), st.outliers.end());
         }
         ss.point_count = static_cast<uint32_t>(n);
+        append_fill_style(ss.data, box->fill_style());
         return true;
     }
     if (auto* violin = dynamic_cast<const ViolinSeries*>(&s))
@@ -241,6 +292,7 @@ inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesStat
             ss.data.insert(ss.data.end(), v.values.begin(), v.values.end());
         }
         ss.point_count = static_cast<uint32_t>(vs.size());
+        append_fill_style(ss.data, violin->fill_style());
         return true;
     }
     if (auto* hist = dynamic_cast<const HistogramSeries*>(&s))
@@ -253,6 +305,7 @@ inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesStat
                            static_cast<float>(raw.size())};
         ss.data.insert(ss.data.end(), raw.begin(), raw.end());
         ss.point_count = static_cast<uint32_t>(raw.size());
+        append_fill_style(ss.data, hist->fill_style());
         return true;
     }
     if (auto* bar = dynamic_cast<const BarSeries*>(&s))
@@ -269,6 +322,7 @@ inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesStat
         ss.data.insert(ss.data.end(), pos.begin(), pos.begin() + nd);
         ss.data.insert(ss.data.end(), h.begin(), h.begin() + nd);
         ss.point_count = static_cast<uint32_t>(n);
+        append_fill_style(ss.data, bar->fill_style());
         return true;
     }
     if (auto* band = dynamic_cast<const BandSeries*>(&s))
@@ -374,6 +428,9 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
         s.gradient(b3);
         if (!ss.categories.empty())
             s.categories(ss.categories);
+        StatFillStyle fs;
+        snapshot_detail::read_fill_style(rd, fs);
+        s.fill_style(fs);
         return &s;
     }
     if (ss.type == "histogram")
@@ -385,6 +442,9 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
         const int bins = static_cast<int>(std::clamp(p[0], 1.0f, 100'000.0f));
         auto&     s    = ax.histogram(values, bins);
         s.cumulative(b1).density(b2).gradient(b3);
+        StatFillStyle fs;
+        snapshot_detail::read_fill_style(rd, fs);
+        s.fill_style(fs);
         return &s;
     }
     if (ss.type == "band")
@@ -439,8 +499,10 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
             positions.push_back(x);
             stats.push_back(std::move(st));
         }
+        StatFillStyle fs;
+        snapshot_detail::read_fill_style(rd, fs);
         auto& s = ax.box_plot();
-        s.box_width(p[0]).show_outliers(b1).notched(b2).gradient(b3);
+        s.box_width(p[0]).show_outliers(b1).notched(b2).gradient(b3).fill_style(fs);
         for (size_t i = 0; i < n; ++i)
             s.add_box(positions[i], std::move(stats[i]));
         return &s;
@@ -461,7 +523,10 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
             return nullptr;
         violins.emplace_back(x, values);
     }
+    StatFillStyle fs;
+    snapshot_detail::read_fill_style(rd, fs);
     auto& s = ax.violin();
+    s.fill_style(fs);
     s.violin_width(p[0])
         .resolution(static_cast<int>(std::clamp(p[1], 2.0f, 10'000.0f)))
         .show_box(b2)
@@ -566,9 +631,11 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             ss.opacity      = s.opacity();
             // x_data()/y_data() are relative to these double origins when the
             // series was fed double data with large values (e.g. timestamps).
-            ss.x_origin    = s.x_offset();
-            ss.y_origin    = s.y_offset();
-            ss.marker_size = s.marker_size();
+            ss.x_origin     = s.x_offset();
+            ss.y_origin     = s.y_offset();
+            ss.marker_size  = s.marker_size();
+            ss.line_style   = static_cast<uint8_t>(s.line_style());
+            ss.marker_style = static_cast<uint8_t>(s.marker_style());
 
             if (auto* line = dynamic_cast<const LineSeries*>(&s))
             {

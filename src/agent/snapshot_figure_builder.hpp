@@ -24,6 +24,7 @@
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/message.hpp"
+#include "../ipc/series_style_state.hpp"
 #include "live_series_index.hpp"
 #include "ui/app/figure_snapshot.hpp"
 
@@ -57,10 +58,23 @@ inline AxesBase* live_axes_at(Figure& fig, uint32_t index)
     return nullptr;
 }
 
+// Apply the snapshot's line / marker style (e.g. from a format string "r--o");
+// unset fields keep the series type's default.
+inline void apply_snapshot_line_marker_style(Series& s, const ipc::SnapshotSeriesState& ss)
+{
+    LineStyle ls{};
+    if (ipc::line_style_from_wire(ss.line_style, ls))
+        s.line_style(ls);
+    MarkerStyle ms{};
+    if (ipc::marker_style_from_wire(ss.marker_style, ms))
+        s.marker_style(ms);
+}
+
 // Style shared by every series type.
 inline void apply_snapshot_common(Series& s, const ipc::SnapshotSeriesState& ss)
 {
     apply_snapshot_color(s, ss);
+    apply_snapshot_line_marker_style(s, ss);
     s.visible(ss.visible);
     s.opacity(ss.opacity);
     if (!ss.name.empty())

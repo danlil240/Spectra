@@ -952,7 +952,7 @@ Rect Renderer::figure_background_region(const Figure& figure)
 void Renderer::render_figure_background(Figure& figure)
 {
     const auto& style = figure.style();
-    if (!style.background_override || !overlay_pipeline_)
+    if (!style.background_override || !overlay_pipeline_ || transparent_background_)
         return;
 
     const Rect r = figure_background_region(figure);
@@ -1299,7 +1299,10 @@ void Renderer::render_grid_2d(Figure& figure)
             }
         }
 
-        auto minor_vert_count = static_cast<uint32_t>(minor_grid_scratch_.size() / 2);
+        // Minor grid is a per-axes option (AxesBase::minor_grid).
+        auto minor_vert_count = axes2d->minor_grid_enabled()
+                                    ? static_cast<uint32_t>(minor_grid_scratch_.size() / 2)
+                                    : 0u;
         if (minor_vert_count > 0)
         {
             size_t minor_bytes = minor_grid_scratch_.size() * sizeof(float);
@@ -1376,21 +1379,27 @@ void Renderer::render_plot_geometry(Figure& figure)
             overlay_line_scratch_.push_back(by1);
             overlay_line_scratch_.push_back(bx1);
             overlay_line_scratch_.push_back(by1);
-            // Top edge
-            overlay_line_scratch_.push_back(bx0);
-            overlay_line_scratch_.push_back(by0);
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by0);
+            // Top edge (hidden when despined)
+            if (!axes.despined())
+            {
+                overlay_line_scratch_.push_back(bx0);
+                overlay_line_scratch_.push_back(by0);
+                overlay_line_scratch_.push_back(bx1);
+                overlay_line_scratch_.push_back(by0);
+            }
             // Left edge
             overlay_line_scratch_.push_back(bx0);
             overlay_line_scratch_.push_back(by0);
             overlay_line_scratch_.push_back(bx0);
             overlay_line_scratch_.push_back(by1);
-            // Right edge
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by0);
-            overlay_line_scratch_.push_back(bx1);
-            overlay_line_scratch_.push_back(by1);
+            // Right edge (hidden when despined)
+            if (!axes.despined())
+            {
+                overlay_line_scratch_.push_back(bx1);
+                overlay_line_scratch_.push_back(by0);
+                overlay_line_scratch_.push_back(bx1);
+                overlay_line_scratch_.push_back(by1);
+            }
         }
 
         // Phase 2 (LT-5): read limits via AxesViewModel when available
@@ -1443,25 +1452,40 @@ void Renderer::render_plot_geometry(Figure& figure)
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
 
-        // X tick marks (at bottom edge of viewport)
-        for (double position : x_ticks.positions)
+        // Tick marks point out of the plot area, or into it (TickDirection::In).
+        const float dir = axes.tick_direction() == TickDirection::In ? -1.0f : 1.0f;
+        auto        tick_marks =
+            [&](const std::vector<double>& xs, const std::vector<double>& ys, float len, bool clip)
         {
-            float px = data_to_px_x(position);
-            overlay_line_scratch_.push_back(px);
-            overlay_line_scratch_.push_back(vp.y + vp.h);
-            overlay_line_scratch_.push_back(px);
-            overlay_line_scratch_.push_back(vp.y + vp.h + tl);
-        }
-
-        // Y tick marks (at left edge of viewport)
-        for (double position : y_ticks.positions)
-        {
-            float py = data_to_px_y(position);
-            overlay_line_scratch_.push_back(vp.x);
-            overlay_line_scratch_.push_back(py);
-            overlay_line_scratch_.push_back(vp.x - tl);
-            overlay_line_scratch_.push_back(py);
-        }
+            // X tick marks (at bottom edge of viewport)
+            for (double position : xs)
+            {
+                float px = data_to_px_x(position);
+                if (clip && (px < vp.x - 0.5f || px > vp.x + vp.w + 0.5f))
+                    continue;
+                overlay_line_scratch_.push_back(px);
+                overlay_line_scratch_.push_back(vp.y + vp.h);
+                overlay_line_scratch_.push_back(px);
+                overlay_line_scratch_.push_back(vp.y + vp.h + len * dir);
+            }
+            // Y tick marks (at left edge of viewport)
+            for (double position : ys)
+            {
+                float py = data_to_px_y(position);
+                if (clip && (py < vp.y - 0.5f || py > vp.y + vp.h + 0.5f))
+                    continue;
+                overlay_line_scratch_.push_back(vp.x);
+                overlay_line_scratch_.push_back(py);
+                overlay_line_scratch_.push_back(vp.x - len * dir);
+                overlay_line_scratch_.push_back(py);
+            }
+        };
+        tick_marks(x_ticks.positions, y_ticks.positions, tl, false);
+        if (axes.minor_ticks_enabled())
+            tick_marks(minor_tick_values(xscale, x_ticks.positions, xlim.min, xlim.max),
+                       minor_tick_values(yscale, y_ticks.positions, ylim.min, ylim.max),
+                       tl * MINOR_TICK_LENGTH_RATIO,
+                       true);
     }
 
     // NOTE: 3D axis arrows are now rendered by render_arrows() inside render_axes()

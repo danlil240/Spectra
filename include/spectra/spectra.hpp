@@ -22,6 +22,7 @@
 #include <spectra/series_image.hpp>
 #include <spectra/series_shapes.hpp>
 #include <spectra/series_shapes3d.hpp>
+#include <spectra/style.hpp>
 
 // ─── Convenience API ─────────────────────────────────────────────────────────
 // For the easiest possible API with free functions (plot, scatter, show, etc.),

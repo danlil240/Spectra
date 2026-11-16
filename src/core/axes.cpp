@@ -4,6 +4,7 @@
 #include <format>
 #include <limits>
 #include <optional>
+#include <type_traits>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
@@ -83,6 +84,11 @@ T& Axes::add_series(Args&&... args)
     auto& ref = *s;
     // Auto colour: the renderer resolves the slot from the theme's data palette.
     ref.set_auto_color_index(static_cast<int>(series_.size()));
+    // Plot style defaults (AxesBase::apply_style).
+    if constexpr (std::is_base_of_v<LineSeries, T>)
+        ref.width(default_line_width_);
+    if constexpr (std::is_base_of_v<LineSeries, T> || std::is_base_of_v<ScatterSeries, T>)
+        ref.marker_size(default_marker_size_);
     ref.set_event_context(event_system_, this);
     series_.push_back(std::move(s));
     if (event_system_)

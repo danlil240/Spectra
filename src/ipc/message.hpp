@@ -313,6 +313,7 @@ struct SnapshotFigureState
     uint32_t    window_group    = 0;      // Figures with the same non-zero group share one window
     float       live_fps        = 0.0f;   // >0 = Python live-streaming at this FPS
     uint8_t     legend_position = 5;      // spectra::LegendPosition (5 = Best)
+    std::string style;                    // built-in plot style name (StyleSheet), empty = none
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;
 };
@@ -373,6 +374,7 @@ struct DiffOp
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
+        SET_FIGURE_STYLE      = 32,   // str_val=built-in plot style name (Figure::apply_style)
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

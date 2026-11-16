@@ -35,6 +35,15 @@ enum class ScaleType
     Sqrt,     ///< Square-root scale
 };
 
+/// @brief Which side of the axis line tick marks are drawn on.
+enum class TickDirection : uint8_t
+{
+    Out,   ///< Outside the plot area (default)
+    In,    ///< Inside the plot area
+};
+
+struct StyleSheet;
+
 /// @brief Colours and sizes of ticks, labels and grid lines.
 struct AxisStyle
 {
@@ -122,6 +131,44 @@ class AxesBase
     bool border_enabled() const { return border_enabled_; }
     void show_border(bool enabled) { border_enabled_ = enabled; }
 
+    /// @brief Whether minor grid lines are drawn between the major ones (2D axes;
+    /// only while the grid is on).  On by default.
+    bool minor_grid_enabled() const { return minor_grid_enabled_; }
+    void minor_grid(bool enabled) { minor_grid_enabled_ = enabled; }
+
+    /// @brief Whether minor tick marks are drawn between the major ones (2D axes).
+    bool minor_ticks_enabled() const { return minor_ticks_enabled_; }
+    void minor_ticks(bool enabled) { minor_ticks_enabled_ = enabled; }
+
+    /// @brief Hide the top and right axis lines (2D axes), keeping the bottom
+    /// and left ones.  Has no effect while the border is hidden.
+    bool despined() const { return despined_; }
+    void despine(bool enabled = true) { despined_ = enabled; }
+
+    /// @brief Side of the axis lines the tick marks point to (2D axes).
+    TickDirection tick_direction() const { return tick_direction_; }
+    void          tick_direction(TickDirection d) { tick_direction_ = d; }
+
+    /// @brief Width of new line series (pixels).  Set by apply_style().
+    float default_line_width() const { return default_line_width_; }
+    /// @brief Marker size of new series (pixels).  Set by apply_style().
+    float default_marker_size() const { return default_marker_size_; }
+    /// @brief Set the line width and marker size of new series (values <= 0 or
+    /// non-finite are ignored).  Existing series are not changed.
+    void set_series_defaults(float line_width, float marker_size)
+    {
+        if (line_width > 0.0f && line_width < 1e4f)
+            default_line_width_ = line_width;
+        if (marker_size > 0.0f && marker_size < 1e4f)
+            default_marker_size_ = marker_size;
+    }
+
+    /// @brief Apply the axes part of a plot style: grid, minor grid / ticks,
+    /// spines, tick direction and length, font sizes, and the line width and
+    /// marker size of new series.  Existing series that still have the previous
+    /// default width / marker size take the new one; explicitly set ones keep theirs.
+    void apply_style(const StyleSheet& style);
+
     /// Colorbar visibility.  Drawn (and given layout space) when the axes holds a
     /// colormapped ScatterSeries or SurfaceSeries.
     bool colorbar_visible() const { return colorbar_visible_; }
@@ -139,9 +186,15 @@ class AxesBase
    protected:
     std::vector<std::unique_ptr<Series>> series_;
     std::string                          title_;
-    bool                                 grid_enabled_     = true;
-    bool                                 border_enabled_   = true;
-    bool                                 colorbar_visible_ = false;
+    bool                                 grid_enabled_        = true;
+    bool                                 border_enabled_      = true;
+    bool                                 colorbar_visible_    = false;
+    bool                                 minor_grid_enabled_  = true;
+    bool                                 minor_ticks_enabled_ = false;
+    bool                                 despined_            = false;
+    TickDirection                        tick_direction_      = TickDirection::Out;
+    float                                default_line_width_  = 2.0f;
+    float                                default_marker_size_ = 6.0f;
     AxisStyle                            axis_style_;
     Rect                                 viewport_;
     Rect                                 outside_legend_area_{0.0f, 0.0f, 0.0f, 0.0f};

@@ -3,9 +3,12 @@
 #include <functional>
 #include <memory>
 #include <spectra/axes.hpp>
+#include <optional>
 #include <spectra/fwd.hpp>
+#include <spectra/style.hpp>
 #include <spectra/window_defaults.hpp>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace spectra
@@ -76,6 +79,9 @@ struct FigureStyle
     float subplot_hgap        = 40.0f;
     float subplot_vgap        = 50.0f;
     float min_subplot_height  = 150.0f;   ///< Minimum pixel height per subplot row
+    /// Data palette for this figure's auto-coloured series (e.g. "colorblind");
+    /// empty (default) follows the app's palette selection.
+    std::string palette;
 };
 
 /// @brief Fluent builder that configures and starts a per-frame animation on a Figure.
@@ -120,11 +126,14 @@ struct FigureExportRequest
     uint32_t    png_width  = 0;   ///< 0 = use figure's native resolution
     uint32_t    png_height = 0;
     std::string png_theme;   ///< empty = active app theme
+    bool        png_transparent   = false;
     bool        copy_to_clipboard = false;
     std::string svg_path;
     std::string svg_theme;   ///< empty = active app theme
+    bool        svg_transparent = false;
     std::string pdf_path;
     std::string pdf_theme;   ///< empty = active app theme
+    bool        pdf_transparent = false;
     std::string video_path;
 };
 
@@ -137,6 +146,10 @@ struct ExportOptions
     /// theme name).  Empty uses the app's active theme.  Only this file is
     /// affected; an unknown name logs a warning and falls back to the active theme.
     std::string theme;
+    /// Leave the figure background out: a PNG gets a transparent background
+    /// (offscreen / headless rendering only; a capture of an on-screen window
+    /// stays opaque), an SVG / PDF no background rectangle.
+    bool transparent = false;
 };
 
 /// @brief Animation state set by AnimationBuilder, driven by WindowRuntime.
@@ -247,6 +260,21 @@ class Figure
     /// @brief Mutable figure style (background, margins, gaps).
     FigureStyle&       style() { return style_; }
     const FigureStyle& style() const { return style_; }
+    /// @brief Apply a plot style (see StyleSheet) to the figure and all its axes.
+    /// Axes created later by subplot() / subplot3d() get it as well.
+    void apply_style(const StyleSheet& style);
+    /// @brief Apply the built-in style @p name ("default", "paper", "talk",
+    /// "minimal", "dark-paper").  Returns false (and changes nothing) for an
+    /// unknown name.
+    bool apply_style(std::string_view name);
+    /// @brief The style last applied, or nullopt when none was.
+    const std::optional<StyleSheet>& style_sheet() const { return style_sheet_; }
+    /// @brief Record @p style as the figure's style without applying it (undo,
+    /// file loading): only axes created later by subplot() use it.
+    void set_style_sheet(std::optional<StyleSheet> style) { style_sheet_ = std::move(style); }
+    /// @brief Name of the style last applied; empty when none was.
+    std::string style_name() const { return style_sheet_ ? style_sheet_->name : std::string(); }
+
     /// @brief Mutable legend configuration.
     LegendConfig&       legend() { return legend_; }
     const LegendConfig& legend() const { return legend_; }
@@ -304,6 +332,7 @@ class Figure
 
     FigureConfig                           config_;
     FigureStyle                            style_;
+    std::optional<StyleSheet>              style_sheet_;
     LegendConfig                           legend_;
     std::vector<std::unique_ptr<Axes>>     axes_;
     std::vector<std::unique_ptr<AxesBase>> all_axes_;

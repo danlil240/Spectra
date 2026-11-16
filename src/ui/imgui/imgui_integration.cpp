@@ -38,6 +38,7 @@
     #include "../topics/topics_panel.hpp"
     #include "../workspace/layout_session.hpp"
     #include "../settings/settings_panel.hpp"
+    #include "../overlay/export_options_dialog.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/commands/welcome_actions.hpp"
 
@@ -473,6 +474,10 @@ bool ImGuiIntegration::has_active_chrome_animations() const
     // Timeline playback moves the playhead (and the panel) every frame.
     if (timeline_editor_ && (timeline_editor_->is_playing() || timeline_editor_->is_recording()))
         return true;
+    // Export dialog: the preview debounce and the background render are only
+    // picked up on a frame, so keep frames coming until the preview lands.
+    if (export_dialog_ && export_dialog_->wants_frames())
+        return true;
     // Modal scrim fading in/out (Settings, Theme Settings): ImGui advances the
     // dim ratio per frame, so keep frames coming until it settles.
     if (const ImGuiContext* g = ImGui::GetCurrentContext();
@@ -558,6 +563,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 
     current_figure_ = &figure;
     inspector_.set_figure_view_model(vm);
+    inspector_.set_command_registry(command_registry_);
 
     if (app_shell_)
         app_shell_->set_current_figure(&figure);
@@ -635,6 +641,8 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     }
     if (status_bar_visible_)
         draw_status_bar();
+    if (export_dialog_)
+        export_dialog_->draw(&figure);
     if (canvas_visible_)
     {
         draw_pane_tab_headers();   // Must run before splitters so pane_tab_hovered_ is set
@@ -1300,6 +1308,39 @@ void ImGuiIntegration::load_logo_textures(VulkanBackend& backend)
                           "Corner logo: reusing welcome texture {}x{}",
                           corner_logo_width_,
                           corner_logo_height_);
+}
+
+void ImGuiIntegration::set_export_dialog(ExportOptionsDialog* d)
+{
+    export_dialog_ = d;
+    if (!d)
+        return;
+    d->set_texture_functions(
+        [this](const PreviewImage& img, TextureHandle* out_tex, uint64_t* out_id)
+        {
+            if (!backend_ || img.rgba.empty())
+                return false;
+            const TextureHandle tex =
+                backend_->create_texture(img.width, img.height, img.rgba.data());
+            if (!tex)
+                return false;
+            uint64_t id = 0;
+            if (!register_backend_texture(*backend_, tex, &id))
+            {
+                backend_->destroy_texture(tex);
+                return false;
+            }
+            *out_tex = tex;
+            *out_id  = id;
+            return true;
+        },
+        [this](TextureHandle tex, uint64_t id)
+        {
+            if (id != 0)
+                ImGui_ImplVulkan_RemoveTexture(u64_to_handle<VkDescriptorSet>(id));
+            if (backend_ && tex)
+                backend_->destroy_texture(tex);
+        });
 }
 
 void ImGuiIntegration::destroy_logo_textures()

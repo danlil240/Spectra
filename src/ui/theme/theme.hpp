@@ -502,6 +502,15 @@ class ThemeManager
     // prior set_current() triggers an assertion failure.
     static void set_current(ThemeManager* tm);
 
+    // For an App that may run inside another App's process (the Export
+    // dialog renders through a headless App on a worker thread): becomes the
+    // process-wide instance when there is none, otherwise only this thread's
+    // instance, so the other App's UI keeps its own theme.  Pair with
+    // release_current().
+    static void claim_current(ThemeManager* tm);
+    // Undo claim_current(tm): clears whichever slot @p tm holds.
+    static void release_current(ThemeManager* tm);
+
     // Publicly constructible so owners (App, agent, embed, Qt) can create
     // their own instances.
     ThemeManager() = default;

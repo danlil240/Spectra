@@ -40,6 +40,11 @@ struct WorkspaceData
         int  y_scale    = 0;
         bool x_datetime = false;
         bool y_datetime = false;
+        // Optional plot-style keys (absent: the defaults below).
+        bool minor_grid  = true;
+        bool minor_ticks = false;
+        bool despine     = false;
+        bool ticks_in    = false;
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
@@ -129,6 +134,8 @@ struct WorkspaceData
         // LegendPosition (optional "legend_position" key); -1 = not in the
         // file, so apply() keeps the figure's current position.
         int legend_position = -1;
+        // Built-in plot style (StyleSheet) name; empty = none (optional key).
+        std::string plot_style;
     };
 
     struct PanelState

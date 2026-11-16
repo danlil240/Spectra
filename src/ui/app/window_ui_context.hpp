@@ -35,6 +35,7 @@
     #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/settings/settings_store.hpp"
+    #include "ui/overlay/export_options_dialog.hpp"
 #endif
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
@@ -110,6 +111,10 @@ struct WindowUIContext
     ShortcutConfig               settings_cfg;
     ui::settings::SettingsPanel  settings_panel;
     ui::settings::SettingsStore* settings_store = nullptr;
+
+    // Export options dialog (file.export_dialog): format, theme, style, size /
+    // DPI, transparency, preview.  Wired to settings_store and imgui_ui.
+    ExportOptionsDialog export_dialog;
 
     std::unique_ptr<ui::shell::SpectraAppShell> app_shell;
 

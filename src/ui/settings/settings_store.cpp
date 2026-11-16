@@ -116,6 +116,21 @@ std::string serialize(const SettingsData& d)
     os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << ",\n";
     os << "    \"ui_scale\": " << d.ui_scale << ",\n";
     os << "    \"transform_overwrite\": " << (d.transform_overwrite ? "true" : "false") << "\n";
+    os << "  },\n";
+    // Keys are unique across the file (the reader looks them up by name).
+    const ExportDialogSettings& e = d.export_dialog;
+    os << "  \"export\": {\n";
+    os << R"(    "export_format": ")" << export_format_extension(e.format) << "\",\n";
+    os << R"(    "export_theme": ")" << escape_json(e.theme) << "\",\n";
+    os << R"(    "export_style": ")" << escape_json(e.style) << "\",\n";
+    os << R"(    "export_unit": ")" << (e.unit == ExportSizeUnit::Inches ? "in" : "px") << "\",\n";
+    os << "    \"export_width_px\": " << e.width_px << ",\n";
+    os << "    \"export_height_px\": " << e.height_px << ",\n";
+    os << "    \"export_width_in\": " << e.width_in << ",\n";
+    os << "    \"export_height_in\": " << e.height_in << ",\n";
+    os << "    \"export_dpi\": " << e.dpi << ",\n";
+    os << "    \"export_scale\": " << e.scale << ",\n";
+    os << "    \"export_transparent\": " << (e.transparent ? "true" : "false") << "\n";
     os << "  }\n";
     os << "}\n";
     return os.str();
@@ -177,6 +192,32 @@ bool SettingsStore::load(const std::string& path)
         static_cast<float>(read_json_number(json, "ui_scale", data_.ui_scale)));
     data_.transform_overwrite =
         read_json_bool(json, "transform_overwrite", data_.transform_overwrite);
+
+    {
+        ExportDialogSettings& e   = data_.export_dialog;
+        const std::string     fmt = read_json_string(json, "export_format");
+        if (!fmt.empty())
+            e.format = export_format_from_string(fmt);
+        const std::string theme = read_json_string(json, "export_theme");
+        if (!theme.empty())
+            e.theme = theme;
+        e.style       = read_json_string(json, "export_style");
+        e.unit        = read_json_string(json, "export_unit") == "in" ? ExportSizeUnit::Inches
+                                                                      : ExportSizeUnit::Pixels;
+        auto read_u32 = [&](const char* key, uint32_t def)
+        {
+            const double v = read_json_number(json, key, def);
+            return (v >= 0.0 && v <= MAX_EXPORT_PIXELS) ? static_cast<uint32_t>(v) : def;
+        };
+        e.width_px    = read_u32("export_width_px", e.width_px);
+        e.height_px   = read_u32("export_height_px", e.height_px);
+        e.width_in    = static_cast<float>(read_json_number(json, "export_width_in", e.width_in));
+        e.height_in   = static_cast<float>(read_json_number(json, "export_height_in", e.height_in));
+        e.dpi         = static_cast<float>(read_json_number(json, "export_dpi", e.dpi));
+        e.scale       = static_cast<float>(read_json_number(json, "export_scale", e.scale));
+        e.transparent = read_json_bool(json, "export_transparent", e.transparent);
+        e             = sanitized(e);
+    }
 
     loaded_path_ = path;
     return true;

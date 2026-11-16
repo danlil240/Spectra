@@ -3,9 +3,11 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <spectra/figure.hpp>
 #include <spectra/fwd.hpp>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -102,6 +104,15 @@ class App
     /// @brief Create a new figure shown as a tab next to @p sibling.
     Figure& figure(Figure& sibling);
 
+    /// @brief Make the built-in plot style @p name (see style::available()) the
+    /// style of every figure created from now on.  Existing figures keep theirs
+    /// (use Figure::apply_style()).  Returns false for an unknown name.
+    bool use_style(std::string_view name);
+    /// @brief Set (or with nullopt clear) the style of figures created from now on.
+    void set_default_style(std::optional<StyleSheet> style) { default_style_ = std::move(style); }
+    /// @brief Style applied to new figures, or nullopt for the built-in look.
+    const std::optional<StyleSheet>& default_style() const { return default_style_; }
+
     /// @brief Run the application until all windows close (blocking).
     ///
     /// Runs in-process, or in multi-process mode when a backend socket is configured.
@@ -187,6 +198,9 @@ class App
 
     /// External knob manager (not owned — set by easy API or user)
     KnobManager* knob_manager_ = nullptr;
+
+    /// Style applied to new figures (use_style / set_default_style).
+    std::optional<StyleSheet> default_style_;
 
     static std::atomic<bool> s_exit_requested_;
 };

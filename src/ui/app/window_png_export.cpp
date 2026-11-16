@@ -208,8 +208,14 @@ bool WindowPngExport::schedule(Figure& fig, VulkanBackend* vk, WindowContext* ta
     active_               = true;
     awaiting_gpu_capture_ = true;
 
+    if (req.png_transparent)
+        SPECTRA_LOG_WARN("export",
+                         "Transparent background is not available for a window capture; "
+                         "{} is written opaque (use the Export dialog or a headless app)",
+                         path_.empty() ? std::string("the clipboard image") : path_);
     req.png_path.clear();
     req.png_theme.clear();
+    req.png_transparent   = false;
     req.png_width         = 0;
     req.png_height        = 0;
     req.copy_to_clipboard = false;
@@ -251,6 +257,7 @@ template <typename Write>
 bool write_vector_export(Figure&            f,
                          ui::ThemeManager*  theme_mgr,
                          const std::string& theme,
+                         bool               transparent,
                          Write&&            write)
 {
     ui::ScopedExportTheme export_theme(theme_mgr, theme);
@@ -265,9 +272,9 @@ bool write_vector_export(Figure&            f,
                                        ui::is_light_plot_background(surface),
                                        ui::effective_figure_background(f.style(), surface));
     }
-    const SvgStyle style = theme_mgr
-                               ? ui::svg_style_from_theme(theme_mgr->plot_surface_colors(f.style()))
+    SvgStyle style = theme_mgr ? ui::svg_style_from_theme(theme_mgr->plot_surface_colors(f.style()))
                                : SvgStyle{};
+    style.transparent_background = transparent;
     return write(style);
 }
 
@@ -277,16 +284,19 @@ bool write_pending_svg(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHo
 {
     if (f.export_req_.svg_path.empty())
         return true;
-    const std::string path  = std::move(f.export_req_.svg_path);
-    const std::string theme = std::move(f.export_req_.svg_theme);
+    const std::string path        = std::move(f.export_req_.svg_path);
+    const std::string theme       = std::move(f.export_req_.svg_theme);
+    const bool        transparent = f.export_req_.svg_transparent;
     f.export_req_.svg_path.clear();
     f.export_req_.svg_theme.clear();
+    f.export_req_.svg_transparent = false;
 
     // Plugin series are drawn by their type's vector export callback when the
     // caller supplies one (in-proc App); otherwise they become XML comments.
     const bool ok = write_vector_export(f,
                                         theme_mgr,
                                         theme,
+                                        transparent,
                                         [&](const SvgStyle& style)
                                         {
                                             return svg_host
@@ -302,15 +312,18 @@ bool write_pending_pdf(Figure& f, ui::ThemeManager* theme_mgr, const SvgExportHo
 {
     if (f.export_req_.pdf_path.empty())
         return true;
-    const std::string path  = std::move(f.export_req_.pdf_path);
-    const std::string theme = std::move(f.export_req_.pdf_theme);
+    const std::string path        = std::move(f.export_req_.pdf_path);
+    const std::string theme       = std::move(f.export_req_.pdf_theme);
+    const bool        transparent = f.export_req_.pdf_transparent;
     f.export_req_.pdf_path.clear();
     f.export_req_.pdf_theme.clear();
+    f.export_req_.pdf_transparent = false;
 
     const bool ok =
         write_vector_export(f,
                             theme_mgr,
                             theme,
+                            transparent,
                             [&](const SvgStyle& style)
                             {
                                 const PdfPage page{&f, style};

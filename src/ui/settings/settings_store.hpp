@@ -3,6 +3,8 @@
 #include <functional>
 #include <string>
 
+#include "ui/settings/export_settings.hpp"
+
 namespace spectra::ui
 {
 class ThemeManager;
@@ -23,6 +25,8 @@ struct SettingsData
     // Transforms menu: true replaces the series data in place, false (default,
     // non-destructive) adds a transformed copy next to each source series.
     bool transform_overwrite = false;
+    // Last choices of the Export options dialog (file.export_dialog).
+    ExportDialogSettings export_dialog;
 };
 
 // Theme and data palette an App starts with.

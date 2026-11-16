@@ -88,6 +88,14 @@ static bool apply_property_update(FigureModel&              fig_model,
     {
         diff.ops.push_back(fig_model.set_figure_title(figure_id, str_val));
     }
+    else if (property == "style")
+    {
+        // Built-in plot style (StyleSheet) of the figure, by name.
+        ipc::DiffOp op;
+        if (!fig_model.set_figure_style(figure_id, str_val, &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "grid")
     {
         diff.ops.push_back(fig_model.set_grid_visible(figure_id, axes_index, bool_val));
@@ -455,7 +463,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         "opacity",     "xlabel",         "ylabel",   "axes_title",     "label",
         "legend",      "legend_visible", "add_knob", "annotation",     "clear_annotations",
         "data_origin", "xscale",         "yscale",   "xaxis_datetime", "yaxis_datetime",
-        "categories"};
+        "categories",  "style"};
     bool known = false;
     for (const auto* p : known_props)
     {

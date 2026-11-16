@@ -758,6 +758,9 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/app/commands/commands_data.cpp
         src/ui/app/commands/commands_app.cpp
         src/ui/app/commands/plugin_export_commands.cpp
+        src/ui/app/commands/commands_style.cpp
+        src/ui/app/offscreen_export.cpp
+        src/ui/overlay/export_options_dialog.cpp
         src/ui/topics/topics_panel.cpp
         src/ui/logs/log_browser_panel.cpp
         src/ui/settings/settings_store.cpp

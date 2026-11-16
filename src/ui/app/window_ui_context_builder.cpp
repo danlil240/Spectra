@@ -448,10 +448,14 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
     ui->settings_panel.set_settings_store(ui->settings_store);
     ui->settings_panel.set_theme_manager(options.theme_mgr);
     ui->settings_panel.set_shortcut_config(&ui->settings_cfg);
+    ui->export_dialog.set_settings_store(ui->settings_store);
+    ui->export_dialog.set_theme_manager(options.theme_mgr);
+    ui->export_dialog.set_last_export_dir(&ui->last_export_dir);
     if (ui->imgui_ui)
     {
         ui->imgui_ui->set_settings_panel(&ui->settings_panel);
         ui->imgui_ui->set_settings_store(ui->settings_store);
+        ui->imgui_ui->set_export_dialog(&ui->export_dialog);
     }
 #endif
 

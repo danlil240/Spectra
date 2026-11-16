@@ -60,6 +60,11 @@ class FigureModel
                                  double   z_min,
                                  double   z_max);
 
+    // Apply the built-in plot style `name` (StyleSheet) to a figure: new axes
+    // and series follow it, existing ones are restyled like Figure::apply_style.
+    // Returns false (no change) for an unknown figure or style.
+    bool set_figure_style(uint64_t figure_id, const std::string& name, ipc::DiffOp* op_out);
+
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
 
@@ -248,6 +253,7 @@ class FigureModel
         int32_t                               grid_cols       = 1;
         float                                 live_fps        = 0.0f;
         uint8_t                               legend_position = 5;   // LegendPosition::Best
+        std::string                           style;                 // built-in plot style name
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;
     };

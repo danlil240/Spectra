@@ -28,12 +28,13 @@ import warnings
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import _easy as _sp
+from . import style  # plt.style.use("paper") / plt.style.context("talk")
 
 __all__ = [
     "plot", "scatter", "bar", "barh", "hist", "errorbar", "fill_between", "stem",
     "semilogx", "semilogy", "loglog", "figure", "subplot", "subplots", "xlabel",
     "ylabel", "title", "suptitle", "legend", "xlim", "ylim", "xscale", "yscale",
-    "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout",
+    "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style",
 ]
 
 # Pixels per inch for figsize (matplotlib's default dpi).

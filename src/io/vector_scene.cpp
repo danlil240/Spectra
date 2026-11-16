@@ -1911,40 +1911,11 @@ int clip_rect(SceneContext& c, const Rect& vp)
     return c.w.define_clip_rect(vp.x, vp.y, vp.w, vp.h);
 }
 
-// Minor grid values: 4 lines between major ticks, extended into the margins
-// (render_geometry.cpp).
-std::vector<double> minor_grid_values(const std::vector<double>& t, double lo, double hi)
+// Minor grid / tick values (data space) of one axis; lo / hi are axis-space
+// limits (render_geometry.cpp).
+std::vector<double> minor_values(ScaleType sc, const std::vector<double>& t, double lo, double hi)
 {
-    constexpr int       SUBDIV     = 5;
-    constexpr int       MAX_MARGIN = 4 * SUBDIV;
-    std::vector<double> out;
-    const size_t        n = t.size();
-    for (size_t i = 0; i + 1 < n; ++i)
-    {
-        const double step = (t[i + 1] - t[i]) / SUBDIV;
-        for (int s = 1; s < SUBDIV; ++s)
-            out.push_back(t[i] + step * s);
-    }
-    if (n >= 2)
-    {
-        const double step0 = (t[1] - t[0]) / SUBDIV;
-        for (int k = 1; std::isfinite(step0) && step0 > 0 && k <= MAX_MARGIN; ++k)
-        {
-            const double v = t[0] - step0 * k;
-            if (v < lo)
-                break;
-            out.push_back(v);
-        }
-        const double step1 = (t[n - 1] - t[n - 2]) / SUBDIV;
-        for (int k = 1; std::isfinite(step1) && step1 > 0 && k <= MAX_MARGIN; ++k)
-        {
-            const double v = t[n - 1] + step1 * k;
-            if (v > hi)
-                break;
-            out.push_back(v);
-        }
-    }
-    return out;
+    return minor_tick_values(sc, t, from_axis_space(sc, lo), from_axis_space(sc, hi));
 }
 
 void emit_grid_2d(SceneContext& c, const Axes& axes, const DataToSvg& m)
@@ -1996,17 +1967,11 @@ void emit_grid_2d(SceneContext& c, const Axes& axes, const DataToSvg& m)
 
     c.w.begin_group(named_group(4, "grid"));
     // Log axes: minor lines at 2..9 x 10^k / 1.25..1.75 x 2^k (render_geometry.cpp).
-    auto minor = [](ScaleType sc, const std::vector<double>& t, double lo, double hi)
-    {
-        // lo / hi are axis-space limits; the minor values are data values.
-        return is_log_scale(sc)
-                   ? log_minor_ticks(sc, from_axis_space(sc, lo), from_axis_space(sc, hi))
-                   : minor_grid_values(t, from_axis_space(sc, lo), from_axis_space(sc, hi));
-    };
-    emit_lines(minor(m.xscale, x_ticks.positions, m.x_min, m.x_max),
-               minor(m.yscale, y_ticks.positions, m.y_min, m.y_max),
-               c.style.grid_minor,
-               std::max(1.0f, as.grid_width * 0.5f));
+    if (axes.minor_grid_enabled())
+        emit_lines(minor_values(m.xscale, x_ticks.positions, m.x_min, m.x_max),
+                   minor_values(m.yscale, y_ticks.positions, m.y_min, m.y_max),
+                   c.style.grid_minor,
+                   std::max(1.0f, as.grid_width * 0.5f));
     emit_lines(x_ticks.positions,
                y_ticks.positions,
                as.grid_color.a > 0.0f ? as.grid_color : c.style.grid_major,
@@ -2115,7 +2080,19 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     const auto  y_ticks = axes.compute_y_ticks();
     {
         std::string d;
-        if (axes.border_enabled())
+        if (axes.border_enabled() && axes.despined())
+        {
+            // Left and bottom axis lines only.
+            d += 'M';
+            put_num(d, vp.x);
+            d += ' ';
+            put_num(d, vp.y);
+            d += 'V';
+            put_num(d, vp.y + vp.h);
+            d += 'H';
+            put_num(d, vp.x + vp.w);
+        }
+        else if (axes.border_enabled())
         {
             d += 'M';
             put_num(d, vp.x);
@@ -2129,9 +2106,12 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
             put_num(d, vp.x);
             d += 'Z';
         }
-        if (tl > 0.0f)
+        // Tick marks point out of the plot area, or into it (TickDirection::In).
+        const float dir = axes.tick_direction() == TickDirection::In ? -1.0f : 1.0f;
+        auto        tick_marks =
+            [&](const std::vector<double>& xs, const std::vector<double>& ys, float len)
         {
-            for (double p : x_ticks.positions)
+            for (double p : xs)
             {
                 const double px = m.map_x(p);
                 if (px < vp.x - 0.5 || px > vp.x + vp.w + 0.5)
@@ -2141,9 +2121,9 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
                 d += ' ';
                 put_num(d, vp.y + vp.h);
                 d += 'v';
-                put_num(d, tl);
+                put_num(d, len * dir);
             }
-            for (double p : y_ticks.positions)
+            for (double p : ys)
             {
                 const double py = m.map_y(p);
                 if (py < vp.y - 0.5 || py > vp.y + vp.h + 0.5)
@@ -2153,8 +2133,16 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
                 d += ' ';
                 put_num(d, py);
                 d += 'h';
-                put_num(d, -tl);
+                put_num(d, -len * dir);
             }
+        };
+        if (tl > 0.0f)
+        {
+            tick_marks(x_ticks.positions, y_ticks.positions, tl);
+            if (axes.minor_ticks_enabled())
+                tick_marks(minor_values(m.xscale, x_ticks.positions, m.x_min, m.x_max),
+                           minor_values(m.yscale, y_ticks.positions, m.y_min, m.y_max),
+                           tl * MINOR_TICK_LENGTH_RATIO);
         }
         if (!d.empty())
         {

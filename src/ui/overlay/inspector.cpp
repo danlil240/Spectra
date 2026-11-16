@@ -13,8 +13,10 @@
     #include <spectra/camera.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <spectra/style.hpp>
     #include <vector>
 
+    #include "ui/commands/command_registry.hpp"
     #include "ui/commands/series_clipboard.hpp"
     #include "ui/input/axes_selection.hpp"
     #include "ui/theme/design_tokens.hpp"
@@ -126,6 +128,9 @@ void Inspector::draw_figure_properties(Figure& fig)
     widgets::section_spacing();
     widgets::separator();
     widgets::section_spacing();
+
+    // ── Plot style presets
+    draw_style_picker(fig);
 
     // ── Background section
     auto& sty = fig.style();
@@ -287,6 +292,41 @@ void Inspector::draw_figure_properties(Figure& fig)
 }
 
 // ─── Series Browser ─────────────────────────────────────────────────────────
+
+void Inspector::draw_style_picker(Figure& fig)
+{
+    if (!widgets::section_header("STYLE", &sec_plot_style_, font_heading_))
+        return;
+    if (!widgets::begin_animated_section("STYLE"))
+        return;
+    widgets::begin_group("plot_style");
+    // One chip per built-in preset; the active one is highlighted.  Runs the
+    // style.<name> command (undoable) when a registry is wired.
+    const std::string current = fig.style_name();
+    bool              first   = true;
+    const float       right   = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+    for (const std::string& name : style::available())
+    {
+        // Wrap the chips onto the next row when this one would not fit.
+        const std::string label = style::display_name(name);
+        const float chip_w = ImGui::CalcTextSize(label.c_str()).x + tokens::CHIP_PADDING_H * 2.0f;
+        if (!first && ImGui::GetItemRectMax().x + 4.0f + chip_w <= right)
+            ImGui::SameLine(0.0f, 4.0f);
+        first             = false;
+        const bool active = (current.empty() ? std::string("default") : current) == name;
+        if (widgets::chip(label.c_str(), active))
+        {
+            const std::string cmd = "style." + name;
+            if (!command_registry_ || !command_registry_->execute(cmd))
+                fig.apply_style(name);
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Apply the %s plot style to this figure", name.c_str());
+    }
+    widgets::end_group();
+    widgets::small_spacing();
+    widgets::end_animated_section();
+}
 
 void Inspector::draw_series_browser(Figure& fig)
 {
@@ -989,6 +1029,22 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             if (widgets::checkbox_field("Show Border", border))
             {
                 ax.set_border_enabled(border);
+            }
+
+            bool minor_grid = ax.minor_grid_enabled();
+            if (widgets::checkbox_field("Minor Grid", minor_grid))
+                ax.minor_grid(minor_grid);
+            bool minor_ticks = ax.minor_ticks_enabled();
+            if (widgets::checkbox_field("Minor Ticks", minor_ticks))
+                ax.minor_ticks(minor_ticks);
+            bool despine = ax.despined();
+            if (widgets::checkbox_field("Hide Top/Right Spines", despine))
+                ax.despine(despine);
+            {
+                const char* dirs[] = {"Out", "In"};
+                int         dir    = ax.tick_direction() == TickDirection::In ? 1 : 0;
+                if (widgets::combo_field("Ticks", dir, dirs, 2))
+                    ax.tick_direction(dir == 1 ? TickDirection::In : TickDirection::Out);
             }
 
             auto& as = ax.axis_style();

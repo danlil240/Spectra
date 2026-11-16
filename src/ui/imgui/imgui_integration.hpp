@@ -81,6 +81,7 @@ class KnobManager;
 class DataInteraction;
 class DockSystem;
 class ExportFormatRegistry;
+class ExportOptionsDialog;
 class KeyframeInterpolator;
 class ModeTransition;
 class OverlayRegistry;
@@ -385,6 +386,12 @@ class ImGuiIntegration
     // Settings store — owned externally; supplies persisted UI choices.
     void                         set_settings_store(ui::settings::SettingsStore* store);
     ui::settings::SettingsPanel* settings_panel() const { return settings_panel_; }
+
+    // Export options dialog (file.export_dialog) — owned externally
+    // (WindowUIContext); drawn on top of the window each frame.  Wires its
+    // preview texture upload to this window's Vulkan backend.
+    void                 set_export_dialog(ExportOptionsDialog* d);
+    ExportOptionsDialog* export_dialog() const { return export_dialog_; }
 
     // Tab bar (owned externally by App)
     void    set_tab_bar(TabBar* tb) { tab_bar_ = tb; }
@@ -847,6 +854,9 @@ class ImGuiIntegration
 
     // Settings panel — not owned.
     ui::settings::SettingsPanel* settings_panel_ = nullptr;
+
+    // Export options dialog — not owned.
+    ExportOptionsDialog* export_dialog_ = nullptr;
 
     // Settings store — not owned.
     ui::settings::SettingsStore* settings_store_      = nullptr;

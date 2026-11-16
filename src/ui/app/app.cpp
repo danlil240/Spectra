@@ -19,6 +19,8 @@ namespace spectra
 Figure& App::figure(const FigureConfig& config)
 {
     auto id = registry_.register_figure(std::make_unique<Figure>(config));
+    if (default_style_)
+        registry_.get(id)->apply_style(*default_style_);
 
     // If runtime is active, notify FigureManager so the new figure
     // appears as a tab and becomes the active figure.
@@ -37,6 +39,8 @@ Figure& App::figure(Figure& sibling)
     cfg.width   = sibling.width();
     cfg.height  = sibling.height();
     auto new_id = registry_.register_figure(std::make_unique<Figure>(cfg));
+    if (default_style_)
+        registry_.get(new_id)->apply_style(*default_style_);
 
     // Record that the new figure should be a tab in the sibling's window
     FigureId sibling_id = registry_.find_id(&sibling);
@@ -52,6 +56,15 @@ Figure& App::figure(Figure& sibling)
     }
 
     return *registry_.get(new_id);
+}
+
+bool App::use_style(std::string_view name)
+{
+    const StyleSheet* s = style::find(name);
+    if (!s)
+        return false;
+    default_style_ = *s;
+    return true;
 }
 
 std::vector<std::vector<FigureId>> App::compute_window_groups() const

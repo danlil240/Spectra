@@ -70,6 +70,12 @@ enum ChunkTag : uint16_t
     // Box style (BoxStyle) of a 3D axes.  Version-free: older readers skip it
     // and keep the default box.
     TAG_AXES3D_BOX = 0x0050,
+    // Plot-style options of an axes (minor grid / ticks, despine, tick
+    // direction, default series width / marker size) and the plot style name +
+    // palette of the figure.  Version-free: older readers skip them and keep
+    // the defaults (which match files written before these existed).
+    TAG_AXES_PLOT_STYLE   = 0x0056,
+    TAG_FIGURE_PLOT_STYLE = 0x0057,
 
     TAG_END = 0xFFFF,
 };
@@ -268,6 +274,35 @@ class BinaryReader
 
 // ─── Save implementation ────────────────────────────────────────────────────
 
+// TAG_AXES_PLOT_STYLE flag bits.
+enum : uint8_t
+{
+    AXES_STYLE_MINOR_GRID  = 1u << 0,
+    AXES_STYLE_MINOR_TICKS = 1u << 1,
+    AXES_STYLE_DESPINE     = 1u << 2,
+    AXES_STYLE_TICKS_IN    = 1u << 3,
+};
+static constexpr uint32_t AXES_PLOT_STYLE_BYTES = 4 + 1 + 4 + 4;
+
+static void write_axes_plot_style(BinaryWriter& w, const AxesBase& axes, int axes_index)
+{
+    uint8_t flags = 0;
+    if (axes.minor_grid_enabled())
+        flags |= AXES_STYLE_MINOR_GRID;
+    if (axes.minor_ticks_enabled())
+        flags |= AXES_STYLE_MINOR_TICKS;
+    if (axes.despined())
+        flags |= AXES_STYLE_DESPINE;
+    if (axes.tick_direction() == TickDirection::In)
+        flags |= AXES_STYLE_TICKS_IN;
+    auto pos = w.begin_chunk(TAG_AXES_PLOT_STYLE);
+    w.write_i32(axes_index);
+    w.write_u8(flags);
+    w.write_f32(axes.default_line_width());
+    w.write_f32(axes.default_marker_size());
+    w.end_chunk(pos);
+}
+
 static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
 {
     auto pos = w.begin_chunk(TAG_AXES_2D);
@@ -315,6 +350,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
         w.write_u8(axes.yaxis_datetime() ? 1 : 0);
         w.end_chunk(fpos);
     }
+    write_axes_plot_style(w, axes, axes_index);
 
     // Write series for this axes
     for (const auto& sp : axes.series())
@@ -531,6 +567,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
         w.write_u8(static_cast<uint8_t>(axes.box_style()));
         w.end_chunk(bpos);
     }
+    write_axes_plot_style(w, axes, axes_index);
 
     // Write 3D series
     for (const auto& sp : axes.series())
@@ -732,6 +769,16 @@ bool FigureSerializer::save(const std::string&     path,
             w.write_i32(static_cast<int32_t>(ann.axes_index));
             w.end_chunk(apos);
         }
+    }
+
+    // Plot style name and figure palette (after the axes, so loading it does
+    // not restyle them; it only becomes the style of axes added later).
+    if (figure.style_sheet() || !figure.style().palette.empty())
+    {
+        auto pos = w.begin_chunk(TAG_FIGURE_PLOT_STYLE);
+        w.write_string(figure.style_name());
+        w.write_string(figure.style().palette);
+        w.end_chunk(pos);
     }
 
     // End marker
@@ -1706,6 +1753,47 @@ bool FigureSerializer::load(const std::string& path, Figure& figure, OverlaySnap
                                           : nullptr;
                 if (axes && r.good() && style <= static_cast<uint8_t>(BoxStyle::None))
                     axes->box_style(static_cast<BoxStyle>(style));
+                break;
+            }
+
+            case TAG_AXES_PLOT_STYLE:
+            {
+                if (len < AXES_PLOT_STYLE_BYTES)
+                {
+                    r.skip(len);
+                    break;
+                }
+                const int32_t ai          = r.read_i32();
+                const uint8_t flags       = r.read_u8();
+                const float   line_width  = r.read_f32();
+                const float   marker_size = r.read_f32();
+                AxesBase*     axes        = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                                ? axes_ptrs[static_cast<size_t>(ai)]
+                                                : nullptr;
+                r.seek(chunk_start + static_cast<std::streamoff>(len));
+                if (!axes || !r.good())
+                    break;
+                // Only the flags and new-series defaults: the grid, tick length
+                // and font sizes travel in the axes chunk, series widths in theirs.
+                axes->minor_grid((flags & AXES_STYLE_MINOR_GRID) != 0);
+                axes->minor_ticks((flags & AXES_STYLE_MINOR_TICKS) != 0);
+                axes->despine((flags & AXES_STYLE_DESPINE) != 0);
+                axes->tick_direction((flags & AXES_STYLE_TICKS_IN) ? TickDirection::In
+                                                                   : TickDirection::Out);
+                axes->set_series_defaults(line_width, marker_size);
+                break;
+            }
+
+            case TAG_FIGURE_PLOT_STYLE:
+            {
+                const std::string name    = r.read_string();
+                const std::string palette = r.read_string();
+                r.seek(chunk_start + static_cast<std::streamoff>(len));
+                if (!r.good())
+                    break;
+                figure.style().palette = palette;
+                if (const StyleSheet* st = style::find(name))
+                    figure.set_style_sheet(*st);
                 break;
             }
 

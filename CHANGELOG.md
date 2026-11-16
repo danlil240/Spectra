@@ -11,6 +11,10 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+### Added
+
+- Plot style presets ("default", "paper", "talk", "minimal", "dark-paper") via `Figure::apply_style`, `spectra::style::use`/`style::context`, Python `spectra.style.use()`/`with spectra.style.context()`, an Inspector Style picker and `style.<name>` commands; per-axes minor grid, minor ticks, tick direction and despine options; and an Export options dialog (`file.export_dialog`: format PNG/SVG/PDF, theme, size in px or inches + DPI, scale, transparent background, live preview) whose choices are saved in settings.
+
 ### Changed
 
 - 3D surfaces map their colormap over the data z range (or `SurfaceSeries::colormap_range()` when set), so zooming or panning no longer recolours them, and `colormap_alpha()` now works; the colorbar and SVG/PDF export use the same range. 3D grid panes sit on the faces farthest from the camera and are depth-tested, and the new `Axes3D::box_style(BoxStyle::Back | Full | None)` (default Back) drops the box edges that crossed in front of the data.

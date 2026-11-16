@@ -128,12 +128,14 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
             if (op.series_index < fig.series.size())
             {
-                fig.series[op.series_index].color_r     = op.f1;
-                fig.series[op.series_index].color_g     = op.f2;
-                fig.series[op.series_index].color_b     = op.f3;
-                fig.series[op.series_index].color_a     = op.f4;
-                fig.series[op.series_index].color_index = -1;   // explicit colour
-                // ...unless the op carries a format letter (theme-aware shade).
+                fig.series[op.series_index].color_r = op.f1;
+                fig.series[op.series_index].color_g = op.f2;
+                fig.series[op.series_index].color_b = op.f3;
+                fig.series[op.series_index].color_a = op.f4;
+                // Explicit colour, unless the op carries a palette slot tag
+                // ("C3") or a format letter (theme-aware).
+                fig.series[op.series_index].color_index =
+                    spectra::ipc::parse_palette_slot_tag(op.str_val);
                 fig.series[op.series_index].color_letter =
                     (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
                         ? static_cast<uint8_t>(op.str_val[0])
@@ -411,7 +413,10 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
             if (auto* s = find_live_series())
             {
                 // A format letter in str_val is re-resolved for this window's theme.
-                if (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
+                const int32_t slot = spectra::ipc::parse_palette_slot_tag(op.str_val);
+                if (slot >= 0)
+                    s->set_auto_color_index(slot);   // resolved from this window's palette
+                else if (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
                     s->set_color_letter(op.str_val[0]);
                 else
                     s->color(spectra::Color(static_cast<float>(op.f1),

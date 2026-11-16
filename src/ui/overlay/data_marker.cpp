@@ -122,6 +122,13 @@ void DataMarkerManager::clear()
     markers_.clear();
 }
 
+void DataMarkerManager::insert(size_t marker_index, DataMarker marker)
+{
+    marker_index = std::min(marker_index, markers_.size());
+    markers_.insert(markers_.begin() + static_cast<std::ptrdiff_t>(marker_index),
+                    std::move(marker));
+}
+
 void DataMarkerManager::draw(const AxisMapping& map,
                              float              opacity,
                              const Axes*        filter_axes,

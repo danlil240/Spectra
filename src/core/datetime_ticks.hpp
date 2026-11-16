@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <spectra/axes.hpp>
+#include <string>
 
 #include "core/axis_ticks.hpp"
 
@@ -38,5 +39,13 @@ CivilTime civil_from_epoch(double t);
 /// Date-time ticks for epoch-second limits [@p lo, @p hi].  Uses axis_px,
 /// target_px and labels_side_by_side from @p opt.
 TickResult generate_datetime_ticks(double lo, double hi, const LinearTickOptions& opt = {});
+
+/// One epoch-second value as a UTC date-time for cursor readouts (tooltips,
+/// data tips, crosshair labels, status bar): "2024-03-05 14:30:12".
+/// @p resolution is the smallest time step that matters (e.g. what one screen
+/// pixel spans): >= 1 day prints the date only, >= 1 minute drops the seconds,
+/// below 1 s adds as many fractional digits as it needs (up to 6).  0 means
+/// unknown: whole seconds, plus milliseconds when the value has a fraction.
+std::string format_datetime_readout(double t, double resolution = 0.0);
 
 }   // namespace spectra

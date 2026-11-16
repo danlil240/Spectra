@@ -103,6 +103,7 @@ std::vector<AxesMenuItem> build_axes_context_menu(const AxesContextMenuState& st
     {
         m.command("view.toggle_legend");
         m.command("view.toggle_crosshair");
+        m.command("view.toggle_compare_at_x", "Compare at X");
     }
     m.separator();
 

@@ -178,6 +178,56 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                     }});
 
+    // ─── Compare at X (crosshair readout of every series) ────────────────
+    cmds.push_back({"view.toggle_compare_at_x",
+                    "Toggle Compare-at-X Readout",
+                    "Shift+C",
+                    "View",
+                    static_cast<uint16_t>(ui::Icon::Crosshair),
+                    [&]()
+                    {
+                        if (!data_interaction)
+                            return;
+                        // Turning it on also shows the crosshair it rides on.
+                        if (!data_interaction->crosshair_active())
+                        {
+                            data_interaction->set_crosshair(true);
+                            data_interaction->set_compare_enabled(true);
+                            return;
+                        }
+                        data_interaction->set_compare_enabled(!data_interaction->compare_enabled());
+                    }});
+
+    cmds.push_back({"view.compare_toggle_nearest",
+                    "Compare at X: Toggle Nearest Sample / Interpolate",
+                    "",
+                    "View",
+                    0,
+                    [&]()
+                    {
+                        if (!data_interaction)
+                            return;
+                        data_interaction->set_compare_mode(data_interaction->compare_mode()
+                                                                   == probe::ProbeMode::Interpolate
+                                                               ? probe::ProbeMode::Nearest
+                                                               : probe::ProbeMode::Interpolate);
+                    }});
+
+    cmds.push_back({"view.compare_toggle_sort",
+                    "Compare at X: Toggle Sort by Value / Legend Order",
+                    "",
+                    "View",
+                    0,
+                    [&]()
+                    {
+                        if (!data_interaction)
+                            return;
+                        data_interaction->set_compare_sort(
+                            data_interaction->compare_sort() == probe::CompareSort::ValueDescending
+                                ? probe::CompareSort::Legend
+                                : probe::CompareSort::ValueDescending);
+                    }});
+
     // ─── Toggle Legend ───────────────────────────────────────────────────
     cmds.push_back({"view.toggle_legend",
                     "Toggle Legend",

@@ -9,6 +9,7 @@
     #include <spectra/axes3d.hpp>
 
     #include "axes3d_pick.hpp"
+    #include "axis_readout.hpp"
     #include "readout_format.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -182,8 +183,9 @@ void DataMarkerManager::draw(const AxisMapping& map,
 
         // ── Build label text ────────────────────────────────────────────
         // Large values (epoch timestamps, big offsets) use fixed notation.
-        const std::string coord_buf = "X: " + ui::format_readout_value(m.data_x, 4)
-                                      + "   Y: " + ui::format_readout_value(m.data_y, 4);
+        const std::string coord_buf =
+            "X: " + ui::format_axis_value(m.axes, ui::ReadoutAxis::X, m.data_x, 4)
+            + "   Y: " + ui::format_axis_value(m.axes, ui::ReadoutAxis::Y, m.data_y, 4);
 
         std::string deriv_buf;
         bool        has_deriv = m.dy_dx_valid;
@@ -364,8 +366,9 @@ int DataMarkerManager::hit_test(float              screen_x,
         }
 
         // 2) Check the label box (replicate geometry from draw)
-        const std::string coord_buf = "X: " + ui::format_readout_value(m.data_x, 4)
-                                      + "   Y: " + ui::format_readout_value(m.data_y, 4);
+        const std::string coord_buf =
+            "X: " + ui::format_axis_value(m.axes, ui::ReadoutAxis::X, m.data_x, 4)
+            + "   Y: " + ui::format_axis_value(m.axes, ui::ReadoutAxis::Y, m.data_y, 4);
 
         std::string deriv_buf;
         bool        has_deriv = m.dy_dx_valid;

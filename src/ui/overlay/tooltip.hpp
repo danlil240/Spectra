@@ -2,9 +2,11 @@
 
 #ifdef SPECTRA_USE_IMGUI
 
+    #include <cstdint>
     #include <spectra/color.hpp>
     #include <spectra/series.hpp>
     #include <string>
+    #include <vector>
 
 struct ImDrawList;
 struct ImFont;
@@ -17,7 +19,19 @@ class ThemeManager;
 namespace spectra
 {
 
+class Axes;
 class Axes3D;
+
+// What the hover pick hit.
+enum class HoverHitKind : uint8_t
+{
+    Vertex,    // a stored sample (line / scatter / stem vertex)
+    Segment,   // a point on a line segment between two samples (interpolated)
+    Bar,       // inside a bar: value = bar height, data_x/y = bar position / top
+    Bin,       // inside a histogram bin: value = bin height, [range_lo, range_hi) = bin
+    Pixel,     // inside an image cell: value = cell value (cell_col / cell_row)
+    Contour,   // on a contour line: value = level
+};
 
 // Result of nearest-point spatial query
 struct NearestPointResult
@@ -39,7 +53,27 @@ struct NearestPointResult
     bool          dy_dx_valid = false;   // True when derivative could be computed
     bool          is_3d       = false;
     const Axes3D* axes3d      = nullptr;   // Owning 3D axes (for axis labels)
+    const Axes*   axes        = nullptr;   // Owning 2D axes (date-time readouts)
+    HoverHitKind  kind        = HoverHitKind::Vertex;
+    double        value       = 0.0;     // Bar / Bin / Pixel / Contour value
+    double        range_lo    = 0.0;     // Bin: left edge
+    double        range_hi    = 0.0;     // Bin: right edge
+    size_t        cell_col    = 0;       // Pixel: image column
+    size_t        cell_row    = 0;       // Pixel: image row
+    bool          has_value   = false;   // value is meaningful (false for RGBA cells)
 };
+
+// One label / value row of the hover tooltip.
+struct TooltipRow
+{
+    std::string label;
+    std::string value;
+};
+
+// The rows the hover tooltip shows for @p nearest (2D picks): X / Y (date-time
+// aware through nearest.axes), dy/dx for line samples, and the bar height, bin
+// range and count, image cell value or contour level for those hits.
+std::vector<TooltipRow> tooltip_rows(const NearestPointResult& nearest);
 
 // Display name for the hovered series: its label, or "Series N" (1-based,
 // matching the order the series were added to the axes) when unlabeled.

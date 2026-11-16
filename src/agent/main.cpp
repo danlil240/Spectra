@@ -1140,6 +1140,22 @@ int main(int argc, char* argv[])
     // figure; this window process writes them (same path as App::step()).
     spectra::WindowPngExport png_export;
 
+    // OS drag-and-drop: open the file in the window it was dropped on, like
+    // File > Open (.spectra, CSV/TSV, ULog/MCAP).
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
+    if (window_mgr)
+    {
+        auto* wm = window_mgr.get();
+        window_mgr->set_file_drop_handler(
+            [wm](uint32_t window_id, const std::string& path)
+            {
+                spectra::WindowContext* target = wm->find_window(window_id);
+                if (target && target->ui_ctx && target->ui_ctx->open_file_fn)
+                    target->ui_ctx->open_file_fn(path);
+            });
+    }
+#endif
+
     while (!session.should_exit() && g_running.load(std::memory_order_relaxed))
     {
         // ── Drain all pending IPC messages (non-blocking) ────────────────
@@ -1549,6 +1565,19 @@ int main(int argc, char* argv[])
             }
             last_heartbeat = now;
         }
+
+        // Figures changed by the backend (Python / IPC) are the program's
+        // doing, not unsaved edits of the user.
+#if defined(SPECTRA_USE_IMGUI) && (defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3))
+        if (window_mgr)
+        {
+            for (auto* w : window_mgr->windows())
+            {
+                if (w && w->ui_ctx)
+                    w->ui_ctx->document.absorb_external_changes();
+            }
+        }
+#endif
 
         // ── Standard session tick (same as inproc) ───────────────────────
         // A PNG capture with its own theme draws the captured frame with it;

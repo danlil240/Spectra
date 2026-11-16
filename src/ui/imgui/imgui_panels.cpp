@@ -13,6 +13,7 @@
     #include "ui/figures/empty_axes_hint.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/input/axes_selection.hpp"
+    #include "ui/overlay/axis_readout.hpp"
     #include "ui/overlay/live_status.hpp"
     #include "ui/overlay/readout_format.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
@@ -270,8 +271,9 @@ void ImGuiIntegration::draw_canvas_content(Figure& figure)
 
             // Keyboard hint
             ImGui::PushFont(font_body_);
-            const char* hint = "Ctrl+K  Command Palette  |  Ctrl+T  New Tab  |  Ctrl+S  Export PNG";
-            ImVec2      hint_sz = ImGui::CalcTextSize(hint);
+            const char* hint =
+                "Ctrl+K  Command Palette  |  Ctrl+T  New Tab  |  Ctrl+O  Open  |  Ctrl+S  Save";
+            ImVec2 hint_sz = ImGui::CalcTextSize(hint);
             ImGui::SetCursorScreenPos(ImVec2(cx - hint_sz.x * 0.5f, btn_y + btn_h + 24.0f));
             ImGui::PushStyleColor(ImGuiCol_Text,
                                   ImVec4(colors.text_tertiary.r,
@@ -983,11 +985,24 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              };
 
              {
-                 const std::string cursor_buf = ui::format_status_cursor(cursor_data_valid_,
-                                                                         cursor_data_3d_,
-                                                                         cursor_data_x_,
-                                                                         cursor_data_y_,
-                                                                         cursor_data_z_);
+                 // 3D: picked X / Y / Z.  2D: date-time aware, with the
+                 // digits one pixel resolves on the hovered axes.
+                 const Axes* cur_axes =
+                     data_interaction_ ? data_interaction_->active_axes() : nullptr;
+                 const CursorReadout* cur =
+                     data_interaction_ ? &data_interaction_->last_cursor() : nullptr;
+                 const std::string cursor_buf =
+                     cursor_data_3d_ ? ui::format_status_cursor(cursor_data_valid_,
+                                                                true,
+                                                                cursor_data_x_,
+                                                                cursor_data_y_,
+                                                                cursor_data_z_)
+                                     : ui::format_cursor_status(cur_axes,
+                                                                cursor_data_valid_,
+                                                                cursor_data_x_,
+                                                                cursor_data_y_,
+                                                                cur ? cur->screen_x : 0.0,
+                                                                cur ? cur->screen_y : 0.0);
                  draw_pill(cursor_buf.c_str(),
                            colors.text_secondary,
                            colors.bg_tertiary,
@@ -1080,25 +1095,42 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                  }
              }
 
-             ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+             // Zoom: only while the view is zoomed relative to the autoscaled
+             // (fitted) view; a constant "Zoom: 100%" said nothing.  Click to fit.
+             if (std::abs(zoom_level_ - 1.0f) > 0.005f && std::isfinite(zoom_level_))
              {
-                 std::string zoom_buf;
-                 double      zoom_pct = static_cast<double>(zoom_level_) * 100.0;
-                 if (zoom_pct < 10000.0)
-                     zoom_buf = std::format("Zoom: {:.0f}%", zoom_pct);
-                 else if (zoom_pct < 1e7)
-                     zoom_buf = std::format("Zoom: {:.1f}K%", zoom_pct / 1e3);
-                 else if (zoom_pct < 1e10)
-                     zoom_buf = std::format("Zoom: {:.1f}M%", zoom_pct / 1e6);
-                 else if (zoom_pct < 1e13)
-                     zoom_buf = std::format("Zoom: {:.1f}G%", zoom_pct / 1e9);
+                 ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+                 const double z = static_cast<double>(zoom_level_);
+                 std::string  zoom_buf;
+                 if (z >= 1e4 || z < 1e-3)
+                     zoom_buf = std::format("Zoom {:.1e}\u00d7", z);
+                 else if (z >= 10.0)
+                     zoom_buf = std::format("Zoom {:.0f}\u00d7", z);
                  else
-                     zoom_buf = std::format("Zoom: {:.2e}%", zoom_pct);
+                     zoom_buf = std::format("Zoom {:.2g}\u00d7", z);
+                 const ImVec2 pill_pos = ImGui::GetCursorScreenPos();
                  draw_pill(zoom_buf.c_str(),
                            colors.text_secondary,
                            colors.bg_tertiary,
                            0.24f,
                            colors.border_subtle);
+                 const ImVec2 text_sz = ImGui::CalcTextSize(zoom_buf.c_str());
+                 ImGui::SetCursorScreenPos(
+                     ImVec2(pill_pos.x - pill_pad_h, pill_pos.y - pill_pad_v));
+                 if (ImGui::InvisibleButton(
+                         "##status_zoom_fit",
+                         ImVec2(text_sz.x + pill_pad_h * 2.0f, text_h + pill_pad_v * 2.0f)))
+                 {
+                     if (command_registry_)
+                         command_registry_->execute("view.autofit");
+                 }
+                 if (ImGui::IsItemHovered())
+                 {
+                     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+                     ImGui::SetTooltip(
+                         "Horizontal zoom of the first plot relative to its fitted view.\n"
+                         "Click to fit the view to the data.");
+                 }
              }
 
              ImGui::PopFont();

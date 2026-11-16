@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <fstream>
 #include <limits>
+#include <spectra/axes.hpp>
+#include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
 namespace spectra
@@ -54,6 +57,30 @@ void append_value(std::string& out, float stored, double offset, int digits)
 }   // namespace
 
 std::string series_to_tsv(const std::vector<const Series*>& series)
+{
+    return series_to_delimited(series, '\t');
+}
+
+namespace
+{
+// RFC 4180 quoting for a CSV header cell.
+std::string header_cell(const std::string& text, char sep)
+{
+    if (sep == '\t' || text.find_first_of(std::string(1, sep) + "\"\r\n") == std::string::npos)
+        return text;
+    std::string q = "\"";
+    for (char c : text)
+    {
+        if (c == '"')
+            q += '"';
+        q += c;
+    }
+    q += '"';
+    return q;
+}
+}   // namespace
+
+std::string series_to_delimited(const std::vector<const Series*>& series, char sep)
 {
     if (series.empty())
         return {};
@@ -116,11 +143,10 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
     for (size_t ci = 0; ci < cols.size(); ++ci)
     {
         if (ci > 0)
-            result += '\t';
-        result += cols[ci].label;
-        result += "_x\t";
-        result += cols[ci].label;
-        result += "_y";
+            result += sep;
+        result += header_cell(cols[ci].label + "_x", sep);
+        result += sep;
+        result += header_cell(cols[ci].label + "_y", sep);
     }
     result += '\n';
 
@@ -130,7 +156,7 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
         for (size_t ci = 0; ci < cols.size(); ++ci)
         {
             if (ci > 0)
-                result += '\t';
+                result += sep;
 
             const auto& col = cols[ci];
             if (row < col.count)
@@ -148,18 +174,54 @@ std::string series_to_tsv(const std::vector<const Series*>& series)
                     y = col.scatter->y_data()[row];
                 }
                 append_value(result, x, col.x_off, col.x_digits);
-                result += '\t';
+                result += sep;
                 append_value(result, y, col.y_off, col.y_digits);
             }
             else
             {
-                result += '\t';   // empty cells for shorter series
+                result += sep;   // empty cells for shorter series
             }
         }
         result += '\n';
     }
 
     return result;
+}
+
+bool export_figure_csv(const Figure& figure, const std::string& path, std::string* error)
+{
+    auto fail = [error](std::string why)
+    {
+        if (error)
+            *error = std::move(why);
+        return false;
+    };
+    std::vector<const Series*> series;
+    figure.for_each_axes(
+        [&series](const AxesBase* ax)
+        {
+            for (const auto& s : ax->series())
+            {
+                if (dynamic_cast<const LineSeries*>(s.get())
+                    || dynamic_cast<const ScatterSeries*>(s.get()))
+                {
+                    if (std::find(series.begin(), series.end(), s.get()) == series.end())
+                        series.push_back(s.get());
+                }
+            }
+        });
+    if (series.empty())
+        return fail("This figure has no 2D line or scatter series to export");
+
+    const std::string csv = series_to_delimited(series, ',');
+    std::ofstream     f(path, std::ios::binary | std::ios::trunc);
+    if (!f.is_open())
+        return fail("Cannot write " + path);
+    f << csv;
+    f.flush();
+    if (!f.good())
+        return fail("Write error on " + path);
+    return true;
 }
 
 }   // namespace spectra

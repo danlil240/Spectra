@@ -50,6 +50,7 @@ constexpr int KEY_F12           = 301;
 constexpr int KEY_B = 66;
 constexpr int KEY_C = 67;
 constexpr int KEY_D = 68;
+constexpr int KEY_E = 69;
 constexpr int KEY_F = 70;
 constexpr int KEY_G = 71;
 constexpr int KEY_I = 73;
@@ -57,6 +58,7 @@ constexpr int KEY_K = 75;
 constexpr int KEY_L = 76;
 constexpr int KEY_M = 77;
 constexpr int KEY_N = 78;
+constexpr int KEY_O = 79;
 constexpr int KEY_P = 80;
 constexpr int KEY_Q = 81;
 constexpr int KEY_R = 82;
@@ -368,6 +370,7 @@ void ShortcutManager::register_defaults()
     bind({KEY_A, KeyMod::None}, "view.autofit");
     bind({KEY_G, KeyMod::None}, "view.toggle_grid");
     bind({KEY_C, KeyMod::None}, "view.toggle_crosshair");
+    bind({KEY_C, KeyMod::Shift}, "view.toggle_compare_at_x");
     bind({KEY_F, KeyMod::None}, "view.fullscreen");
     bind({KEY_HOME, KeyMod::None}, "view.home");
     bind({KEY_END, KeyMod::None}, "view.follow_live");
@@ -385,9 +388,12 @@ void ShortcutManager::register_defaults()
     // Command palette
     bind({KEY_K, KeyMod::Control}, "app.command_palette");
 
-    // File operations
-    bind({KEY_S, KeyMod::Control}, "file.export_png");
-    bind({KEY_S, KeyMod::Control | KeyMod::Shift}, "file.export_svg");
+    // File operations: Ctrl+S saves the workspace; exports moved to Ctrl+E.
+    bind({KEY_O, KeyMod::Control}, "file.open");
+    bind({KEY_S, KeyMod::Control}, "file.save");
+    bind({KEY_S, KeyMod::Control | KeyMod::Shift}, "file.save_as");
+    bind({KEY_E, KeyMod::Control}, "file.export_png");
+    bind({KEY_E, KeyMod::Control | KeyMod::Shift}, "file.export_svg");
     bind({KEY_C, KeyMod::Control | KeyMod::Shift}, "file.copy_to_clipboard");
 
     // Figure management

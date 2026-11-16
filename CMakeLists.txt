@@ -328,6 +328,7 @@ foreach(_ui_src
     src/ui/overlay/plot_overlay_dialog.cpp
     src/ui/plot/plot_annotations.cpp
     src/ui/overlay/overlay_registry.cpp
+    src/ui/overlay/series_probe.cpp
     src/ui/overlay/measure_math.cpp
     src/adapters/data_source_registry.cpp
     src/adapters/data_source_topics.cpp
@@ -703,6 +704,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/imgui/imgui_selection.cpp
         src/ui/imgui/imgui_dialogs.cpp
         src/ui/imgui/imgui_preview.cpp
+        src/ui/imgui/imgui_file_model.cpp
     )
 
     # GCC 14 warns on an upstream ImGui backend memset pattern; keep -Werror for
@@ -724,6 +726,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/overlay/inspector.cpp
         src/ui/overlay/tooltip.cpp
         src/ui/overlay/crosshair.cpp
+        src/ui/overlay/compare_readout.cpp
         src/ui/overlay/data_marker.cpp
         src/ui/overlay/marker_actions.cpp
         src/ui/overlay/annotation.cpp
@@ -740,6 +743,10 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/commands/series_transform.cpp
         src/ui/workspace/workspace.cpp
         src/ui/workspace/workspace_autosave.cpp
+        src/ui/workspace/workspace_document.cpp
+        src/ui/workspace/document_tracker.cpp
+        src/ui/workspace/document_session.cpp
+        src/ui/overlay/toast_queue.cpp
         src/ui/workspace/layout.cpp
         src/ui/workspace/layout_session.cpp
         src/ui/commands/shortcut_config.cpp

@@ -11,8 +11,11 @@
     #include <spectra/axes.hpp>
     #include <spectra/axes3d.hpp>
     #include <spectra/camera.hpp>
+    #include <spectra/colormap.hpp>
     #include <spectra/figure.hpp>
     #include <spectra/series.hpp>
+    #include <spectra/series3d.hpp>
+    #include <spectra/series_image.hpp>
     #include <vector>
 
     #include "ui/commands/series_clipboard.hpp"
@@ -927,13 +930,25 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             auto xmax_f = static_cast<float>(xlim.max);
             if (widgets::drag_field2("Range", xmin_f, xmax_f, 0.01f, "%.3f"))
             {
+                const AxisLimits old_x = ax.x_limits();
+                const AxisLimits old_y = ax.y_limits();
                 if (figure_vm_)
                     figure_vm_->get_or_create_axes_vm(&ax).set_visual_xlim(
                         static_cast<double>(xmin_f),
                         static_cast<double>(xmax_f));
                 else
                     ax.xlim(static_cast<double>(xmin_f), static_cast<double>(xmax_f));
+                if (!xlim_edit_active_)
+                    ++limits_edit_serial_;
+                xlim_edit_active_ = true;
+                if (on_limits_edited_)
+                    on_limits_edited_(ax,
+                                      old_x,
+                                      old_y,
+                                      "inspector-xlim:" + std::to_string(limits_edit_serial_));
             }
+            if (!ImGui::IsItemActive())
+                xlim_edit_active_ = false;
             std::string xlabel = ax.get_xlabel();
             if (widgets::text_field("Label", xlabel))
             {
@@ -956,13 +971,25 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             auto ymax_f = static_cast<float>(ylim.max);
             if (widgets::drag_field2("Range", ymin_f, ymax_f, 0.01f, "%.3f"))
             {
+                const AxisLimits old_x = ax.x_limits();
+                const AxisLimits old_y = ax.y_limits();
                 if (figure_vm_)
                     figure_vm_->get_or_create_axes_vm(&ax).set_visual_ylim(
                         static_cast<double>(ymin_f),
                         static_cast<double>(ymax_f));
                 else
                     ax.ylim(static_cast<double>(ymin_f), static_cast<double>(ymax_f));
+                if (!ylim_edit_active_)
+                    ++limits_edit_serial_;
+                ylim_edit_active_ = true;
+                if (on_limits_edited_)
+                    on_limits_edited_(ax,
+                                      old_x,
+                                      old_y,
+                                      "inspector-ylim:" + std::to_string(limits_edit_serial_));
             }
+            if (!ImGui::IsItemActive())
+                ylim_edit_active_ = false;
             std::string ylabel = ax.get_ylabel();
             if (widgets::text_field("Label", ylabel))
             {
@@ -1428,6 +1455,35 @@ void Inspector::draw_reference_lines(Axes& ax)
 
 // ─── Series Properties ──────────────────────────────────────────────────────
 
+// Colormap picker (None + every built-in map, "custom" while a user lookup
+// table is set) and a Reversed toggle, for any series with the colormap API.
+template <typename S>
+static void draw_colormap_controls(S& series)
+{
+    const Colormap&           cm = series.cmap();
+    std::vector<const char*>  names{"none"};
+    std::vector<ColormapType> types{ColormapType::None};
+    for (ColormapType t : builtin_colormaps())
+    {
+        names.push_back(colormap_name(t).data());
+        types.push_back(t);
+    }
+    if (cm.is_custom())
+    {
+        names.push_back("custom");
+        types.push_back(ColormapType::Custom);
+    }
+    const auto it  = std::find(types.begin(), types.end(), cm.type());
+    int        idx = it == types.end() ? 0 : static_cast<int>(it - types.begin());
+    if (widgets::combo_field("Colormap", idx, names.data(), static_cast<int>(names.size()))
+        && types[static_cast<size_t>(idx)] != cm.type()
+        && types[static_cast<size_t>(idx)] != ColormapType::Custom)
+        series.colormap(types[static_cast<size_t>(idx)]);
+    bool reversed = cm.is_reversed();
+    if (!cm.is_none() && widgets::toggle_field("Reversed", reversed))
+        series.colormap_reversed(reversed);
+}
+
 void Inspector::draw_series_properties(Series& s, int /*index*/)
 {
     const auto& c = theme();
@@ -1573,7 +1629,16 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 {
                     scatter->size(sz);
                 }
+                // Per-point values: colour them through a colormap.
+                if (!scatter->color_values_data().empty())
+                    draw_colormap_controls(*scatter);
             }
+            if (auto* surface = dynamic_cast<SurfaceSeries*>(&s))
+                draw_colormap_controls(*surface);
+            if (auto* image = dynamic_cast<ImageSeries*>(&s); image && !image->is_rgba())
+                draw_colormap_controls(*image);
+            if (auto* contour = dynamic_cast<ContourSeries*>(&s))
+                draw_colormap_controls(*contour);
 
             // Label editing
             std::string lbl = s.label();

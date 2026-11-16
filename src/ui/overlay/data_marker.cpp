@@ -10,8 +10,10 @@
 
     #include "axes3d_pick.hpp"
     #include "axis_readout.hpp"
+    #include "measure_math.hpp"
     #include "readout_format.hpp"
     #include "ui/theme/theme.hpp"
+    #include "ui/theme/theme_imgui.hpp"
 
 namespace spectra
 {
@@ -130,6 +132,56 @@ void DataMarkerManager::insert(size_t marker_index, DataMarker marker)
                     std::move(marker));
 }
 
+void DataMarkerManager::select_only(size_t idx)
+{
+    for (size_t i = 0; i < markers_.size(); ++i)
+        markers_[i].selected = (i == idx);
+}
+
+void DataMarkerManager::toggle_selected(size_t idx)
+{
+    if (idx < markers_.size())
+        markers_[idx].selected = !markers_[idx].selected;
+}
+
+bool DataMarkerManager::clear_selection()
+{
+    bool any = false;
+    for (auto& m : markers_)
+    {
+        any        = any || m.selected;
+        m.selected = false;
+    }
+    return any;
+}
+
+size_t DataMarkerManager::selected_count() const
+{
+    return static_cast<size_t>(std::count_if(markers_.begin(),
+                                             markers_.end(),
+                                             [](const DataMarker& m) { return m.selected; }));
+}
+
+bool DataMarkerManager::move_to_point(size_t idx, size_t point_index)
+{
+    if (idx >= markers_.size())
+        return false;
+    DataMarker& m = markers_[idx];
+    if (!m.series || m.is_3d)
+        return false;
+    double x = 0.0;
+    double y = 0.0;
+    if (!measure::point_at(*m.series, point_index, x, y))
+        return false;
+    m.data_x      = x;
+    m.data_y      = y;
+    m.point_index = point_index;
+    m.dy_dx_valid = measure::point_derivative(*m.series, point_index, m.dy_dx);
+    if (!m.dy_dx_valid)
+        m.dy_dx = 0.0f;
+    return true;
+}
+
 void DataMarkerManager::draw(const AxisMapping& map,
                              float              opacity,
                              const Axes*        filter_axes,
@@ -187,6 +239,15 @@ void DataMarkerManager::draw(const AxisMapping& map,
                                                                  colors.border_default.b,
                                                                  opacity * 0.4f));
         fg->AddCircle(ImVec2(sx, sy), ring_r, border_col, 0, 1.0f);
+        if (m.selected)
+        {
+            // Selected (arrow keys step it, two selected show a delta).
+            fg->AddCircle(ImVec2(sx, sy),
+                          ring_r + 3.0f,
+                          ui::to_imu32(colors.accent, opacity),
+                          0,
+                          2.0f);
+        }
 
         // ── Build label text ────────────────────────────────────────────
         // Large values (epoch timestamps, big offsets) use fixed notation.

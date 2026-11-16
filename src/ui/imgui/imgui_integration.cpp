@@ -2,6 +2,8 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <filesystem>
+    #include <cmath>
     #include <format>
 
     #define GLFW_INCLUDE_NONE
@@ -27,6 +29,7 @@
     // Embedded Spectra logo icon
     #include "spectra_icon_embedded.hpp"
 
+    #include "ui/overlay/measure_math.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme_imgui.hpp"
     #include "ui/ui_interaction_log.hpp"
@@ -34,12 +37,16 @@
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
     #include "../native_dialog_policy.hpp"
+    #include "../data_sidebar/builtin_providers.hpp"
+    #include "../data_sidebar/data_sidebar.hpp"
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
     #include "../workspace/layout_session.hpp"
     #include "../settings/settings_panel.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/commands/welcome_actions.hpp"
+    #include "ui/app/launch_files.hpp"
+    #include "../settings/settings_store.hpp"
 
     #ifndef M_PI
         #define M_PI 3.14159265358979323846
@@ -617,6 +624,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_axes_context_menu(figure);
         draw_topic_drop_target(figure);
         draw_log_field_drop_target(figure);
+        draw_data_field_drop_target(figure);
     }
     if (canvas_visible_)
     {
@@ -825,100 +833,10 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     // Crosshair is handled by data_interaction (auto-enabled when entering Measure mode)
     if (input_handler_ && input_handler_->tool_mode() == ToolMode::Measure)
     {
-        Axes* ax = input_handler_->measure_axes();
-        if (!ax)
-            ax = input_handler_->active_axes();
-        bool dragging   = input_handler_->is_measure_dragging();
-        bool has_result = input_handler_->has_measure_result();
-        if (ax && (dragging || has_result))
-        {
-            const auto& vp   = ax->viewport();
-            auto        xlim = ax->x_limits();
-            auto        ylim = ax->y_limits();
-
-            auto data_to_screen = [&](double dx_, double dy_, float& scr_x, float& scr_y)
-            {
-                double xr = xlim.max - xlim.min;
-                double yr = ylim.max - ylim.min;
-                if (xr == 0.0)
-                    xr = 1.0;
-                if (yr == 0.0)
-                    yr = 1.0;
-                scr_x = static_cast<float>(vp.x + (dx_ - xlim.min) / xr * vp.w);
-                scr_y = static_cast<float>(vp.y + (1.0 - (dy_ - ylim.min) / yr) * vp.h);
-            };
-
-            double sx = input_handler_->measure_start_data_x();
-            double sy = input_handler_->measure_start_data_y();
-            double ex = input_handler_->measure_end_data_x();
-            double ey = input_handler_->measure_end_data_y();
-
-            auto  mdx  = static_cast<float>(ex - sx);
-            auto  mdy  = static_cast<float>(ey - sy);
-            float dist = std::sqrt(mdx * mdx + mdy * mdy);
-            if (dist > 1e-6f)
-            {
-                auto* dl       = ImGui::GetForegroundDrawList();
-                auto  accent   = theme_colors().accent;
-                ImU32 line_col = IM_COL32(uint8_t(accent.r * 255),
-                                          uint8_t(accent.g * 255),
-                                          uint8_t(accent.b * 255),
-                                          220);
-                ImU32 dot_col  = IM_COL32(uint8_t(accent.r * 255),
-                                         uint8_t(accent.g * 255),
-                                         uint8_t(accent.b * 255),
-                                         255);
-                ImU32 bg_col   = IM_COL32(uint8_t(theme_colors().bg_elevated.r * 255),
-                                        uint8_t(theme_colors().bg_elevated.g * 255),
-                                        uint8_t(theme_colors().bg_elevated.b * 255),
-                                        230);
-
-                float scr_sx = NAN;
-                float scr_sy = NAN;
-                float scr_ex = NAN;
-                float scr_ey = NAN;
-                data_to_screen(sx, sy, scr_sx, scr_sy);
-                data_to_screen(ex, ey, scr_ex, scr_ey);
-
-                // Measurement line
-                dl->AddLine(ImVec2(scr_sx, scr_sy), ImVec2(scr_ex, scr_ey), line_col, 2.0f);
-
-                // Endpoint dots
-                dl->AddCircleFilled(ImVec2(scr_sx, scr_sy), 4.0f, dot_col);
-                dl->AddCircleFilled(ImVec2(scr_ex, scr_ey), 4.0f, dot_col);
-
-                // Distance label at midpoint
-                float             mid_x = (scr_sx + scr_ex) * 0.5f;
-                float             mid_y = (scr_sy + scr_ey) * 0.5f;
-                const std::string label =
-                    std::format("dX: {:.4f}  dY: {:.4f}  dist: {:.4f}", mdx, mdy, dist);
-                ImVec2 tsz = ImGui::CalcTextSize(label.c_str());
-                float  pad = 6.0f;
-                dl->AddRectFilled(ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
-                                  ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
-                                  bg_col,
-                                  4.0f);
-                dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
-                            ui::to_imu32(theme_colors().text_primary, 0.94f),
-                            label.c_str());
-            }
-        }
+        draw_measure_overlay();
     }
 
-    // Handle deferred CSV open request (from welcome screen button)
-    if (pending_open_csv_)
-    {
-        pending_open_csv_ = false;
-        open_csv_with_dialog();
-    }
-
-    // Handle CSV files dropped via OS drag-and-drop, one column picker at a time.
-    if (!csv_dialog_open_ && !pending_csv_loads_.empty())
-    {
-        std::string path = std::move(pending_csv_loads_.front());
-        pending_csv_loads_.pop_front();
-        load_csv_into_dialog(path);
-    }
+    process_pending_opens();
 
     // Draw CSV load dialog if open
     if (csv_dialog_open_)
@@ -1108,6 +1026,123 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     ui::log_imgui_frame_activations();
 }
 
+// ─── Measure tool overlay ───────────────────────────────────────────────────
+
+void ImGuiIntegration::draw_measure_overlay()
+{
+    auto*       dl     = ImGui::GetForegroundDrawList();
+    const auto& colors = theme_colors();
+    const ImU32 accent = ui::to_imu32(colors.accent, 1.0f);
+
+    // Snap ring: hollow circle around a point that sits on a data sample.
+    auto snap_ring = [&](float x, float y)
+    {
+        dl->AddCircle(ImVec2(x, y), 7.5f, ui::to_imu32(colors.bg_primary, 0.9f), 0, 3.5f);
+        dl->AddCircle(ImVec2(x, y), 7.5f, accent, 0, 1.75f);
+    };
+
+    Axes*      ax         = input_handler_->measure_axes();
+    const bool dragging   = input_handler_->is_measure_dragging();
+    const bool has_result = input_handler_->has_measure_result();
+
+    // Hover preview before the first point: show where a press would snap.
+    if (!ax && !dragging && !has_result)
+    {
+        Axes*       hover  = input_handler_->active_axes();
+        const auto& cursor = input_handler_->cursor_readout();
+        if (hover && cursor.valid)
+        {
+            double     px = 0.0;
+            double     py = 0.0;
+            const bool snapped =
+                input_handler_->measure_point_at(cursor.screen_x, cursor.screen_y, px, py);
+            const AxisMapping map(*hover);
+            if (snapped && map.x_drawable(px) && map.y_drawable(py))
+                snap_ring(static_cast<float>(map.to_screen_x(px)),
+                          static_cast<float>(map.to_screen_y(py)));
+        }
+        return;
+    }
+    if (!ax || !(dragging || has_result))
+        return;
+
+    // Measure in data space, draw in axis space (log axes stay straight).
+    const AxisMapping map(*ax);
+    const double      sx = input_handler_->measure_start_data_x();
+    const double      sy = input_handler_->measure_start_data_y();
+    const double      ex = input_handler_->measure_end_data_x();
+    const double      ey = input_handler_->measure_end_data_y();
+    if (!map.x_drawable(sx) || !map.y_drawable(sy) || !map.x_drawable(ex) || !map.y_drawable(ey))
+        return;
+    // Screen positions in double, clipped to the plot before drawing: zoomed
+    // far in, an endpoint can sit millions of pixels off screen.
+    const Rect&  vp     = ax->viewport();
+    const double ax0    = map.to_screen_x(sx);
+    const double ay0    = map.to_screen_y(sy);
+    const double bx0    = map.to_screen_x(ex);
+    const double by0    = map.to_screen_y(ey);
+    auto         inside = [&](double x, double y)
+    { return x >= vp.x && x <= vp.x + vp.w && y >= vp.y && y <= vp.y + vp.h; };
+    // Draws the visible part of a segment; returns its midpoint when drawn.
+    auto clipped_line =
+        [&](double x0, double y0, double x1, double y1, ImU32 col, float w, ImVec2* mid = nullptr)
+    {
+        if (!measure::clip_segment(vp, x0, y0, x1, y1))
+            return false;
+        dl->AddLine(ImVec2(static_cast<float>(x0), static_cast<float>(y0)),
+                    ImVec2(static_cast<float>(x1), static_cast<float>(y1)),
+                    col,
+                    w);
+        if (mid)
+            *mid = ImVec2(static_cast<float>((x0 + x1) * 0.5), static_cast<float>((y0 + y1) * 0.5));
+        return true;
+    };
+
+    if (inside(ax0, ay0))
+    {
+        dl->AddCircleFilled(ImVec2(static_cast<float>(ax0), static_cast<float>(ay0)), 4.0f, accent);
+        if (input_handler_->measure_start_snapped())
+            snap_ring(static_cast<float>(ax0), static_cast<float>(ay0));
+    }
+    if (std::hypot(bx0 - ax0, by0 - ay0) < 1.0)
+        return;   // first point only (two-click mode, before moving)
+
+    // Δx / Δy legs (dashed by alpha) and the measurement line.
+    const ImU32 leg = ui::to_imu32(colors.accent, 0.45f);
+    clipped_line(ax0, ay0, bx0, ay0, leg, 1.0f);
+    clipped_line(bx0, ay0, bx0, by0, leg, 1.0f);
+    ImVec2 mid;
+    if (!clipped_line(ax0, ay0, bx0, by0, ui::to_imu32(colors.accent, 0.86f), 2.0f, &mid))
+        return;   // the measurement is entirely off screen
+    if (inside(bx0, by0))
+    {
+        dl->AddCircleFilled(ImVec2(static_cast<float>(bx0), static_cast<float>(by0)), 4.0f, accent);
+        if (input_handler_->measure_end_snapped())
+            snap_ring(static_cast<float>(bx0), static_cast<float>(by0));
+    }
+
+    measure::MeasureFormat fmt = measure::measure_format(*ax, ex, ey);
+    if (input_handler_->measure_start_snapped() && input_handler_->measure_end_snapped())
+    {
+        // Both ends are exact samples: full precision, not pixel precision.
+        fmt.x_resolution = 0.0;
+        fmt.y_resolution = 0.0;
+    }
+    const measure::Measurement m = measure::compute_measurement(sx,
+                                                                sy,
+                                                                ex,
+                                                                ey,
+                                                                fmt.xscale,
+                                                                fmt.yscale,
+                                                                fmt.x_unit,
+                                                                fmt.y_unit);
+    DataInteraction::draw_measurement_label(dl,
+                                            mid.x,
+                                            mid.y,
+                                            measure::measurement_lines(m, fmt),
+                                            colors);
+}
+
 // ─── Tool mode and plot cursor ──────────────────────────────────────────────
 
 void ImGuiIntegration::set_interaction_mode(ToolMode mode)
@@ -1141,6 +1176,21 @@ void ImGuiIntegration::update_plot_cursor()
         over = input_handler_->hit_test_all_axes(mouse.x, mouse.y) != nullptr;
     }
     plot_cursor_ = plot_cursor_for(input_handler_->tool_mode(), over, panning);
+
+    // Axis gutters (tick labels): wheel / drag there acts on that axis only.
+    AxisGutter gutter = input_handler_->gutter_drag_axis();
+    if (gutter == AxisGutter::None && !panning && !over && ImGui::IsMousePosValid(&mouse)
+        && !wants_capture_mouse() && ImGui::GetMouseCursor() == ImGuiMouseCursor_Arrow)
+    {
+        gutter = input_handler_->hit_test_gutter(mouse.x, mouse.y);
+    }
+    if (gutter != AxisGutter::None)
+    {
+        plot_cursor_ = PlotCursor::Default;
+        ImGui::SetMouseCursor(gutter == AxisGutter::X ? ImGuiMouseCursor_ResizeEW
+                                                      : ImGuiMouseCursor_ResizeNS);
+        return;
+    }
 
     switch (plot_cursor_)
     {
@@ -1229,6 +1279,9 @@ void ImGuiIntegration::build_empty_ui()
 
     // Draw welcome screen with centered logo
     draw_welcome_screen(io.DisplaySize.x, io.DisplaySize.y, dt);
+
+    // CSV files dropped or passed on the command line before any figure exists.
+    process_pending_opens();
 
     // Draw CSV dialog if open (user may have opened it from the menu)
     if (csv_dialog_open_)
@@ -1368,7 +1421,120 @@ void ImGuiIntegration::open_log_with_dialog()
                                                0);
     if (!result)
         return;
-    log_browser_panel_->open_file(result);
+    open_log_file(result);
+}
+
+bool ImGuiIntegration::open_log_file(const std::string& path)
+{
+    if (!log_browser_panel_)
+        return false;
+    if (app_shell_)
+        app_shell_->set_panel_visible("core.logs", true);
+    if (!log_browser_panel_->open_file(path))
+        return false;
+    if (settings_store_)
+        settings_store_->add_recent_file(path);
+    return true;
+}
+
+void ImGuiIntegration::open_file_with_dialog()
+{
+    if (!native_dialogs_enabled())
+        return;
+    std::vector<std::string> patterns = {"*.csv", "*.tsv", "*.txt"};
+    if (log_browser_panel_)
+    {
+        for (const auto& ext : log_browser_panel_->registry().extensions())
+            patterns.push_back("*." + ext);
+    }
+    patterns.push_back("*.spectra");
+    std::vector<const char*> filters;
+    for (const auto& pat : patterns)
+        filters.push_back(pat.c_str());
+
+    DialogEnvGuard env_guard;
+    const char*    home_env = std::getenv("HOME");
+    std::string    home_dir = home_env ? std::string(home_env) + "/" : "/";
+    char const*    result   = tinyfd_openFileDialog("Open File",
+                                               home_dir.c_str(),
+                                               static_cast<int>(filters.size()),
+                                               filters.data(),
+                                               "Data, logs and layouts",
+                                               0);
+    if (!result)
+        return;
+    open_path(result);
+}
+
+bool ImGuiIntegration::open_path(const std::string& path)
+{
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec))
+    {
+        SPECTRA_LOG_WARN("app", "Cannot open {}: file not found", path);
+        if (settings_store_)
+            settings_store_->forget_recent_file(path);
+        return false;
+    }
+    const auto is_log = [this](const std::string& p)
+    { return log_browser_panel_ && log_browser_panel_->can_open(p); };
+    switch (classify_open_file(path, is_log))
+    {
+        case OpenFileKind::Csv:
+            request_csv_load(path);
+            return true;
+        case OpenFileKind::Log:
+            return open_log_file(path);
+        case OpenFileKind::Layout:
+            if (!layout_session_)
+                return false;
+            layout_session_->request_open(path);
+            return true;
+        case OpenFileKind::Unsupported:
+            break;
+    }
+    SPECTRA_LOG_WARN("app",
+                     "Cannot open {}: unsupported file type (CSV, TSV, ULog, MCAP or "
+                     ".spectra layout expected)",
+                     path);
+    return false;
+}
+
+void ImGuiIntegration::process_pending_opens()
+{
+    // Deferred CSV open request (canvas welcome button).
+    if (pending_open_csv_)
+    {
+        pending_open_csv_ = false;
+        open_csv_with_dialog();
+    }
+
+    // CSV files dropped via OS drag-and-drop (or given on the command line),
+    // one column picker at a time.
+    if (!csv_dialog_open_ && !pending_csv_loads_.empty())
+    {
+        std::string path = std::move(pending_csv_loads_.front());
+        pending_csv_loads_.pop_front();
+        load_csv_into_dialog(path);
+    }
+}
+
+void ImGuiIntegration::show_topics_panel()
+{
+    if (app_shell_)
+        app_shell_->set_panel_visible("core.topics", true);
+    if (topics_panel_)
+        topics_panel_->set_visible(true);
+}
+
+void ImGuiIntegration::run_welcome_action(const std::string& id)
+{
+    if (id == WELCOME_OPEN_FILE_ID)
+        open_file_with_dialog();
+    else if (id == WELCOME_TOPICS_ID)
+        show_topics_panel();
+    else if (command_registry_)
+        command_registry_->execute(id);
 }
 
 void ImGuiIntegration::load_csv_into_dialog(const std::string& path)
@@ -1384,162 +1550,349 @@ void ImGuiIntegration::load_csv_into_dialog(const std::string& path)
     if (csv_selected_y_.empty() && csv_data_.num_cols > 0)
         csv_selected_y_.push_back(0);
     csv_col_z_ = -1;
+    if (csv_data_loaded_ && settings_store_)
+        settings_store_->add_recent_file(path);
     // Opened on failure too: the picker shows csv_error_ and disables "Plot".
     csv_dialog_open_ = true;
+    // Loaded files stay browsable in the Data sidebar.
+    if (csv_data_loaded_ && data_sidebar_ && data_sidebar_->csv_provider())
+        data_sidebar_->csv_provider()->add_file(csv_file_path_, csv_data_);
 }
 
 void ImGuiIntegration::draw_welcome_screen(float display_w, float display_h, float dt)
 {
     (void)dt;
+    namespace tokens   = ui::tokens;
     const auto& colors = theme_colors();
-    ImDrawList* fg     = ImGui::GetBackgroundDrawList();
-
-    auto rgba = [](const ui::Color& c, int alpha)
-    {
-        return IM_COL32(static_cast<int>(c.r * 255),
-                        static_cast<int>(c.g * 255),
-                        static_cast<int>(c.b * 255),
-                        alpha);
-    };
+    ImDrawList* bg     = ImGui::GetBackgroundDrawList();
 
     // Menu bar height offset
-    float menu_h    = ImGui::GetFrameHeight() + 2.0f;
-    float content_h = display_h - menu_h;
-    float cx        = std::floor(display_w * 0.5f);
+    const float menu_h    = ImGui::GetFrameHeight() + 2.0f;
+    const float content_h = std::max(0.0f, display_h - menu_h);
+    const float cx        = std::floor(display_w * 0.5f);
+
+    ImFont*     body_font    = ImGui::GetFont();
+    const float body_size    = ImGui::GetFontSize();
+    ImFont*     title_font   = font_title_ ? font_title_ : body_font;
+    const float title_size   = font_title_ ? font_title_->LegacySize * 1.35f : 24.0f;
+    ImFont*     heading_font = font_heading_ ? font_heading_ : body_font;
+    const float heading_size = font_heading_ ? font_heading_->LegacySize : 12.0f;
+    const float small_size   = 12.0f;
 
     // Draws `text` centred on cx, measured at the same size it is drawn with.
     auto centered_text = [&](ImFont* font, float size, float y, ImU32 col, const char* text)
     {
         ImVec2 sz = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
-        fg->AddText(font, size, ImVec2(std::floor(cx - sz.x * 0.5f), y), col, text);
+        bg->AddText(font, size, ImVec2(std::floor(cx - sz.x * 0.5f), y), col, text);
+    };
+    // `text` shortened with an ellipsis to fit `max_w` at the body font size.
+    auto fit_text = [&](const std::string& text, float max_w) -> std::string
+    {
+        if (max_w <= 0.0f)
+            return {};
+        if (body_font->CalcTextSizeA(body_size, FLT_MAX, 0.0f, text.c_str()).x <= max_w)
+            return text;
+        std::string out = text;
+        while (!out.empty())
+        {
+            out.pop_back();
+            const std::string candidate = out + "\xE2\x80\xA6";
+            if (body_font->CalcTextSizeA(body_size, FLT_MAX, 0.0f, candidate.c_str()).x <= max_w)
+                return candidate;
+        }
+        return {};
     };
 
     const std::vector<WelcomeAction> actions =
         build_welcome_actions(command_registry_, shortcut_manager_);
-    const std::string hint = build_welcome_hint(actions);
+    static const std::vector<std::string> no_entries;
+    const std::vector<std::string>&       recent_files =
+        settings_store_ ? settings_store_->data().recent_files : no_entries;
+    const std::vector<std::string>& recent_layouts =
+        layout_session_ ? layout_session_->recent().entries() : no_entries;
+    std::vector<WelcomeRecentItem> recent = build_welcome_recent(recent_files, recent_layouts);
 
-    ImFont* title_font = font_title_ ? font_title_ : ImGui::GetFont();
-    float   title_size = font_title_ ? font_title_->LegacySize : 26.0f;
-    ImFont* body_font  = ImGui::GetFont();
-    float   button_h   = ImGui::GetFrameHeight();
+    // ── Geometry ──
+    // Two columns side by side when they fit, otherwise stacked; the logo and
+    // then recent rows give way on short windows.
+    const float row_h    = std::floor(ImGui::GetFrameHeight() + 6.0f);
+    const float header_h = std::floor(heading_size + tokens::SPACE_3 + 1.0f);
+    const float side     = tokens::SPACE_6;
+    const float col_gap  = tokens::SPACE_12;
+    const float wide_col = 300.0f;
+    const bool  two_cols = display_w >= 2.0f * wide_col + col_gap + 2.0f * side;
+    const float col_w =
+        two_cols ? wide_col : std::max(160.0f, std::min(360.0f, display_w - 2.0f * side));
+    const float footer_h      = 64.0f;
+    const float avail_h       = std::max(0.0f, content_h - footer_h - tokens::SPACE_4);
+    const float start_h       = header_h + row_h * static_cast<float>(actions.size());
+    const float subtitle_size = small_size;
+    float       logo_sz       = std::clamp(content_h * 0.16f, 72.0f, 128.0f);
+    bool        show_logo     = welcome_logo_texture_id_ != 0;
+    bool        show_hero     = true;
+    const float hero_gap      = tokens::SPACE_8;
 
-    // Vertical stack: logo glow, title, subtitle, actions, hint. Centre the whole
-    // stack (slightly above the middle) instead of only the logo, so the actions
-    // and hint sit directly under it.
-    float logo_draw_sz = std::clamp(content_h * 0.28f, 140.0f, 220.0f);
-    float glow_r       = logo_draw_sz * 0.62f;
-    float title_gap    = ui::tokens::SPACE_4 + 2.0f;
-    float stack_h      = glow_r * 2.0f + title_gap + title_size + ui::tokens::SPACE_2 + 12.0f
-                    + ui::tokens::SPACE_6 + button_h + ui::tokens::SPACE_4 + 12.0f;
-    float stack_top = menu_h + std::max(ui::tokens::SPACE_4, (content_h - stack_h) * 0.42f);
-    float center_y  = stack_top + glow_r;
-
-    // ── Logo image ──
-    if (welcome_logo_texture_id_)
+    auto hero_height = [&]()
     {
-        float lx = cx - logo_draw_sz * 0.5f;
-        float ly = center_y - logo_draw_sz * 0.5f;
-        fg->AddCircleFilled(ImVec2(cx, center_y), glow_r, rgba(colors.accent, 16), 96);
-        fg->AddImage(imgui_texture_id_from_u64(welcome_logo_texture_id_),
-                     ImVec2(lx, ly),
-                     ImVec2(lx + logo_draw_sz, ly + logo_draw_sz));
-    }
-    else
+        if (!show_hero)
+            return 0.0f;
+        float h = title_size + tokens::SPACE_1 + subtitle_size + hero_gap;
+        if (show_logo)
+            h += logo_sz + tokens::SPACE_4;
+        return h;
+    };
+    auto cols_height = [&](size_t recent_rows)
     {
-        // Fallback: draw chart-line icon with accent glow
-        float icon_cy = center_y;
-        for (int i = 0; i < 3; ++i)
-        {
-            float r = 42.0f + static_cast<float>(i) * 10.0f;
-            float a = 0.10f - static_cast<float>(i) * 0.03f;
-            fg->AddCircleFilled(ImVec2(cx, icon_cy),
-                                r,
-                                rgba(colors.accent, static_cast<int>(a * 255)),
-                                64);
-        }
-        ImFont* ifont = ui::icon_font(ui::tokens::ICON_XL);
-        if (ifont)
-        {
-            const char* icon = ui::icon_str(ui::Icon::ChartLine);
-            ImVec2      sz   = ifont->CalcTextSizeA(ui::tokens::ICON_XL, FLT_MAX, 0.0f, icon);
-            fg->AddText(ifont,
-                        ui::tokens::ICON_XL,
-                        ImVec2(cx - sz.x * 0.5f, icon_cy - sz.y * 0.5f),
-                        rgba(colors.accent, 255),
-                        icon);
-        }
-    }
+        const float recent_h =
+            header_h + row_h * static_cast<float>(std::max<size_t>(1, recent_rows));
+        return two_cols ? std::max(start_h, recent_h) : start_h + tokens::SPACE_6 + recent_h;
+    };
 
-    // ── "Spectra" title + subtitle ──
-    float y = center_y + glow_r + title_gap;
-    centered_text(title_font, title_size, y, rgba(colors.text_primary, 255), "Spectra");
-    y += title_size + ui::tokens::SPACE_2;
-    centered_text(body_font,
-                  12.0f,
-                  y,
-                  rgba(colors.text_secondary, 220),
-                  "GPU-Accelerated Scientific Visualization");
-    y += 12.0f + ui::tokens::SPACE_6;
+    size_t recent_rows = recent.size();
+    if (hero_height() + cols_height(recent_rows) > avail_h)
+        show_logo = false;
+    while (recent_rows > 1 && hero_height() + cols_height(recent_rows) > avail_h)
+        --recent_rows;
+    if (hero_height() + cols_height(recent_rows) > avail_h)
+        show_hero = false;
+    recent.resize(std::min(recent.size(), recent_rows));
 
-    // ── Actions (same button style as widgets::empty_state) ──
-    if (!actions.empty())
+    const float total_h = hero_height() + cols_height(recent_rows);
+    float       y       = menu_h + std::max(tokens::SPACE_4, (avail_h - total_h) * 0.45f);
+
+    // ── Logo, title, subtitle ──
+    if (show_hero)
     {
-        std::vector<ui::widgets::EmptyStateAction> buttons;
-        buttons.reserve(actions.size());
-        for (const WelcomeAction& a : actions)
-            buttons.push_back({a.label.c_str(), a.id.c_str(), a.primary});
-
-        const float max_w = std::max(
-            120.0f,
-            std::min(display_w - 2.0f * ui::tokens::SPACE_4, ui::tokens::EMPTY_STATE_MAX_WIDTH));
-        // Stacked buttons (narrow windows) need one row per action.
-        const float win_h = (button_h + ui::tokens::SPACE_2) * static_cast<float>(buttons.size());
-        ImGui::SetNextWindowPos(ImVec2(0.0f, y));
-        ImGui::SetNextWindowSize(ImVec2(display_w, win_h));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        const ImGuiWindowFlags flags =
-            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-            | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground
-            | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
-            | ImGuiWindowFlags_NoScrollWithMouse;
-        int clicked = -1;
-        if (ImGui::Begin("##welcome_actions", nullptr, flags))
+        if (show_logo)
         {
-            clicked = ui::widgets::empty_state_actions(buttons,
-                                                       std::floor((display_w - max_w) * 0.5f),
-                                                       max_w);
-            y       = ImGui::GetItemRectMax().y;
+            const float lx = cx - logo_sz * 0.5f;
+            bg->AddCircleFilled(ImVec2(cx, y + logo_sz * 0.5f),
+                                logo_sz * 0.62f,
+                                ui::to_imu32(colors.accent, 0.06f),
+                                96);
+            bg->AddImage(imgui_texture_id_from_u64(welcome_logo_texture_id_),
+                         ImVec2(lx, y),
+                         ImVec2(lx + logo_sz, y + logo_sz));
+            y += logo_sz + tokens::SPACE_4;
         }
-        ImGui::End();
-        ImGui::PopStyleVar(2);
-
-        if (clicked >= 0)
-        {
-            const WelcomeAction& a = actions[static_cast<size_t>(clicked)];
-            if (a.id == WELCOME_OPEN_CSV_ID)
-                open_csv_with_dialog();
-            else if (command_registry_)
-                command_registry_->execute(a.id);
-        }
-    }
-
-    // ── Keyboard hint, centred under the actions ──
-    if (!hint.empty())
+        centered_text(title_font, title_size, y, ui::to_imu32(colors.text_primary), "Spectra");
+        y += title_size + tokens::SPACE_1;
         centered_text(body_font,
-                      12.0f,
-                      y + ui::tokens::SPACE_4,
-                      rgba(colors.text_tertiary, 220),
-                      hint.c_str());
+                      subtitle_size,
+                      y,
+                      ui::to_imu32(colors.text_secondary, 0.86f),
+                      "GPU-accelerated scientific visualization");
+        y += subtitle_size + hero_gap;
+    }
 
-    // ── Version ──
+    // ── Columns ──
+    const ImGuiWindowFlags col_flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollWithMouse;
+
+    // Column header: small upper-case label over a hairline.
+    auto column_header = [&](const char* label)
+    {
+        ImDrawList*  dl  = ImGui::GetWindowDrawList();
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        dl->AddText(heading_font,
+                    heading_size,
+                    ImVec2(pos.x + tokens::SPACE_2, pos.y),
+                    ui::to_imu32(colors.text_tertiary),
+                    label);
+        const float line_y = std::floor(pos.y + header_h - tokens::SPACE_2) + 0.5f;
+        dl->AddLine(ImVec2(pos.x, line_y),
+                    ImVec2(pos.x + col_w, line_y),
+                    ui::to_imu32(colors.border_subtle),
+                    1.0f);
+        ImGui::Dummy(ImVec2(col_w, header_h));
+    };
+
+    // One clickable row: icon, label, dimmed detail, right-aligned tag/shortcut.
+    auto row = [&](const char*        id,
+                   uint16_t           icon,
+                   bool               accent_icon,
+                   const std::string& label,
+                   const std::string& detail,
+                   const std::string& right) -> bool
+    {
+        ImDrawList*  dl      = ImGui::GetWindowDrawList();
+        const ImVec2 pos     = ImGui::GetCursorScreenPos();
+        const bool   clicked = ImGui::InvisibleButton(id, ImVec2(col_w, row_h));
+        const bool   hovered = ImGui::IsItemHovered();
+        const bool   active  = ImGui::IsItemActive();
+        if (hovered)
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+        if (hovered || active)
+            dl->AddRectFilled(pos,
+                              ImVec2(pos.x + col_w, pos.y + row_h),
+                              ui::to_imu32(colors.accent, active ? 0.18f : 0.10f),
+                              tokens::RADIUS_MD);
+
+        const float pad    = tokens::SPACE_2;
+        const float text_y = std::floor(pos.y + (row_h - body_size) * 0.5f);
+        float       x      = pos.x + pad;
+        if (icon != 0)
+        {
+            const float icon_sz = 14.0f;
+            if (ImFont* ifont = ui::icon_font(icon_sz))
+            {
+                const char*  glyph = ui::icon_str(static_cast<ui::Icon>(icon));
+                const ImVec2 isz   = ifont->CalcTextSizeA(icon_sz, FLT_MAX, 0.0f, glyph);
+                dl->AddText(ifont,
+                            icon_sz,
+                            ImVec2(std::floor(x + (18.0f - isz.x) * 0.5f),
+                                   std::floor(pos.y + (row_h - isz.y) * 0.5f)),
+                            accent_icon || hovered ? ui::to_imu32(colors.accent)
+                                                   : ui::to_imu32(colors.text_secondary),
+                            glyph);
+            }
+            x += 18.0f + tokens::SPACE_3;
+        }
+
+        float right_w = 0.0f;
+        if (!right.empty())
+        {
+            right_w = body_font->CalcTextSizeA(small_size, FLT_MAX, 0.0f, right.c_str()).x;
+            dl->AddText(body_font,
+                        small_size,
+                        ImVec2(pos.x + col_w - pad - right_w,
+                               std::floor(pos.y + (row_h - small_size) * 0.5f)),
+                        ui::to_imu32(colors.text_tertiary),
+                        right.c_str());
+            right_w += tokens::SPACE_3;
+        }
+
+        const float       text_max = pos.x + col_w - pad - right_w;
+        const std::string shown    = fit_text(label, text_max - x);
+        dl->AddText(body_font,
+                    body_size,
+                    ImVec2(x, text_y),
+                    ui::to_imu32(colors.text_primary),
+                    shown.c_str());
+        if (!detail.empty() && shown == label)
+        {
+            const float label_w =
+                body_font->CalcTextSizeA(body_size, FLT_MAX, 0.0f, label.c_str()).x;
+            const float       dx = x + label_w + tokens::SPACE_2;
+            const std::string d  = fit_text(detail, text_max - dx);
+            if (!d.empty())
+                dl->AddText(body_font,
+                            body_size,
+                            ImVec2(dx, text_y),
+                            ui::to_imu32(colors.text_tertiary),
+                            d.c_str());
+        }
+        return clicked;
+    };
+
+    const float cols_w   = two_cols ? 2.0f * col_w + col_gap : col_w;
+    const float start_x  = std::floor(cx - cols_w * 0.5f);
+    const float recent_x = two_cols ? start_x + col_w + col_gap : start_x;
+    const float recent_y = two_cols ? y : y + start_h + tokens::SPACE_6;
+    const float recent_h =
+        header_h + row_h * static_cast<float>(std::max<size_t>(1, recent.size()));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+
+    std::string clicked_action;
+    ImGui::SetNextWindowPos(ImVec2(start_x, y));
+    ImGui::SetNextWindowSize(ImVec2(col_w, start_h));
+    if (ImGui::Begin("##welcome_start", nullptr, col_flags))
+    {
+        column_header("START");
+        for (const WelcomeAction& a : actions)
+        {
+            if (row(a.id.c_str(), a.icon, a.primary, a.label, {}, a.shortcut))
+                clicked_action = a.id;
+        }
+    }
+    ImGui::End();
+
+    int clicked_recent = -1;
+    ImGui::SetNextWindowPos(ImVec2(recent_x, recent_y));
+    ImGui::SetNextWindowSize(ImVec2(col_w, recent_h));
+    if (ImGui::Begin("##welcome_recent", nullptr, col_flags))
+    {
+        column_header("RECENT");
+        if (recent.empty())
+        {
+            const ImVec2 pos = ImGui::GetCursorScreenPos();
+            ImGui::GetWindowDrawList()->AddText(
+                body_font,
+                body_size,
+                ImVec2(pos.x + tokens::SPACE_2, std::floor(pos.y + (row_h - body_size) * 0.5f)),
+                ui::to_imu32(colors.text_tertiary),
+                "Files and layouts you open show up here");
+            ImGui::Dummy(ImVec2(col_w, row_h));
+        }
+        for (size_t i = 0; i < recent.size(); ++i)
+        {
+            const WelcomeRecentItem& item = recent[i];
+            ImGui::PushID(static_cast<int>(i));
+            const uint16_t icon =
+                static_cast<uint16_t>(item.layout ? ui::Icon::Layout : ui::Icon::FileText);
+            if (row("##recent", icon, false, item.name, item.folder, item.kind))
+                clicked_recent = static_cast<int>(i);
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal))
+                ImGui::SetTooltip("%s", item.path.c_str());
+            ImGui::PopID();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(3);
+
+    // Acted on after drawing: opening a file edits the lists drawn above.
+    if (!clicked_action.empty())
+        run_welcome_action(clicked_action);
+    if (clicked_recent >= 0)
+    {
+        const WelcomeRecentItem& item = recent[static_cast<size_t>(clicked_recent)];
+        if (item.layout && layout_session_)
+        {
+            std::error_code ec;
+            if (std::filesystem::is_regular_file(item.path, ec))
+                layout_session_->request_open(item.path);
+            else
+            {
+                SPECTRA_LOG_WARN("layout", "Recent layout {} no longer exists", item.path);
+                layout_session_->recent().remove(item.path);
+            }
+        }
+        else
+        {
+            open_path(item.path);
+        }
+    }
+
+    // ── Footer: drop hint (+ command palette shortcut) and version ──
+    std::string       hint = "Drop CSV, ULog or MCAP files anywhere";
+    const std::string palette =
+        welcome_command_shortcut(command_registry_, shortcut_manager_, "app.command_palette");
+    if (!palette.empty())
+        hint += "  \xC2\xB7  " + palette + "  Command palette";
+    if (body_font->CalcTextSizeA(small_size, FLT_MAX, 0.0f, hint.c_str()).x
+        > display_w - 2.0f * side)
+        hint = "Drop CSV, ULog or MCAP files anywhere";
+    centered_text(body_font,
+                  small_size,
+                  display_h - 52.0f,
+                  ui::to_imu32(colors.text_secondary, 0.9f),
+                  hint.c_str());
     {
     #ifdef SPECTRA_VERSION_STRING
         const char* ver = "v" SPECTRA_VERSION_STRING;
     #else
         const char* ver = "v0.1.2";
     #endif
-        centered_text(body_font, 11.0f, display_h - 30.0f, rgba(colors.text_tertiary, 220), ver);
+        centered_text(body_font,
+                      11.0f,
+                      display_h - 28.0f,
+                      ui::to_imu32(colors.text_tertiary, 0.86f),
+                      ver);
     }
 }
 

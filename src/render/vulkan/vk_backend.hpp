@@ -287,6 +287,9 @@ class VulkanBackend : public Backend
     VkPipelineLayout      text_pipeline_layout_ = VK_NULL_HANDLE;
     // Image2D layout: set 0 = frame UBO, set 1 = values, set 2 = colormap LUT
     VkPipelineLayout image_pipeline_layout_ = VK_NULL_HANDLE;
+    // Colormapped scatter / surface layout: set 0 = frame UBO, set 1 = series
+    // SSBO, set 2 = colormap LUT (sets 0-1 compatible with pipeline_layout_).
+    VkPipelineLayout colormap_pipeline_layout_ = VK_NULL_HANDLE;
     // Pipeline layout a pipeline of this type is created with.
     VkPipelineLayout layout_for_type(PipelineType type) const;
 

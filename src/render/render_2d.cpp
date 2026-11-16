@@ -24,6 +24,7 @@
 #include "core/axis_scale.hpp"
 #include "render/line_geometry.hpp"
 #include "render/scatter_marker.hpp"
+#include "render/stat_fill_style.hpp"
 #include "ui/theme/theme.hpp"
 
 namespace spectra
@@ -70,6 +71,38 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
         r.pt_count = static_cast<uint32_t>(hi_idx - lo_idx);
     }
     return r;
+}
+
+// Flat stat fill (bars, histograms, box plots, violins) at the series' fill
+// alpha, then the first `outline_points` outline points as a thin edge in the
+// style's edge colour (by default a theme-aware shade of the fill).
+void Renderer::draw_stat_fill(SeriesGpuData&             gpu,
+                              const SeriesPushConstants& pc,
+                              const StatFillStyle&       style,
+                              size_t                     outline_points)
+{
+    if (gpu.fill_buffer && gpu.fill_vertex_count > 0 && style.fill_alpha > 0.0f)
+    {
+        backend_.bind_pipeline(stat_fill_pipeline_);
+        SeriesPushConstants fill_pc = pc;
+        fill_pc.color[3] *= style.fill_alpha;
+        backend_.push_constants(fill_pc);
+        backend_.bind_buffer(gpu.fill_buffer, 0);
+        backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
+    }
+    if (style.edge_width > 0.0f && outline_points > 1)
+    {
+        const Color         edge    = stat_edge_color(style,
+                                           Color{pc.color[0], pc.color[1], pc.color[2]},
+                                           plot_colors().bg_canvas.luminance());
+        SeriesPushConstants edge_pc = pc;
+        edge_pc.color[0]            = edge.r;
+        edge_pc.color[1]            = edge.g;
+        edge_pc.color[2]            = edge.b;
+        edge_pc.color[3]            = pc.color[3] * edge.a;
+        edge_pc.line_width          = style.edge_width;
+        draw_polyline(edge_pc, gpu, 0, static_cast<uint32_t>(outline_points) - 1);
+    }
 }
 
 void Renderer::draw_polyline(SeriesPushConstants pc,
@@ -130,6 +163,9 @@ void Renderer::render_series(Series&             series,
     pc.color[1] = eff_color.g;
     pc.color[2] = eff_color.b;
     pc.color[3] = eff_color.a * eff_opacity;
+    if (!dimmed_series_.empty()
+        && std::find(dimmed_series_.begin(), dimmed_series_.end(), &series) != dimmed_series_.end())
+        pc.color[3] *= DIMMED_SERIES_ALPHA;
 
     const auto& style = series.plot_style();
     pc.line_style     = static_cast<uint32_t>(style.line_style);
@@ -240,14 +276,21 @@ void Renderer::render_series(Series&             series,
                                       && gpu.ssbo_stride_floats == 4;
             if (scatter->has_colormap() && !scatter_colormap_pipeline_)
                 note_unsupported("colormapped scatter (drawn in one color)");
+            // Colormap lookup table (set 2 of scatter_colormap.frag).
+            const TextureHandle lut =
+                use_colormap ? colormap_lut(gpu, scatter->cmap()) : TextureHandle{};
+            if (use_colormap && !lut)
+                break;   // the vec4 SSBO needs the colormap pipeline
             if (use_colormap)
             {
-                pc.dash_count      = static_cast<int>(scatter->colormap());
+                pc.dash_count      = 1;
                 pc.dash_pattern[0] = scatter->colormap_min();
                 pc.dash_pattern[1] = scatter->colormap_max();
                 pc._pad2[0]        = 1.0f;
             }
             backend_.bind_pipeline(use_colormap ? scatter_colormap_pipeline_ : scatter_pipeline_);
+            if (use_colormap)
+                backend_.bind_texture(lut, 1);
             pc.point_size = scatter->size();
             // No explicit marker style: filled dot with a theme-contrasting edge.
             const ScatterMarkerParams marker =
@@ -308,20 +351,25 @@ void Renderer::render_series(Series&             series,
             auto* surface = static_cast<SurfaceSeries*>(&series);
             if (gpu.index_buffer)
             {
-                bool is_transparent =
-                    (pc.color[3] * pc.opacity) < 0.99f || surface->colormap_alpha();
-                // Colormap in push constants (see surface3d.frag): dash_count =
-                // colormap type (1=Viridis..7=Grayscale, 0=None), dash_pattern[0..1]
-                // = data value range, dash_pattern[2..4] = colormap alpha on/min/max.
-                // The vertex z is the data value, so the colours follow the data
-                // and not the axes limits.
-                const ColormapType cm = surface->colormap_type();
-                pc.dash_count         = (cm != ColormapType::None) ? static_cast<int>(cm) : 0;
-                pc.dash_pattern[0]    = surface->colormap_min();
-                pc.dash_pattern[1]    = surface->colormap_max();
-                pc.dash_pattern[2]    = surface->colormap_alpha() ? 1.0f : 0.0f;
-                pc.dash_pattern[3]    = surface->colormap_alpha_min();
-                pc.dash_pattern[4]    = surface->colormap_alpha_max();
+                // A translucent user colormap needs the sorted, no-depth-write pipeline too.
+                bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f
+                                      || surface->colormap_alpha()
+                                      || surface->cmap().has_transparency();
+                // Colormap (see surface3d.frag): the lookup table is set 2, bound
+                // for every surface draw since the shader always declares it;
+                // dash_count = 1 enables it, dash_pattern[0..1] = data value
+                // range, dash_pattern[2..4] = colormap alpha on/min/max.  The
+                // vertex z is the data value, so the colours follow the data and
+                // not the axes limits.
+                const TextureHandle lut = colormap_lut(gpu, surface->cmap());
+                if (!lut)
+                    break;
+                pc.dash_count      = surface->cmap().is_none() ? 0 : 1;
+                pc.dash_pattern[0] = surface->colormap_min();
+                pc.dash_pattern[1] = surface->colormap_max();
+                pc.dash_pattern[2] = surface->colormap_alpha() ? 1.0f : 0.0f;
+                pc.dash_pattern[3] = surface->colormap_alpha_min();
+                pc.dash_pattern[4] = surface->colormap_alpha_max();
                 if (surface->wireframe())
                 {
                     if (!surface->is_wireframe_mesh_generated())
@@ -329,6 +377,7 @@ void Renderer::render_series(Series&             series,
                     backend_.bind_pipeline(is_transparent
                                                ? surface_wireframe3d_transparent_pipeline_
                                                : surface_wireframe3d_pipeline_);
+                    backend_.bind_texture(lut, 1);
                     pc._pad2[0] = surface->ambient();
                     pc._pad2[1] = surface->specular();
                     if (surface->shininess() > 0.0f)
@@ -349,6 +398,7 @@ void Renderer::render_series(Series&             series,
                     const auto& surf_mesh = surface->mesh();
                     backend_.bind_pipeline(is_transparent ? surface3d_transparent_pipeline_
                                                           : surface3d_pipeline_);
+                    backend_.bind_texture(lut, 1);
                     pc._pad2[0] = surface->ambient();
                     pc._pad2[1] = surface->specular();
                     if (surface->shininess() > 0.0f)
@@ -390,22 +440,26 @@ void Renderer::render_series(Series&             series,
         }
         case SeriesType::BoxPlot2D:
         {
-            auto* bp = static_cast<BoxPlotSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
+            auto*        bp     = static_cast<BoxPlotSeries*>(&series);
+            const size_t n_pts  = bp->point_count();
+            const size_t med_at = std::min(bp->median_first_point(), n_pts);
+            draw_stat_fill(gpu, pc, bp->fill_style(), med_at);
+            // Median on top, in an ink colour that contrasts with the fill.
+            if (n_pts > med_at + 1)
             {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.45f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (bp->point_count() > 1)
-            {
-                pc.line_width = 1.5f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(bp->point_count()) - 1);
+                const auto& bg  = plot_colors().bg_canvas;
+                const Color ink = stat_median_color(Color{pc.color[0], pc.color[1], pc.color[2]},
+                                                    bp->fill_alpha(),
+                                                    Color{bg.r, bg.g, bg.b});
+                SeriesPushConstants med_pc = pc;
+                med_pc.color[0]            = ink.r;
+                med_pc.color[1]            = ink.g;
+                med_pc.color[2]            = ink.b;
+                med_pc.line_width          = stat_median_width(bp->edge_width());
+                draw_polyline(med_pc,
+                              gpu,
+                              static_cast<uint32_t>(med_at),
+                              static_cast<uint32_t>(n_pts - med_at) - 1);
             }
             // Render outliers as scatter points (using persistent buffer from upload)
             if (gpu.outlier_buffer && gpu.outlier_count > 0)
@@ -422,64 +476,19 @@ void Renderer::render_series(Series&             series,
         case SeriesType::Violin2D:
         {
             auto* vn = static_cast<ViolinSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
-            {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.40f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (vn->point_count() > 1)
-            {
-                pc.line_width = 1.5f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(vn->point_count()) - 1);
-            }
+            draw_stat_fill(gpu, pc, vn->fill_style(), vn->point_count());
             break;
         }
         case SeriesType::Histogram2D:
         {
             auto* hist = static_cast<HistogramSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
-            {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.65f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (hist->point_count() > 1)
-            {
-                pc.line_width = 1.0f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(hist->point_count()) - 1);
-            }
+            draw_stat_fill(gpu, pc, hist->fill_style(), hist->point_count());
             break;
         }
         case SeriesType::Bar2D:
         {
             auto* bs = static_cast<BarSeries*>(&series);
-            // Draw fill with per-vertex gradient alpha
-            if (gpu.fill_buffer && gpu.fill_vertex_count > 0)
-            {
-                backend_.bind_pipeline(stat_fill_pipeline_);
-                SeriesPushConstants fill_pc = pc;
-                fill_pc.color[3] *= 0.75f;
-                backend_.push_constants(fill_pc);
-                backend_.bind_buffer(gpu.fill_buffer, 0);
-                backend_.draw(static_cast<uint32_t>(gpu.fill_vertex_count));
-            }
-            // Draw outline
-            if (bs->point_count() > 1)
-            {
-                pc.line_width = 1.5f;
-                draw_polyline(pc, gpu, 0, static_cast<uint32_t>(bs->point_count()) - 1);
-            }
+            draw_stat_fill(gpu, pc, bs->fill_style(), bs->point_count());
             break;
         }
         case SeriesType::Band2D:
@@ -899,8 +908,15 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 auto* scatter = static_cast<const ScatterSeries*>(sel);
                 if (scatter->point_count() == 0)
                     break;
-                backend_.bind_pipeline(gpu.ssbo_stride_floats == 4 ? scatter_colormap_pipeline_
-                                                                   : scatter_pipeline_);
+                // The colormap pipeline (vec4 SSBO) also needs its lookup table bound.
+                const bool          cmap_ssbo = gpu.ssbo_stride_floats == 4;
+                const TextureHandle lut =
+                    cmap_ssbo ? colormap_lut(gpu, scatter->cmap()) : TextureHandle{};
+                if (cmap_ssbo && !lut)
+                    break;
+                backend_.bind_pipeline(cmap_ssbo ? scatter_colormap_pipeline_ : scatter_pipeline_);
+                if (cmap_ssbo)
+                    backend_.bind_texture(lut, 1);
                 pc.point_size  = scatter->size() + 3.0f;
                 pc.marker_type = static_cast<uint32_t>(MarkerStyle::Circle);
                 pc.dash_count  = 0;

@@ -14,6 +14,43 @@ The package talks to the `spectra-backend` process over IPC and launches it auto
 is not already running. A Vulkan driver and a display are needed for windowed examples;
 `easy_embed_demo.py` renders offscreen and works headless.
 
+## Jupyter
+
+Inside a Jupyter kernel (JupyterLab, Notebook, VS Code, Colab) the Easy API and
+`spectra.pyplot` draw **inline**: when a cell finishes, every figure it drew into is rendered
+offscreen by the backend and shown as a PNG under the cell, like matplotlib's inline backend.
+`sp.show()` displays the pending figures and returns at once, and a `Figure` shows as an image
+when it is the last expression of a cell. The next plot call after a cell starts a new figure.
+
+```python
+import numpy as np
+import spectra as sp
+
+x = np.linspace(0, 10, 200)
+sp.plot(x, np.sin(x), "r--", label="sin")   # appears under the cell
+sp.plot(x, np.cos(x), "b:o", label="cos")
+sp.legend()
+```
+
+| Call / variable | Effect |
+|---|---|
+| `sp.use_inline(width=960, height=576, theme="light")` | Inline PNGs (default in Jupyter); size of default-sized figures and export theme. |
+| `sp.use_window()` | Native Spectra windows (default outside Jupyter); needed for `sp.live()` and knobs. |
+| `SPECTRA_DISPLAY=inline` / `window` | Same choice from the environment, before the first plot. |
+| `sp.display_mode()` | `"inline"` or `"window"`. |
+| `fig.to_png()` | PNG bytes of a figure, rendered offscreen. |
+
+For an interactive, pannable canvas in the notebook use the
+[`notebook_widget.ipynb`](notebook_widget.ipynb) widget (`spectra.notebook`).
+
+## Large arrays
+
+NumPy arrays go to the backend as one contiguous float32 block, so `sp.plot(x, y)` with 5
+million points takes well under a second on the Python side. The reply timeout grows with the
+amount of data sent (5 s for small requests, plus about 1 s per 10 MB, plus a minute for
+exports); set `SPECTRA_IPC_TIMEOUT=<seconds>` to raise the base. A timeout raises
+`spectra.TimeoutError` (a `spectra.ConnectionError`) with a hint instead of a bare socket error.
+
 ## Easy API
 
 | Script | What it shows |

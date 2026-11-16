@@ -15,6 +15,7 @@
 namespace spectra
 {
 class Axes3D;
+struct StatFillStyle;
 class FigureViewModel;
 }   // namespace spectra
 
@@ -222,6 +223,12 @@ class Renderer
     // using the same GPU pipeline — no ImGui overlay needed.
     void set_selected_series(const std::vector<const Series*>& selected);
     void clear_selected_series();
+
+    // Series drawn faded (alpha × DIMMED_SERIES_ALPHA) so another one stands
+    // out, e.g. while its legend entry is hovered.  Empty: none.  Interactive
+    // only; exports do not set it.
+    void                   set_dimmed_series(std::vector<const Series*> dimmed);
+    static constexpr float DIMMED_SERIES_ALPHA = 0.2f;
 
     // Set the series type registry for custom plugin series types.
     // The Renderer subscribes to the registry's unregister notifications so a
@@ -528,6 +535,8 @@ class Renderer
         TextureHandle image_texture;
         TextureHandle lut_texture;
         uint64_t      lut_generation = 0;
+        // Scatter / surface: the colormap lut_texture was built from.
+        Colormap lut_colormap;
         // Plugin custom series type fields
         std::string custom_type_name;   // Links to SeriesTypeRegistry entry
         // Opaque per-series state owned by the plugin.  The plugin allocates it
@@ -574,6 +583,13 @@ class Renderer
         DashPhaseKey dash_phase_key[FRAME_BUFFER_SLOTS];
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Flat fill + thin outline of a bar / histogram / box / violin series
+    // (render_2d.cpp).
+    void draw_stat_fill(SeriesGpuData&             gpu,
+                        const SeriesPushConstants& pc,
+                        const StatFillStyle&       style,
+                        size_t                     outline_points);
     // Incremented by begin_render_pass(); tags per-pass state such as
     // SeriesGpuData::sorted_ready_serial.
     uint64_t render_pass_serial_ = 0;
@@ -636,6 +652,10 @@ class Renderer
     // (Re)create the value texture / colormap LUT of an image whose grid or
     // colormap changed since the last upload.  Render thread only.
     void upload_image_textures(const ImageSeries& image, SeriesGpuData& gpu);
+    // Colormap lookup table (Colormap::rgba8, LUT_SIZE x 1) of a scatter or
+    // surface series, rebuilt when the colormap changes; read by
+    // scatter_colormap.frag and surface3d.frag as set 2.  Invalid on failure.
+    TextureHandle colormap_lut(SeriesGpuData& gpu, const Colormap& cm);
 
     // Destroy all GPU buffer handles held by a SeriesGpuData or AxesGpuData.
     void destroy_series_buffers(SeriesGpuData& gpu);
@@ -643,6 +663,8 @@ class Renderer
 
     // Currently selected series for GPU-rendered highlight.
     std::vector<const Series*> selected_series_;
+    // Series faded behind an emphasised one (legend hover).
+    std::vector<const Series*> dimmed_series_;
 
     // Reusable scratch buffer for interleaving series data before GPU upload.
     // Avoids per-frame heap allocations for animated/streaming series.

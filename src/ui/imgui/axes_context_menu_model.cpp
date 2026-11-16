@@ -98,6 +98,11 @@ std::vector<AxesMenuItem> build_axes_context_menu(const AxesContextMenuState& st
     // ── View ─────────────────────────────────────────────────────────────
     m.command("view.autofit", "Autoscale Axes");
     m.command("view.reset");
+    if (!state.is_3d)
+    {
+        m.command("view.back", "Previous View");
+        m.command("view.forward", "Next View");
+    }
     m.command("view.toggle_grid");
     if (!state.is_3d)
     {

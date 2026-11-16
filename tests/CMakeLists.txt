@@ -127,12 +127,14 @@ set(SPECTRA_UNIT_TESTS
     test_input
     test_series_data
     test_scatter_marker_defaults
+    test_stat_fill_style
     test_command_queue
     test_decimation
     test_filters
     test_tick_generation
     test_axes_layout_fit
     test_axes_format_transport
+    test_series_style_transport
     test_series_visibility
     test_ui_icons
     test_svg_export
@@ -152,6 +154,7 @@ set(SPECTRA_UNIT_TESTS
     test_series_transform
     test_command_palette_registry
     test_welcome_actions
+    test_launch_files
     test_shortcut_manager
     test_undo_redo
     test_workspace
@@ -162,6 +165,7 @@ set(SPECTRA_UNIT_TESTS
     test_legend_interaction
     test_legend_colorbar
     test_image_series
+    test_colormap_lut
     test_legend_bounds
     test_legend_font_size
     test_figure_manager
@@ -208,6 +212,8 @@ set(SPECTRA_UNIT_TESTS
     test_shell_app_shell
     test_ui_shell_fixes
     test_interaction_fixes
+    test_view_history
+    test_live_measure
     test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
@@ -264,6 +270,7 @@ set(SPECTRA_UNIT_TESTS
     test_ulog_reader
     test_log_readers
     test_log_browser_panel
+    test_data_sidebar
     test_series_stats
     test_double_precision_data
     test_series_clipboard
@@ -318,6 +325,7 @@ set(SPECTRA_UNIT_TESTS
     test_pixel_scale
     test_headless_export_text
     test_framebuffer_contrast
+    test_colormap_alpha_gpu
     test_line_geometry
     test_line_rendering_gpu
     test_text_scaling
@@ -486,6 +494,7 @@ set(SPECTRA_GPU_TESTS
     test_easy_embed
     test_headless_export_text
     test_framebuffer_contrast
+    test_colormap_alpha_gpu
     test_line_rendering_gpu
     test_text_scaling
     test_shape3d_first_frame
@@ -509,7 +518,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         continue()
     endif()
     # The log browser panel is part of the ImGui UI.
-    if(_test STREQUAL "test_log_browser_panel" AND NOT DEFINED imgui_SOURCE_DIR)
+    if(_test MATCHES "^test_(log_browser_panel|data_sidebar)$" AND NOT DEFINED imgui_SOURCE_DIR)
         continue()
     endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
@@ -538,7 +547,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|series_probe|log_overlays|log_browser_panel|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|series_probe|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
@@ -627,7 +636,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

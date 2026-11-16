@@ -2,12 +2,19 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <array>
+    #include <algorithm>
     #include <format>
 
+    #include "../data_sidebar/data_sidebar.hpp"
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "ui/commands/welcome_actions.hpp"
+    #include "ui/figures/empty_axes_hint.hpp"
+    #include "ui/commands/shortcut_manager.hpp"
     #include "ui/input/axes_selection.hpp"
     #include "ui/overlay/axis_readout.hpp"
+    #include "ui/overlay/live_status.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -82,6 +89,74 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
         return;
     }
     draw_canvas_content(figure);
+}
+
+void ImGuiIntegration::draw_empty_axes_hints(Figure& figure)
+{
+    if (!layout_manager_)
+        return;
+    std::vector<const AxesBase*> empty_axes;
+    for (const auto& ax : figure.axes())
+        if (ax && axes_shows_empty_hint(*ax))
+            empty_axes.push_back(ax.get());
+    for (const auto& ax : figure.all_axes())
+        if (ax && axes_shows_empty_hint(*ax))
+            empty_axes.push_back(ax.get());
+    if (empty_axes.empty())
+        return;
+
+    const Rect        canvas       = layout_manager_->canvas_rect();
+    const bool        has_open_cmd = command_registry_ && command_registry_->find("file.open");
+    const std::string shortcut =
+        welcome_command_shortcut(command_registry_, shortcut_manager_, "file.open");
+    std::string subtitle = "Drop a file here or open one from File";
+    if (!shortcut.empty())
+        subtitle += " (" + shortcut + ")";
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollWithMouse;
+    const std::array<ui::widgets::EmptyStateAction, 1> actions{{
+        {.label = "Open file\xE2\x80\xA6", .id = "open_file", .primary = false},
+    }};
+
+    for (size_t i = 0; i < empty_axes.size(); ++i)
+    {
+        const Rect& vp    = empty_axes[i]->viewport();
+        const float mid_x = vp.x + vp.w * 0.5f;
+        const float mid_y = vp.y + vp.h * 0.5f;
+        if (mid_x < canvas.x || mid_x > canvas.x + canvas.w || mid_y < canvas.y
+            || mid_y > canvas.y + canvas.h)
+            continue;   // scrolled out of view
+        // Just wider than the subtitle so empty_state()'s left-aligned wrap
+        // reads centred; tall enough for icon, title, two subtitle lines and
+        // the button.
+        const float text_w = ImGui::CalcTextSize(subtitle.c_str()).x + ui::tokens::SPACE_2;
+        const float block_w =
+            std::min({ui::tokens::EMPTY_STATE_MAX_WIDTH, vp.w - 32.0f, std::max(220.0f, text_w)});
+        const float line_h  = ImGui::GetTextLineHeightWithSpacing();
+        const float block_h = std::min(vp.h - 16.0f,
+                                       ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
+                                           + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2);
+        ImGui::SetNextWindowPos(
+            ImVec2(std::floor(mid_x - block_w * 0.5f), std::floor(mid_y - block_h * 0.5f)));
+        ImGui::SetNextWindowSize(ImVec2(block_w, block_h));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        const std::string name    = "##empty_axes_hint" + std::to_string(i);
+        int               clicked = -1;
+        if (ImGui::Begin(name.c_str(), nullptr, flags))
+            clicked = ui::widgets::empty_state(ui::Icon::FileText,
+                                               "No data yet",
+                                               subtitle.c_str(),
+                                               actions);
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+        if (clicked == 0)
+            run_welcome_action(has_open_cmd ? std::string("file.open")
+                                            : std::string(WELCOME_OPEN_FILE_ID));
+    }
 }
 
 void ImGuiIntegration::draw_canvas_content(Figure& figure)
@@ -249,6 +324,10 @@ void ImGuiIntegration::draw_canvas_content(Figure& figure)
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
+
+    // "Drop a file here" over axes without series (ImGui only, so never part of
+    // exported images).
+    draw_empty_axes_hints(figure);
 
     if (!dl)
         return;
@@ -775,6 +854,52 @@ void ImGuiIntegration::draw_status_bar()
     bar.draw();
 }
 
+namespace
+{
+// Makes the status-bar pill drawn last (its text is the last item) clickable:
+// hand cursor and @p tooltip on hover; true when clicked.
+bool status_pill_clicked(const char* tooltip)
+{
+    ImVec2 mn = ImGui::GetItemRectMin();
+    ImVec2 mx = ImGui::GetItemRectMax();
+    mn.x -= ui::tokens::STATUS_BAR_PILL_PAD_H;
+    mx.x += ui::tokens::STATUS_BAR_PILL_PAD_H;
+    mn.y -= ui::tokens::STATUS_BAR_PILL_PAD_V;
+    mx.y += ui::tokens::STATUS_BAR_PILL_PAD_V;
+    if (!ImGui::IsWindowHovered() || !ImGui::IsMouseHoveringRect(mn, mx))
+        return false;
+    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    ImGui::SetTooltip("%s", tooltip);
+    return ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+}
+}   // namespace
+
+void ImGuiIntegration::draw_tool_menu_items()
+{
+    struct ToolEntry
+    {
+        const char* label;
+        ToolMode    mode;
+    };
+    static constexpr ToolEntry TOOLS[] = {
+        {"Pan", ToolMode::Pan},
+        {"Box Zoom", ToolMode::BoxZoom},
+        {"Select", ToolMode::Select},
+        {"Measure", ToolMode::Measure},
+        {"Annotate", ToolMode::Annotate},
+        {"ROI", ToolMode::ROI},
+    };
+    for (const auto& t : TOOLS)
+    {
+        const std::string key =
+            menu_shortcut_text(shortcut_manager_, command_registry_, tool_command_id(t.mode));
+        if (ImGui::MenuItem(t.label,
+                            key.empty() ? nullptr : key.c_str(),
+                            interaction_mode_ == t.mode))
+            set_interaction_mode(t.mode);
+    }
+}
+
 void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
 {
     if (!layout_manager_)
@@ -911,6 +1036,55 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                          break;
                  }
                  draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.20f, mode_color);
+                 if (status_pill_clicked("Change tool"))
+                     ImGui::OpenPopup("##status_tool_menu");
+                 if (ImGui::BeginPopup("##status_tool_menu"))
+                 {
+                     draw_tool_menu_items();
+                     ImGui::EndPopup();
+                 }
+             }
+
+             // Live data: "Live" while every live axes follows, else
+             // "Paused · N s behind"; click toggles follow for all of them.
+             if (current_figure_)
+             {
+                 bool   any_live   = false;
+                 bool   all_follow = true;
+                 double behind     = 0.0;
+                 for (const auto& ax : current_figure_->axes())
+                 {
+                     if (!ax || !ax->has_presented_buffer())
+                         continue;
+                     const ui::LiveAxesStatus st = ui::live_status(*ax);
+                     any_live                    = true;
+                     all_follow                  = all_follow && st.following;
+                     behind                      = std::max(behind, st.behind_seconds);
+                 }
+                 if (any_live)
+                 {
+                     ui::LiveAxesStatus agg;
+                     agg.live              = true;
+                     agg.following         = all_follow;
+                     agg.behind_seconds    = behind;
+                     const std::string lbl = all_follow ? "Live" : ui::live_pill_label(agg);
+                     const ui::Color&  col = all_follow ? colors.success : colors.warning;
+                     ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+                     draw_pill(lbl.c_str(), col, colors.bg_tertiary, 0.20f, col);
+                     if (status_pill_clicked(all_follow ? "Pause live follow"
+                                                        : "Follow live data (End)"))
+                     {
+                         for (auto& ax : current_figure_->axes_mut())
+                         {
+                             if (!ax || !ax->has_presented_buffer())
+                                 continue;
+                             if (all_follow)
+                                 ui::pause_live_follow(*ax);
+                             else
+                                 ui::resume_live_follow(*ax);
+                         }
+                     }
+                 }
              }
 
              // Zoom: only while the view is zoomed relative to the autoscaled
@@ -1330,6 +1504,37 @@ void ImGuiIntegration::draw_log_field_drop_target(Figure& figure)
             if (!ax && !figure.axes().empty())
                 ax = figure.axes().front().get();
             log_browser_panel_->plot_payload(dp, ax);
+        });
+}
+
+// Data sidebar drop target for fields whose source has no drop target of its
+// own (CSV columns): plotted into the hovered 2D axes, else the first axes.
+void ImGuiIntegration::draw_data_field_drop_target(Figure& figure)
+{
+    if (!data_sidebar_)
+        return;
+
+    draw_canvas_drop_overlay(
+        figure,
+        ui::data_sidebar::DATA_FIELD_DRAG_TYPE,
+        "##data_field_drop_overlay",
+        [this, &figure](const ImGuiPayload* p, int hover_idx)
+        {
+            if (p->DataSize != sizeof(ui::data_sidebar::DataFieldDragPayload))
+                return;
+            const auto& dp = *static_cast<const ui::data_sidebar::DataFieldDragPayload*>(p->Data);
+            auto&       model                   = data_sidebar_->model();
+            ui::data_sidebar::PlotTarget target = model.current_target();
+            const auto&                  all    = figure.all_axes();
+            if (hover_idx >= 0 && static_cast<size_t>(hover_idx) < all.size())
+            {
+                if (auto* ax = dynamic_cast<Axes*>(all[static_cast<size_t>(hover_idx)].get()))
+                {
+                    target.axes       = ax;
+                    target.axes_index = static_cast<uint32_t>(hover_idx);
+                }
+            }
+            model.plot_payload(dp, target);
         });
 }
 

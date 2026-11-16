@@ -7,6 +7,7 @@
 #include <spectra/series.hpp>
 #include <spectra/series_stats.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/plot_style.hpp>
 
 #include "embed_detail.hpp"
@@ -179,9 +180,39 @@ static spectra::ColormapType to_colormap(int v)
             return C::Coolwarm;
         case SPECTRA_CMAP_GRAYSCALE:
             return C::Grayscale;
+        case SPECTRA_CMAP_CIVIDIS:
+            return C::Cividis;
+        case SPECTRA_CMAP_TURBO:
+            return C::Turbo;
+        case SPECTRA_CMAP_TWILIGHT:
+            return C::Twilight;
+        case SPECTRA_CMAP_RDBU:
+            return C::RdBu;
+        case SPECTRA_CMAP_PUOR:
+            return C::PuOr;
+        case SPECTRA_CMAP_HOT:
+            return C::Hot;
         default:
             return C::None;
     }
+}
+
+// Apply fn to the series if it is one of the colormapped types; false otherwise.
+template <typename Fn>
+static bool with_colormapped_series(SpectraSeries* s, Fn&& fn)
+{
+    if (!s || !s->ptr)
+        return false;
+    auto apply = [&](auto* p)
+    {
+        if (p)
+            fn(*p);
+        return p != nullptr;
+    };
+    return apply(dynamic_cast<spectra::ScatterSeries*>(s->ptr))
+           || apply(dynamic_cast<spectra::SurfaceSeries*>(s->ptr))
+           || apply(dynamic_cast<spectra::ImageSeries*>(s->ptr))
+           || apply(dynamic_cast<spectra::ContourSeries*>(s->ptr));
 }
 
 static spectra::LegendPosition to_legend_position(int v)
@@ -889,6 +920,29 @@ extern "C"
         c_guard_void(body);
     }
 
+    int spectra_series_set_colormap_name(SpectraSeries* s, const char* name)
+    {
+        auto body = [&]() -> int
+        {
+            if (!name)
+                return 0;
+            const auto cm = spectra::Colormap::from_name(name);
+            if (!cm)
+                return 0;
+            return with_colormapped_series(s, [&](auto& series) { series.colormap(*cm); }) ? 1 : 0;
+        };
+        return c_guard(0, body);
+    }
+
+    void spectra_series_set_colormap_reversed(SpectraSeries* s, int reversed)
+    {
+        auto body = [&]() {
+            with_colormapped_series(s,
+                                    [&](auto& series) { series.colormap_reversed(reversed != 0); });
+        };
+        c_guard_void(body);
+    }
+
     // ── Rendering ───────────────────────────────────────────────────────────────
 
     int spectra_embed_render(SpectraEmbed* s, uint8_t* out_rgba)
@@ -1014,6 +1068,23 @@ extern "C"
     {
         auto body = [&]() -> float { return s ? s->surface.dpi_scale() : 1.0f; };
         return c_guard<float>(1.0f, body);
+    }
+
+    int spectra_embed_get_cursor_data(const SpectraEmbed* s, double* x, double* y)
+    {
+        auto body = [&]() -> int
+        {
+            if (!s || !x || !y)
+                return 0;
+            double dx = 0.0;
+            double dy = 0.0;
+            if (!s->surface.cursor_data(dx, dy))
+                return 0;
+            *x = dx;
+            *y = dy;
+            return 1;
+        };
+        return c_guard<int>(0, body);
     }
 
     void spectra_embed_set_background_alpha(SpectraEmbed* s, float alpha)

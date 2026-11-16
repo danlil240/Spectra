@@ -9,6 +9,7 @@
 #include "render/vulkan/vk_backend.hpp"
 #include <spectra/figure_registry.hpp>
 #include "ui/input/input.hpp"
+#include "ui/input/plot_cursor.hpp"
 #include "ui/theme/theme.hpp"
 #include "embed_detail.hpp"
 
@@ -102,6 +103,66 @@ struct EmbedSurface::Impl
                 }
             }
         }
+    }
+
+    // ── Cursor shape ────────────────────────────────────────────────────
+    // The host draws the cursor: report the plot cursor for the active tool
+    // through cursor_cb whenever it changes.
+    CursorShape last_cursor_shape = CursorShape::Arrow;
+    double      pointer_x         = 0.0;
+    double      pointer_y         = 0.0;
+    bool        pointer_known     = false;
+
+    static CursorShape to_cursor_shape(PlotCursor c)
+    {
+        switch (c)
+        {
+            case PlotCursor::OpenHand:
+                return CursorShape::Hand;
+            case PlotCursor::Grabbing:
+                return CursorShape::ResizeAll;
+            case PlotCursor::Crosshair:
+                return CursorShape::Crosshair;
+            case PlotCursor::Text:
+                // CursorShape has no I-beam; the hand marks "click to place".
+                return CursorShape::Hand;
+            case PlotCursor::Default:
+                break;
+        }
+        return CursorShape::Arrow;
+    }
+
+    void dispatch_cursor()
+    {
+        if (!cursor_cb)
+            return;
+        PlotCursor pc = PlotCursor::Default;
+#ifdef SPECTRA_USE_IMGUI
+        if (imgui_ui)
+            pc = imgui_ui->plot_cursor();   // also knows about UI widgets in the way
+        else
+#endif
+        {
+            const bool over =
+                pointer_known && input.hit_test_all_axes(pointer_x, pointer_y) != nullptr;
+            pc = plot_cursor_for(input.tool_mode(), over, plot_is_panning(input));
+        }
+        const CursorShape shape = to_cursor_shape(pc);
+        if (shape != last_cursor_shape)
+        {
+            last_cursor_shape = shape;
+            cursor_cb(shape);
+        }
+    }
+
+    // Select a tool: the ImGui UI owns the tool when there is one (nav rail).
+    void set_tool(ToolMode mode)
+    {
+#ifdef SPECTRA_USE_IMGUI
+        if (imgui_ui)
+            imgui_ui->set_interaction_mode(mode);
+#endif
+        input.set_tool_mode(mode);
     }
 
     // Point ThemeManager::instance() / ui::theme() at this surface's own
@@ -384,6 +445,7 @@ struct EmbedSurface::Impl
 
             // Build the full UI (command bar, canvas, status bar, overlays)
             imgui_ui->build_ui(*active_fig);
+            dispatch_cursor();
 
             // Update data interaction (cursor readout, crosshair, tooltips)
             if (data_interaction)
@@ -608,7 +670,11 @@ void EmbedSurface::inject_mouse_move(float x, float y)
     impl_->mouse_x = x;
     impl_->mouse_y = y;
 #endif
+    impl_->pointer_x     = static_cast<double>(x);
+    impl_->pointer_y     = static_cast<double>(y);
+    impl_->pointer_known = true;
     impl_->input.on_mouse_move(static_cast<double>(x), static_cast<double>(y));
+    impl_->dispatch_cursor();
 }
 
 void EmbedSurface::inject_mouse_button(int button, int action, int mods, float x, float y)
@@ -622,11 +688,15 @@ void EmbedSurface::inject_mouse_button(int button, int action, int mods, float x
     if (button >= 0 && button < 5)
         impl_->mouse_down[button] = (action != 0);   // 0 = release
 #endif
+    impl_->pointer_x     = static_cast<double>(x);
+    impl_->pointer_y     = static_cast<double>(y);
+    impl_->pointer_known = true;
     impl_->input.on_mouse_button(button,
                                  action,
                                  mods,
                                  static_cast<double>(x),
                                  static_cast<double>(y));
+    impl_->dispatch_cursor();
 }
 
 void EmbedSurface::inject_scroll(float dx, float dy, float cursor_x, float cursor_y)
@@ -852,7 +922,7 @@ void EmbedSurface::set_on_point_selected(PointSelectedCallback cb)
     {
         impl_->point_selected_cb = std::move(cb);
         if (impl_->point_selected_cb)
-            impl_->input.set_tool_mode(ToolMode::Select);
+            impl_->set_tool(ToolMode::Select);
     }
 }
 
@@ -862,7 +932,7 @@ void EmbedSurface::set_on_series_selected(SeriesSelectedCallback cb)
     {
         impl_->series_selected_cb = std::move(cb);
         if (impl_->series_selected_cb)
-            impl_->input.set_tool_mode(ToolMode::Select);
+            impl_->set_tool(ToolMode::Select);
     }
 }
 

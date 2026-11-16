@@ -21,6 +21,7 @@ summarise the main changes rather than listing every commit.
 
 - Browser builds embed a DejaVu Sans symbol subset as the text fallback font, so symbols Inter lacks (for example ∇, ∮, ⇌) no longer render as boxes.
 - The WebGPU backend prefers a UNORM surface format, matching the Vulkan swapchain, so theme colours are not gamma-shifted on native Dawn.
+- Tool shortcuts work again (P pan, Z zoom, S select, M measure, new N annotate and I ROI) and the nav rail follows them and shows each key in its tooltip; Esc cancels the gesture in progress before closing the palette; middle-button pan and arrow/+/- keys pan log axes by ratios and move linked axes (one undo step); the mouse cursor shows the active tool over the plot.
 
 - WebGPU windows, including the browser demo, now respond to the mouse and keyboard (pan, scroll zoom, box zoom, reset). Only Vulkan windows had input wired before.
 

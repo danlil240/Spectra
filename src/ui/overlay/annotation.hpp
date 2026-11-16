@@ -90,6 +90,9 @@ class AnnotationManager
     // End drag.
     void end_drag();
 
+    // Abort the drag: the annotation goes back to where the drag started.
+    void cancel_drag();
+
     // Is a drag currently in progress?
     bool is_dragging() const { return drag_active_; }
 

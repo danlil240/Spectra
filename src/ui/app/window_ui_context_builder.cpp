@@ -374,6 +374,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
             { return fig_mgr_ptr->get_title(static_cast<FigureId>(fig_idx)); });
         ui->imgui_ui->set_figure_ptr_callback([fig_mgr_ptr](FigureId id) -> Figure*
                                               { return fig_mgr_ptr->get_figure(id); });
+        ui->imgui_ui->set_figure_id_callback([fig_mgr_ptr](const Figure* fig) -> FigureId
+                                             { return fig_mgr_ptr->registry().find_id(fig); });
     }
 
     auto* figure_tabs_raw = ui->figure_tabs.get();

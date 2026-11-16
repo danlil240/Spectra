@@ -57,6 +57,8 @@ class DataMarkerManager
              bool          dy_dx_valid = false);
     void remove(size_t marker_index);
     void clear();
+    // Insert @p marker at @p marker_index (clamped to the end), e.g. to undo a removal.
+    void insert(size_t marker_index, DataMarker marker);
 
     // Remove all markers that reference the given series (call before series is destroyed)
     void remove_for_series(const Series* series);

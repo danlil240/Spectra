@@ -119,8 +119,19 @@ class SpectraNavRail : public NavRail
     void build_items(std::vector<NavItem>& out) const override;
     void draw() override;
 
+    bool markers_popover_open() const { return markers_popover_open_; }
+
    private:
+    // "Markers" popover: lists the current figure's data tips (go to / remove)
+    // with "Clear all"; removals are undoable.
+    void draw_markers_popover();
+
     spectra::ImGuiIntegration* imgui_ = nullptr;
+    // Toggled by the rail button (build_items() callbacks are const).
+    mutable bool markers_popover_open_  = false;
+    bool         markers_popover_fresh_ = false;   // opened this frame
+    float        markers_btn_x_ = 0.0f, markers_btn_y_ = 0.0f;
+    float        markers_btn_x1_ = 0.0f, markers_btn_y1_ = 0.0f;
 };
 
 /// Canvas host wrapping core draw_canvas (glass frame, welcome screen, scrollbar).

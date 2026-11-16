@@ -14,12 +14,15 @@
     #include "ui/overlay/custom_transform_dialog.hpp"
     #include "ui/overlay/data_interaction.hpp"
     #include "ui/overlay/knob_manager.hpp"
+    #include "ui/overlay/marker_actions.hpp"
+    #include "ui/overlay/readout_format.hpp"
     #include "ui/settings/settings_panel.hpp"
     #include "ui/shell/panel.hpp"
     #include "ui/logs/log_browser_panel.hpp"
     #include "ui/topics/topics_panel.hpp"
     #include "ui/workspace/layout_session.hpp"
 
+    #include <cfloat>
     #include <filesystem>
     #include "ui/theme/icons.hpp"
     #include "ui/theme/theme.hpp"
@@ -105,20 +108,20 @@ void SpectraNavRail::build_items(std::vector<NavItem>& out) const
     out.push_back(std::move(sep2));
 
     {
-        NavItem markers;
+        // Data tips: opens a popover listing them (go to / remove / clear all,
+        // undoable) instead of deleting them all on a click.
+        const size_t n = imgui_->data_interaction_ && imgui_->current_figure_
+                             ? figure_marker_indices(imgui_->data_interaction_->markers(),
+                                                     *imgui_->current_figure_)
+                                   .size()
+                             : 0;
+        NavItem      markers;
         markers.icon      = Icon::MapPin;
         markers.label     = "Markers";
         markers.id        = "markers";
-        markers.tooltip   = "Markers";
-        markers.is_active = [imgui = imgui_]() {
-            return imgui->data_interaction_ != nullptr
-                   && !imgui->data_interaction_->markers().empty();
-        };
-        markers.on_click = [imgui = imgui_]()
-        {
-            if (imgui->data_interaction_)
-                imgui->data_interaction_->clear_markers();
-        };
+        markers.tooltip   = "Data tips (" + std::to_string(n) + ")";
+        markers.is_active = [this]() { return markers_popover_open_; };
+        markers.on_click  = [this]() { markers_popover_open_ = !markers_popover_open_; };
         out.push_back(std::move(markers));
     }
 
@@ -289,12 +292,177 @@ void SpectraNavRail::draw()
             {
                 if (item.on_click)
                     item.on_click();
+                if (item.id == "markers" && markers_popover_open_)
+                    markers_popover_fresh_ = true;
+            }
+            if (item.id == "markers")
+            {
+                markers_btn_x_  = ImGui::GetItemRectMin().x;
+                markers_btn_y_  = ImGui::GetItemRectMin().y;
+                markers_btn_x1_ = ImGui::GetItemRectMax().x;
+                markers_btn_y1_ = ImGui::GetItemRectMax().y;
             }
         }
     }
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(5);
+
+    draw_markers_popover();
+}
+
+void SpectraNavRail::draw_markers_popover()
+{
+    const bool fresh       = markers_popover_fresh_;
+    markers_popover_fresh_ = false;
+    if (!markers_popover_open_)
+        return;
+    auto*   di  = imgui_->data_interaction_;
+    Figure* fig = imgui_->current_figure_;
+    if (!di || !fig)
+    {
+        markers_popover_open_ = false;
+        return;
+    }
+
+    const auto&                    c       = ui::theme();
+    spectra::ImGuiIntegration*     imgui   = imgui_;
+    spectra::UndoManager*          undo    = imgui_->undo_manager_;
+    const spectra::CurrentFigureFn cur_fig = [imgui]() { return imgui->current_figure_; };
+    spectra::FigureLookup          lookup;
+    lookup.id_of   = imgui_->get_figure_id_;
+    lookup.resolve = imgui_->get_figure_ptr_;
+
+    ImGui::SetNextWindowPos(ImVec2(markers_btn_x1_ + ui::tokens::SPACE_2, markers_btn_y_),
+                            ImGuiCond_Always);
+    // Fixed width (scales with the UI font) so value columns are not clipped.
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * 22.0f, 0.0f), ImGuiCond_Always);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
+                        ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_3));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.98f));
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
+        | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoFocusOnAppearing;
+    bool hovered = false;
+    if (ImGui::Begin("##MarkersPopover", nullptr, flags))
+    {
+        hovered                           = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows
+                                         | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+        const std::vector<size_t> indices = figure_marker_indices(di->markers(), *fig);
+
+        if (imgui_->font_heading_)
+            ImGui::PushFont(imgui_->font_heading_);
+        ImGui::Text("DATA TIPS (%zu)", indices.size());
+        if (imgui_->font_heading_)
+            ImGui::PopFont();
+        ImGui::Spacing();
+
+        int remove_idx = -1;
+        if (indices.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImVec4(c.text_secondary.r,
+                                         c.text_secondary.g,
+                                         c.text_secondary.b,
+                                         c.text_secondary.a));
+            ImGui::TextUnformatted("No data tips yet.");
+            ImGui::TextUnformatted("Click a point in Pan mode to pin one.");
+            ImGui::PopStyleColor();
+        }
+        else
+        {
+            // Rows are as tall as the trash button (icon font) so they do not
+            // overlap; the list scrolls past 8 rows.
+            float icon_h = ImGui::GetFrameHeight();
+            if (imgui_->font_icon_)
+            {
+                ImGui::PushFont(imgui_->font_icon_);
+                icon_h = ImGui::GetFrameHeight();
+                ImGui::PopFont();
+            }
+            const float row_h = std::max(ImGui::GetFrameHeight(), icon_h);
+            const float max_h = 8.0f * (row_h + ImGui::GetStyle().ItemSpacing.y);
+            ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, max_h));
+            ImGui::BeginChild("##MarkerList", ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY);
+            for (size_t row = 0; row < indices.size(); ++row)
+            {
+                const DataMarker& m = di->markers()[indices[row]];
+                ImGui::PushID(static_cast<int>(indices[row]));
+
+                // Series colour dot
+                const ImVec2         p  = ImGui::GetCursorScreenPos();
+                const float          r  = row_h * 0.18f;
+                const spectra::Color sc = m.series ? m.series->color() : m.color;
+                ImGui::GetWindowDrawList()->AddCircleFilled(
+                    ImVec2(p.x + r + 2.0f, p.y + row_h * 0.5f),
+                    r,
+                    ImGui::ColorConvertFloat4ToU32(ImVec4(sc.r, sc.g, sc.b, 1.0f)));
+                ImGui::Dummy(ImVec2(r * 2.0f + 6.0f, row_h));
+                ImGui::SameLine();
+
+                std::string text = marker_series_name(m) + "   " + format_compact_value(m.data_x)
+                                   + ", " + format_compact_value(m.data_y);
+                if (m.is_3d)
+                    text += ", " + format_compact_value(m.data_z);
+                const float trash_w = row_h;
+                if (ImGui::Selectable(text.c_str(),
+                                      false,
+                                      ImGuiSelectableFlags_None,
+                                      ImVec2(ImGui::GetContentRegionAvail().x - trash_w
+                                                 - ImGui::GetStyle().ItemSpacing.x,
+                                             row_h)))
+                {
+                    center_view_on_marker(m, *fig, undo, lookup);
+                }
+                if (ImGui::IsItemHovered() && !m.is_3d)
+                    ImGui::SetTooltip("Go to this data tip");
+                ImGui::SameLine();
+                if (imgui_->font_icon_)
+                    ImGui::PushFont(imgui_->font_icon_);
+                const bool rm = ImGui::SmallButton(ui::icon_str(Icon::Trash));
+                if (imgui_->font_icon_)
+                    ImGui::PopFont();
+                if (rm)
+                    remove_idx = static_cast<int>(indices[row]);
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip("Remove data tip");
+                ImGui::PopID();
+            }
+            ImGui::EndChild();
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+        ImGui::BeginDisabled(indices.empty());
+        if (ImGui::Button("Clear all"))
+            clear_figure_markers_undoable(*di, *fig, undo, cur_fig);
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::PushStyleColor(
+            ImGuiCol_Text,
+            ImVec4(c.text_tertiary.r, c.text_tertiary.g, c.text_tertiary.b, c.text_tertiary.a));
+        ImGui::TextUnformatted("Ctrl+Z to undo");
+        ImGui::PopStyleColor();
+
+        if (remove_idx >= 0)
+            remove_marker_undoable(*di, static_cast<size_t>(remove_idx), undo, cur_fig);
+    }
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+
+    // Close on Esc or a click outside the popover and its rail button.
+    const ImVec2 mouse     = ImGui::GetMousePos();
+    const bool   on_button = mouse.x >= markers_btn_x_ && mouse.x <= markers_btn_x1_
+                           && mouse.y >= markers_btn_y_ && mouse.y <= markers_btn_y1_;
+    if (!fresh
+        && ((ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !hovered && !on_button)
+            || ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
+        markers_popover_open_ = false;
 }
 
 // ─── SpectraAppShell ─────────────────────────────────────────────────────────

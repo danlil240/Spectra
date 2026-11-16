@@ -77,10 +77,10 @@ TEST_F(SettingsAppearance, CommandSwitchReportsActiveThemeAndKeepsStartupDefault
 
 TEST_F(SettingsAppearance, ToggleCommandReportsActiveTheme)
 {
-    run("theme.toggle");   // night -> dark
-    EXPECT_EQ(state().active_theme, "dark");
-    run("theme.toggle");   // dark -> light
+    run("theme.toggle");   // night (dark) -> last light theme
     EXPECT_EQ(state().active_theme, "light");
+    run("theme.toggle");   // light -> last dark theme (night)
+    EXPECT_EQ(state().active_theme, "night");
     EXPECT_EQ(state().startup_theme, "night");
 }
 

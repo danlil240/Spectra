@@ -92,7 +92,8 @@ void LayoutManager::fit_to_window()
     left_fit_width_ = 0.0f;
     if (left_panel_visible_)
     {
-        const float left_space = space - inspector_fit_width_;
+        // Reserve room for the inspector only while it is open.
+        const float left_space = space - (inspector_visible_ ? inspector_fit_width_ : 0.0f);
         if (left_space >= LEFT_PANEL_MIN_FIT_WIDTH)
             left_fit_width_ = std::min(left_panel_width_, left_space);
     }

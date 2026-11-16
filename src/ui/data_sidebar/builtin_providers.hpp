@@ -20,6 +20,11 @@
 #include "ui/data/csv_loader.hpp"
 #include "ui/data_sidebar/data_provider.hpp"
 
+namespace spectra
+{
+class FigureManager;
+}
+
 namespace spectra::ui::logs
 {
 class LogBrowserPanel;
@@ -160,5 +165,10 @@ struct BuiltinProviderHooks
 // given) in sidebar order: logs, CSV, topics.  Returns the CSV provider so the
 // host can feed it files loaded elsewhere.
 CsvProvider* install_builtin_providers(DataSidebarModel& model, const BuiltinProviderHooks& hooks);
+
+// Plot target for a window: its active figure's first axes (the figure and a
+// 1x1 subplot are created when missing), with that figure's id and the axes
+// index for topic subscriptions.  Used as every window's TargetFn.
+PlotTarget active_figure_target(FigureManager& figures);
 
 }   // namespace spectra::ui::data_sidebar

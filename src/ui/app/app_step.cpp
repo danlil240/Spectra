@@ -1048,34 +1048,6 @@ void App::init_runtime()
                 return &fig->subplot(1, 1, 1);
             });
 
-        // Data sidebar: Plot / double-click / Enter target the active figure's
-        // first axes (created when there is none), like the log browser.
-        rt.ui_ctx_ptr->data_sidebar.model().set_target_provider(
-            [&fig_mgr, this]()
-            {
-                ui::data_sidebar::PlotTarget t;
-                FigureId                     id  = fig_mgr.active_index();
-                Figure*                      fig = registry_.get(id);
-                if (!fig)
-                {
-                    id  = fig_mgr.create_figure(FigureConfig{});
-                    fig = registry_.get(id);
-                    if (!fig)
-                        return t;
-                }
-                Axes* ax = (!fig->axes().empty() && fig->axes().front()) ? fig->axes().front().get()
-                                                                         : &fig->subplot(1, 1, 1);
-                t.axes   = ax;
-                t.figure_id     = id;
-                const auto& all = fig->all_axes();
-                for (size_t i = 0; i < all.size(); ++i)
-                {
-                    if (all[i].get() == ax)
-                        t.axes_index = static_cast<uint32_t>(i);
-                }
-                return t;
-            });
-
         // Wire OS drag-and-drop: CSV/TSV/TXT files trigger the Load from CSV
         // flow; log files the registry recognizes (ULog, MCAP) open in the
         // log browser.

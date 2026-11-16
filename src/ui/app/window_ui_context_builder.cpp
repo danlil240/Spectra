@@ -283,6 +283,10 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
             { imgui->request_open_csv_dialog(); };
             ui->data_sidebar.set_csv_provider(
                 ui::data_sidebar::install_builtin_providers(ui->data_sidebar.model(), hooks));
+            // Every window (inproc, detached, multiproc agent) plots into its
+            // own active figure.
+            ui->data_sidebar.model().set_target_provider(
+                [fm = ui->fig_mgr]() { return ui::data_sidebar::active_figure_target(*fm); });
             ui->imgui_ui->set_data_sidebar(&ui->data_sidebar);
         }
         ui->app_shell = std::make_unique<ui::shell::SpectraAppShell>(ui->imgui_ui.get());

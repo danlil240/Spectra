@@ -10,6 +10,7 @@
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -19,6 +20,7 @@
 #include "ui/data_sidebar/builtin_providers.hpp"
 #include "ui/data_sidebar/data_sidebar.hpp"
 #include "ui/data_sidebar/data_sidebar_model.hpp"
+#include "ui/figures/figure_manager.hpp"
 #include "ui/layout/layout_manager.hpp"
 #include "ui/logs/log_browser_panel.hpp"
 #include "ui/theme/theme.hpp"
@@ -603,6 +605,51 @@ TEST(DataSidebarLayout, LeftPanelDocksBetweenRailAndCanvas)
     lm.set_left_panel_visible(false);
     lm.update(1280.0f, 800.0f);
     EXPECT_FLOAT_EQ(lm.canvas_rect().x, canvas_x);
+}
+
+TEST(DataSidebarLayout, HiddenInspectorReservesNoSpace)
+{
+    // 700 px window: rail 72 + min canvas 160 leaves 468 px. With the inspector
+    // closed all of it is available to the sidebar.
+    LayoutManager lm;
+    lm.set_inspector_visible(false);
+    lm.set_left_panel_visible(true);
+    lm.update(700.0f, 600.0f);
+    EXPECT_FALSE(lm.is_left_panel_auto_hidden());
+    EXPECT_FLOAT_EQ(lm.left_panel_rect().w, LayoutManager::LEFT_PANEL_DEFAULT_WIDTH);
+
+    // Opening the inspector takes its share first; the sidebar gets the rest
+    // (or hides when that is below LEFT_PANEL_MIN_FIT_WIDTH).
+    lm.set_inspector_visible(true);
+    lm.update(700.0f, 600.0f);
+    const float space = 700.0f - lm.nav_rail_rect().w - LayoutManager::WINDOW_MIN_CANVAS_WIDTH;
+    const float left  = space - lm.inspector_fitted_width();
+    EXPECT_FLOAT_EQ(lm.left_panel_rect().w,
+                    left >= LayoutManager::LEFT_PANEL_MIN_FIT_WIDTH
+                        ? std::min(left, LayoutManager::LEFT_PANEL_DEFAULT_WIDTH)
+                        : 0.0f);
+    EXPECT_LT(lm.left_panel_rect().w, LayoutManager::LEFT_PANEL_DEFAULT_WIDTH);
+}
+
+TEST(DataSidebarProviders, ActiveFigureTargetUsesOrCreatesFigure)
+{
+    spectra::FigureRegistry registry;
+    spectra::FigureManager  figures(registry);
+
+    // No figure yet: one is created with a 1x1 subplot.
+    PlotTarget created = active_figure_target(figures);
+    ASSERT_NE(created.axes, nullptr);
+    Figure* fig = registry.get(created.figure_id);
+    ASSERT_NE(fig, nullptr);
+    EXPECT_EQ(created.axes, fig->axes().front().get());
+    EXPECT_EQ(created.axes_index, 0u);
+
+    // Existing figure: same axes, no new figure.
+    const size_t     count = registry.count();
+    const PlotTarget again = active_figure_target(figures);
+    EXPECT_EQ(again.axes, created.axes);
+    EXPECT_EQ(again.figure_id, created.figure_id);
+    EXPECT_EQ(registry.count(), count);
 }
 
 // ─── Drawing ─────────────────────────────────────────────────────────────────

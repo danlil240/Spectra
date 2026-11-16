@@ -14,6 +14,7 @@
 #include <span>
 
 #include "ui/data_sidebar/data_sidebar_model.hpp"
+#include "ui/figures/figure_manager.hpp"
 #include "ui/logs/log_browser_panel.hpp"
 #include "ui/topics/topics_panel.hpp"
 #include "ui/workspace/data_binding.hpp"
@@ -401,6 +402,31 @@ CsvProvider* install_builtin_providers(DataSidebarModel& model, const BuiltinPro
     if (hooks.topics_panel)
         model.add_provider(std::make_unique<TopicProvider>(hooks.topics_panel));
     return csv;
+}
+
+PlotTarget active_figure_target(FigureManager& figures)
+{
+    PlotTarget t;
+    FigureId   id  = figures.active_index();
+    Figure*    fig = figures.registry().get(id);
+    if (!fig)
+    {
+        id  = figures.create_figure(FigureConfig{});
+        fig = figures.registry().get(id);
+        if (!fig)
+            return t;
+    }
+    Axes* ax        = (!fig->axes().empty() && fig->axes().front()) ? fig->axes().front().get()
+                                                                    : &fig->subplot(1, 1, 1);
+    t.axes          = ax;
+    t.figure_id     = id;
+    const auto& all = fig->all_axes();
+    for (size_t i = 0; i < all.size(); ++i)
+    {
+        if (all[i].get() == ax)
+            t.axes_index = static_cast<uint32_t>(i);
+    }
+    return t;
 }
 
 }   // namespace spectra::ui::data_sidebar

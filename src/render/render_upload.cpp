@@ -18,7 +18,7 @@
 
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
-#include "data/line_geometry.hpp"
+#include "data/line_decimation.hpp"
 #include "ui/workspace/plugin_guard.hpp"
 
 namespace spectra

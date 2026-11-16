@@ -19,7 +19,7 @@
 #include "core/axis_scale.hpp"
 #include "core/axis_ticks.hpp"
 #include "core/datetime_ticks.hpp"
-#include "data/line_geometry.hpp"
+#include "data/line_decimation.hpp"
 #include "io/text_metrics.hpp"
 
 namespace spectra

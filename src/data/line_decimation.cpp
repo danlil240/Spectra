@@ -1,4 +1,4 @@
-#include "data/line_geometry.hpp"
+#include "data/line_decimation.hpp"
 
 namespace spectra::data
 {

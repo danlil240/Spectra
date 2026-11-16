@@ -47,7 +47,7 @@
 #include "core/axis_scale.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
-#include "data/line_geometry.hpp"
+#include "data/line_decimation.hpp"
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/scatter_marker.hpp"

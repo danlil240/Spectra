@@ -16,7 +16,7 @@
 #include <vector>
 
 #include "core/annotation_layout.hpp"
-#include "data/line_geometry.hpp"
+#include "data/line_decimation.hpp"
 #include "ipc/annotation_state.hpp"
 #include "ipc/axes_format_state.hpp"
 #include "ipc/codec.hpp"

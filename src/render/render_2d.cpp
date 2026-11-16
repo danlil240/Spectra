@@ -22,7 +22,7 @@
 #include "ui/workspace/plugin_guard.hpp"
 
 #include "core/axis_scale.hpp"
-#include "data/line_geometry.hpp"
+#include "data/line_decimation.hpp"
 #include "render/scatter_marker.hpp"
 #include "ui/theme/theme.hpp"
 

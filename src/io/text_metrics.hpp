@@ -5,6 +5,8 @@
 #include <string_view>
 #include <vector>
 
+#include "core/mathtext.hpp"
+
 namespace spectra
 {
 
@@ -24,6 +26,14 @@ bool inter_metrics_available();
 // string when the font is unavailable.  No kerning: kerning only tightens text,
 // so the result is a safe upper bound for fitting boxes around the text.
 float inter_text_width(std::string_view text, float font_px);
+
+// Mathtext ($...$, see core/mathtext.hpp) runs of `text` laid out with Inter at
+// `font_px` (each run's x set); returns the total advance width.
+float inter_mathtext_layout(std::string_view text, float font_px, std::vector<mathtext::Run>& runs);
+
+// inter_text_width() with mathtext applied: Greek / symbols replaced and scripts set
+// smaller.  Equal to inter_text_width() for text without a '$'.
+float inter_mathtext_width(std::string_view text, float font_px);
 
 // True when Inter has a glyph for every codepoint of UTF-8 `text`, i.e. when
 // inter_text_width() is an exact advance sum rather than an estimate.

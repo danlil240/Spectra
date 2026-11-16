@@ -35,9 +35,18 @@ class Axes3D : public AxesBase
     void ylabel(const std::string& lbl);
     void zlabel(const std::string& lbl);
 
+    // Effective limits: the set (or auto-fit) limits, widened about their
+    // centres to a common span when equal_aspect() is on.
     AxisLimits x_limits() const;
     AxisLimits y_limits() const;
     AxisLimits z_limits() const;
+
+    // Equal aspect ("axis equal"): one data unit has the same length along
+    // X, Y and Z.  The box keeps its cube shape; each axis range is widened
+    // about its centre to the largest of the three spans, so a sphere looks
+    // round and a flat trajectory looks flat.  Off by default.
+    void equal_aspect(bool enabled) { equal_aspect_ = enabled; }
+    bool equal_aspect() const { return equal_aspect_; }
 
     const std::string& xlabel() const { return xlabel_; }
     const std::string& ylabel() const { return ylabel_; }
@@ -167,6 +176,13 @@ class Axes3D : public AxesBase
     // the same way an interactive auto-fit does.
     bool compute_auto_limits(vec3& lo, vec3& hi) const;
 
+    // Limits before equal_aspect() is applied.
+    AxisLimits raw_x_limits() const;
+    AxisLimits raw_y_limits() const;
+    AxisLimits raw_z_limits() const;
+    // Applies equal_aspect() to the raw limits of axis 0 (x), 1 (y) or 2 (z).
+    AxisLimits effective_limits(int axis) const;
+
     std::optional<AxisLimits> xlim_;
     std::optional<AxisLimits> ylim_;
     std::optional<AxisLimits> zlim_;
@@ -181,6 +197,7 @@ class Axes3D : public AxesBase
     BoxStyle                visible_box_style_  = BoxStyle::Back;
     vec3                    light_dir_          = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
     bool                    lighting_enabled_   = true;
+    bool                    equal_aspect_       = false;
     AxisArrowHover          hovered_axis_arrow_ = AxisArrowHover::None;
 };
 

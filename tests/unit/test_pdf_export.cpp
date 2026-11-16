@@ -474,6 +474,31 @@ TEST(PdfExport, TextIsSelectableThroughToUnicode)
                          "C \xE2\x80\x94 \xEF\xBF\xBD"));
 }
 
+TEST(PdfExport, MathtextIsSetRunByRun)
+{
+    if (!inter_metrics_available())
+        GTEST_SKIP() << "build has no embedded Inter font";
+    auto fig = make_line_figure();
+    fig.axes()[0]->title("$\\alpha_1 = 10^{-3}$ s");
+    fig.compute_layout();
+    const MiniPdf pdf(keep_evidence("pdf_mathtext.pdf", PdfExporter::to_string(fig)));
+    ASSERT_TRUE(pdf.ok()) << pdf.error();
+    const auto text = extract_text(pdf);
+    // Each run is its own string: Greek, subscript, base text, superscript (with a minus).
+    EXPECT_TRUE(contains(text, "\xCE\xB1"));
+    EXPECT_TRUE(contains(text, " = 10"));
+    EXPECT_TRUE(contains(text,
+                         "\xE2\x88\x92"
+                         "3"));
+    EXPECT_TRUE(std::none_of(text.begin(),
+                             text.end(),
+                             [](const std::string& t)
+                             { return t.find('$') != std::string::npos; }));
+    // The scripts are set at 70% of the 18 px title size.
+    const std::string c = all_content(pdf);
+    EXPECT_NE(c.find("/F1 12.6 Tf"), std::string::npos);
+}
+
 TEST(PdfExport, RotatedYLabelAndMediumTitle)
 {
     auto          fig = make_line_figure();

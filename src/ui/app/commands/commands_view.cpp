@@ -11,6 +11,7 @@
 #include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
 #include "ui/app/window_ui_context.hpp"
+#include "ui/camera/view_presets.hpp"
 #include "ui/commands/undoable_property.hpp"
 #include "ui/figures/figure_manager.hpp"
 #include "ui/overlay/live_status.hpp"
@@ -436,6 +437,76 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
 
     cmds.push_back(
         {"view.pan_down", "Pan Down", "Down", "View", 0, [pan_view]() { pan_view(0.0, -0.1); }});
+
+    // ─── 3D camera views ─────────────────────────────────────────────────
+    // Apply `fn` to the 3D axes under the cursor, or else to every 3D axes
+    // of the active figure, as one undo step.
+    auto for_target_axes3d = [&](const char* group, auto&& fn)
+    {
+        if (auto* ax3d = dynamic_cast<Axes3D*>(input_handler.active_axes_base()))
+        {
+            fn(ax3d);
+            return;
+        }
+        if (!active_figure)
+            return;
+        undo_mgr.begin_group(group);
+        for (auto& ax_base : active_figure->all_axes_mut())
+        {
+            if (auto* ax3d = dynamic_cast<Axes3D*>(ax_base.get()))
+                fn(ax3d);
+        }
+        undo_mgr.end_group();
+    };
+
+    for (const ViewPresetInfo& info : VIEW_PRESETS)
+    {
+        const Camera::ViewPreset preset = info.preset;
+        cmds.push_back({info.command_id,
+                        info.label,
+                        info.shortcut,
+                        "View",
+                        0,
+                        [&, for_target_axes3d, preset]()
+                        {
+                            for_target_axes3d(
+                                "3D view preset",
+                                [&](Axes3D* ax)
+                                { input_handler.apply_axes3d_view_preset(ax, preset); });
+                        }});
+    }
+
+    cmds.push_back({"view.3d_toggle_projection",
+                    "3D View: Toggle Perspective / Orthographic",
+                    "Alt+0",
+                    "View",
+                    0,
+                    [&, for_target_axes3d]()
+                    {
+                        for_target_axes3d("Toggle 3D projection",
+                                          [&](Axes3D* ax)
+                                          { input_handler.toggle_axes3d_projection(ax); });
+                    }});
+
+    cmds.push_back({"view.3d_equal_aspect",
+                    "3D View: Toggle Equal Aspect (Axis Equal)",
+                    "",
+                    "View",
+                    0,
+                    [&, for_target_axes3d]()
+                    {
+                        for_target_axes3d("Toggle 3D equal aspect",
+                                          [&](Axes3D* ax)
+                                          {
+                                              const bool old_val = ax->equal_aspect();
+                                              const bool new_val = !old_val;
+                                              ax->equal_aspect(new_val);
+                                              undo_mgr.push(UndoAction{
+                                                  new_val ? "Equal 3D aspect" : "Free 3D aspect",
+                                                  [ax, old_val]() { ax->equal_aspect(old_val); },
+                                                  [ax, new_val]() { ax->equal_aspect(new_val); }});
+                                          });
+                    }});
 
     // ─── View history (Back / Forward) ───────────────────────────────────
     // Walk the view states of the figure under the pointer (else the active

@@ -45,6 +45,7 @@
 #include "core/axes3d.hpp"
 #include "core/axes3d_box.hpp"
 #include "core/axis_scale.hpp"
+#include "core/figure_layout.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
 #include "io/svg_label_metrics.hpp"
@@ -235,7 +236,7 @@ float clamp01(float v)
 // choice).  Drives every layout decision (legend box, label fitting, overlap).
 float measure_text_width(std::string_view s, float font_px)
 {
-    return inter_text_width(s, font_px);
+    return inter_mathtext_width(s, font_px);
 }
 
 // Renderer font sizes (text_renderer.cpp FONT_PIXEL_SIZES).
@@ -1731,12 +1732,15 @@ std::string fit_label(std::string_view text, float max_w, float font_px, bool& t
             ends.push_back(i);
     if (ends.empty())
         return {};
-    auto candidate = [&](size_t k)
+    const bool is_math   = mathtext::is_math_text(text);
+    auto       candidate = [&](size_t k)
     {
         size_t len = ends[k];
         while (len > 0 && text[len - 1] == ' ')
             --len;
         std::string out(text.substr(0, len));
+        if (is_math)
+            mathtext::close_truncated(out);
         out.append(ellipsis);
         return out;
     };
@@ -2145,6 +2149,10 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     const float tl      = as.tick_length;
     const auto  x_ticks = axes.compute_x_ticks();
     const auto  y_ticks = axes.compute_y_ticks();
+    // Inner axes of a shared column / row draw no tick labels (figure layout).
+    const TickResult  no_ticks;
+    const TickResult& x_tick_text = axes.x_tick_labels_visible() ? x_ticks : no_ticks;
+    const TickResult& y_tick_text = axes.y_tick_labels_visible() ? y_ticks : no_ticks;
     {
         std::string d;
         if (axes.border_enabled())
@@ -2203,14 +2211,14 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     c.w.begin_group(named_group(4, "tick-labels"));
     {
         float last_right = -1e30f;
-        for (size_t i = 0; i < x_ticks.positions.size() && i < x_ticks.labels.size(); ++i)
+        for (size_t i = 0; i < x_tick_text.positions.size() && i < x_tick_text.labels.size(); ++i)
         {
-            const auto  px = static_cast<float>(m.map_x(x_ticks.positions[i]));
-            const float w  = measure_text_width(x_ticks.labels[i], TICK_FONT_PX);
+            const auto  px = static_cast<float>(m.map_x(x_tick_text.positions[i]));
+            const float w  = measure_text_width(x_tick_text.labels[i], TICK_FONT_PX);
             if (i > 0 && px - w * 0.5f < last_right + 6.0f)
                 continue;
             emit_text(c.w,
-                      x_ticks.labels[i],
+                      x_tick_text.labels[i],
                       px,
                       vp.y + vp.h + tl + tick_padding,
                       TICK_FONT_PX,
@@ -2222,24 +2230,25 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     }
     {
         float     last_bottom = -1e30f;
-        const int n = static_cast<int>(std::min(y_ticks.positions.size(), y_ticks.labels.size()));
+        const int n =
+            static_cast<int>(std::min(y_tick_text.positions.size(), y_tick_text.labels.size()));
         for (int i = n - 1; i >= 0; --i)
         {
             const auto idx = static_cast<size_t>(i);
-            const auto py  = static_cast<float>(m.map_y(y_ticks.positions[idx]));
+            const auto py  = static_cast<float>(m.map_y(y_tick_text.positions[idx]));
             if (py - TICK_FONT_PX * 0.5f < last_bottom + 4.0f && i < n - 1)
                 continue;
             emit_text(c.w,
-                      y_ticks.labels[idx],
+                      y_tick_text.labels[idx],
                       vp.x - tl - tick_padding,
                       py,
                       TICK_FONT_PX,
                       st.tick_label,
                       "end",
                       VAlign::Middle);
-            last_bottom = py + TICK_FONT_PX * 0.5f;
-            max_y_tick_width =
-                std::max(max_y_tick_width, measure_text_width(y_ticks.labels[idx], TICK_FONT_PX));
+            last_bottom      = py + TICK_FONT_PX * 0.5f;
+            max_y_tick_width = std::max(max_y_tick_width,
+                                        measure_text_width(y_tick_text.labels[idx], TICK_FONT_PX));
         }
     }
     // Shared offset / multiplier of the tick labels ("x10^-6", "+1.7x10^9"):
@@ -2248,25 +2257,25 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     const float x_label_row = vp.y + vp.h + tl + tick_padding + TICK_FONT_PX + 4.0f;
     // The offsets share their rows with the X label / title: keep their width free.
     const float x_offset_reserve =
-        x_ticks.offset_label.empty()
+        x_tick_text.offset_label.empty()
             ? 0.0f
-            : offset_annotation_reserve(measure_text_width(x_ticks.offset_label, TICK_FONT_PX));
+            : offset_annotation_reserve(measure_text_width(x_tick_text.offset_label, TICK_FONT_PX));
     const float y_offset_reserve =
-        y_ticks.offset_label.empty()
+        y_tick_text.offset_label.empty()
             ? 0.0f
-            : offset_annotation_reserve(measure_text_width(y_ticks.offset_label, TICK_FONT_PX));
-    if (!x_ticks.offset_label.empty())
+            : offset_annotation_reserve(measure_text_width(y_tick_text.offset_label, TICK_FONT_PX));
+    if (!x_tick_text.offset_label.empty())
         emit_text(c.w,
-                  x_ticks.offset_label,
+                  x_tick_text.offset_label,
                   vp.x + vp.w,
                   x_label_row,
                   TICK_FONT_PX,
                   st.tick_label,
                   "end",
                   VAlign::Top);
-    if (!y_ticks.offset_label.empty())
+    if (!y_tick_text.offset_label.empty())
         emit_text(c.w,
-                  y_ticks.offset_label,
+                  y_tick_text.offset_label,
                   vp.x,
                   vp.y - 4.0f,
                   TICK_FONT_PX,
@@ -3390,6 +3399,22 @@ void draw_vector_scene(const Figure&        figure,
 {
     SceneContext c(style, writer);
     c.host = &host;
+
+    // Figure suptitle, centred above the subplot grid (rect from the layout,
+    // drawn like the renderer: Title tier at SUPTITLE_SCALE).
+    if (!figure.suptitle().empty() && figure.suptitle_rect().w > 0.0f)
+    {
+        const Rect& r = figure.suptitle_rect();
+        emit_text(c.w,
+                  figure.suptitle(),
+                  r.x + r.w * 0.5f,
+                  r.y,
+                  TITLE_FONT_PX * SUPTITLE_SCALE,
+                  style.text_primary,
+                  "middle",
+                  VAlign::Top,
+                  TextExtra{true});
+    }
 
     // The caller computes the layout (Figure::compute_layout() is non-const);
     // each axes' viewport is used as-is.

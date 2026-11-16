@@ -142,6 +142,15 @@ class _FakeFigure:
     def subplot(self, rows, cols, index):
         return self.axes.setdefault((rows, cols, index), _FakeAxes(index - 1))
 
+    def suptitle(self, text):
+        self.sup = text
+
+    def set_layout(self, constrained=None, sharex=None, sharey=None):
+        self.layout_calls = getattr(self, "layout_calls", []) + [(constrained, sharex, sharey)]
+
+    def tight_layout(self):
+        self.set_layout(constrained=True)
+
 
 @pytest.fixture
 def fake(monkeypatch):
@@ -593,7 +602,41 @@ def test_pyplot_subplots_shapes_and_axes_methods(monkeypatch, fake_plt):
     with pytest.raises(AttributeError):
         axs[0, 0].imshow
     fig.suptitle("S")
-    assert fig.spectra_figure.title == "S"
+    assert fig.spectra_figure.sup == "S"
+    fig.tight_layout()
+    assert fig.spectra_figure.layout_calls[-1] == (True, None, None)
+
+
+def test_pyplot_subplots_sharex_links_limits(monkeypatch, fake_plt):
+    pytest.importorskip("numpy")
+
+    def fake_figure(title="", width=0, height=0):
+        f = _FakeFigure()
+        easy._state._current_fig = f
+        return f
+
+    monkeypatch.setattr(easy, "figure", fake_figure)
+    monkeypatch.setattr(easy._state, "_ensure_axes", lambda: easy._state._current_axes)
+    monkeypatch.setattr(easy, "subplot",
+                        lambda r, c, i: easy._state._current_fig.subplot(r, c, i))
+    easy._state._share_groups.clear()
+    easy._state._share_members.clear()
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fig, axs = plt.subplots(2, 2, sharex="col", sharey=True)
+    assert not [x for x in w if "sharex" in str(x.message) or "sharey" in str(x.message)]
+    assert fig.spectra_figure.layout_calls[0] == (None, "col", True)
+    axs[0, 0].plot([0, 1], [0, 1])
+    axs[1, 0].plot([5, 10], [0, 100])
+    top, bottom = axs[0, 0].spectra_axes, axs[1, 0].spectra_axes
+    right = axs[0, 1].spectra_axes
+    assert top.limits[0] == bottom.limits[0]  # same column: shared x
+    assert top.limits[0][0] < 0 and top.limits[0][1] > 10
+    assert top.limits[1] == bottom.limits[1] == right.limits[1]  # sharey=True: all
+    assert top.limits[1][1] > 100
+    assert right.limits[0] is None  # other column, no data: x untouched
+    easy._state._share_groups.clear()
+    easy._state._share_members.clear()
 
 
 def test_pyplot_savefig_dpi_scales_figsize(monkeypatch, fake_plt):

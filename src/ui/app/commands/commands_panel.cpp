@@ -128,6 +128,18 @@ std::vector<CommandDescriptor> make_panel_commands(CommandContext& ctx)
                         ui_ctx.settings_panel.open();
                     }});
 
+    // Theme, palette, colour vision preview, UI scale and glass in one place.
+    cmds.push_back({"panel.open_appearance",
+                    "Appearance Settings",
+                    "",
+                    "Panel",
+                    static_cast<uint16_t>(ui::Icon::Palette),
+                    [&]()
+                    {
+                        ui_ctx.settings_panel.select_tab(0);
+                        ui_ctx.settings_panel.open();
+                    }});
+
     cmds.push_back(
         {"panel.toggle_inspector",
          "Toggle Inspector Panel",

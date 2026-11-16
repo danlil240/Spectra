@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <gtest/gtest.h>
+#include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series_stats.hpp>
 #include <vector>
@@ -127,4 +128,42 @@ TEST_F(FigureSerializerTest, RoundTripsFigureBackgroundOverride)
     auto_dst.style().background_override = true;
     ASSERT_TRUE(FigureSerializer::load(tmp_path_, auto_dst));
     EXPECT_FALSE(auto_dst.style().background_override);
+}
+
+TEST_F(FigureSerializerTest, RoundTrips3DBoxStyleAndSurfaceColormapRange)
+{
+    Figure             src({800, 600});
+    auto&              ax = src.subplot3d(1, 2, 1);
+    std::vector<float> xg = {0.0f, 1.0f};
+    std::vector<float> yg = {0.0f, 1.0f};
+    std::vector<float> z  = {2.0f, 3.0f, 4.0f, 5.0f};
+    ax.box_style(BoxStyle::Full);
+    ax.surface(xg, yg, z).colormap(ColormapType::Viridis).colormap_range(0.0f, 10.0f);
+    ax.surface(xg, yg, z).colormap(ColormapType::Plasma);   // automatic range
+    auto& ax2 = src.subplot3d(1, 2, 2);
+    ax2.box_style(BoxStyle::None);
+
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, src));
+    Figure dst({640, 480});
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst));
+    ASSERT_EQ(dst.all_axes().size(), 2u);
+
+    auto* a1 = dynamic_cast<Axes3D*>(dst.all_axes()[0].get());
+    auto* a2 = dynamic_cast<Axes3D*>(dst.all_axes()[1].get());
+    ASSERT_NE(a1, nullptr);
+    ASSERT_NE(a2, nullptr);
+    EXPECT_EQ(a1->box_style(), BoxStyle::Full);
+    EXPECT_EQ(a2->box_style(), BoxStyle::None);
+
+    ASSERT_EQ(a1->series().size(), 2u);
+    auto* explicit_range = dynamic_cast<SurfaceSeries*>(a1->series()[0].get());
+    auto* auto_range     = dynamic_cast<SurfaceSeries*>(a1->series()[1].get());
+    ASSERT_NE(explicit_range, nullptr);
+    ASSERT_NE(auto_range, nullptr);
+    EXPECT_TRUE(explicit_range->colormap_range_set());
+    EXPECT_FLOAT_EQ(explicit_range->colormap_min(), 0.0f);
+    EXPECT_FLOAT_EQ(explicit_range->colormap_max(), 10.0f);
+    EXPECT_FALSE(auto_range->colormap_range_set());
+    EXPECT_FLOAT_EQ(auto_range->colormap_min(), 2.0f);
+    EXPECT_FLOAT_EQ(auto_range->colormap_max(), 5.0f);
 }

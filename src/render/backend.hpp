@@ -84,7 +84,7 @@ enum class PipelineType
     Mesh3D,
     Surface3D,
     Grid3D,
-    GridOverlay3D,   // Same as Grid3D but no depth test — for grid lines rendered after series
+    GridOverlay3D,   // Grid3D with depth test but no depth write (3D back-pane grid)
     // Wireframe 3D pipeline variants (line topology with vertex buffer)
     SurfaceWireframe3D,
     SurfaceWireframe3D_Transparent,

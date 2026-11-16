@@ -413,7 +413,8 @@ TEST_F(InspectorImGui, Shows3DAxesPage)
 
     EXPECT_NE(out.find("Axes 2 (3D)"), std::string::npos) << out;
     EXPECT_NE(out.find("Enable Lighting"), std::string::npos) << out;
-    EXPECT_NE(out.find("Bounding Box"), std::string::npos) << out;
+    EXPECT_NE(out.find("Box"), std::string::npos) << out;
+    EXPECT_NE(out.find("Back panes"), std::string::npos) << out;
     EXPECT_NE(out.find("XY Plane"), std::string::npos) << out;
     EXPECT_NE(out.find("Reset Camera"), std::string::npos) << out;
     EXPECT_NE(out.find("Projection"), std::string::npos) << out;

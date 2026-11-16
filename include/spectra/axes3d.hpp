@@ -13,6 +13,14 @@
 namespace spectra
 {
 
+// How the 3D axes box is drawn (Axes3D::box_style).
+enum class BoxStyle
+{
+    Back,   // the three back panes (with the grid) plus the edges that carry ticks
+    Full,   // all twelve box edges
+    None,   // no box edges
+};
+
 class Axes3D : public AxesBase
 {
    public:
@@ -76,8 +84,24 @@ class Axes3D : public AxesBase
     // Deprecated: use grid_planes(GridPlane) instead
     void set_grid_planes(int planes) { grid_planes_ = planes; }
 
-    bool show_bounding_box() const { return show_bounding_box_; }
-    void show_bounding_box(bool enabled) { show_bounding_box_ = enabled; }
+    // Box edges: Back (default) draws the three back panes -- the grid planes
+    // always sit on the faces farthest from the camera -- plus the three edges
+    // that carry the ticks; Full draws all twelve edges; None hides the box.
+    void box_style(BoxStyle style)
+    {
+        box_style_ = style;
+        if (style != BoxStyle::None)
+            visible_box_style_ = style;
+    }
+    BoxStyle box_style() const { return box_style_; }
+
+    // Shorthand: false hides the box (BoxStyle::None), true restores the last
+    // visible style (BoxStyle::Back by default).
+    bool show_bounding_box() const { return box_style_ != BoxStyle::None; }
+    void show_bounding_box(bool enabled)
+    {
+        box_style_ = enabled ? visible_box_style_ : BoxStyle::None;
+    }
 
     // Directional light configuration
     void light_dir(float x, float y, float z) { light_dir_ = {x, y, z}; }
@@ -153,7 +177,8 @@ class Axes3D : public AxesBase
 
     std::unique_ptr<Camera> camera_;
     int                     grid_planes_        = static_cast<int>(GridPlane::All);
-    bool                    show_bounding_box_  = true;
+    BoxStyle                box_style_          = BoxStyle::Back;
+    BoxStyle                visible_box_style_  = BoxStyle::Back;
     vec3                    light_dir_          = {1.0f, 1.0f, 1.0f};   // Default: top-right-front
     bool                    lighting_enabled_   = true;
     AxisArrowHover          hovered_axis_arrow_ = AxisArrowHover::None;

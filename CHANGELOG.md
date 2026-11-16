@@ -13,6 +13,7 @@ summarise the main changes rather than listing every commit.
 
 ### Changed
 
+- 3D surfaces map their colormap over the data z range (or `SurfaceSeries::colormap_range()` when set), so zooming or panning no longer recolours them, and `colormap_alpha()` now works; the colorbar and SVG/PDF export use the same range. 3D grid panes sit on the faces farthest from the camera and are depth-tested, and the new `Axes3D::box_style(BoxStyle::Back | Full | None)` (default Back) drops the box edges that crossed in front of the data.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed

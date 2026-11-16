@@ -873,14 +873,17 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
             cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             break;
+        // Back-pane grid: hidden by geometry in front of it, but writes no
+        // depth, so data lying on a back pane is never occluded by its grid.
         case PipelineType::GridOverlay3D:
             cfg.vert_spirv         = shaders::grid3d_vert;
             cfg.vert_spirv_size    = shaders::grid3d_vert_size;
             cfg.frag_spirv         = shaders::grid3d_frag;
             cfg.frag_spirv_size    = shaders::grid3d_frag_size;
             cfg.topology           = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
-            cfg.enable_depth_test  = false;
+            cfg.enable_depth_test  = true;
             cfg.enable_depth_write = false;
+            cfg.depth_compare_op   = VK_COMPARE_OP_LESS_OR_EQUAL;
             cfg.vertex_bindings.push_back({0, sizeof(float) * 3, VK_VERTEX_INPUT_RATE_VERTEX});
             cfg.vertex_attributes.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0});
             break;

@@ -586,7 +586,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             imgui_ui->clear_reset_live_view();
         }
 
-        // Update input handler tool mode
+        // ImGuiIntegration owns the tool (nav rail, tool.* commands and their
+        // keys all go through set_interaction_mode); keep the input handler in
+        // step with it.
         input_handler.set_tool_mode(imgui_ui->get_interaction_mode());
 
         // Feed cursor data to status bar

@@ -161,6 +161,7 @@ set(SPECTRA_UNIT_TESTS
     test_legend_interaction
     test_legend_colorbar
     test_image_series
+    test_colormap_lut
     test_legend_bounds
     test_legend_font_size
     test_figure_manager
@@ -208,6 +209,7 @@ set(SPECTRA_UNIT_TESTS
     test_ui_shell_fixes
     test_interaction_fixes
     test_view_history
+    test_live_measure
     test_ui_shell_welcome_gpu
     test_plugin_api
     test_workspace_v3
@@ -318,6 +320,7 @@ set(SPECTRA_UNIT_TESTS
     test_pixel_scale
     test_headless_export_text
     test_framebuffer_contrast
+    test_colormap_alpha_gpu
     test_line_geometry
     test_line_rendering_gpu
     test_text_scaling
@@ -486,6 +489,7 @@ set(SPECTRA_GPU_TESTS
     test_easy_embed
     test_headless_export_text
     test_framebuffer_contrast
+    test_colormap_alpha_gpu
     test_line_rendering_gpu
     test_text_scaling
     test_shape3d_first_frame
@@ -627,7 +631,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         endif()
         # Decodes the exported PNGs with the bundled stb_image (svg_export: parses
         # the embedded font subset with stb_truetype).
-        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series)$")
+        if(_test MATCHES "^test_(headless_export_text|framebuffer_contrast|line_rendering_gpu|text_scaling|shape3d_first_frame|shape2d_first_frame|window_export_extent|svg_export|pdf_export|image_series|colormap_alpha_gpu)$")
             target_include_directories(unit_${_test} SYSTEM PRIVATE
                 ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()

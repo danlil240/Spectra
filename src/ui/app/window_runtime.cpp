@@ -585,19 +585,6 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             imgui_ui->clear_reset_view();
         }
 
-        // Live reset chip: restore presented-buffer-driven tracking view
-        if (active_figure && imgui_ui->should_reset_live_view())
-        {
-            for (auto& ax : active_figure->axes_mut())
-            {
-                if (ax && ax->has_presented_buffer())
-                {
-                    ax->presented_buffer(ax->presented_buffer_seconds());
-                }
-            }
-            imgui_ui->clear_reset_live_view();
-        }
-
         // ImGuiIntegration owns the tool (nav rail, tool.* commands and their
         // keys all go through set_interaction_mode); keep the input handler in
         // step with it.
@@ -1061,6 +1048,12 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                 renderer_.clear_selected_series();
             }
         }
+        // Hovering a legend entry fades the other series of its axes.
+        if (ui_ctx.data_interaction && active_figure)
+            renderer_.set_dimmed_series(
+                ui_ctx.data_interaction->legend().dimmed_series(*active_figure));
+        else
+            renderer_.set_dimmed_series({});
 #endif
 
         if (profiler)

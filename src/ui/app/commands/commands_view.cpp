@@ -13,6 +13,7 @@
 #include "ui/app/window_ui_context.hpp"
 #include "ui/commands/undoable_property.hpp"
 #include "ui/figures/figure_manager.hpp"
+#include "ui/overlay/live_status.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/theme/icons.hpp"
@@ -404,11 +405,31 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     }});
 
     // ─── Pan commands ────────────────────────────────────────────────────
-    cmds.push_back(
-        {"view.pan_left", "Pan Left", "Left", "View", 0, [pan_view]() { pan_view(-0.1, 0.0); }});
+    // Left / Right step the selected data tip(s) along their series when
+    // there are any (Esc deselects), and pan the view otherwise.
+    cmds.push_back({"view.pan_left",
+                    "Pan Left",
+                    "Left",
+                    "View",
+                    0,
+                    [pan_view, &data_interaction]()
+                    {
+                        if (data_interaction && data_interaction->step_selected_markers(-1))
+                            return;
+                        pan_view(-0.1, 0.0);
+                    }});
 
-    cmds.push_back(
-        {"view.pan_right", "Pan Right", "Right", "View", 0, [pan_view]() { pan_view(0.1, 0.0); }});
+    cmds.push_back({"view.pan_right",
+                    "Pan Right",
+                    "Right",
+                    "View",
+                    0,
+                    [pan_view, &data_interaction]()
+                    {
+                        if (data_interaction && data_interaction->step_selected_markers(1))
+                            return;
+                        pan_view(0.1, 0.0);
+                    }});
 
     cmds.push_back(
         {"view.pan_up", "Pan Up", "Up", "View", 0, [pan_view]() { pan_view(0.0, 0.1); }});
@@ -435,6 +456,22 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                     static_cast<uint16_t>(ui::Icon::ArrowRight),
                     [&input_handler, history_figure]()
                     { input_handler.view_forward(history_figure()); }});
+    // ─── Live follow ─────────────────────────────────────────────────────
+    // End: every live (presented-buffer) axes of the figure follows new data
+    // again, like clicking its "Paused" pill.
+    cmds.push_back({"view.follow_live",
+                    "Follow Live Data",
+                    "End",
+                    "View",
+                    0,
+                    [&]()
+                    {
+                        if (!active_figure)
+                            return;
+                        for (auto& ax : active_figure->axes_mut())
+                            if (ax && ax->has_presented_buffer())
+                                ui::resume_live_follow(*ax);
+                    }});
 
     // ─── Split commands ──────────────────────────────────────────────────
     auto do_split = [&](SplitDirection dir)

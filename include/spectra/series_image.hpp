@@ -9,6 +9,7 @@
 #include <optional>
 #include <span>
 #include <spectra/color.hpp>
+#include <spectra/colormap.hpp>
 #include <spectra/series.hpp>
 #include <string>
 #include <vector>
@@ -60,8 +61,17 @@ class ImageSeries : public Series
 
     /// @brief Data-space rectangle covered by the grid (outer cell edges).
     ImageSeries& extent(double x0, double x1, double y0, double y1);
-    /// @brief Colormap for scalar grids (default Viridis).
+    /// @brief Colormap for scalar grids (default Viridis; keeps colormap_reversed()).
     ImageSeries& colormap(ColormapType cm);
+    /// @brief Built-in, reversed or user colormap (Colormap::from_colors).
+    ImageSeries& colormap(const Colormap& cm);
+    /// @brief Colormap by matplotlib name ("viridis", "RdBu_r"); unknown names give None.
+    ImageSeries& colormap(const std::string& name)
+    {
+        return colormap(Colormap::from_name(name).value_or(Colormap{}));
+    }
+    /// @brief Reverse the colormap (high values take the low end), like "_r" maps.
+    ImageSeries& colormap_reversed(bool reversed);
     /// @brief Value range mapped onto the colormap (default: finite data range).
     ImageSeries& colormap_range(float vmin, float vmax);
     /// @brief Drop a colormap_range() and use the finite data range again.
@@ -116,7 +126,9 @@ class ImageSeries : public Series
     double y0() const { return y0_; }
     double y1() const { return y1_; }
 
-    ColormapType                    colormap() const { return colormap_; }
+    ColormapType                    colormap() const { return colormap_.type(); }
+    const Colormap&                 cmap() const { return colormap_; }
+    bool                            colormap_reversed() const { return colormap_.is_reversed(); }
     float                           vmin() const;
     float                           vmax() const;
     bool                            colormap_range_set() const { return range_set_; }
@@ -130,7 +142,7 @@ class ImageSeries : public Series
     const std::vector<std::string>& y_categories() const { return y_categories_; }
 
     /// @brief True for a scalar grid drawn through a colormap (or levels).
-    bool has_colormap() const { return !empty() && !is_rgba() && colormap_ != ColormapType::None; }
+    bool has_colormap() const { return !empty() && !is_rgba() && !colormap_.is_none(); }
 
     /// @brief Data-space centre of cell (col, row).
     void cell_center(size_t col, size_t row, double& x, double& y) const;
@@ -163,7 +175,7 @@ class ImageSeries : public Series
     double                   y0_            = -0.5;
     double                   y1_            = 0.5;
     bool                     extent_set_    = false;
-    ColormapType             colormap_      = ColormapType::Viridis;
+    Colormap                 colormap_      = ColormapType::Viridis;
     float                    range_min_     = 0.0f;
     float                    range_max_     = 1.0f;
     float                    data_min_      = 0.0f;
@@ -214,8 +226,17 @@ class ContourSeries : public Series
     ContourSeries& levels(int n);
     /// @brief Explicit levels (any order; drawn sorted ascending).
     ContourSeries& levels(std::vector<float> values);
-    /// @brief Colormap used to colour the levels (default Viridis).
+    /// @brief Colormap used to colour the levels (default Viridis; keeps colormap_reversed()).
     ContourSeries& colormap(ColormapType cm);
+    /// @brief Built-in, reversed or user colormap (Colormap::from_colors).
+    ContourSeries& colormap(const Colormap& cm);
+    /// @brief Colormap by matplotlib name ("viridis", "RdBu_r"); unknown names give None.
+    ContourSeries& colormap(const std::string& name)
+    {
+        return colormap(Colormap::from_name(name).value_or(Colormap{}));
+    }
+    /// @brief Reverse the colormap (high values take the low end), like "_r" maps.
+    ContourSeries& colormap_reversed(bool reversed);
     /// @brief Value range mapped onto the colormap (default: level range).
     ContourSeries& colormap_range(float vmin, float vmax);
     /// @brief Line width in pixels (default 1.5).
@@ -248,7 +269,9 @@ class ContourSeries : public Series
     /// @brief Node y coordinates (rows values).
     std::span<const float> y_coords() const { return ys_; }
 
-    ColormapType colormap() const { return colormap_; }
+    ColormapType    colormap() const { return colormap_.type(); }
+    const Colormap& cmap() const { return colormap_; }
+    bool            colormap_reversed() const { return colormap_.is_reversed(); }
     /// @brief Levels actually contoured (ascending).
     const std::vector<float>& level_values() const { return level_values_; }
     float                     vmin() const;
@@ -256,7 +279,7 @@ class ContourSeries : public Series
     /// @brief True when lines are coloured per level (colormap set, automatic colour).
     bool uses_colormap() const
     {
-        return colormap_ != ColormapType::None && has_auto_color() && !level_values_.empty();
+        return !colormap_.is_none() && has_auto_color() && !level_values_.empty();
     }
     /// @brief Colour of the lines at @p level when uses_colormap().
     Color level_color(float level) const;
@@ -289,7 +312,7 @@ class ContourSeries : public Series
     int                     level_count_ = 8;
     std::vector<float>      explicit_levels_;
     std::vector<float>      level_values_;
-    ColormapType            colormap_   = ColormapType::Viridis;
+    Colormap                colormap_   = ColormapType::Viridis;
     float                   range_min_  = 0.0f;
     float                   range_max_  = 1.0f;
     bool                    range_set_  = false;

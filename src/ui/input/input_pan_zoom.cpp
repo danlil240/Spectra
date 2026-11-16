@@ -501,6 +501,16 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
             return;
         }
 
+        // Press on a 2D data tip: drag it along its series instead of panning.
+        if (data_interaction_ && data_interaction_->begin_marker_drag(x, y))
+        {
+            mode_         = InteractionMode::Dragging;
+            tip_dragging_ = true;
+            drag_start_x_ = x;
+            drag_start_y_ = y;
+            return;
+        }
+
         // Double-click detection: auto-fit with animated transition
         if (gesture_)
         {
@@ -556,13 +566,14 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
         }
 
         // Begin pan drag
-        mode_            = InteractionMode::Dragging;
-        drag_start_x_    = x;
-        drag_start_y_    = y;
-        last_move_x_     = x;
-        last_move_y_     = y;
-        last_move_time_  = Clock::now();
-        drag_start_time_ = last_move_time_;
+        mode_                 = InteractionMode::Dragging;
+        drag_start_following_ = active_axes_->is_presented_buffer_following();
+        drag_start_x_         = x;
+        drag_start_y_         = y;
+        last_move_x_          = x;
+        last_move_y_          = y;
+        last_move_time_       = Clock::now();
+        drag_start_time_      = last_move_time_;
 
         auto xlim            = active_axes_->x_limits();
         auto ylim            = active_axes_->y_limits();
@@ -574,6 +585,19 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
     }
     else if (action == ACTION_RELEASE && mode_ == InteractionMode::Dragging)
     {
+        if (tip_dragging_)
+        {
+            const double    dx_px              = x - drag_start_x_;
+            const double    dy_px              = y - drag_start_y_;
+            constexpr float CLICK_THRESHOLD_PX = 5.0f;
+            const bool      moved = std::sqrt(dx_px * dx_px + dy_px * dy_px) >= CLICK_THRESHOLD_PX;
+            tip_dragging_         = false;
+            mode_                 = InteractionMode::Idle;
+            if (data_interaction_)
+                data_interaction_->end_marker_drag(x, y, moved, mods);
+            return;
+        }
+
         // Check if this was a Ctrl+drag box zoom
         if (ctrl_box_zoom_active_)
         {
@@ -595,11 +619,14 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
             constexpr float CLICK_THRESHOLD_PX = 5.0f;
             if (move_dist < CLICK_THRESHOLD_PX)
             {
-                // Undo the tiny pan that occurred during the drag
+                // Undo the tiny pan that occurred during the drag; a click on a
+                // live plot keeps it following (the pan paused it).
                 if (active_axes_)
                 {
                     active_axes_->xlim(drag_start_xlim_min_, drag_start_xlim_max_);
                     active_axes_->ylim(drag_start_ylim_min_, drag_start_ylim_max_);
+                    if (drag_start_following_)
+                        active_axes_->resume_follow();
                 }
                 if (view_gesture_open_ && view_gesture_figure_)
                     apply_view(view_gesture_figure_, view_gesture_before_);   // linked axes too
@@ -609,7 +636,7 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                 // Pan-mode click behavior: select/highlight nearest point (data tip).
                 if (data_interaction_)
                 {
-                    data_interaction_->on_mouse_click_datatip_only(0, x, y);
+                    data_interaction_->on_mouse_click_datatip_only(0, x, y, mods);
                 }
                 return;
             }

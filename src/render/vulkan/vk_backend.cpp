@@ -253,6 +253,9 @@ bool VulkanBackend::init(bool headless)
         image_pipeline_layout_ = vk::create_pipeline_layout(
             ctx_.device,
             {frame_desc_layout_, texture_desc_layout_, texture_desc_layout_});
+        colormap_pipeline_layout_ = vk::create_pipeline_layout(
+            ctx_.device,
+            {frame_desc_layout_, series_desc_layout_, texture_desc_layout_});
 
         return true;
     }
@@ -321,6 +324,9 @@ void VulkanBackend::shutdown()
     if (image_pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, image_pipeline_layout_, nullptr);
     image_pipeline_layout_ = VK_NULL_HANDLE;
+    if (colormap_pipeline_layout_ != VK_NULL_HANDLE)
+        vkDestroyPipelineLayout(ctx_.device, colormap_pipeline_layout_, nullptr);
+    colormap_pipeline_layout_ = VK_NULL_HANDLE;
     if (pipeline_layout_ != VK_NULL_HANDLE)
         vkDestroyPipelineLayout(ctx_.device, pipeline_layout_, nullptr);
     if (texture_desc_layout_ != VK_NULL_HANDLE)
@@ -710,6 +716,12 @@ VkPipelineLayout VulkanBackend::layout_for_type(PipelineType type) const
             return text_pipeline_layout_;
         case PipelineType::Image2D:
             return image_pipeline_layout_;
+        case PipelineType::ScatterColormap:
+        case PipelineType::Surface3D:
+        case PipelineType::Surface3D_Transparent:
+        case PipelineType::SurfaceWireframe3D:
+        case PipelineType::SurfaceWireframe3D_Transparent:
+            return colormap_pipeline_layout_;
         default:
             return pipeline_layout_;
     }
@@ -808,7 +820,7 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
 {
     vk::PipelineConfig cfg;
     cfg.render_pass     = rp;
-    cfg.pipeline_layout = pipeline_layout_;
+    cfg.pipeline_layout = layout_for_type(type);
     cfg.enable_blending = true;
     cfg.topology        = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
@@ -829,8 +841,8 @@ VkPipeline VulkanBackend::create_pipeline_for_type(PipelineType type, VkRenderPa
         case PipelineType::ScatterColormap:
             cfg.vert_spirv      = shaders::scatter_colormap_vert;
             cfg.vert_spirv_size = shaders::scatter_colormap_vert_size;
-            cfg.frag_spirv      = shaders::scatter_frag;
-            cfg.frag_spirv_size = shaders::scatter_frag_size;
+            cfg.frag_spirv      = shaders::scatter_colormap_frag;
+            cfg.frag_spirv_size = shaders::scatter_colormap_frag_size;
             break;
         case PipelineType::Grid:
             cfg.vert_spirv      = shaders::grid_vert;

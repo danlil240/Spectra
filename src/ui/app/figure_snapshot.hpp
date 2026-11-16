@@ -631,9 +631,11 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             ss.opacity      = s.opacity();
             // x_data()/y_data() are relative to these double origins when the
             // series was fed double data with large values (e.g. timestamps).
-            ss.x_origin    = s.x_offset();
-            ss.y_origin    = s.y_offset();
-            ss.marker_size = s.marker_size();
+            ss.x_origin     = s.x_offset();
+            ss.y_origin     = s.y_offset();
+            ss.marker_size  = s.marker_size();
+            ss.line_style   = static_cast<uint8_t>(s.line_style());
+            ss.marker_style = static_cast<uint8_t>(s.marker_style());
 
             if (auto* line = dynamic_cast<const LineSeries*>(&s))
                 ss.line_width = line->width();

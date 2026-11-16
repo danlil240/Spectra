@@ -275,6 +275,26 @@ fig.show()
 sp.show()  # Block until window is closed
 ```
 
+### Jupyter Notebooks
+
+In a Jupyter kernel the Easy API (`sp.plot`, `sp.scatter`, ...) and `spectra.pyplot` render
+**inline**: when a cell finishes, the figures it drew into appear under it as PNG images
+(rendered offscreen by the backend, like `savefig`), and `sp.show()` returns immediately.
+
+```python
+import numpy as np
+import spectra as sp
+
+x = np.linspace(0, 10, 200)
+sp.plot(x, np.sin(x), "r--o")   # MATLAB/matplotlib format string
+sp.title("Inline")
+```
+
+`sp.use_window()` switches to native windows (for `sp.live()`, knobs and interactive
+zooming), `sp.use_inline(width=..., height=..., theme=...)` switches back; the
+`SPECTRA_DISPLAY=inline|window` environment variable sets the mode before the first plot.
+`spectra.notebook` provides an interactive canvas widget instead of static images.
+
 ### Streaming Data
 
 ```python

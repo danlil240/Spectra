@@ -2,16 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
-#include <spectra/series3d.hpp>
 
 namespace spectra::image_colormap
 {
 
-Color sample(ColormapType cm, float t)
+Color sample(const Colormap& cm, float t)
 {
-    if (cm == ColormapType::None)
-        cm = ColormapType::Grayscale;
-    return SurfaceSeries::sample_colormap(cm, std::clamp(t, 0.0f, 1.0f));
+    return cm.sample(t);
 }
 
 float normalized(float v, float vmin, float vmax)
@@ -30,7 +27,7 @@ size_t lut_index(float t, size_t n)
     return std::min(i, n - 1);
 }
 
-Color band_color(ColormapType cm, std::span<const float> levels, size_t band)
+Color band_color(const Colormap& cm, std::span<const float> levels, size_t band)
 {
     if (levels.size() < 2 || band + 1 >= levels.size())
         return sample(cm, 0.5f);
@@ -48,7 +45,7 @@ int band_of(std::span<const float> levels, float v)
     return std::clamp(b, 0, static_cast<int>(levels.size()) - 2);
 }
 
-std::vector<uint8_t> build_lut(ColormapType cm, std::span<const float> levels)
+std::vector<uint8_t> build_lut(const Colormap& cm, std::span<const float> levels)
 {
     const bool           banded = levels.size() >= 2;
     const size_t         n      = banded ? BANDED_LUT_SIZE : CONTINUOUS_LUT_SIZE;
@@ -75,7 +72,7 @@ std::vector<uint8_t> build_lut(ColormapType cm, std::span<const float> levels)
         lut[i * 4 + 0] = to8(c.r);
         lut[i * 4 + 1] = to8(c.g);
         lut[i * 4 + 2] = to8(c.b);
-        lut[i * 4 + 3] = 255;
+        lut[i * 4 + 3] = to8(c.a);
     }
     return lut;
 }

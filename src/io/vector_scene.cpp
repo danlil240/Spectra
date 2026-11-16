@@ -1685,6 +1685,8 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
         e.kind        = SwatchKind::Marker;
         e.marker      = scatter_marker(s3->marker_style(), false, st).style;
         e.marker_size = s3->size();
+        if (s3->has_colormap())
+            e.color = s3->cmap().sample(0.5f);
     }
     else if (dynamic_cast<const StemSeries*>(&s))
         e.kind = SwatchKind::Stem;
@@ -2379,6 +2381,7 @@ struct Prim3D
     // Per-primitive opacity (surface colormap alpha); it replaces the group's
     // opacity in SVG/PDF inheritance, so it already includes the series alpha.
     float opacity = 1.0f;
+    int   symbol  = -1;   // Marker: own marker id (per-point size), -1 = the group's
 };
 
 // Style shared by consecutive primitives of one series.
@@ -2784,7 +2787,7 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
         else if (auto* s3 = dynamic_cast<const ScatterSeries3D*>(&s))
         {
             // Same marker as render_2d.cpp's Scatter3D draw (default dot when unset).
-            const ScatterMarker mk = scatter_marker(s3->marker_style(), false, st);
+            const ScatterMarker mk = scatter_marker(s3->marker_style(), s3->has_colormap(), st);
             VectorStyle         ms;
             ms.cls            = "scatter3d";
             ms.color          = col;
@@ -2801,6 +2804,19 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                     continue;
                 p.group = gi;
                 p.kind  = Prim3D::Marker;
+                // Per-point colour (colormap) and size, as scatter3d.vert draws them.
+                if (s3->has_colormap() && std::isfinite(s3->color_values_data()[i]))
+                {
+                    p.color     = s3->point_color(i);
+                    p.has_color = true;
+                }
+                if (s3->has_sizes())
+                {
+                    const float sz = s3->point_size(i);
+                    if (!(sz > 0.0f))
+                        continue;
+                    p.symbol = c.marker_symbol(mk.style, sz, mk.edge_mix);
+                }
                 prims.push_back(p);
             }
         }
@@ -3027,8 +3043,13 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                 break;
             }
             case Prim3D::Marker:
-                c.w.use_marker(8, g.symbol, p.p[0], p.p[1], VectorStyle{});
+            {
+                VectorStyle own;
+                if (p.has_color)
+                    own.color = p.color;
+                c.w.use_marker(8, p.symbol >= 0 ? p.symbol : g.symbol, p.p[0], p.p[1], own);
                 break;
+            }
         }
     }
     if (current != UINT32_MAX)

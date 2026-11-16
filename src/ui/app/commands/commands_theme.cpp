@@ -4,7 +4,8 @@
 // command per registered data palette, so the command palette lists them all,
 // plus "theme.toggle", which switches between the last-used dark and light
 // themes.  Theme commands change only the active choice (undoable); the
-// startup default stays a Settings decision.
+// startup default stays a Settings decision.  "view.cvd.<type>" commands set
+// the colour vision deficiency preview (a view-only setting, not undoable).
 
 #include "command_context.hpp"
 #include "command_descriptor.hpp"
@@ -25,18 +26,6 @@ namespace spectra
 #ifdef SPECTRA_USE_IMGUI
 namespace
 {
-
-// Readable name of a data palette id for command labels.
-std::string palette_label(const std::string& id)
-{
-    if (id == "default")
-        return "Theme Default";
-    if (id == "colorblind")
-        return "Okabe-Ito (Colorblind)";
-    if (id == "ibm")
-        return "IBM";
-    return ui::theme_display_name(id);
-}
 
 uint16_t theme_icon(const ui::ThemeManager& tm, const std::string& id)
 {
@@ -124,7 +113,7 @@ std::vector<CommandDescriptor> make_theme_commands(CommandContext& ctx)
 
     for (const std::string& id : tm.available_data_palettes())
     {
-        const std::string name = palette_label(id);
+        const std::string name = tm.data_palette_label(id);
         cmds.push_back({"palette." + id,
                         "Use " + name + " Data Palette",
                         "",
@@ -141,6 +130,24 @@ std::vector<CommandDescriptor> make_theme_commands(CommandContext& ctx)
                                 [old_palette, tm_ptr]() { tm_ptr->set_data_palette(old_palette); },
                                 [id, tm_ptr]() { tm_ptr->set_data_palette(id); }});
                         }});
+    }
+
+    // Colour vision deficiency preview (view only; never exported).
+    for (ui::CVDType type : {ui::CVDType::None,
+                             ui::CVDType::Protanopia,
+                             ui::CVDType::Deuteranopia,
+                             ui::CVDType::Tritanopia,
+                             ui::CVDType::Achromatopsia})
+    {
+        const std::string label = type == ui::CVDType::None
+                                      ? std::string("Color Vision Preview: Off")
+                                      : std::string("Preview as ") + ui::cvd_type_label(type);
+        cmds.push_back({std::string("view.cvd.") + ui::cvd_type_id(type),
+                        label,
+                        "",
+                        "View",
+                        static_cast<uint16_t>(ui::Icon::Eye),
+                        [tm_ptr, type]() { tm_ptr->set_cvd_preview(type); }});
     }
 #else
     (void)ctx;

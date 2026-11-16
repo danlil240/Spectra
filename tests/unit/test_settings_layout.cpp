@@ -24,8 +24,8 @@ using namespace spectra::ui::settings;
 
 TEST(SettingsLayout, LargeScreenKeepsNaturalContentSize)
 {
-    const SettingsVec2 s = compute_settings_window_size({2560.0f, 1440.0f}, {500.0f, 610.0f}, 1.0f);
-    EXPECT_FLOAT_EQ(s.x, 500.0f);
+    const SettingsVec2 s = compute_settings_window_size({2560.0f, 1440.0f}, {600.0f, 610.0f}, 1.0f);
+    EXPECT_FLOAT_EQ(s.x, 600.0f);
     EXPECT_FLOAT_EQ(s.y, 610.0f);
 }
 
@@ -220,12 +220,44 @@ TEST_F(SettingsPanelImGui, LargeScreenAutoSizesWithoutScrolling)
     pump(2560.0f, 1600.0f);
     expect_fits(2560.0f, 1600.0f);
 
+    // Appearance (theme previews, palettes, colour vision, glass) is taller
+    // than the design cap: the window stops at the cap and only the body scrolls.
     ImGuiWindow* win = settings_window();
     ASSERT_NE(win, nullptr);
-    EXPECT_LT(win->Size.y, k_settings_max_height);
+    EXPECT_LE(win->Size.y, k_settings_max_height + 0.5f);
     ImGuiWindow* body = body_window(win);
     ASSERT_NE(body, nullptr);
-    EXPECT_LE(body->ScrollMax.y, 0.5f) << "appearance body should fit on a large screen";
+    EXPECT_GT(body->ScrollMax.y, 0.5f);
+
+    // A short tab auto-sizes below the cap without scrolling.
+    panel_.select_tab(2);
+    pump(2560.0f, 1600.0f);
+    expect_fits(2560.0f, 1600.0f);
+    win = settings_window();
+    ASSERT_NE(win, nullptr);
+    EXPECT_LT(win->Size.y, k_settings_max_height);
+    body = body_window(win);
+    ASSERT_NE(body, nullptr);
+    EXPECT_LE(body->ScrollMax.y, 0.5f) << "UI Defaults body should fit on a large screen";
+}
+
+TEST_F(SettingsPanelImGui, SearchListsMatchingSectionsAcrossTabs)
+{
+    panel_.open();
+    panel_.set_search_query("tritanopia");
+    pump(1280.0f, 900.0f);
+    expect_fits(1280.0f, 900.0f);
+    ImGuiWindow* win = settings_window();
+    ASSERT_NE(win, nullptr);
+    ImGuiWindow* body = body_window(win);
+    ASSERT_NE(body, nullptr);
+    EXPECT_NE(std::string_view(body->Name).find("##settings_body_search"), std::string_view::npos);
+
+    // A tab switch leaves search mode.
+    panel_.select_tab(1);
+    pump(1280.0f, 900.0f);
+    EXPECT_TRUE(panel_.search_query().empty());
+    EXPECT_EQ(panel_.active_tab(), 1);
 }
 
 TEST_F(SettingsPanelImGui, AppearanceFitsSmallViewportsAndBodyScrolls)

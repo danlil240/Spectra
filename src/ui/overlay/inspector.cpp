@@ -15,7 +15,9 @@
     #include <spectra/series.hpp>
     #include <vector>
 
+    #include "core/axis_text_style.hpp"
     #include "ui/commands/series_clipboard.hpp"
+    #include "ui/commands/undoable_property.hpp"
     #include "ui/input/axes_selection.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/icons.hpp"
@@ -991,10 +993,7 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
                 ax.set_border_enabled(border);
             }
 
-            auto& as = ax.axis_style();
-            widgets::color_field("Grid Color", as.grid_color);
-            widgets::drag_field("Grid Width", as.grid_width, 0.1f, 0.5f, 5.0f, "%.1f px");
-            widgets::drag_field("Tick Length", as.tick_length, 0.5f, 0.0f, 20.0f, "%.0f px");
+            draw_axis_style_fields(ax);
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();
@@ -1046,6 +1045,78 @@ void Inspector::draw_axes_properties(Axes& ax, int index)
             widgets::small_spacing();
             widgets::end_animated_section();
         }
+    }
+}
+
+// ─── Axis style fields ──────────────────────────────────────────────────────
+
+void Inspector::draw_axis_style_fields(AxesBase& ax)
+{
+    auto&           as     = ax.axis_style();
+    const AxisStyle before = as;
+    bool            edited = false;
+
+    edited |= widgets::color_field("Grid Color", as.grid_color);
+    edited |= widgets::drag_field("Grid Width", as.grid_width, 0.1f, 0.5f, 5.0f, "%.1f px");
+    edited |= widgets::drag_field("Tick Length", as.tick_length, 0.5f, 0.0f, 20.0f, "%.0f px");
+
+    // Font sizes: 0 in the AxisStyle means "theme size"; show and edit the
+    // effective size so dragging starts from what is drawn.
+    auto size_field = [&](const char* label, float& value, float theme_px)
+    {
+        float shown = resolve_axis_font_px(value, theme_px);
+        if (!widgets::drag_field(label, shown, 0.25f, 6.0f, 48.0f, "%.0f px"))
+            return false;
+        value = shown;
+        return true;
+    };
+    edited |= size_field("Tick Size", as.tick_size, THEME_TICK_FONT_PX);
+    edited |= size_field("Label Size", as.label_size, THEME_LABEL_FONT_PX);
+    edited |= size_field("Title Size", as.title_size, THEME_TITLE_FONT_PX);
+
+    // Colours: alpha 0 means "theme colour"; the swatch shows the theme
+    // colour until one is picked.
+    auto color_field =
+        [&](const char* label, spectra::Color& value, const spectra::Color& theme_col)
+    {
+        spectra::Color shown = axis_color_is_set(value) ? value : theme_col;
+        if (!widgets::color_field(label, shown))
+            return false;
+        if (!(shown.a > 0.0f))
+            shown.a = 1.0f / 255.0f;   // keep a picked colour distinct from "theme"
+        value = shown;
+        return true;
+    };
+    const auto& tc = theme();
+    edited |= color_field("Tick Label Color",
+                          as.tick_color,
+                          spectra::Color{tc.tick_label.r, tc.tick_label.g, tc.tick_label.b, 1.0f});
+    edited |= color_field(
+        "Label Color",
+        as.label_color,
+        spectra::Color{tc.text_secondary.r, tc.text_secondary.g, tc.text_secondary.b, 1.0f});
+    const bool custom_text = axis_color_is_set(as.tick_color) || axis_color_is_set(as.label_color)
+                             || as.tick_size > 0.0f || as.label_size != AxisStyle{}.label_size
+                             || as.title_size != AxisStyle{}.title_size;
+    if (custom_text && widgets::button_field("Reset Text Style"))
+    {
+        const AxisStyle defaults;
+        as.tick_color  = defaults.tick_color;
+        as.label_color = defaults.label_color;
+        as.tick_size   = defaults.tick_size;
+        as.label_size  = defaults.label_size;
+        as.title_size  = defaults.title_size;
+        edited         = true;
+    }
+
+    // One undo step per interaction: remember the style before the first
+    // change and push once the drag / picker is released.
+    if (edited && (!axis_style_edit_.open || axis_style_edit_.axes != &ax))
+        axis_style_edit_ = {&ax, before, true};
+    if (axis_style_edit_.open && axis_style_edit_.axes == &ax && !ImGui::IsAnyItemActive())
+    {
+        undoable_axis_style(undo_mgr_, ax, axis_style_edit_.before, as);
+        axis_style_edit_ = {};
     }
 }
 

@@ -13,6 +13,7 @@ summarise the main changes rather than listing every commit.
 
 ### Changed
 
+- Axis text follows `AxisStyle`: `tick_size` (new), `label_size`, `title_size`, `tick_color` and `label_color` now change the drawn tick labels, axis labels and titles on screen and in PNG/SVG/PDF exports, margins grow to fit larger text, the Inspector edits them (with undo), and the UI scale setting also scales plot text, tick marks and margins. Unset colours (new default, alpha 0) and sizes (`tick_size` 0) follow the theme; the `title_size` default is now 18 px, the size titles were always drawn at.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed

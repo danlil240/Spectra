@@ -19,6 +19,7 @@
 
 #include "core/axes3d.hpp"
 #include "core/axis_scale.hpp"
+#include "core/axis_text_style.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
 #include "text_fit.hpp"
@@ -130,6 +131,8 @@ void Renderer::render_plot_text(Figure& figure)
                | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(a) << 24);
     };
 
+    auto to_ui_color = [](const Color& c) { return ui::Color(c.r, c.g, c.b, c.a); };
+
     uint32_t tick_col  = color_to_rgba(colors.tick_label);
     uint32_t label_col = color_to_rgba(colors.text_secondary);
     uint32_t title_col = color_to_rgba(colors.text_primary);
@@ -140,10 +143,8 @@ void Renderer::render_plot_text(Figure& figure)
     uint32_t fig_h = figure.height();
 
     // Plot labels (title, axis labels, 3D title) are fitted by the rules shared with the
-    // SVG exporter (core/label_layout): shrunk where allowed, then ellipsized.
-    const TextWidthFn measure_px = [this](const std::string& t, FontSize fs)
-    { return text_renderer_.measure_text(t, fs).width; };
-    const LabelWidthFn     label_measure = to_label_width_fn(measure_px);
+    // SVG exporter (core/label_layout): shrunk where allowed, then ellipsized.  Each
+    // axes measures them at its own AxisStyle sizes (axes_label_measure below).
     const std::string_view label_ellipsis =
         text_renderer_.has_glyph(0x2026, FontSize::Label) ? LABEL_ELLIPSIS : "...";
 
@@ -201,30 +202,47 @@ void Renderer::render_plot_text(Figure& figure)
                 vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
         };
 
-        const auto& as = axes.axis_style();
-        float       tl = as.tick_length;
+        // AxisStyle font sizes / colours (unset → theme) and the axes' text
+        // scale (UI scale on screen), shared with the layout and the SVG/PDF
+        // exporter (core/axis_text_style).
+        const auto&           as  = axes.axis_style();
+        const AxisTextMetrics tm  = axis_text_metrics(axes);
+        const float           tl  = tm.tick_length;
+        const float           pad = tm.px(tick_padding);
+        const auto            tf  = TextRenderer::scaled_font(tm.tick_px);
+        const uint32_t        ax_tick_col =
+            axis_color_is_set(as.tick_color) ? color_to_rgba(to_ui_color(as.tick_color)) : tick_col;
+        const uint32_t     ax_label_col       = axis_color_is_set(as.label_color)
+                                                    ? color_to_rgba(to_ui_color(as.label_color))
+                                                    : label_col;
+        const LabelWidthFn axes_label_measure = [&](const std::string& t, LabelFont f)
+        {
+            const auto sf = TextRenderer::scaled_font(tm.font_px(f));
+            return text_renderer_.measure_text(t, sf.preset, sf.scale).width;
+        };
 
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
 
         // X tick labels — skip labels that would overlap
         {
-            float           last_x_right = -1e30f;
-            constexpr float label_gap    = 6.0f;
+            float       last_x_right = -1e30f;
+            const float label_gap    = tm.px(6.0f);
             for (size_t i = 0; i < x_ticks.positions.size(); ++i)
             {
                 float px     = data_to_px_x(x_ticks.positions[i]);
-                auto  ext    = text_renderer_.measure_text(x_ticks.labels[i], FontSize::Tick);
+                auto  ext    = text_renderer_.measure_text(x_ticks.labels[i], tf.preset, tf.scale);
                 float x_left = px - ext.width * 0.5f;
                 if (x_left < last_x_right + label_gap && i > 0)
                     continue;
                 text_renderer_.draw_text(x_ticks.labels[i],
                                          px,
-                                         vp.y + vp.h + tl + tick_padding,
-                                         FontSize::Tick,
-                                         tick_col,
+                                         vp.y + vp.h + tl + pad,
+                                         tf.preset,
+                                         ax_tick_col,
                                          TextAlign::Center,
-                                         TextVAlign::Top);
+                                         TextVAlign::Top,
+                                         tf.scale);
                 last_x_right = px + ext.width * 0.5f;
             }
         }
@@ -235,13 +253,13 @@ void Renderer::render_plot_text(Figure& figure)
         // Track last_y_bottom: skip next label if its top is within gap of last bottom.
         float max_y_tick_width = 0.0f;
         {
-            float           last_y_bottom = -1e30f;
-            constexpr float label_gap     = 4.0f;
+            float       last_y_bottom = -1e30f;
+            const float label_gap     = tm.px(4.0f);
             for (int i = static_cast<int>(y_ticks.positions.size()) - 1; i >= 0; --i)
             {
-                float py       = data_to_px_y(y_ticks.positions[i]);
-                auto  ext      = text_renderer_.measure_text(y_ticks.labels[i], FontSize::Tick);
-                float y_top    = py - ext.height * 0.5f;
+                float py    = data_to_px_y(y_ticks.positions[i]);
+                auto  ext   = text_renderer_.measure_text(y_ticks.labels[i], tf.preset, tf.scale);
+                float y_top = py - ext.height * 0.5f;
                 float y_bottom = py + ext.height * 0.5f;
                 // Skip if this label's top is above the bottom of the last drawn label
                 // (i.e. would overlap going downward).
@@ -250,12 +268,13 @@ void Renderer::render_plot_text(Figure& figure)
                     && i < static_cast<int>(y_ticks.positions.size()) - 1)
                     continue;
                 text_renderer_.draw_text(y_ticks.labels[i],
-                                         vp.x - tl - tick_padding,
+                                         vp.x - tl - pad,
                                          py,
-                                         FontSize::Tick,
-                                         tick_col,
+                                         tf.preset,
+                                         ax_tick_col,
                                          TextAlign::Right,
-                                         TextVAlign::Middle);
+                                         TextVAlign::Middle,
+                                         tf.scale);
                 last_y_bottom    = y_bottom;
                 max_y_tick_width = std::max(max_y_tick_width, ext.width);
             }
@@ -263,8 +282,8 @@ void Renderer::render_plot_text(Figure& figure)
 
         // Shared offset / multiplier of the tick labels ("×10⁻⁶", "+1.7×10⁹"):
         // x below the right end of the tick labels, y above the top of the axis.
-        const float tick_text_h = text_renderer_.measure_text("0", FontSize::Tick).height;
-        const float x_label_row = vp.y + vp.h + tl + tick_padding + tick_text_h + 4.0f;
+        const float tick_text_h = text_renderer_.measure_text("0", tf.preset, tf.scale).height;
+        const float x_label_row = vp.y + vp.h + tl + pad + tick_text_h + tm.px(4.0f);
         // The offsets share their rows with the X label / title: keep their width free so
         // the centred labels are fitted beside them instead of drawn over them.
         float x_offset_reserve = 0.0f;
@@ -272,41 +291,59 @@ void Renderer::render_plot_text(Figure& figure)
         if (!x_ticks.offset_label.empty())
         {
             x_offset_reserve = offset_annotation_reserve(
-                text_renderer_.measure_text(x_ticks.offset_label, FontSize::Tick).width);
+                text_renderer_.measure_text(x_ticks.offset_label, tf.preset, tf.scale).width);
             text_renderer_.draw_text(x_ticks.offset_label,
                                      vp.x + vp.w,
                                      x_label_row,
-                                     FontSize::Tick,
-                                     tick_col,
+                                     tf.preset,
+                                     ax_tick_col,
                                      TextAlign::Right,
-                                     TextVAlign::Top);
+                                     TextVAlign::Top,
+                                     tf.scale);
         }
         if (!y_ticks.offset_label.empty())
         {
             y_offset_reserve = offset_annotation_reserve(
-                text_renderer_.measure_text(y_ticks.offset_label, FontSize::Tick).width);
+                text_renderer_.measure_text(y_ticks.offset_label, tf.preset, tf.scale).width);
             text_renderer_.draw_text(y_ticks.offset_label,
                                      vp.x,
-                                     vp.y - 4.0f,
-                                     FontSize::Tick,
-                                     tick_col,
+                                     vp.y - tm.px(4.0f),
+                                     tf.preset,
+                                     ax_tick_col,
                                      TextAlign::Left,
-                                     TextVAlign::Bottom);
+                                     TextVAlign::Bottom,
+                                     tf.scale);
         }
+
+        // A fitted label's font: its tier's AxisStyle size times the fit's shrink factor.
+        auto label_font = [&](const FittedLabel& fit)
+        {
+            auto sf = TextRenderer::scaled_font(tm.font_px(fit.font));
+            sf.scale *= fit.scale;
+            return sf;
+        };
 
         // X axis label (ellipsized to the axes width left of the X offset)
         if (!axes.get_xlabel().empty())
         {
             const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, 0.0f, x_offset_reserve);
-            const FittedText        fit  = to_fitted_text(fit_axes_xlabel(axes.get_xlabel(),
-                                                                  vp.w,
-                                                                  x_offset_reserve,
-                                                                  label_measure,
-                                                                  label_ellipsis));
-            const auto              ext  = text_renderer_.measure_text(fit.text, fit.size);
-            float                   cx   = centered_label_x(vp.x, vp.w, slot, ext.width);
-            float                   py   = x_label_row;
-            text_renderer_.draw_text(fit.text, cx, py, fit.size, label_col, TextAlign::Center);
+            const FittedLabel       fit  = fit_axes_xlabel(axes.get_xlabel(),
+                                                    vp.w,
+                                                    x_offset_reserve,
+                                                    axes_label_measure,
+                                                    label_ellipsis);
+            const auto              sf   = label_font(fit);
+            const auto ext = text_renderer_.measure_text(fit.text, sf.preset, sf.scale);
+            float      cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
+            float      py  = x_label_row;
+            text_renderer_.draw_text(fit.text,
+                                     cx,
+                                     py,
+                                     sf.preset,
+                                     ax_label_col,
+                                     TextAlign::Center,
+                                     TextVAlign::Top,
+                                     sf.scale);
             if (fit.truncated)
             {
                 truncated_text_regions_.push_back(
@@ -318,16 +355,24 @@ void Renderer::render_plot_text(Figure& figure)
         if (!axes.get_ylabel().empty())
         {
             // Rotated: the label runs along the axes height, so fit it to that.
-            const FittedText fit = to_fitted_text(
-                fit_axes_ylabel(axes.get_ylabel(), vp.h, label_measure, label_ellipsis));
-            const auto      label_ext = text_renderer_.measure_text(fit.text, fit.size);
-            constexpr float label_gap = 6.0f;   // gap between widest tick label and axis label
-            float           center_x =
-                vp.x - tl - tick_padding - max_y_tick_width - label_gap - label_ext.height * 0.5f;
+            const FittedLabel fit =
+                fit_axes_ylabel(axes.get_ylabel(), vp.h, axes_label_measure, label_ellipsis);
+            const auto  sf        = label_font(fit);
+            const auto  label_ext = text_renderer_.measure_text(fit.text, sf.preset, sf.scale);
+            const float label_gap = tm.px(6.0f);   // gap between widest tick label and axis label
+            float       center_x =
+                vp.x - tl - pad - max_y_tick_width - label_gap - label_ext.height * 0.5f;
             float           center_y   = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
-            text_renderer_
-                .draw_text_rotated(fit.text, center_x, center_y, neg_90_deg, fit.size, label_col);
+            text_renderer_.draw_text_rotated(fit.text,
+                                             center_x,
+                                             center_y,
+                                             neg_90_deg,
+                                             sf.preset,
+                                             ax_label_col,
+                                             TextAlign::Center,
+                                             TextVAlign::Middle,
+                                             sf.scale);
             if (fit.truncated)
             {
                 truncated_text_regions_.push_back({Rect{center_x - label_ext.height * 0.5f,
@@ -345,14 +390,15 @@ void Renderer::render_plot_text(Figure& figure)
             // never spill into neighbouring subplots or past the window edge.
             // The Y offset sits at the top-left on the title's row: fit beside it.
             const CenteredLabelSlot slot = centered_label_slot(vp.x, vp.w, y_offset_reserve, 0.0f);
-            const FittedText        fit  = to_fitted_text(fit_axes_title(axes.get_title(),
-                                                                 vp.w,
-                                                                 y_offset_reserve,
-                                                                 label_measure,
-                                                                 label_ellipsis));
-            auto  ext = text_renderer_.measure_text(fit.text, fit.size, fit.scale);
+            const FittedLabel       fit  = fit_axes_title(axes.get_title(),
+                                                   vp.w,
+                                                   y_offset_reserve,
+                                                   axes_label_measure,
+                                                   label_ellipsis);
+            const auto              sf   = label_font(fit);
+            auto  ext = text_renderer_.measure_text(fit.text, sf.preset, sf.scale);
             float cx  = centered_label_x(vp.x, vp.w, slot, ext.width);
-            float py  = vp.y - ext.height - tick_padding;
+            float py  = vp.y - ext.height - pad;
             // Only clamp if the title would go off the top of the figure.
             // The previous clamp (py < vp.y + 2) always fired and placed the
             // title inside the axes viewport where it competed with grid/series
@@ -362,11 +408,11 @@ void Renderer::render_plot_text(Figure& figure)
             text_renderer_.draw_text(fit.text,
                                      cx,
                                      py,
-                                     fit.size,
+                                     sf.preset,
                                      title_col,
                                      TextAlign::Center,
                                      TextVAlign::Top,
-                                     fit.scale);
+                                     sf.scale);
             if (fit.truncated)
             {
                 truncated_text_regions_.push_back(
@@ -527,6 +573,20 @@ void Renderer::render_plot_text(Figure& figure)
 
         const auto& vp  = axes3d->viewport();
         const auto& cam = axes3d->camera();
+
+        // AxisStyle sizes / tick colour and the UI text scale, as for 2D axes.
+        const AxisTextMetrics tm3            = axis_text_metrics(*axes3d);
+        const auto            tf3            = TextRenderer::scaled_font(tm3.tick_px);
+        const auto            lf3            = TextRenderer::scaled_font(tm3.label_px);
+        const float           pad3           = tm3.px(tick_padding);
+        const uint32_t        tick_col3      = axis_color_is_set(axes3d->axis_style().tick_color)
+                                                   ? color_to_rgba(to_ui_color(axes3d->axis_style().tick_color))
+                                                   : tick_col;
+        const LabelWidthFn    title3_measure = [&](const std::string& t, LabelFont f)
+        {
+            const auto sf = TextRenderer::scaled_font(tm3.font_px(f));
+            return text_renderer_.measure_text(t, sf.preset, sf.scale).width;
+        };
 
         // Build MVP matrix: projection * view * model
         mat4 proj  = axes3d->projection_matrix(vp);
@@ -701,7 +761,8 @@ void Renderer::render_plot_text(Figure& figure)
         const Rect cell             = axes3d_cell_rect(vp,
                                            figure.style(),
                                            static_cast<float>(figure.width()),
-                                           static_cast<float>(figure.height()));
+                                           static_cast<float>(figure.height()),
+                                           tm3.scale);
         auto       outside_viewport = [&](const LabelRect& r) -> bool
         {
             constexpr float tol = 1.0f;
@@ -716,12 +777,19 @@ void Renderer::render_plot_text(Figure& figure)
                                     TextAlign          align,
                                     TextVAlign         valign)
         {
-            const LabelRect r = label_rect(text, FontSize::Tick, x, y, align, valign);
+            const LabelRect r = label_rect(text, tf3.preset, x, y, align, valign, tf3.scale);
             if (collides(r) || outside_viewport(r))
                 return;
             placed_labels.push_back(r);
-            text_renderer_
-                .draw_text_depth(text, x, y, depth, FontSize::Tick, tick_col, align, valign);
+            text_renderer_.draw_text_depth(text,
+                                           x,
+                                           y,
+                                           depth,
+                                           tf3.preset,
+                                           tick_col3,
+                                           align,
+                                           valign,
+                                           tf3.scale);
         };
 
         // Reserve the title's rectangle first so nothing is drawn over it.
@@ -729,13 +797,18 @@ void Renderer::render_plot_text(Figure& figure)
         FittedText title_fit;
         if (!axes3d->get_title().empty())
         {
-            title_fit = to_fitted_text(
-                fit_axes3d_title(axes3d->get_title(), vp.w, label_measure, label_ellipsis));
+            const FittedLabel fit3 =
+                fit_axes3d_title(axes3d->get_title(), vp.w, title3_measure, label_ellipsis);
+            const auto sf3      = TextRenderer::scaled_font(tm3.font_px(fit3.font));
+            title_fit.text      = fit3.text;
+            title_fit.size      = sf3.preset;
+            title_fit.scale     = sf3.scale * fit3.scale;
+            title_fit.truncated = fit3.truncated;
             auto ext = text_renderer_.measure_text(title_fit.text, title_fit.size, title_fit.scale);
             // Same row as a 2D title (2D pass above): above the viewport, in the
             // margin the layout reserves for it, so 2D and 3D subplot titles line up.
             // Clamp only at the top of the figure.
-            title_py = vp.y - ext.height - tick_padding;
+            title_py = vp.y - ext.height - pad3;
             if (title_py < 2.0f)
                 title_py = 2.0f;
             placed_labels.push_back(label_rect(title_fit.text,
@@ -778,7 +851,7 @@ void Renderer::render_plot_text(Figure& figure)
                     continue;
                 if (vertical)
                     place_tick_label(ticks.labels[i],
-                                     sx - tick_padding,
+                                     sx - pad3,
                                      sy,
                                      depth,
                                      TextAlign::Right,
@@ -832,11 +905,12 @@ void Renderer::render_plot_text(Figure& figure)
                 // If the label would land on the title (typical for the
                 // vertical Y arrow), move it beside the arrow tip, below the title.
                 LabelRect r = label_rect(lbl,
-                                         FontSize::Label,
+                                         lf3.preset,
                                          lx,
                                          ly_center,
                                          TextAlign::Left,
-                                         TextVAlign::Middle);
+                                         TextVAlign::Middle,
+                                         lf3.scale);
                 if (collides(r))
                 {
                     lx          = sx1 + label_offset;
@@ -844,22 +918,24 @@ void Renderer::render_plot_text(Figure& figure)
                     for (const auto& o : placed_labels)
                     {
                         LabelRect moved = label_rect(lbl,
-                                                     FontSize::Label,
+                                                     lf3.preset,
                                                      lx,
                                                      ly_center + shift,
                                                      TextAlign::Left,
-                                                     TextVAlign::Middle);
+                                                     TextVAlign::Middle,
+                                                     lf3.scale);
                         if (moved.x0 < o.x1 && moved.x1 > o.x0 && moved.y0 < o.y1
                             && moved.y1 > o.y0)
                             shift += o.y1 - moved.y0 + 2.0f;
                     }
                     ly_center += shift;
                     r = label_rect(lbl,
-                                   FontSize::Label,
+                                   lf3.preset,
                                    lx,
                                    ly_center,
                                    TextAlign::Left,
-                                   TextVAlign::Middle);
+                                   TextVAlign::Middle,
+                                   lf3.scale);
                 }
                 if (outside_viewport(r))
                     return;
@@ -868,10 +944,11 @@ void Renderer::render_plot_text(Figure& figure)
                                                lx,
                                                ly_center,
                                                d1,
-                                               FontSize::Label,
+                                               lf3.preset,
                                                vk_col,
                                                TextAlign::Left,
-                                               TextVAlign::Middle);
+                                               TextVAlign::Middle,
+                                               lf3.scale);
             };
 
             draw_arrow_label({x1, y0, z0},
@@ -927,13 +1004,15 @@ Rect Renderer::figure_background_region(const Figure& figure)
     const auto& style = figure.style();
 
     float x0 = 0.0f, y0 = 0.0f, x1 = 0.0f, y1 = 0.0f;
-    bool  any = false;
-    auto  add = [&](const auto& axes_list)
+    float scale = 1.0f;   // margins are scaled with the axes text (UI scale)
+    bool  any   = false;
+    auto  add   = [&](const auto& axes_list)
     {
         for (const auto& ax : axes_list)
         {
             if (!ax)
                 continue;
+            scale          = std::max(scale, ax->text_scale());
             const Rect& vp = ax->viewport();
             if (!(vp.w > 0.0f) || !(vp.h > 0.0f))
                 continue;
@@ -957,10 +1036,10 @@ Rect Renderer::figure_background_region(const Figure& figure)
     if (!any)
         return Rect{0.0f, 0.0f, fw, fh};
 
-    x0 = std::clamp(x0 - style.margin_left, 0.0f, fw);
-    y0 = std::clamp(y0 - style.margin_top, 0.0f, fh);
-    x1 = std::clamp(x1 + style.margin_right, 0.0f, fw);
-    y1 = std::clamp(y1 + style.margin_bottom, 0.0f, fh);
+    x0 = std::clamp(x0 - style.margin_left * scale, 0.0f, fw);
+    y0 = std::clamp(y0 - style.margin_top * scale, 0.0f, fh);
+    x1 = std::clamp(x1 + style.margin_right * scale, 0.0f, fw);
+    y1 = std::clamp(y1 + style.margin_bottom * scale, 0.0f, fh);
     return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
 }
 
@@ -1450,8 +1529,8 @@ void Renderer::render_plot_geometry(Figure& figure)
                 vp.y + (1.0 - (to_axis_space(yscale, dy) - ax_y.min) / y_range) * vp.h);
         };
 
-        const auto& as = axes.axis_style();
-        float       tl = as.tick_length;
+        // Tick marks grow with the UI text scale, like the tick labels.
+        const float tl = axis_text_metrics(axes).tick_length;
         if (tl <= 0.0f)
             continue;
 

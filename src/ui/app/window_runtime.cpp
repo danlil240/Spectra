@@ -29,6 +29,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include "ui/layout/layout_manager.hpp"
+    #include "ui/theme/theme.hpp"
 #endif
 
 #if defined(SPECTRA_USE_SDL3)
@@ -804,6 +805,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             // Update dock system layout with current canvas bounds
             dock_system.update_layout(canvas);
 
+            // The UI scale setting also scales the plot text, tick marks and
+            // margins on screen (exports lay out at scale 1).
+            const float plot_scale =
+                imgui_ui->theme_mgr() ? imgui_ui->theme_mgr()->ui_scale() : 1.0f;
+
             if (dock_system.is_split())
             {
                 // Per-pane layout: each pane renders its own figure
@@ -817,11 +823,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         // Use figure's style margins, clamped to fit pane bounds
                         const auto& fs_style = fig->style();
                         Margins     pane_margins;
-                        pane_margins.left  = std::min(fs_style.margin_left, pinfo.bounds.w * 0.3f);
-                        pane_margins.right = std::min(fs_style.margin_right, pinfo.bounds.w * 0.2f);
+                        pane_margins.left =
+                            std::min(fs_style.margin_left * plot_scale, pinfo.bounds.w * 0.3f);
+                        pane_margins.right =
+                            std::min(fs_style.margin_right * plot_scale, pinfo.bounds.w * 0.2f);
                         pane_margins.bottom =
-                            std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
-                        pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
+                            std::min(fs_style.margin_bottom * plot_scale, pinfo.bounds.h * 0.3f);
+                        pane_margins.top =
+                            std::min(fs_style.margin_top * plot_scale, pinfo.bounds.h * 0.2f);
 
                         float content_h = 0.0f;
                         float min_sub_h = fs_style.min_subplot_height;
@@ -845,7 +854,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         if (fig->scroll_offset_y() < 0.0f)
                             fig->set_scroll_offset_y(0.0f);
 
-                        apply_subplot_layout(*fig, rects, pane_margins);
+                        apply_subplot_layout(*fig, rects, pane_margins, plot_scale);
                     }
                 }
             }
@@ -856,11 +865,12 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 // Use figure's style margins for layout
                 const auto& af_style = active_figure->style();
                 Margins     fig_margins;
-                fig_margins.left = af_style.margin_left;
+                fig_margins.left = af_style.margin_left * plot_scale;
                 // Keep the plot clear of the inspector tab on the canvas' right edge.
-                fig_margins.right  = LayoutManager::plot_margin_right(af_style.margin_right);
-                fig_margins.top    = af_style.margin_top;
-                fig_margins.bottom = af_style.margin_bottom;
+                fig_margins.right =
+                    LayoutManager::plot_margin_right(af_style.margin_right * plot_scale);
+                fig_margins.top    = af_style.margin_top * plot_scale;
+                fig_margins.bottom = af_style.margin_bottom * plot_scale;
 
                 float content_h = 0.0f;
                 float min_sub_h = af_style.min_subplot_height;
@@ -884,7 +894,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 if (active_figure->scroll_offset_y() < 0.0f)
                     active_figure->set_scroll_offset_y(0.0f);
 
-                apply_subplot_layout(*active_figure, rects, fig_margins);
+                apply_subplot_layout(*active_figure, rects, fig_margins, plot_scale);
             }
         }
         else if (active_figure)

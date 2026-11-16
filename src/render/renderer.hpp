@@ -85,8 +85,13 @@ vec3 shader_light_dir(const Axes3D& axes);
 // Region a 3D axes may draw into: its viewport `vp` grown into the layout margins
 // of its subplot cell (each side by the figure's margin, at most a quarter of
 // the viewport size), clamped to the fig_w x fig_h figure.  Axis arrows, tick
-// labels and the title of a 3D axes may extend into it.
-Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, float fig_h);
+// labels and the title of a 3D axes may extend into it.  `margin_scale` scales
+// the figure's margins (the axes' text scale: the UI scale on screen).
+Rect axes3d_cell_rect(const Rect&        vp,
+                      const FigureStyle& style,
+                      float              fig_w,
+                      float              fig_h,
+                      float              margin_scale = 1.0f);
 
 class Renderer
 {

@@ -81,13 +81,13 @@ inline std::optional<Source> find_source(const AxesBase& axes)
         {
             if (sf->colormap_type() == ColormapType::None)
                 continue;
-            // surface3d.frag maps the model-space Z box onto the colormap,
-            // i.e. the axes' z limits (SurfaceSeries::colormap_range is not
-            // used by the shader).
-            AxisLimits zl{0.0, 1.0};
-            if (const auto* a3 = dynamic_cast<const Axes3D*>(&axes))
-                zl = a3->z_limits();
-            return Source{sf->colormap_type(), Mapping::Surface, zl.min, zl.max, {}};
+            // surface3d.frag maps the data z over the series' effective
+            // colormap range (explicit colormap_range, else the data z range).
+            return Source{sf->colormap_type(),
+                          Mapping::Surface,
+                          sf->colormap_min(),
+                          sf->colormap_max(),
+                          {}};
         }
         if (const auto* img = dynamic_cast<const ImageSeries*>(sp.get()))
         {

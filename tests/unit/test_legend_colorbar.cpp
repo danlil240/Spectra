@@ -435,8 +435,9 @@ TEST(ColorbarLayout, SourceFromScatterAndSurface)
     auto s3 = colorbar_layout::find_source(ax3);
     ASSERT_TRUE(s3.has_value());
     EXPECT_EQ(s3->mapping, colorbar_layout::Mapping::Surface);
-    EXPECT_DOUBLE_EQ(s3->vmin, -1.0);   // surface3d.frag maps the z limits
-    EXPECT_DOUBLE_EQ(s3->vmax, 3.0);
+    // surface3d.frag maps the data z range, not the axes' z limits.
+    EXPECT_DOUBLE_EQ(s3->vmin, 0.0);
+    EXPECT_NEAR(s3->vmax, 1.5, 1e-6);
 }
 
 TEST(ColorbarLayout, ScatterSamplingMatchesShaderStops)

@@ -22,6 +22,9 @@ struct SettingsData
     bool        timeline_visible     = false;
     // App UI scale (1.0 = 100%); clamped to ThemeManager::UI_SCALE_MIN..MAX.
     float ui_scale = 1.0f;
+    // Transforms menu: true replaces the series data in place, false (default,
+    // non-destructive) adds a transformed copy next to each source series.
+    bool transform_overwrite = false;
     // Data files (CSV, ULog, MCAP, ...) opened or dropped most recently, newest
     // first, absolute paths; shown on the start page.  See push_recent_file().
     std::vector<std::string> recent_files;

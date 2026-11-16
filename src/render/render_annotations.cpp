@@ -506,6 +506,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
         Color       sc        = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
         if (const auto* scat = dynamic_cast<const ScatterSeries*>(&s); scat && scat->has_colormap())
             sc = colorbar_layout::sample(scat->colormap(), colorbar_layout::Mapping::Scatter, 0.6f);
+        sc = series_view_color(sc);
         sc.a *= s.opacity() * vis_alpha;
 
         const auto&         st = s.plot_style();
@@ -618,7 +619,8 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
         for (size_t k = 0; k < keyed; ++k)
         {
             const Series& s = *entries[static_cast<size_t>(grid.shown) + k];
-            Color         c = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
+            Color         c = series_view_color(
+                ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc));
             c.a *= s.opacity() * (s.visible() ? 1.0f : HIDDEN_ALPHA);
             cell.colors.push_back(c);
         }

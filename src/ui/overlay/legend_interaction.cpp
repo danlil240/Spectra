@@ -213,8 +213,10 @@ bool LegendInteraction::draw(AxesBase&           axes,
     const LegendPosition requested = legend_layout::effective_position(axes, config);
 
     // Drawn over the plot surface, so follow its ink (see plot_surface_colors()).
-    const ui::ThemeColors theme_colors =
-        figure_style ? theme_mgr_->plot_surface_colors(*figure_style) : theme_mgr_->colors();
+    // The CVD preview (view only) simulates it like the renderer does.
+    const ui::ThemeColors theme_colors = ui::simulate_cvd(
+        figure_style ? theme_mgr_->plot_surface_colors(*figure_style) : theme_mgr_->colors(),
+        theme_mgr_->cvd_preview());
     ImFont* font = font_body_ ? font_body_ : ImGui::GetFont();
 
     // Use font size from LegendConfig; fall back to font's native size
@@ -561,7 +563,8 @@ bool LegendInteraction::draw_entry_row(Series&         s,
     const float vis_alpha = state.opacity;
 
     // Color swatch
-    const Color sc       = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
+    const Color sc = theme_mgr_->cvd_view_color(
+        ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc));
     const float swatch_y = row_y + (row_h - SWATCH_SIZE) * 0.5f;
     dl->AddRectFilled(ImVec2(row_x, swatch_y),
                       ImVec2(row_x + SWATCH_SIZE, swatch_y + SWATCH_SIZE),
@@ -721,11 +724,12 @@ bool LegendInteraction::draw_overflow_cell(std::span<Series* const> entries,
                 continue;
             }
             const Series& s  = *entries[static_cast<size_t>(hidden_idx[k])];
-            const Color   sc = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
-            const float   a  = s.visible() ? 1.0f : HIDDEN_OPACITY;
-            const ImVec2  p  = ImGui::GetCursorScreenPos();
-            const float   lh = ImGui::GetTextLineHeight();
-            const float   sy = p.y + (lh - SWATCH_SIZE) * 0.5f;
+            const Color   sc = theme_mgr_->cvd_view_color(
+                ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc));
+            const float  a  = s.visible() ? 1.0f : HIDDEN_OPACITY;
+            const ImVec2 p  = ImGui::GetCursorScreenPos();
+            const float  lh = ImGui::GetTextLineHeight();
+            const float  sy = p.y + (lh - SWATCH_SIZE) * 0.5f;
             ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(p.x, sy),
                                                       ImVec2(p.x + SWATCH_SIZE, sy + SWATCH_SIZE),
                                                       to_u32(sc, a),

@@ -218,7 +218,12 @@ void ThemeManager::pop_export_theme()
 
 ScopedExportTheme::ScopedExportTheme(ThemeManager* tm, const std::string& name) : tm_(tm)
 {
-    if (!tm_ || name.empty())
+    if (!tm_)
+        return;
+    // The CVD preview is a view setting: exports always use the real colours.
+    saved_cvd_ = tm_->cvd_preview();
+    tm_->set_cvd_preview(CVDType::None);
+    if (name.empty())
         return;
     active_ = tm_->push_export_theme(name);
     if (!active_)
@@ -230,8 +235,29 @@ ScopedExportTheme::ScopedExportTheme(ThemeManager* tm, const std::string& name) 
 
 ScopedExportTheme::~ScopedExportTheme()
 {
+    if (!tm_)
+        return;
     if (active_)
         tm_->pop_export_theme();
+    tm_->set_cvd_preview(saved_cvd_);
+}
+
+void ThemeManager::set_cvd_preview(CVDType type)
+{
+    cvd_preview_ = type;
+}
+
+Color ThemeManager::cvd_view_color(const Color& c) const
+{
+    return cvd_preview_ == CVDType::None ? c : simulate_cvd(c, cvd_preview_);
+}
+
+spectra::Color ThemeManager::cvd_view_color(const spectra::Color& c) const
+{
+    if (cvd_preview_ == CVDType::None)
+        return c;
+    const Color s = simulate_cvd(Color(c.r, c.g, c.b, c.a), cvd_preview_);
+    return spectra::Color{s.r, s.g, s.b, s.a};
 }
 
 void ThemeManager::notify_public_theme_change()
@@ -329,13 +355,18 @@ std::string ThemeManager::display_name(std::string_view theme_id) const
     return theme_display_name(theme_id);
 }
 
+const Theme* ThemeManager::find_theme(std::string_view theme_id) const
+{
+    auto it = themes_.find(std::string(theme_id));
+    return it != themes_.end() ? &it->second : nullptr;
+}
+
 std::vector<std::string> ThemeManager::available_themes() const
 {
-    static constexpr const char* BUILT_INS[] = {"night", "dark", "light", "high_contrast"};
-    std::vector<std::string>     out;
-    for (const char* id : BUILT_INS)
+    std::vector<std::string> out;
+    for (const std::string& id : builtin_theme_ids())
         if (themes_.count(id))
-            out.emplace_back(id);
+            out.push_back(id);
     std::vector<std::string> others;
     for (const auto& [id, theme] : themes_)
         if (std::find(out.begin(), out.end(), id) == out.end())
@@ -1150,20 +1181,251 @@ bool parse_theme_colors_from_json(const std::string& json, ThemeColors& out)
     return true;
 }
 
-}   // anonymous namespace
-
-bool ThemeManager::export_theme(const std::string& path) const
+// Index one past the bracket that closes the '{' or '[' at `open`, skipping
+// string literals; npos when unbalanced.
+size_t json_block_end(const std::string& s, size_t open)
 {
-    if (!current_theme_)
-        return false;
+    if (open >= s.size())
+        return std::string::npos;
+    int  depth     = 0;
+    bool in_string = false;
+    for (size_t i = open; i < s.size(); ++i)
+    {
+        const char c = s[i];
+        if (in_string)
+        {
+            if (c == '\\')
+                ++i;
+            else if (c == '"')
+                in_string = false;
+            continue;
+        }
+        if (c == '"')
+            in_string = true;
+        else if (c == '{' || c == '[')
+            ++depth;
+        else if (c == '}' || c == ']')
+        {
+            if (--depth == 0)
+                return i + 1;
+        }
+    }
+    return std::string::npos;
+}
 
+// The value of key token `key` (found with json_find_key) when it is an object
+// or array: the bracketed text, or "" when absent or of another type.
+std::string json_block_value(const std::string& json, const char* key, char open_ch)
+{
+    const size_t k = json_find_key(json, key);
+    if (k == std::string::npos)
+        return {};
+    size_t p = json.find(':', k + std::strlen(key) + 2);
+    if (p == std::string::npos)
+        return {};
+    ++p;
+    while (p < json.size() && std::isspace(static_cast<unsigned char>(json[p])))
+        ++p;
+    if (p >= json.size() || json[p] != open_ch)
+        return {};
+    const size_t end = json_block_end(json, p);
+    if (end == std::string::npos)
+        return {};
+    return json.substr(p, end - p);
+}
+
+// String value of key token `key`, unescaping \" and \; "" when absent.
+std::string json_string_value(const std::string& json, const char* key)
+{
+    const size_t k = json_find_key(json, key);
+    if (k == std::string::npos)
+        return {};
+    size_t p = json.find(':', k + std::strlen(key) + 2);
+    if (p == std::string::npos)
+        return {};
+    ++p;
+    while (p < json.size() && std::isspace(static_cast<unsigned char>(json[p])))
+        ++p;
+    if (p >= json.size() || json[p] != '"')
+        return {};
+    std::string out;
+    for (++p; p < json.size() && json[p] != '"'; ++p)
+    {
+        if (json[p] == '\\' && p + 1 < json.size())
+        {
+            ++p;
+            out += json[p] == 'n' ? '\n' : json[p];
+            continue;
+        }
+        out += json[p];
+    }
+    return out;
+}
+
+// Boolean value of key token `key`; `fallback` when absent or not a bool.
+bool json_bool_value(const std::string& json, const char* key, bool fallback)
+{
+    const size_t k = json_find_key(json, key);
+    if (k == std::string::npos)
+        return fallback;
+    size_t p = json.find(':', k + std::strlen(key) + 2);
+    if (p == std::string::npos)
+        return fallback;
+    ++p;
+    while (p < json.size() && std::isspace(static_cast<unsigned char>(json[p])))
+        ++p;
+    if (json.compare(p, 4, "true") == 0)
+        return true;
+    if (json.compare(p, 5, "false") == 0)
+        return false;
+    return fallback;
+}
+
+// "#rgb", "#rrggbb" or "#rrggbbaa" -> colour; false when malformed.
+bool parse_hex_color(std::string_view text, Color& out)
+{
+    if (text.empty() || text[0] != '#')
+        return false;
+    text.remove_prefix(1);
+    std::string digits(text);
+    if (digits.size() == 3)
+        digits = {digits[0], digits[0], digits[1], digits[1], digits[2], digits[2]};
+    if (digits.size() != 6 && digits.size() != 8)
+        return false;
+    for (char ch : digits)
+        if (!std::isxdigit(static_cast<unsigned char>(ch)))
+            return false;
+    auto byte = [&](size_t i)
+    { return static_cast<float>(std::stoul(digits.substr(i, 2), nullptr, 16)) / 255.0f; };
+    out = Color(byte(0), byte(2), byte(4), digits.size() == 8 ? byte(6) : 1.0f);
+    return true;
+}
+
+// Colours of a JSON array of [r, g, b(, a)] float arrays and/or "#hex" strings.
+// Returns false (with *error) on the first malformed entry.
+bool parse_color_list(const std::string& arr, std::vector<Color>& out, std::string* error)
+{
+    out.clear();
+    size_t p = 1;   // past '['
+    while (p < arr.size())
+    {
+        const char c = arr[p];
+        if (c == '[')
+        {
+            const size_t end = json_block_end(arr, p);
+            if (end == std::string::npos)
+                break;
+            float       v[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+            int         n    = 0;
+            const char* cur  = arr.c_str() + p + 1;
+            const char* stop = arr.c_str() + end - 1;
+            while (cur < stop && n < 4)
+            {
+                while (cur < stop && (*cur == ' ' || *cur == ',' || *cur == '\n' || *cur == '\t'))
+                    ++cur;
+                if (cur >= stop)
+                    break;
+                char*       num_end = nullptr;
+                const float value   = std::strtof(cur, &num_end);
+                if (num_end == cur)
+                    break;
+                v[n++] = value;
+                cur    = num_end;
+            }
+            if (n < 3)
+            {
+                if (error)
+                    *error = "colour " + std::to_string(out.size() + 1) + " needs 3 or 4 numbers";
+                return false;
+            }
+            for (float& ch : v)
+                ch = std::clamp(std::isfinite(ch) ? ch : 0.0f, 0.0f, 1.0f);
+            out.emplace_back(v[0], v[1], v[2], v[3]);
+            p = end;
+            continue;
+        }
+        if (c == '"')
+        {
+            const size_t q = arr.find('"', p + 1);
+            if (q == std::string::npos)
+                break;
+            Color col;
+            if (!parse_hex_color(std::string_view(arr).substr(p + 1, q - p - 1), col))
+            {
+                if (error)
+                    *error = "colour " + std::to_string(out.size() + 1) + " is not #rrggbb";
+                return false;
+            }
+            out.push_back(col);
+            p = q + 1;
+            continue;
+        }
+        ++p;
+    }
+    return true;
+}
+
+// A palette object ({"name", "description", "colorblind_safe", "sequential",
+// "colors"}).  The name may be empty (the caller decides).
+bool parse_data_palette_json(const std::string& obj, DataPalette& out, std::string* error)
+{
+    const std::string colors = json_block_value(obj, "colors", '[');
+    if (colors.empty())
+    {
+        if (error)
+            *error = "no \"colors\" array";
+        return false;
+    }
+    DataPalette pal;
+    if (!parse_color_list(colors, pal.colors, error))
+        return false;
+    if (pal.colors.empty())
+    {
+        if (error)
+            *error = "\"colors\" is empty";
+        return false;
+    }
+    pal.name            = json_string_value(obj, "name");
+    pal.description     = json_string_value(obj, "description");
+    pal.colorblind_safe = json_bool_value(obj, "colorblind_safe", false);
+    pal.sequential      = json_bool_value(obj, "sequential", false);
+    out                 = std::move(pal);
+    return true;
+}
+
+std::string data_palette_to_json(const DataPalette& p, int indent)
+{
+    const std::string  pad(indent, ' ');
+    std::ostringstream os;
+    os << "{\n";
+    os << pad << "  \"name\": " << escape_json_string(p.name) << ",\n";
+    if (!p.description.empty())
+        os << pad << "  \"description\": " << escape_json_string(p.description) << ",\n";
+    os << pad << "  \"colorblind_safe\": " << (p.colorblind_safe ? "true" : "false") << ",\n";
+    os << pad << "  \"sequential\": " << (p.sequential ? "true" : "false") << ",\n";
+    os << pad << "  \"colors\": [\n";
+    for (size_t i = 0; i < p.colors.size(); ++i)
+    {
+        os << pad << "    " << color_to_json(p.colors[i]);
+        if (i + 1 < p.colors.size())
+            os << ",";
+        os << "\n";
+    }
+    os << pad << "  ]\n";
+    os << pad << "}";
+    return os.str();
+}
+
+bool write_theme_json(const Theme& t, const ThemeGlassSettings& g, const std::string& path)
+{
     std::ofstream f(path);
     if (!f.is_open())
         return false;
 
-    const auto& t = *current_theme_;
     f << "{\n";
     f << "  \"name\": " << escape_json_string(t.name) << ",\n";
+    if (!t.display_name.empty())
+        f << "  \"display_name\": " << escape_json_string(t.display_name) << ",\n";
     f << "  \"version\": 1,\n";
     f << "  \"colors\": " << theme_colors_to_json(t.colors, 2) << ",\n";
     f << "  \"opacity_panel\": " << t.opacity_panel << ",\n";
@@ -1173,7 +1435,7 @@ bool ThemeManager::export_theme(const std::string& path) const
     f << "  \"animation_speed\": " << t.animation_speed << ",\n";
     f << "  \"enable_animations\": " << (t.enable_animations ? "true" : "false") << ",\n";
     f << "  \"use_blur\": " << (t.use_blur ? "true" : "false") << ",\n";
-    const auto& g = glass_settings_;
+    f << "  \"linearize_colors\": " << (t.linearize_colors ? "true" : "false") << ",\n";
     f << "  \"glass\": {\n";
     f << "    \"master_intensity\": " << g.master_intensity << ",\n";
     f << "    \"panel_alpha\": " << g.panel_alpha << ",\n";
@@ -1182,134 +1444,475 @@ bool ThemeManager::export_theme(const std::string& path) const
     f << "    \"glow_strength\": " << g.glow_strength << ",\n";
     f << "    \"blur_enabled\": " << (g.blur_enabled ? "true" : "false") << "\n";
     f << "  },\n";
-
-    f << "  \"data_palette\": {\n";
-    f << "    \"name\": " << escape_json_string(t.data_palette.name) << ",\n";
-    f << "    \"colorblind_safe\": " << (t.data_palette.colorblind_safe ? "true" : "false")
-      << ",\n";
-    f << "    \"colors\": [\n";
-    for (size_t i = 0; i < t.data_palette.colors.size(); ++i)
-    {
-        f << "      " << color_to_json(t.data_palette.colors[i]);
-        if (i + 1 < t.data_palette.colors.size())
-            f << ",";
-        f << "\n";
-    }
-    f << "    ]\n";
-    f << "  }\n";
+    f << "  \"data_palette\": " << data_palette_to_json(t.data_palette, 2) << "\n";
     f << "}\n";
 
     return f.good();
 }
 
-bool ThemeManager::import_theme(const std::string& path)
+bool read_text_file(const std::string& path, std::string& out)
 {
-    std::ifstream f(path);
+    std::ifstream f(path, std::ios::binary);
     if (!f.is_open())
         return false;
-
-    std::string json((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
-    if (json.empty())
-        return false;
-
-    size_t name_pos = json_find_key(json, "name");
-    if (name_pos == std::string::npos)
-        return false;
-    std::string name = extract_string_value(json, name_pos + 6);
-    if (name.empty())
-        return false;
-
-    Theme theme;
-    theme.name = name;
-
-    size_t colors_pos = json_find_key(json, "colors");
-    if (colors_pos != std::string::npos)
-    {
-        size_t brace = json.find('{', colors_pos + 8);
-        if (brace != std::string::npos)
-        {
-            int    depth = 1;
-            size_t end   = brace + 1;
-            while (end < json.size() && depth > 0)
-            {
-                if (json[end] == '{')
-                    ++depth;
-                else if (json[end] == '}')
-                    --depth;
-                ++end;
-            }
-            std::string colors_json = json.substr(brace, end - brace);
-            parse_theme_colors_from_json(colors_json, theme.colors);
-        }
-    }
-
-    auto parse_float = [&](const char* key, float& out)
-    {
-        std::string needle = std::string("\"") + key + "\"";
-        size_t      p      = json_find_key(json, key);
-        if (p != std::string::npos)
-        {
-            p = json.find(':', p);
-            if (p != std::string::npos)
-            {
-                char* end = nullptr;
-                float v   = std::strtof(json.c_str() + p + 1, &end);
-                if (end != json.c_str() + p + 1)
-                    out = v;
-            }
-        }
-    };
-    auto parse_bool = [&](const char* key, bool& out)
-    {
-        std::string needle = std::string("\"") + key + "\"";
-        size_t      p      = json_find_key(json, key);
-        if (p != std::string::npos)
-        {
-            size_t t_pos = json.find("true", p);
-            size_t f_pos = json.find("false", p);
-            out = t_pos != std::string::npos && (f_pos == std::string::npos || t_pos < f_pos);
-        }
-    };
-
-    parse_float("opacity_panel", theme.opacity_panel);
-    parse_float("opacity_tooltip", theme.opacity_tooltip);
-    parse_float("shadow_intensity", theme.shadow_intensity);
-    parse_float("border_width", theme.border_width);
-    parse_float("animation_speed", theme.animation_speed);
-    parse_bool("enable_animations", theme.enable_animations);
-    parse_bool("use_blur", theme.use_blur);
-
-    register_theme(name, std::move(theme));
-
-    size_t glass_pos = json_find_key(json, "glass");
-    if (glass_pos != std::string::npos)
-    {
-        ThemeGlassSettings g                 = glass_settings_;
-        auto               parse_glass_float = [&](const char* key, float& out)
-        {
-            std::string needle = std::string("\"") + key + "\"";
-            size_t      p      = json.find(needle, glass_pos);
-            if (p != std::string::npos)
-            {
-                p = json.find(':', p);
-                if (p != std::string::npos)
-                {
-                    char* end = nullptr;
-                    float v   = std::strtof(json.c_str() + p + 1, &end);
-                    if (end != json.c_str() + p + 1)
-                        out = v;
-                }
-            }
-        };
-        parse_glass_float("master_intensity", g.master_intensity);
-        parse_glass_float("panel_alpha", g.panel_alpha);
-        parse_glass_float("plot_alpha", g.plot_alpha);
-        parse_glass_float("toolbar_alpha", g.toolbar_alpha);
-        parse_glass_float("glow_strength", g.glow_strength);
-        parse_bool("blur_enabled", g.blur_enabled);
-        set_glass_settings(g, true);
-    }
+    out.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
     return true;
+}
+
+// Parse a theme file's text.  `has_glass` reports whether a "glass" block was
+// present (its values are read into `glass`, starting from its prior value).
+bool parse_theme_json(const std::string&  json,
+                      Theme&              theme,
+                      ThemeGlassSettings& glass,
+                      bool&               has_glass,
+                      std::string*        error)
+{
+    has_glass              = false;
+    const std::string name = json_string_value(json, "name");
+    if (name.empty())
+    {
+        if (error)
+            *error = "no \"name\"";
+        return false;
+    }
+    const std::string colors_json = json_block_value(json, "colors", '{');
+    if (colors_json.empty())
+    {
+        if (error)
+            *error = "no \"colors\" object";
+        return false;
+    }
+
+    Theme t;
+    t.name         = name;
+    t.display_name = json_string_value(json, "display_name");
+    parse_theme_colors_from_json(colors_json, t.colors);
+
+    auto parse_float = [&](const std::string& src, const char* key, float& out)
+    {
+        size_t p = json_find_key(src, key);
+        if (p == std::string::npos)
+            return;
+        p = src.find(':', p);
+        if (p == std::string::npos)
+            return;
+        char*       end = nullptr;
+        const float v   = std::strtof(src.c_str() + p + 1, &end);
+        if (end != src.c_str() + p + 1 && std::isfinite(v))
+            out = v;
+    };
+
+    parse_float(json, "opacity_panel", t.opacity_panel);
+    parse_float(json, "opacity_tooltip", t.opacity_tooltip);
+    parse_float(json, "shadow_intensity", t.shadow_intensity);
+    parse_float(json, "border_width", t.border_width);
+    parse_float(json, "animation_speed", t.animation_speed);
+    t.enable_animations = json_bool_value(json, "enable_animations", t.enable_animations);
+    t.use_blur          = json_bool_value(json, "use_blur", t.use_blur);
+    t.linearize_colors  = json_bool_value(json, "linearize_colors", t.linearize_colors);
+
+    const std::string palette_json = json_block_value(json, "data_palette", '{');
+    if (!palette_json.empty())
+    {
+        DataPalette pal;
+        std::string pal_error;
+        if (parse_data_palette_json(palette_json, pal, &pal_error))
+        {
+            if (pal.name.empty())
+                pal.name = "default";
+            t.data_palette = std::move(pal);
+        }
+        else
+        {
+            SPECTRA_LOG_WARN("theme",
+                             "Theme '{}': ignoring its data palette ({})",
+                             name,
+                             pal_error);
+        }
+    }
+
+    const std::string glass_json = json_block_value(json, "glass", '{');
+    if (!glass_json.empty())
+    {
+        has_glass = true;
+        parse_float(glass_json, "master_intensity", glass.master_intensity);
+        parse_float(glass_json, "panel_alpha", glass.panel_alpha);
+        parse_float(glass_json, "plot_alpha", glass.plot_alpha);
+        parse_float(glass_json, "toolbar_alpha", glass.toolbar_alpha);
+        parse_float(glass_json, "glow_strength", glass.glow_strength);
+        glass.blur_enabled = json_bool_value(glass_json, "blur_enabled", glass.blur_enabled);
+    }
+
+    theme = std::move(t);
+    return true;
+}
+
+// Ids are used as file names and command ids: keep [A-Za-z0-9_-], map the
+// rest to '_'.
+std::string sanitize_id(std::string_view id)
+{
+    std::string out;
+    out.reserve(id.size());
+    for (char ch : id)
+    {
+        const auto u = static_cast<unsigned char>(ch);
+        out.push_back(std::isalnum(u) || ch == '_' || ch == '-' ? ch : '_');
+    }
+    return out;
+}
+
+}   // anonymous namespace
+
+bool ThemeManager::export_theme(const std::string& path) const
+{
+    if (!current_theme_)
+        return false;
+    return write_theme_json(*current_theme_, glass_settings_, path);
+}
+
+bool ThemeManager::export_theme_file(const std::string& theme_id, const std::string& path) const
+{
+    auto it = themes_.find(theme_id);
+    if (it == themes_.end())
+        return false;
+    // The active theme carries the user's current glass; others their defaults.
+    const ThemeGlassSettings& g =
+        (&it->second == current_theme_) ? glass_settings_ : it->second.glass_defaults;
+    return write_theme_json(it->second, g, path);
+}
+
+bool ThemeManager::export_data_palette_file(const std::string& palette_id,
+                                            const std::string& path) const
+{
+    // "default" exports what it currently means: the active theme's palette.
+    const DataPalette& src = resolve_data_palette(palette_id);
+    if (src.colors.empty() || (palette_id != "default" && !data_palettes_.count(palette_id)))
+        return false;
+    DataPalette pal = src;
+    pal.name        = palette_id;
+    std::ofstream f(path);
+    if (!f.is_open())
+        return false;
+    f << data_palette_to_json(pal, 0) << "\n";
+    return f.good();
+}
+
+bool ThemeManager::import_theme(const std::string& path)
+{
+    std::string json;
+    if (!read_text_file(path, json) || json.empty())
+        return false;
+
+    Theme              theme;
+    ThemeGlassSettings g         = glass_settings_;
+    bool               has_glass = false;
+    if (!parse_theme_json(json, theme, g, has_glass, nullptr))
+        return false;
+    if (theme.data_palette.colors.empty())
+        theme.data_palette = resolve_data_palette("default");
+    const std::string name = theme.name;
+    register_theme(name, std::move(theme));
+    if (has_glass)
+        set_glass_settings(g, true);
+    return true;
+}
+
+std::string ThemeManager::load_theme_file(const std::string& path,
+                                          std::string*       error,
+                                          bool               allow_builtin_override)
+{
+    ensure_initialized();
+    std::string json;
+    if (!read_text_file(path, json) || json.empty())
+    {
+        if (error)
+            *error = "cannot read file";
+        return {};
+    }
+    Theme              theme;
+    ThemeGlassSettings g;
+    bool               has_glass = false;
+    if (!parse_theme_json(json, theme, g, has_glass, error))
+        return {};
+    const std::string id = sanitize_id(theme.name);
+    if (!allow_builtin_override && is_builtin_theme(id))
+    {
+        if (error)
+            *error = "'" + id + "' is a built-in theme id";
+        return {};
+    }
+    theme.name = id;
+    if (!has_glass)
+    {
+        g = is_light_plot_background(theme.colors) ? ThemeGlassSettings::light_defaults()
+                                                   : ThemeGlassSettings::dark_defaults();
+    }
+    g.clamp();
+    theme.glass_defaults = g;
+    if (theme.data_palette.colors.empty())
+    {
+        // Same rule as the built-ins: the light canvas gets the light default.
+        auto light = themes_.find("light");
+        auto dark  = themes_.find("dark");
+        if (is_light_plot_background(theme.colors) && light != themes_.end())
+            theme.data_palette = light->second.data_palette;
+        else if (dark != themes_.end())
+            theme.data_palette = dark->second.data_palette;
+    }
+    const bool active = (id == current_theme_name_);
+    register_theme(id, std::move(theme));
+    if (active)
+        set_theme(id);   // re-apply the updated colours
+    return id;
+}
+
+std::string ThemeManager::load_data_palette_file(const std::string& path, std::string* error)
+{
+    ensure_initialized();
+    std::string json;
+    if (!read_text_file(path, json) || json.empty())
+    {
+        if (error)
+            *error = "cannot read file";
+        return {};
+    }
+    DataPalette pal;
+    if (!parse_data_palette_json(json, pal, error))
+        return {};
+    if (pal.name.empty())
+        pal.name = std::filesystem::path(path).stem().string();
+    const std::string id = sanitize_id(pal.name);
+    if (id.empty() || is_builtin_data_palette(id))
+    {
+        if (error)
+            *error = id.empty() ? "no \"name\"" : "'" + id + "' is a built-in palette id";
+        return {};
+    }
+    register_data_palette(id, std::move(pal));
+    if (id == current_data_palette_name_)
+        display_palette_valid_ = false;
+    return id;
+}
+
+const std::vector<std::string>& ThemeManager::builtin_theme_ids()
+{
+    static const std::vector<std::string> ids = {"night", "dark", "light", "high_contrast"};
+    return ids;
+}
+
+const std::vector<std::string>& ThemeManager::builtin_data_palette_ids()
+{
+    static const std::vector<std::string> ids = {"default",
+                                                 "colorblind",
+                                                 "tol_bright",
+                                                 "tol_muted",
+                                                 "ibm",
+                                                 "wong",
+                                                 "viridis",
+                                                 "monochrome"};
+    return ids;
+}
+
+bool ThemeManager::is_builtin_theme(std::string_view id)
+{
+    const auto& ids = builtin_theme_ids();
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
+bool ThemeManager::is_builtin_data_palette(std::string_view id)
+{
+    const auto& ids = builtin_data_palette_ids();
+    return std::find(ids.begin(), ids.end(), id) != ids.end();
+}
+
+std::vector<std::string> ThemeManager::ordered_data_palettes() const
+{
+    std::vector<std::string> out;
+    for (const std::string& id : builtin_data_palette_ids())
+        if (data_palettes_.count(id))
+            out.push_back(id);
+    for (const std::string& id : available_data_palettes())   // sorted
+        if (!is_builtin_data_palette(id))
+            out.push_back(id);
+    return out;
+}
+
+std::string ThemeManager::data_palette_label(const std::string& id) const
+{
+    if (id == "default")
+        return "Theme Default";
+    if (id == "colorblind")
+        return "Okabe-Ito (Colorblind)";
+    if (id == "ibm")
+        return "IBM";
+    if (id == "tol_bright")
+        return "Tol Bright";
+    if (id == "tol_muted")
+        return "Tol Muted";
+    return theme_display_name(id);
+}
+
+std::filesystem::path ThemeManager::user_themes_dir(const std::filesystem::path& config_dir)
+{
+    return config_dir.empty() ? std::filesystem::path{} : config_dir / "themes";
+}
+
+std::filesystem::path ThemeManager::user_palettes_dir(const std::filesystem::path& config_dir)
+{
+    return config_dir.empty() ? std::filesystem::path{} : config_dir / "palettes";
+}
+
+bool ThemeManager::is_user_theme(std::string_view id) const
+{
+    return user_themes_.count(std::string(id)) > 0;
+}
+
+bool ThemeManager::is_user_data_palette(std::string_view id) const
+{
+    return user_palettes_.count(std::string(id)) > 0;
+}
+
+ThemeManager::UserFilesResult ThemeManager::load_user_files(const std::filesystem::path& config_dir)
+{
+    namespace fs = std::filesystem;
+    UserFilesResult result;
+    if (config_dir.empty())
+        return result;
+
+    // Sorted for a deterministic winner when two files use the same id.
+    auto json_files = [](const fs::path& dir)
+    {
+        std::vector<fs::path> files;
+        std::error_code       ec;
+        if (!fs::is_directory(dir, ec))
+            return files;
+        for (const auto& e : fs::directory_iterator(dir, ec))
+        {
+            std::error_code fec;
+            if (e.is_regular_file(fec) && e.path().extension() == ".json")
+                files.push_back(e.path());
+        }
+        std::sort(files.begin(), files.end());
+        return files;
+    };
+
+    for (const fs::path& file : json_files(user_themes_dir(config_dir)))
+    {
+        std::string       error;
+        const std::string id = load_theme_file(file.string(), &error);
+        if (id.empty())
+        {
+            result.errors.push_back(file.filename().string() + ": " + error);
+            continue;
+        }
+        user_themes_.insert(id);
+        result.themes.push_back(id);
+    }
+    for (const fs::path& file : json_files(user_palettes_dir(config_dir)))
+    {
+        std::string       error;
+        const std::string id = load_data_palette_file(file.string(), &error);
+        if (id.empty())
+        {
+            result.errors.push_back(file.filename().string() + ": " + error);
+            continue;
+        }
+        user_palettes_.insert(id);
+        result.palettes.push_back(id);
+    }
+    for (const std::string& e : result.errors)
+        SPECTRA_LOG_WARN("theme", "Skipping user theme/palette file {}", e);
+    return result;
+}
+
+ThemeManager::ImportResult ThemeManager::import_user_file(const std::string&           path,
+                                                          const std::filesystem::path& config_dir)
+{
+    namespace fs = std::filesystem;
+    ImportResult res;
+    std::string  json;
+    if (!read_text_file(path, json) || json.empty())
+    {
+        res.error = "Cannot read " + path;
+        return res;
+    }
+    if (config_dir.empty())
+    {
+        res.error = "No configuration directory";
+        return res;
+    }
+    // A theme's "colors" is an object, a palette's an array.
+    res.is_palette = json_block_value(json, "colors", '{').empty();
+
+    std::error_code ec;
+    if (res.is_palette)
+    {
+        DataPalette pal;
+        if (!parse_data_palette_json(json, pal, &res.error))
+            return res;
+        if (pal.name.empty())
+            pal.name = fs::path(path).stem().string();
+        std::string id = sanitize_id(pal.name);
+        if (is_builtin_data_palette(id))
+            id += "_custom";
+        pal.name           = id;
+        const fs::path dir = user_palettes_dir(config_dir);
+        fs::create_directories(dir, ec);
+        const fs::path dest = dir / (id + ".json");
+        {
+            std::ofstream f(dest);
+            if (!f.is_open() || !(f << data_palette_to_json(pal, 0) << "\n"))
+            {
+                res.error = "Cannot write " + dest.string();
+                return res;
+            }
+        }
+        register_data_palette(id, std::move(pal));
+        if (id == current_data_palette_name_)
+            display_palette_valid_ = false;
+        user_palettes_.insert(id);
+        res.id = id;
+        res.ok = true;
+        return res;
+    }
+
+    Theme              theme;
+    ThemeGlassSettings g;
+    bool               has_glass = false;
+    if (!parse_theme_json(json, theme, g, has_glass, &res.error))
+        return res;
+    std::string id = sanitize_id(theme.name);
+    if (is_builtin_theme(id))
+    {
+        id += "_custom";
+        if (theme.display_name.empty() || theme.display_name == display_name(theme.name))
+            theme.display_name = theme_display_name(theme.name) + " (Custom)";
+    }
+    theme.name = id;
+    if (!has_glass)
+    {
+        g = is_light_plot_background(theme.colors) ? ThemeGlassSettings::light_defaults()
+                                                   : ThemeGlassSettings::dark_defaults();
+    }
+    const fs::path dir = user_themes_dir(config_dir);
+    fs::create_directories(dir, ec);
+    const fs::path dest = dir / (id + ".json");
+    if (!write_theme_json(theme, g, dest.string()))
+    {
+        res.error = "Cannot write " + dest.string();
+        return res;
+    }
+    std::string       load_error;
+    const std::string loaded = load_theme_file(dest.string(), &load_error);
+    if (loaded.empty())
+    {
+        res.error = load_error;
+        return res;
+    }
+    user_themes_.insert(loaded);
+    res.id = loaded;
+    res.ok = true;
+    return res;
 }
 
 namespace
@@ -2372,6 +2975,84 @@ Color simulate_cvd(const Color& c, CVDType type)
     // Clamp and convert back to sRGB
     auto clamp01 = [](float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); };
     return Color(clamp01(out_r), clamp01(out_g), clamp01(out_b), c.a).to_srgb();
+}
+
+const char* cvd_type_id(CVDType type)
+{
+    switch (type)
+    {
+        case CVDType::None:
+            return "none";
+        case CVDType::Protanopia:
+            return "protanopia";
+        case CVDType::Deuteranopia:
+            return "deuteranopia";
+        case CVDType::Tritanopia:
+            return "tritanopia";
+        case CVDType::Achromatopsia:
+            return "achromatopsia";
+    }
+    return "none";
+}
+
+const char* cvd_type_label(CVDType type)
+{
+    switch (type)
+    {
+        case CVDType::None:
+            return "Normal Vision";
+        case CVDType::Protanopia:
+            return "Protanopia (red-blind)";
+        case CVDType::Deuteranopia:
+            return "Deuteranopia (green-blind)";
+        case CVDType::Tritanopia:
+            return "Tritanopia (blue-blind)";
+        case CVDType::Achromatopsia:
+            return "Achromatopsia (no colour)";
+    }
+    return "Normal Vision";
+}
+
+bool cvd_type_from_id(std::string_view id, CVDType& out)
+{
+    for (CVDType t : {CVDType::None,
+                      CVDType::Protanopia,
+                      CVDType::Deuteranopia,
+                      CVDType::Tritanopia,
+                      CVDType::Achromatopsia})
+    {
+        if (id == cvd_type_id(t))
+        {
+            out = t;
+            return true;
+        }
+    }
+    return false;
+}
+
+ThemeColors simulate_cvd(const ThemeColors& colors, CVDType type)
+{
+    if (type == CVDType::None)
+        return colors;
+    ThemeColors out = colors;
+    for (Color* c : {&out.bg_canvas,         &out.bg_primary,      &out.bg_secondary,
+                     &out.bg_tertiary,       &out.bg_elevated,     &out.bg_overlay,
+                     &out.text_primary,      &out.text_secondary,  &out.text_tertiary,
+                     &out.text_inverse,      &out.border_default,  &out.border_subtle,
+                     &out.border_strong,     &out.accent,          &out.accent_hover,
+                     &out.accent_muted,      &out.accent_subtle,   &out.success,
+                     &out.warning,           &out.error,           &out.info,
+                     &out.critical,          &out.grid_major,      &out.grid_minor,
+                     &out.grid_line,         &out.axis_line,       &out.tick_label,
+                     &out.crosshair,         &out.selection_fill,  &out.selection_border,
+                     &out.tooltip_bg,        &out.tooltip_border,  &out.accent_glow,
+                     &out.focus_ring,        &out.scrollbar_thumb, &out.scrollbar_track,
+                     &out.section_header_bg, &out.input_bg,        &out.hover_highlight,
+                     &out.annotation_bg,     &out.roi_fill,        &out.roi_border})
+    {
+        *c = simulate_cvd(*c, type);
+    }
+    return out;
 }
 
 ThemeColors ThemeManager::interpolate_colors(const ThemeColors& start,

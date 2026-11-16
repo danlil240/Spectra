@@ -2,8 +2,10 @@
 
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <spectra/color.hpp>
@@ -340,6 +342,17 @@ struct DataPalette
 // CVD simulation: approximate how a color appears to someone with a given deficiency
 Color simulate_cvd(const Color& c, CVDType type);
 
+// Stable ids / labels of the CVD types ("none", "protanopia", "deuteranopia",
+// "tritanopia", "achromatopsia"); cvd_type_from_id() returns false for an
+// unknown id.
+const char* cvd_type_id(CVDType type);
+const char* cvd_type_label(CVDType type);   // "Protanopia (red-blind)"
+bool        cvd_type_from_id(std::string_view id, CVDType& out);
+
+// Every colour token of `colors` through simulate_cvd() (alpha and
+// glow_intensity unchanged).
+ThemeColors simulate_cvd(const ThemeColors& colors, CVDType type);
+
 struct ThemeGlassSettings
 {
     float master_intensity = 0.65f;
@@ -405,6 +418,8 @@ class ThemeManager
     // Human-readable name of a theme id for UI labels ("high_contrast" -> "High Contrast").
     // Uses the registered theme's display_name, falling back to theme_display_name(id).
     std::string display_name(std::string_view theme_id) const;
+    // Registered theme `theme_id`, or nullptr (theme pickers draw previews from it).
+    const Theme* find_theme(std::string_view theme_id) const;
 
     // Registered theme ids: the built-ins first (night, dark, light,
     // high_contrast), then any other registered theme in name order.
@@ -494,11 +509,82 @@ class ThemeManager
     void pop_export_theme();
     bool export_theme_active() const { return export_override_.active; }
 
-    // Theme persistence
+    // Theme persistence.  export_theme() writes the active theme (colours,
+    // display name, its own data palette and the current glass settings);
+    // import_theme() registers the theme in such a file, including its data
+    // palette, and applies its glass settings.
     bool export_theme(const std::string& path) const;
     bool import_theme(const std::string& path);
     void save_current_as_default();
     void load_default();
+
+    // ── Theme / palette registry ──────────────────────────────────────────
+    // Built-in ids in picker order.  User themes and palettes (files in the
+    // config dir, or imported from Settings) come after them, by id.
+    static const std::vector<std::string>& builtin_theme_ids();
+    static const std::vector<std::string>& builtin_data_palette_ids();
+    static bool                            is_builtin_theme(std::string_view id);
+    static bool                            is_builtin_data_palette(std::string_view id);
+
+    // Registered palette ids in picker order: the built-ins as listed by
+    // builtin_data_palette_ids(), then the others by id.  (available_data_palettes()
+    // stays sorted by id.)
+    std::vector<std::string> ordered_data_palettes() const;
+    // Readable palette name for labels ("colorblind" -> "Okabe-Ito (Colorblind)").
+    std::string data_palette_label(const std::string& id) const;
+
+    // Theme / palette files.  load_theme_file() registers the theme of a file
+    // written by export_theme() (or export_theme_file()) without making it
+    // active or touching the glass settings; the file's glass block becomes the
+    // theme's glass defaults.  Built-in ids are refused unless
+    // allow_builtin_override.  Returns the registered id, or "" (and *error)
+    // on failure.  Palette files hold one palette object
+    // ({"name", "description", "colorblind_safe", "sequential", "colors"}),
+    // colours as [r, g, b, a] floats or "#rrggbb[aa]" strings.
+    std::string load_theme_file(const std::string& path,
+                                std::string*       error                  = nullptr,
+                                bool               allow_builtin_override = false);
+    std::string load_data_palette_file(const std::string& path, std::string* error = nullptr);
+    bool        export_theme_file(const std::string& theme_id, const std::string& path) const;
+    bool export_data_palette_file(const std::string& palette_id, const std::string& path) const;
+
+    // User files: <config dir>/themes/*.json and <config dir>/palettes/*.json.
+    // load_user_files() registers every valid file (built-in ids are skipped);
+    // problems are reported in `errors`, never thrown.
+    struct UserFilesResult
+    {
+        std::vector<std::string> themes;     // registered theme ids
+        std::vector<std::string> palettes;   // registered palette ids
+        std::vector<std::string> errors;     // "<file>: <reason>"
+    };
+    static std::filesystem::path user_themes_dir(const std::filesystem::path& config_dir);
+    static std::filesystem::path user_palettes_dir(const std::filesystem::path& config_dir);
+    UserFilesResult              load_user_files(const std::filesystem::path& config_dir);
+    bool                         is_user_theme(std::string_view id) const;
+    bool                         is_user_data_palette(std::string_view id) const;
+
+    // Import a theme or palette file (detected from its "colors" entry: an
+    // object for a theme, an array for a palette) into the user dir under
+    // `config_dir`, so it is loaded again on the next start, and register it.
+    // A built-in id is renamed to "<id>_custom".
+    struct ImportResult
+    {
+        bool        ok         = false;
+        bool        is_palette = false;
+        std::string id;
+        std::string error;
+    };
+    ImportResult import_user_file(const std::string& path, const std::filesystem::path& config_dir);
+
+    // ── Colour vision deficiency preview (view only) ──────────────────────
+    // While set, on-screen plots are drawn as seen with that deficiency (see
+    // simulate_cvd()).  It is never persisted and never applies to exports:
+    // ScopedExportTheme suspends it for the export's duration.
+    void    set_cvd_preview(CVDType type);
+    CVDType cvd_preview() const { return cvd_preview_; }
+    // `c` as the current preview shows it (unchanged when no preview is set).
+    Color          cvd_view_color(const Color& c) const;
+    spectra::Color cvd_view_color(const spectra::Color& c) const;
 
     // Glass / transparency (user-adjustable; persisted with default theme export)
     const ThemeGlassSettings& glass() const { return glass_settings_; }
@@ -619,6 +705,10 @@ class ThemeManager
 
     float ui_scale_ = 1.0f;
 
+    CVDType                         cvd_preview_ = CVDType::None;
+    std::unordered_set<std::string> user_themes_;     // ids loaded from user files
+    std::unordered_set<std::string> user_palettes_;   // ids loaded from user files
+
     void               initialize_default_themes();
     void               initialize_data_palettes();
     const DataPalette& resolve_data_palette(const std::string& name) const;
@@ -629,8 +719,10 @@ class ThemeManager
 };
 
 // RAII guard for ThemeManager::push_export_theme(): renders with theme `name`
-// for the guard's lifetime.  An empty name or null manager does nothing; an
-// unknown name logs a warning and keeps the active theme.
+// for the guard's lifetime.  An empty name keeps the active theme; an unknown
+// name logs a warning and keeps the active theme.  Either way the CVD preview
+// (a view-only setting) is suspended while the guard lives.  A null manager
+// does nothing.
 class ScopedExportTheme
 {
    public:
@@ -642,8 +734,9 @@ class ScopedExportTheme
     bool active() const { return active_; }
 
    private:
-    ThemeManager* tm_     = nullptr;
-    bool          active_ = false;
+    ThemeManager* tm_        = nullptr;
+    bool          active_    = false;
+    CVDType       saved_cvd_ = CVDType::None;   // CVD preview, restored afterwards
 };
 
 // True when the theme's plot canvas is light (format-letter colours then use

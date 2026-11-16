@@ -37,6 +37,7 @@
 #include "window_png_export.hpp"
 #include "ui/workspace/data_binding.hpp"
 #include "ui/workspace/plugin_api.hpp"
+#include "core/config_paths.hpp"
 #include "ui/settings/settings_store.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -682,6 +683,9 @@ void App::init_runtime()
     {
         rt.settings_store->load();
         rt.settings_store->set_on_change([&store = *rt.settings_store]() { store.save(); });
+        // User themes / palettes (<config>/themes, <config>/palettes) before
+        // the startup theme is resolved, so settings may name one.
+        theme_mgr_->load_user_files(user_config_dir());
     }
     {
         const auto startup =

@@ -108,7 +108,7 @@ void Renderer::render_series(Series&             series,
         eff_opacity = series.opacity();
     }
     // 'k' / 'w' follow the theme foreground so they stay visible (see theme.hpp).
-    eff_color   = ui::adapt_series_color_to_theme(eff_color, plot_colors());
+    eff_color   = series_view_color(ui::adapt_series_color_to_theme(eff_color, plot_colors()));
     pc.color[0] = eff_color.r;
     pc.color[1] = eff_color.g;
     pc.color[2] = eff_color.b;
@@ -634,10 +634,11 @@ void Renderer::render_series(Series&             series,
                         SeriesPushConstants range_pc = pc;
                         if (!r.inherits_series_color())
                         {
-                            range_pc.color[0] = r.color.r;
-                            range_pc.color[1] = r.color.g;
-                            range_pc.color[2] = r.color.b;
-                            range_pc.color[3] = r.color.a;
+                            const Color rc    = series_view_color(r.color);
+                            range_pc.color[0] = rc.r;
+                            range_pc.color[1] = rc.g;
+                            range_pc.color[2] = rc.b;
+                            range_pc.color[3] = rc.a;
                         }
                         const bool transparent =
                             shape3d_range_transparent(r, pc.color[3], pc.opacity);
@@ -779,7 +780,7 @@ void Renderer::render_series(Series&             series,
                 const size_t count = std::min(r.point_count, n - r.first_point);
                 if (count < 2)
                     continue;
-                const Color c = ct->level_color(r.level);
+                const Color c = series_view_color(ct->level_color(r.level));
                 pc.color[0]   = c.r;
                 pc.color[1]   = c.g;
                 pc.color[2]   = c.b;

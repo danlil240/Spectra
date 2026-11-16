@@ -42,6 +42,7 @@
     #include "ui/topics/topics_panel.hpp"
 #endif
 
+#include "core/config_paths.hpp"
 #include "ui/settings/settings_store.hpp"
 
 #ifdef SPECTRA_USE_GLFW
@@ -775,6 +776,8 @@ int main(int argc, char* argv[])
     // Saved preferences (theme, data palette), as App::run does in-process.
     spectra::ui::settings::SettingsStore settings_store;
     settings_store.load();
+    theme_mgr.ensure_initialized();
+    theme_mgr.load_user_files(spectra::user_config_dir());
     settings_store.apply_to(theme_mgr);
     settings_store.set_on_change([&settings_store]() { settings_store.save(); });
 

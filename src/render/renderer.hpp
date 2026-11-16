@@ -22,6 +22,7 @@ namespace spectra::ui
 {
 class ThemeManager;
 struct ThemeColors;
+enum class CVDType;
 }   // namespace spectra::ui
 
 #include <array>
@@ -358,6 +359,12 @@ class Renderer
     // call (ThemeManager::plot_surface_colors()); null outside of it.
     const ui::ThemeColors* plot_colors_ = nullptr;
     const ui::ThemeColors& plot_colors() const;
+
+    // Colour vision deficiency preview of the current render_figure_content()
+    // call (ThemeManager::cvd_preview(); None for exports).  plot_colors()
+    // already carries it; series / legend colours go through series_view_color().
+    ui::CVDType cvd_preview_{};   // value 0: CVDType::None
+    Color       series_view_color(const Color& c) const;
 
     // See unsupported_series().  unsupported_warned_ persists across frames so
     // each kind is logged only once.

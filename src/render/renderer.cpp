@@ -657,8 +657,12 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
 
     // Everything below is drawn on the figure's plot surface: its background
     // override when set, otherwise the theme canvas (see plot_colors()).
-    const ui::ThemeColors surface_colors = theme_mgr_.plot_surface_colors(figure.style());
-    plot_colors_                         = &surface_colors;
+    // A colour vision deficiency preview (view only, suspended for exports)
+    // simulates the surface, ink and series colours (see series_view_color()).
+    cvd_preview_ = theme_mgr_.cvd_preview();
+    const ui::ThemeColors surface_colors =
+        ui::simulate_cvd(theme_mgr_.plot_surface_colors(figure.style()), cvd_preview_);
+    plot_colors_ = &surface_colors;
 
     // Auto-coloured series follow the active theme's data palette (P0-6) and
     // format-letter colours ("r--") its dark / light shade set (P1-5), both
@@ -743,6 +747,15 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
     render_annotations(figure);
 
     plot_colors_ = nullptr;
+    cvd_preview_ = ui::CVDType::None;
+}
+
+Color Renderer::series_view_color(const Color& c) const
+{
+    if (cvd_preview_ == ui::CVDType::None)
+        return c;
+    const ui::Color s = ui::simulate_cvd(ui::Color(c.r, c.g, c.b, c.a), cvd_preview_);
+    return Color{s.r, s.g, s.b, s.a};
 }
 
 const ui::ThemeColors& Renderer::plot_colors() const

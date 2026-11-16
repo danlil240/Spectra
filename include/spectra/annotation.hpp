@@ -43,8 +43,6 @@ class TextAnnotation
         std::optional<Color> fill;         ///< Unset: the theme's plot background, 90% opaque
         std::optional<Color> edge;         ///< Unset: the theme's axis border colour at 50%
         float                edge_width = 1.0f;   ///< Border width in pixels; 0 = no border
-
-        bool operator==(const Box&) const = default;
     };
 
     TextAnnotation(float x, float y, std::string_view text) : x_(x), y_(y), text_(text) {}

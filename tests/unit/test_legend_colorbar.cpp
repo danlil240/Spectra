@@ -440,18 +440,22 @@ TEST(ColorbarLayout, SourceFromScatterAndSurface)
     EXPECT_NEAR(s3->vmax, 1.5, 1e-6);
 }
 
-TEST(ColorbarLayout, ScatterSamplingMatchesShaderStops)
+TEST(ColorbarLayout, SamplingIsTheColormapLookupTable)
 {
     using colorbar_layout::Mapping;
-    const Color lo  = colorbar_layout::sample(ColormapType::Viridis, Mapping::Scatter, 0.0f);
-    const Color mid = colorbar_layout::sample(ColormapType::Viridis, Mapping::Scatter, 0.5f);
-    const Color hi  = colorbar_layout::sample(ColormapType::Viridis, Mapping::Scatter, 1.0f);
-    EXPECT_NEAR(lo.r, 0.267f, 1e-4f);
-    EXPECT_NEAR(mid.g, 0.567f, 1e-4f);
-    EXPECT_NEAR(hi.b, 0.144f, 1e-4f);
+    // matplotlib viridis: every mapping reads the same 256-entry table.
+    for (Mapping m : {Mapping::Scatter, Mapping::Surface, Mapping::Image})
+    {
+        const Color lo  = colorbar_layout::sample(ColormapType::Viridis, m, 0.0f);
+        const Color mid = colorbar_layout::sample(ColormapType::Viridis, m, 0.5f);
+        const Color hi  = colorbar_layout::sample(ColormapType::Viridis, m, 1.0f);
+        EXPECT_NEAR(lo.r, 0.267f, 2.5e-3f);
+        EXPECT_NEAR(mid.g, 0.567f, 2.5e-3f);
+        EXPECT_NEAR(hi.b, 0.144f, 2.5e-3f);
+    }
+    // Entry 64 of matplotlib's gray.
     const Color g = colorbar_layout::sample(ColormapType::Grayscale, Mapping::Scatter, 0.25f);
-    EXPECT_FLOAT_EQ(g.r, 0.25f);
-    // Surface mapping is the series' own sampler.
+    EXPECT_FLOAT_EQ(g.r, 64.0f / 255.0f);
     const Color s = colorbar_layout::sample(ColormapType::Jet, Mapping::Surface, 0.3f);
     const Color e = SurfaceSeries::sample_colormap(ColormapType::Jet, 0.3f);
     EXPECT_FLOAT_EQ(s.r, e.r);

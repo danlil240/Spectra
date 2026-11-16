@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <span>
 #include <spectra/color.hpp>
+#include <spectra/colormap.hpp>
 #include <spectra/fwd.hpp>
 #include <spectra/math3d.hpp>
 #include <spectra/plot_style.hpp>
@@ -226,14 +227,33 @@ class SurfaceSeries : public Series
     vec3 compute_centroid() const;
     void get_bounds(vec3& min_out, vec3& max_out) const;
 
+    // Colormap type (keeps colormap_reversed()).
     SurfaceSeries& colormap(ColormapType cm)
+    {
+        colormap_ = Colormap(cm, colormap_.is_reversed());
+        dirty_    = true;
+        return *this;
+    }
+    // Built-in, reversed or user colormap (Colormap::from_colors).
+    SurfaceSeries& colormap(const Colormap& cm)
     {
         colormap_ = cm;
         dirty_    = true;
         return *this;
     }
-    SurfaceSeries& colormap(const std::string& name);
-    ColormapType   colormap_type() const { return colormap_; }
+    // matplotlib name ("viridis", "RdBu_r"); unknown names give None.
+    SurfaceSeries&  colormap(const std::string& name);
+    ColormapType    colormap_type() const { return colormap_.type(); }
+    const Colormap& cmap() const { return colormap_; }
+
+    // Reverse the colormap (high values take the low end), like matplotlib's "_r" maps.
+    SurfaceSeries& colormap_reversed(bool reversed)
+    {
+        colormap_ = colormap_.reversed(reversed);
+        dirty_    = true;
+        return *this;
+    }
+    bool colormap_reversed() const { return colormap_.is_reversed(); }
 
     // Data values mapped onto the ends of the colormap.  Without an explicit
     // range the surface's finite z min / max is used, so the colours stay tied
@@ -260,6 +280,7 @@ class SurfaceSeries : public Series
     // Deprecated alias
     void set_colormap_range(float min_val, float max_val) { colormap_range(min_val, max_val); }
 
+    // Colour of built-in map cm at t (Colormap::sample); mid gray for None.
     static Color sample_colormap(ColormapType cm, float t);
 
     using Series::color;
@@ -366,12 +387,12 @@ class SurfaceSeries : public Series
     bool        mesh_generated_           = false;
     bool        wireframe_mesh_generated_ = false;
 
-    ColormapType colormap_       = ColormapType::None;
-    float        cmap_min_       = 0.0f;
-    float        cmap_max_       = 1.0f;
-    bool         cmap_range_set_ = false;
-    float        z_min_          = 0.0f;   // finite data z range (set_data)
-    float        z_max_          = 1.0f;
+    Colormap colormap_;
+    float    cmap_min_       = 0.0f;
+    float    cmap_max_       = 1.0f;
+    bool     cmap_range_set_ = false;
+    float    z_min_          = 0.0f;   // finite data z range (set_data)
+    float    z_max_          = 1.0f;
 
     float ambient_   = 0.0f;   // 0 = shader default (0.15)
     float specular_  = 0.0f;   // 0 = shader default (0.3)

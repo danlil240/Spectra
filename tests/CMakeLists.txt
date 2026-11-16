@@ -161,6 +161,7 @@ set(SPECTRA_UNIT_TESTS
     test_legend_interaction
     test_legend_colorbar
     test_image_series
+    test_colormap_lut
     test_legend_bounds
     test_legend_font_size
     test_figure_manager

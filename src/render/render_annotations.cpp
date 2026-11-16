@@ -505,7 +505,7 @@ void Renderer::build_legend(AxesBase& axes, const LegendConfig& requested)
         const float vis_alpha = s.visible() ? 1.0f : HIDDEN_ALPHA;
         Color       sc        = ui::adapt_series_color_to_theme(legend_layout::swatch_color(s), tc);
         if (const auto* scat = dynamic_cast<const ScatterSeries*>(&s); scat && scat->has_colormap())
-            sc = colorbar_layout::sample(scat->colormap(), colorbar_layout::Mapping::Scatter, 0.6f);
+            sc = colorbar_layout::sample(scat->cmap(), colorbar_layout::Mapping::Scatter, 0.6f);
         sc.a *= s.opacity() * vis_alpha;
 
         const auto&         st = s.plot_style();

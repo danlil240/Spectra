@@ -231,10 +231,10 @@ void InputHandler::clear_figure_cache(Figure* fig)
         active_axes_base_  = nullptr;
         last_pressed_axes_ = nullptr;
         drag3d_axes_       = nullptr;
-        measure_axes_     = nullptr;
-        mode_             = InteractionMode::Idle;
-        is_3d_orbit_drag_ = false;
-        is_3d_pan_drag_   = false;
+        measure_axes_      = nullptr;
+        mode_              = InteractionMode::Idle;
+        is_3d_orbit_drag_  = false;
+        is_3d_pan_drag_    = false;
     }
 }
 

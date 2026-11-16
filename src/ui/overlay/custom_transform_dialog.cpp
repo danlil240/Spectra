@@ -868,7 +868,7 @@ bool CustomTransformDialog::apply()
     if (!figure_ || !formula_valid_)
         return false;
 
-    ExpressionParser parser;
+    ExpressionParser                parser;
     std::shared_ptr<const ExprNode> ast(parser.parse(formula_buf_).release());
     if (!ast)
         return false;

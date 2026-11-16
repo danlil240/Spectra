@@ -249,10 +249,10 @@ class InputHandler
     void handle_mouse_button_annotate(int button, int action, double x, double y);
     void handle_mouse_move_annotate(double x, double y);
 
-    Figure*          figure_           = nullptr;
-    FigureViewModel* figure_vm_        = nullptr;
-    Axes*            active_axes_      = nullptr;
-    AxesBase*        active_axes_base_ = nullptr;
+    Figure*          figure_            = nullptr;
+    FigureViewModel* figure_vm_         = nullptr;
+    Axes*            active_axes_       = nullptr;
+    AxesBase*        active_axes_base_  = nullptr;
     Axes*            last_pressed_axes_ = nullptr;
 
     // 3D orbit drag state

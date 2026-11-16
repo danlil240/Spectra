@@ -64,7 +64,7 @@ namespace settings
 {
 class SettingsPanel;
 class SettingsStore;
-}
+}   // namespace settings
 }   // namespace spectra::ui
 
 namespace spectra
@@ -101,9 +101,9 @@ class ImGuiIntegration
     struct MenuItem
     {
         std::string           label;
-        std::function<void()> callback;   // null = disabled item
-        std::string           shortcut;   // right-aligned hint, e.g. "Ctrl+Shift+T"
-        std::function<bool()> checked;    // set = checkable; returns the current state
+        std::function<void()> callback;            // null = disabled item
+        std::string           shortcut;            // right-aligned hint, e.g. "Ctrl+Shift+T"
+        std::function<bool()> checked;             // set = checkable; returns the current state
         uint16_t              icon      = 0;       // ui::Icon codepoint (0 = none)
         bool                  keep_open = false;   // clicking does not close the menu
         MenuItem(const std::string& l, std::function<void()> cb = nullptr) : label(l), callback(cb)
@@ -229,8 +229,8 @@ class ImGuiIntegration
     SeriesTransformHooks series_transform_hooks();
     // Plot the Transforms menu targets when nothing is selected.
     Axes* transform_current_plot() const;
-    void close_transform_dialog() { custom_transform_dialog_.close(); }
-    bool is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
+    void  close_transform_dialog() { custom_transform_dialog_.close(); }
+    bool  is_plot_overlay_dialog_open() const { return plot_overlay_dialog_.is_open(); }
     ui::PlotOverlayDialog&       plot_overlay_dialog() { return plot_overlay_dialog_; }
     const ui::PlotOverlayDialog& plot_overlay_dialog() const { return plot_overlay_dialog_; }
     bool                         is_theme_settings_visible() const { return show_theme_settings_; }

@@ -148,7 +148,14 @@ bool CompareReadout::draw_for_axes(const Axes& axes,
     const size_t shown = std::min(rows.size(), MAX_ROWS);
     const size_t more  = rows.size() - shown;
 
-    const std::string header = "X  " + ui::format_axis_value(&axes, ui::ReadoutAxis::X, data_x);
+    // Same digits as the crosshair's X label (what one pixel resolves).
+    const std::string header =
+        "X  "
+        + ui::format_axis_cursor(&axes,
+                                 ui::ReadoutAxis::X,
+                                 data_x,
+                                 crosshair_mapping::pixel_resolution_x(axes, anchor_x),
+                                 24);
 
     constexpr float PAD        = 8.0f;
     constexpr float SWATCH     = 8.0f;

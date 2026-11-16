@@ -286,11 +286,13 @@ ProbeSample sample_series_at_x(const Series& s, double abs_x, ProbeMode mode)
     }
     if (const auto* sc = dynamic_cast<const ScatterSeries*>(&s))
     {
-        const auto r =
-            sc->x_is_sorted()
-                ? sample_sorted_at_x(sc->x_data(), sc->y_data(), lx, ProbeMode::Nearest)
-                : sample_unsorted_at_x(sc->x_data(), sc->y_data(), lx, ProbeMode::Nearest);
-        return to_absolute(r, xoff, yoff);
+        // A point cloud (unsorted x) has no "value at X"; only scatter series
+        // sampled along x (time series drawn with markers) take part.
+        if (!sc->x_is_sorted())
+            return {};
+        return to_absolute(sample_sorted_at_x(sc->x_data(), sc->y_data(), lx, ProbeMode::Nearest),
+                           xoff,
+                           yoff);
     }
     if (const auto* st = dynamic_cast<const StemSeries*>(&s))
     {

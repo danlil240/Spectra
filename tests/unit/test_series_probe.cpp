@@ -166,6 +166,16 @@ TEST(SeriesProbeSeries, ScatterAlwaysUsesNearestSample)
     EXPECT_DOUBLE_EQ(s.y, 0.0);
 }
 
+TEST(SeriesProbeSeries, UnsortedScatterCloudHasNoValueAtX)
+{
+    ScatterSeries      sc;
+    std::vector<float> x = {0.5f, 0.0f, 1.0f};
+    std::vector<float> y = {3.0f, 0.0f, 10.0f};
+    sc.set_x(x).set_y(y);
+    ASSERT_FALSE(sc.x_is_sorted());
+    EXPECT_FALSE(sample_series_at_x(sc, 0.4, ProbeMode::Nearest).valid);
+}
+
 TEST(SeriesProbeSeries, VerticalBarUnderX)
 {
     std::vector<float> pos = {1.0f, 2.0f, 3.0f};

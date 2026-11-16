@@ -72,7 +72,8 @@ ProbeSample sample_unsorted_at_x(std::span<const float> x,
 ProbeSample sample_chunked_at_x(const ChunkedLineSeries& s, double lx, ProbeMode mode);
 
 /// Value of a 2D series at absolute @p abs_x for the compare readout:
-/// lines (interpolated or nearest), scatter/stem (nearest sample), chunked
+/// lines (interpolated or nearest), scatter sorted by x and stems (nearest
+/// sample; an unsorted scatter cloud has no value at X), chunked
 /// lines, vertical bars (the bar under X) and histograms (the bin under X).
 /// Other series types return an invalid sample.
 ProbeSample sample_series_at_x(const Series& s, double abs_x, ProbeMode mode);

@@ -202,6 +202,31 @@ TEST(ViewHistoryStore, OneHistoryPerFigureForgottenOnClose)
     EXPECT_EQ(store.find(&f1), nullptr);
 }
 
+TEST(UndoManagerRevision, BumpsOnEveryStackChange)
+{
+    spectra::UndoManager mgr;
+    uint64_t             r = mgr.revision();
+    mgr.push(spectra::UndoAction{"a", []() {}, []() {}});
+    EXPECT_GT(mgr.revision(), r);
+    r = mgr.revision();
+    mgr.undo();
+    EXPECT_GT(mgr.revision(), r);
+    r = mgr.revision();
+    mgr.redo();
+    EXPECT_GT(mgr.revision(), r);
+    r = mgr.revision();
+    mgr.begin_group("g");
+    mgr.push(spectra::UndoAction{"b", []() {}, []() {}});
+    EXPECT_EQ(mgr.revision(), r);   // inside a group: not on the stack yet
+    mgr.end_group();
+    EXPECT_GT(mgr.revision(), r);
+    r = mgr.revision();
+    EXPECT_FALSE(mgr.undo_description().empty());
+    EXPECT_EQ(mgr.revision(), r);   // queries do not count
+    mgr.clear();
+    EXPECT_GT(mgr.revision(), r);
+}
+
 // ─── Pure navigation helpers ────────────────────────────────────────────────
 
 TEST(ViewNav, WheelModifiersPickTheAxes)
@@ -449,6 +474,49 @@ TEST_F(ViewInputFixture, WheelBurstIsOneEntryAndBackForwardRestore)
     EXPECT_FALSE(handler_.view_forward());
     // Navigation is not an edit.
     EXPECT_EQ(undo_.undo_count(), 1u);
+}
+
+TEST_F(ViewInputFixture, AnotherUndoStepEndsTheWheelBurst)
+{
+    // Zoom, an unrelated undoable action (e.g. toggling the crosshair), then
+    // zoom again within the burst window: the second zoom is its own step.
+    handler_.on_scroll(0.0, 1.0, px(0.5), py(0.5));
+    const auto first     = axes().x_limits();
+    bool       crosshair = false;
+    undo_.push(UndoAction{"Show crosshair",
+                          [&crosshair]() { crosshair = false; },
+                          [&crosshair]() { crosshair = true; }});
+    crosshair = true;
+    handler_.on_scroll(0.0, 1.0, px(0.5), py(0.5));
+    ASSERT_NE(history(), nullptr);
+    EXPECT_EQ(history()->size(), 2u);
+    EXPECT_EQ(undo_.undo_count(), 3u);
+
+    // Ctrl+Z undoes the latest zoom, then the crosshair, then the first zoom.
+    ASSERT_TRUE(undo_.undo());
+    EXPECT_DOUBLE_EQ(axes().x_limits().min, first.min);
+    EXPECT_TRUE(crosshair);
+    ASSERT_TRUE(undo_.undo());
+    EXPECT_FALSE(crosshair);
+    EXPECT_DOUBLE_EQ(axes().x_limits().min, first.min);
+    ASSERT_TRUE(undo_.undo());
+    EXPECT_DOUBLE_EQ(axes().x_limits().min, 0.0);
+}
+
+TEST_F(ViewInputFixture, ZoomAfterUndoingAnotherStepClearsItsRedo)
+{
+    handler_.on_scroll(0.0, 1.0, px(0.5), py(0.5));
+    bool flag = true;
+    undo_.push(UndoAction{"Other", [&flag]() { flag = false; }, [&flag]() { flag = true; }});
+    ASSERT_TRUE(undo_.undo());
+    EXPECT_EQ(undo_.redo_count(), 1u);
+
+    // Still inside the burst window, but the undo ended the burst: a new
+    // step, pushed normally, which drops the stale redo.
+    handler_.on_scroll(0.0, 1.0, px(0.5), py(0.5));
+    EXPECT_EQ(history()->size(), 2u);
+    EXPECT_EQ(undo_.redo_count(), 0u);
+    EXPECT_EQ(undo_.undo_count(), 2u);
 }
 
 TEST_F(ViewInputFixture, ShiftAndCtrlBurstsAreSeparateEntries)

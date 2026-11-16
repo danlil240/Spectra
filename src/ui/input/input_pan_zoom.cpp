@@ -1200,7 +1200,19 @@ void InputHandler::record_view_change(Figure*                             fig,
     finalize_pending_view(&before);
 
     std::shared_ptr<ViewHistory> history = view_history_.history(fig);
-    auto                         result  = history->push(label,
+
+    // Coalescing extends the newest entry and its undo step in place, which
+    // is only right while that undo step is still on top of the stack and
+    // nothing was undone / redone since (another action pushed in between,
+    // or an undo whose redo a new step must clear).
+    if (undo_mgr_ && !coalesce_key.empty())
+    {
+        auto last = history->last_entry();
+        if (last
+            && (view_undo_entry_.lock() != last || undo_mgr_->revision() != view_undo_revision_))
+            history->seal_last();
+    }
+    auto result = history->push(label,
                                 std::move(before),
                                 std::move(after),
                                 std::move(coalesce_key),
@@ -1231,6 +1243,8 @@ void InputHandler::record_view_change(Figure*                             fig,
                                    finalize_pending_view();
                                    apply_view(fig, h->redo_entry(entry));
                                }});
+    view_undo_entry_    = entry;
+    view_undo_revision_ = undo_mgr_->revision();
 }
 
 void InputHandler::commit_axes_limits_edit(Figure*     fig,

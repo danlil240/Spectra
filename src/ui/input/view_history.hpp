@@ -102,6 +102,14 @@ class ViewHistory
     std::string back_label() const;
     std::string forward_label() const;
 
+    // Stop the newest entry from absorbing further changes (something else
+    // happened since it was recorded).
+    void seal_last()
+    {
+        if (!entries_.empty())
+            entries_.back()->coalesce_key.clear();
+    }
+
     // Newest entry (nullptr when empty).
     std::shared_ptr<ViewHistoryEntry> last_entry() const
     {

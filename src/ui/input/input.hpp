@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
@@ -422,6 +423,12 @@ class InputHandler
     double     gutter_drag_x_      = 0.0;
     double     gutter_drag_y_      = 0.0;
     AxisLimits gutter_drag_lim_{};
+
+    // Entry whose undo step was pushed last, and UndoManager::revision()
+    // right after that push: a burst may only extend that entry while its
+    // undo step is still the newest one with nothing undone / redone since.
+    std::weak_ptr<ViewHistoryEntry> view_undo_entry_;
+    uint64_t                        view_undo_revision_ = 0;
 
     // Wheel steps closer together than this form one history entry
     static constexpr std::chrono::milliseconds WHEEL_COALESCE_WINDOW{600};

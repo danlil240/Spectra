@@ -114,7 +114,8 @@ std::string serialize(const SettingsData& d)
     os << "    \"inspector_visible\": " << (d.inspector_visible ? "true" : "false") << ",\n";
     os << "    \"nav_rail_visible\": " << (d.nav_rail_visible ? "true" : "false") << ",\n";
     os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << ",\n";
-    os << "    \"ui_scale\": " << d.ui_scale << "\n";
+    os << "    \"ui_scale\": " << d.ui_scale << ",\n";
+    os << "    \"transform_overwrite\": " << (d.transform_overwrite ? "true" : "false") << "\n";
     os << "  }\n";
     os << "}\n";
     return os.str();
@@ -174,6 +175,8 @@ bool SettingsStore::load(const std::string& path)
     data_.timeline_visible  = read_json_bool(json, "timeline_visible", data_.timeline_visible);
     data_.ui_scale          = ui::ThemeManager::clamp_ui_scale(
         static_cast<float>(read_json_number(json, "ui_scale", data_.ui_scale)));
+    data_.transform_overwrite =
+        read_json_bool(json, "transform_overwrite", data_.transform_overwrite);
 
     loaded_path_ = path;
     return true;

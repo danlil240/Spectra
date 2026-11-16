@@ -1,11 +1,19 @@
 #pragma once
 #ifdef SPECTRA_USE_IMGUI
 
+    #include <functional>
     #include <spectra/fwd.hpp>
     #include <string>
     #include <vector>
 
+    #include "ui/commands/series_transform.hpp"
+
 struct ImFont;
+
+namespace spectra
+{
+class UndoManager;
+}
 
 namespace spectra::ui
 {
@@ -40,6 +48,29 @@ class CustomTransformDialog
 
     // Set fonts (called once after font loading)
     void set_fonts(ImFont* body, ImFont* heading, ImFont* title);
+
+    // Apply records one undoable step here (may be null).
+    void set_undo_manager(UndoManager* undo) { undo_manager_ = undo; }
+    // Shared "Overwrite current series" choice (Transforms menu setting).
+    void set_overwrite_binding(std::function<bool()> get, std::function<void(bool)> set)
+    {
+        get_overwrite_ = std::move(get);
+        set_overwrite_ = std::move(set);
+    }
+    void set_series_transform_hooks(SeriesTransformHooks hooks) { hooks_ = std::move(hooks); }
+
+    // Point the APPLY TO selectors at the menu's targets: a single selected
+    // series, else the axes of the targets (all visible series).  Call after open().
+    void preselect(const SeriesTransformTargets& targets);
+
+    // Series the Apply button transforms with the current selectors.
+    std::vector<SeriesTransformTarget> current_targets() const;
+
+    // Formula editing (tests / automation).
+    void set_formula(const std::string& formula);
+    bool formula_valid() const { return formula_valid_; }
+    // Applies the formula as the Apply button does; false when nothing applied.
+    bool apply();
 
    private:
     void draw_formula_input();
@@ -77,6 +108,12 @@ class CustomTransformDialog
         int         series_index = 0;
     };
     std::vector<SeriesInfo> series_info_;
+
+    UndoManager*              undo_manager_ = nullptr;
+    std::function<bool()>     get_overwrite_;
+    std::function<void(bool)> set_overwrite_;
+    bool                      local_overwrite_ = false;   // when no binding is set
+    SeriesTransformHooks      hooks_;
 
     // Fonts
     ImFont* font_body_    = nullptr;

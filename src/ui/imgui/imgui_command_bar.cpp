@@ -10,7 +10,9 @@
     #include "../native_dialog_policy.hpp"
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "ui/commands/series_transform.hpp"
     #include "ui/settings/settings_panel.hpp"
+    #include "ui/settings/settings_store.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "io/export_registry.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -474,11 +476,12 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
             ImGui::PushStyleColor(
                 ImGuiCol_HeaderActive,
                 ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
-            const bool clicked = ImGui::Selectable(
-                "##menu_item",
-                false,
-                enabled ? ImGuiSelectableFlags_None : ImGuiSelectableFlags_Disabled,
-                ImVec2(row_w, item_h));
+            ImGuiSelectableFlags sel_flags =
+                enabled ? ImGuiSelectableFlags_None : ImGuiSelectableFlags_Disabled;
+            if (item.keep_open)
+                sel_flags |= ImGuiSelectableFlags_NoAutoClosePopups;
+            const bool clicked =
+                ImGui::Selectable("##menu_item", false, sel_flags, ImVec2(row_w, item_h));
             ImGui::PopStyleColor(3);
 
             const ImVec2 rmin     = ImGui::GetItemRectMin();
@@ -527,7 +530,8 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
             {
                 ui::log_ui_action("menu", row.label, "ok");
                 item.callback();
-                open_menu_label_.clear();
+                if (!item.keep_open)
+                    open_menu_label_.clear();
             }
         }
 
@@ -1072,61 +1076,39 @@ void ImGuiIntegration::draw_command_bar()
         ImGui::SameLine();
 
         {
-            std::vector<MenuItem> xform_items;
-            auto&                 registry = TransformRegistry::instance();
-            auto                  names    = registry.available_transforms();
+            // Target and mode are shown at the top so the user knows what a
+            // click changes; every apply is one undoable step.
+            const auto targets     = resolve_transform_targets(selection_ctx_,
+                                                           current_figure_,
+                                                           transform_current_plot());
+            const bool has_targets = !targets.targets.empty();
 
-            xform_items.reserve(names.size());
+            std::vector<MenuItem> xform_items;
+            auto                  names = TransformRegistry::instance().available_transforms();
+            xform_items.reserve(names.size() + 6);
+
+            MenuItem overwrite_item("Overwrite current series",
+                                    [this]() { set_transform_overwrite(!transform_overwrite_); });
+            overwrite_item.checked   = [this]() { return transform_overwrite_; };
+            overwrite_item.keep_open = true;
+            xform_items.push_back(std::move(overwrite_item));
+            xform_items.emplace_back(describe_transform_targets(targets), nullptr);
+            xform_items.emplace_back(transform_overwrite_
+                                         ? "Replaces the series data (Ctrl+Z undoes)"
+                                         : "Adds a transformed copy (Ctrl+Z undoes)",
+                                     nullptr);
+            xform_items.emplace_back("", nullptr);
+
             for (const auto& name : names)
             {
-                xform_items.emplace_back(
-                    name,
-                    [this, name]()
-                    {
-                        if (!current_figure_)
-                            return;
-                        DataTransform xform;
-                        if (!TransformRegistry::instance().get_transform(name, xform))
-                            return;
-
-                        for (auto& ax : current_figure_->axes_mut())
-                        {
-                            if (!ax)
-                                continue;
-                            for (auto& series_ptr : ax->series_mut())
-                            {
-                                if (!series_ptr || !series_ptr->visible())
-                                    continue;
-
-                                if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
-                                {
-                                    std::vector<float> rx;
-                                    std::vector<float> ry;
-                                    xform.apply_y(ls->x_data(), ls->y_data(), rx, ry);
-                                    ls->set_x(rx).set_y(ry);
-                                }
-                                else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
-                                {
-                                    std::vector<float> rx;
-                                    std::vector<float> ry;
-                                    xform.apply_y(sc->x_data(), sc->y_data(), rx, ry);
-                                    sc->set_x(rx).set_y(ry);
-                                }
-                            }
-                            ax->auto_fit();
-                        }
-                        SPECTRA_LOG_INFO("transform", "Applied transform: " + name);
-                    });
+                if (has_targets)
+                    xform_items.emplace_back(name, [this, name]() { apply_menu_transform(name); });
+                else
+                    xform_items.emplace_back(name, nullptr);
             }
 
             xform_items.emplace_back("", nullptr);
-            xform_items.emplace_back(
-                "Custom Formula...",
-                [this]()
-                {
-                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
-                    custom_transform_dialog_.open(current_figure_);
-                });
+            xform_items.emplace_back("Custom Formula...", [this]() { open_transform_dialog(); });
 
             draw_menubar_menu("Transforms", xform_items);
         }
@@ -1135,6 +1117,79 @@ void ImGuiIntegration::draw_command_bar()
     }
 
     end_command_bar();
+}
+
+void ImGuiIntegration::set_settings_store(ui::settings::SettingsStore* store)
+{
+    settings_store_ = store;
+    if (settings_store_)
+        transform_overwrite_ = settings_store_->data().transform_overwrite;
+}
+
+void ImGuiIntegration::set_transform_overwrite(bool overwrite)
+{
+    transform_overwrite_ = overwrite;
+    if (settings_store_ && settings_store_->data().transform_overwrite != overwrite)
+    {
+        settings_store_->data_mut().transform_overwrite = overwrite;
+        settings_store_->notify_change();
+    }
+}
+
+Axes* ImGuiIntegration::transform_current_plot() const
+{
+    if (!input_handler_)
+        return nullptr;
+    // Hovering clears active_axes() once the mouse leaves the plots for the
+    // menu bar, so the plot clicked last is the "current plot".
+    if (Axes* ax = input_handler_->last_pressed_axes())
+        return ax;
+    return input_handler_->active_axes();
+}
+
+SeriesTransformHooks ImGuiIntegration::series_transform_hooks()
+{
+    SeriesTransformHooks hooks;
+    // Undo of a copy removes it at the frame's safe point, like Delete Series.
+    hooks.remove_series = [this](AxesBase* owner, Series* s) { defer_series_removal(owner, s); };
+    return hooks;
+}
+
+void ImGuiIntegration::apply_menu_transform(const std::string& name)
+{
+    if (!current_figure_)
+        return;
+    SeriesTransformSpec spec;
+    if (!make_registry_transform_spec(name, spec))
+        return;
+    const auto targets =
+        resolve_transform_targets(selection_ctx_, current_figure_, transform_current_plot());
+    const auto mode =
+        transform_overwrite_ ? SeriesTransformMode::Overwrite : SeriesTransformMode::Copy;
+    const auto result = apply_series_transform(targets.targets,
+                                               spec,
+                                               mode,
+                                               undo_manager_,
+                                               series_transform_hooks());
+    SPECTRA_LOG_INFO("transform",
+                     "Applied transform {} to {} series ({})",
+                     name,
+                     result.applied,
+                     transform_overwrite_ ? "overwrite" : "copy");
+}
+
+void ImGuiIntegration::open_transform_dialog()
+{
+    if (custom_transform_dialog_.is_open())
+        return;
+    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
+    custom_transform_dialog_.set_undo_manager(undo_manager_);
+    custom_transform_dialog_.set_overwrite_binding([this]() { return transform_overwrite_; },
+                                                   [this](bool v) { set_transform_overwrite(v); });
+    custom_transform_dialog_.set_series_transform_hooks(series_transform_hooks());
+    custom_transform_dialog_.open(current_figure_);
+    custom_transform_dialog_.preselect(
+        resolve_transform_targets(selection_ctx_, current_figure_, transform_current_plot()));
 }
 
 void ImGuiIntegration::draw_plugins_panel()
@@ -1549,18 +1604,10 @@ void ImGuiIntegration::draw_nav_rail()
                        if (data_interaction_)
                            data_interaction_->clear_markers();
                    });
-        toggle_btn(
-            ui::Icon::MagicWand,
-            "Transform",
-            custom_transform_dialog_.is_open(),
-            [this]()
-            {
-                if (!custom_transform_dialog_.is_open())
-                {
-                    custom_transform_dialog_.set_fonts(font_body_, font_heading_, font_title_);
-                    custom_transform_dialog_.open(current_figure_);
-                }
-            });
+        toggle_btn(ui::Icon::MagicWand,
+                   "Transform",
+                   custom_transform_dialog_.is_open(),
+                   [this]() { open_transform_dialog(); });
 
         draw_separator();
 

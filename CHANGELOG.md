@@ -13,6 +13,7 @@ summarise the main changes rather than listing every commit.
 
 ### Changed
 
+- Transforms menu and Custom Formula dialog: a transform applies to the selected series, else to the visible series of the current (last clicked) plot instead of every plot; by default it adds a "<name> · <transform>" copy next to each source (dashed, same colour), with an "Overwrite current series" toggle (saved in settings) that renames the series instead; every apply is one undoable step (Ctrl+Z / Ctrl+Y), the view autoscales when the range changes a lot, and in overwrite mode a unit-changing transform (derivative, FFT, log) suffixes the y label when it covered the whole plot.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed

@@ -148,6 +148,12 @@ struct FrameUBO
     float near_plane = 0.01f;
     float light_dir[3]{};   // Directional light (Phase 3)
     float far_plane = 1000.0f;
+    // Viewport origin (logical px, framebuffer top-left) and framebuffer px per
+    // logical px: lets the 2D line shader map gl_FragCoord to viewport space.
+    float viewport_x  = 0.0f;
+    float viewport_y  = 0.0f;
+    float pixel_scale = 1.0f;
+    float _pad1       = 0.0f;
 };
 
 struct SeriesPushConstants
@@ -166,7 +172,9 @@ struct SeriesPushConstants
     float dash_pattern[8]{};
     float dash_total = 0.0f;
     int   dash_count = 0;
-    float _pad2[2]{};   // alignment padding
+    // Pipeline-specific extras.  The 2D line pipeline reads these as two
+    // uints: the polyline's point range (see render/line_geometry.hpp).
+    float _pad2[2]{};
 };
 
 class Backend

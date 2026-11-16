@@ -509,6 +509,12 @@ TEST(PlotExtrasSvg, StepLineHasCorners)
     ASSERT_NE(plain.find("<path class=\"line\""), std::string::npos);
     // Two more vertices (the step corners): each adds an "x y" pair.
     EXPECT_EQ(points_in_line(steps) - points_in_line(plain), 4);
+
+    // Dashes (line style) combine with steps: the stepped path is dashed.
+    ax.series()[0]->line_style(LineStyle::Dashed);
+    const std::string dashed = SvgExporter::to_string(fig);
+    EXPECT_NE(dashed.find("stroke-dasharray"), std::string::npos);
+    EXPECT_EQ(points_in_line(dashed), points_in_line(steps));
 }
 
 TEST(PlotExtrasSvg, AnnotationBoxHaloRotation)

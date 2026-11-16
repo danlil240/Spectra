@@ -68,6 +68,7 @@ bool Renderer::line_wants_m4(const LineSeries& line, const LineView& view)
 {
     if (!view.valid || view.columns == 0 || line.dense_mode() != DenseLineMode::Auto
         || !line.x_is_sorted() || line.plot_style().has_marker()
+        || line.plot_style().line_style != LineStyle::Solid   // dash phase follows every point
         || line.point_count() <= view.columns * data::M4_MIN_POINTS_PER_COLUMN)
         return false;
     const double xoff  = line.x_offset();
@@ -185,6 +186,8 @@ bool Renderer::upload_line_geometry(LineSeries&    line,
             put(line_count + i, xs[i], ys[i]);
     }
     backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), total * stride * sizeof(float));
+    // Dash phases follow the drawn vertices (step corners), not the markers.
+    store_line_points(gpu, line, upload_scratch_.data(), line_count);
 
     gpu.uploaded_count    = total;
     gpu.origin_x          = origin_x;
@@ -460,6 +463,8 @@ void Renderer::upload_series_data(Series&   series,
         gpu.origin_y       = origin_y;
         gpu.upload_xscale  = xscale;
         gpu.upload_yscale  = yscale;
+        if (line || contour)
+            store_line_points(gpu, series, upload_scratch_.data(), count);
 
         // Upload fill geometry for statistical series (interleaved {x,y,alpha} vertex buffer)
         std::span<const float> fill_verts;
@@ -634,6 +639,7 @@ void Renderer::upload_series_data(Series&   series,
         }
 
         backend_.upload_buffer(gpu.ssbo, upload_scratch_.data(), byte_size);
+        store_line_points(gpu, series, upload_scratch_.data(), count);
         gpu.uploaded_count  = count;
         gpu.origin_x        = origin_x;
         gpu.origin_y        = origin_y;

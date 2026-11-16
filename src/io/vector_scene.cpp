@@ -725,15 +725,22 @@ std::string polyline_path(std::span<const float> x,
     return d;
 }
 
-// Dash lengths matching get_dash_pattern() (flat-ended dashes in line.frag).
+// Dash array for a round-capped stroke matching get_dash_pattern() as
+// line.frag draws it: pattern lengths are visual, the round caps (one width
+// across) sit inside each dash, so every dash shrinks by one width and every
+// gap grows by as much.  A dash no longer than the width becomes a dot.
 std::vector<float> dash_array(LineStyle ls, float width)
 {
     if (ls == LineStyle::Solid || ls == LineStyle::None)
         return {};
     const DashPattern  dp = get_dash_pattern(ls, width);
     std::vector<float> out;
-    for (int i = 0; i < dp.count && i < 8; ++i)
-        out.push_back(dp.segments[i]);
+    for (int i = 0; i + 1 < dp.count && i < 8; i += 2)
+    {
+        const float on = std::max(dp.segments[i] - width, 0.0f);
+        out.push_back(on);
+        out.push_back(dp.segments[i + 1] + (dp.segments[i] - on));
+    }
     return out;
 }
 
@@ -756,7 +763,7 @@ void emit_stroke_path(SceneContext&      c,
     s.fill        = VectorPaint::none();
     s.join        = VectorLineJoin::Round;
     s.dash        = dash_array(ls, width);
-    s.cap         = s.dash.empty() ? VectorLineCap::Round : VectorLineCap::Butt;
+    s.cap         = VectorLineCap::Round;
     c.w.path(6, d, s);
 }
 
@@ -1894,6 +1901,7 @@ void emit_legend(SceneContext&       c,
                 const float lw = std::clamp(e.line_width, 1.0f, 4.0f);
                 VectorStyle s  = stroke_style(e.color, lw, e.alpha);
                 s.dash         = dash_array(e.line_style, std::min(lw, 1.5f));
+                s.cap          = VectorLineCap::Round;
                 c.w.line(6, ex, ey, ex + swatch_w, ey, s);
                 if (e.marker != MarkerStyle::None)
                     swatch_use(e, 4.0f, 10.0f, cx, ey);

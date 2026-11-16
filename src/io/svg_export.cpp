@@ -387,8 +387,8 @@ class SvgWriter final : public VectorWriter
             if (r.kind != mathtext::Run::Kind::Text || r.text.empty())
                 continue;
             const float px = t.font_px * r.scale;
-            body_ +=
-                "<tspan x=\"" + num(x0 + r.x) + "\" y=\"" + num(t.y - r.shift * t.font_px) + "\"";
+            body_ += "<tspan x=\"" + num(x0 + r.x) + "\" y=\""
+                     + num(t.y - static_cast<double>(r.shift) * t.font_px) + "\"";
             if (r.scale != 1.0f)
                 body_ += " font-size=\"" + num(px) + "\"";
             text_length_attr(r.text, px);

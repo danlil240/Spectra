@@ -783,7 +783,7 @@ class PdfPageWriter final : public VectorWriter
                 y               = t.rot_y + s * dx + c * dy;
             }
             out_ += "/F1 ";
-            put_pdf_num(out_, t.font_px * r.scale, 3);
+            put_pdf_num(out_, static_cast<double>(t.font_px) * r.scale, 3);
             out_ += " Tf\n";
             for (const double v : {c, s, s, -c})
             {

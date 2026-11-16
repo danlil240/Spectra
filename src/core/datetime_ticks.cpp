@@ -340,6 +340,51 @@ CivilTime civil_from_epoch(double t)
     return c;
 }
 
+std::string format_datetime_readout(double t, double resolution)
+{
+    if (std::isnan(t))
+        return "nan";
+    if (std::isinf(t))
+        return t > 0.0 ? "inf" : "-inf";
+
+    constexpr double SECONDS_PER_MINUTE = 60.0;
+    int              decimals           = 0;   // fractional second digits
+    bool             show_seconds       = true;
+    bool             show_time          = true;
+    if (resolution > 0.0 && std::isfinite(resolution))
+    {
+        if (resolution >= SECONDS_PER_DAY)
+            show_time = false;
+        else if (resolution >= SECONDS_PER_MINUTE)
+            show_seconds = false;
+        else if (resolution < 1.0)
+            decimals =
+                std::clamp(static_cast<int>(std::ceil(-std::log10(resolution) - 1e-9)), 1, 6);
+    }
+    else
+    {
+        const double frac = std::abs(t - std::round(t));
+        decimals          = frac >= 5e-4 ? 3 : 0;
+    }
+
+    // Round to the printed precision first so 59.9996 s cannot print as "60".
+    const double    scale   = std::pow(10.0, decimals);
+    const double    rounded = show_seconds ? std::round(t * scale) / scale
+                                           : std::floor(t / SECONDS_PER_MINUTE) * SECONDS_PER_MINUTE;
+    const CivilTime c       = civil_from_epoch(rounded);
+
+    std::string out = std::format("{:04}-{:02}-{:02}", c.year, c.month, c.day);
+    if (!show_time)
+        return out;
+    out += std::format(" {:02}:{:02}", c.hour, c.minute);
+    if (!show_seconds)
+        return out;
+    if (decimals == 0)
+        return out + std::format(":{:02}", static_cast<int>(std::floor(c.second + 1e-9)));
+    // Width = 2 integer digits + point + decimals, zero padded ("05.250").
+    return out + std::format(":{:0{}.{}f}", c.second, decimals + 3, decimals);
+}
+
 TickResult generate_datetime_ticks(double lo, double hi, const LinearTickOptions& opt)
 {
     if (!std::isfinite(lo) || !std::isfinite(hi))

@@ -26,6 +26,9 @@ struct MenuAction
     std::function<bool()>   checked{};
     bool                    separator = false;
     std::vector<MenuAction> submenu{};
+    // Command bar: draw `submenu` as a cascading menu that opens on hover
+    // ("Export ▸").  Without it the submenu is flattened into a section.
+    bool cascade = false;
 };
 
 class Menu

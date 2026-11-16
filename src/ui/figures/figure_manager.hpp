@@ -49,7 +49,9 @@ class FigureManager
 
     // Figure lifecycle
     FigureId create_figure(const FigureConfig& config = {});
-    bool     close_figure(FigureId index);
+    // @p keep_window: closing the last figure empties the window instead of
+    // requesting a window close.
+    bool     close_figure(FigureId index, bool keep_window = false);
     bool     close_all_except(FigureId index);
     bool     close_to_right(FigureId index);
     FigureId duplicate_figure(FigureId index);
@@ -107,6 +109,9 @@ class FigureManager
     // Queue operations (safe to call from callbacks)
     void queue_create();
     void queue_close(FigureId index);
+    // Like queue_close(), but closing the last figure leaves the window empty
+    // (start page) instead of asking to close the window (Ctrl+W / Q).
+    void queue_close_keep_window(FigureId index);
     void queue_switch(FigureId index);
 
     // Save/restore axis state for the current figure
@@ -128,9 +133,10 @@ class FigureManager
     FigureId pos_to_id(size_t pos) const;
 
     // Pending operations (processed in process_pending())
-    FigureId pending_switch_ = INVALID_FIGURE_ID;
-    FigureId pending_close_  = INVALID_FIGURE_ID;
-    bool     pending_create_ = false;
+    FigureId pending_switch_            = INVALID_FIGURE_ID;
+    FigureId pending_close_             = INVALID_FIGURE_ID;
+    bool     pending_close_keep_window_ = false;
+    bool     pending_create_            = false;
 
     // Callbacks
     FigureChangeCallback       on_figure_changed_;

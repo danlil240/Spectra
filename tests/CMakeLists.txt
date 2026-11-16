@@ -102,6 +102,7 @@ set(SPECTRA_UNIT_TESTS
     test_bugfix_core_axes
     test_axis_scale
     test_crosshair_mapping
+    test_series_probe
     test_log_overlays
     test_bugfix_core_series
     test_bugfix_core_stats
@@ -213,6 +214,7 @@ set(SPECTRA_UNIT_TESTS
     test_shell_nav_rail
     test_shell_app_shell
     test_ui_shell_fixes
+    test_file_model
     test_interaction_fixes
     test_view_history
     test_live_measure
@@ -555,7 +557,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|series_probe|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.

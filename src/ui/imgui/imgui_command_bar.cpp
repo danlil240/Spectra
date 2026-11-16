@@ -319,6 +319,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
         SPECTRA_LOG_DEBUG("menu", "Click open: " + std::string(label));
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
+        open_submenu_label_.clear();
     }
 
     // Hover-switch: if another menu is open and user hovers this button, switch
@@ -328,6 +329,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                           "Hover switch: " + std::string(open_menu_label_) + " -> " + label);
         ImGui::OpenPopup(label);
         open_menu_label_ = label;
+        open_submenu_label_.clear();
     }
 
     // Anchor popup at button's bottom-left corner (not at mouse position)
@@ -366,12 +368,21 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
 
         bool mouse_in_zone = (mouse.x >= combined_min_x && mouse.x <= combined_max_x
                               && mouse.y >= combined_min_y && mouse.y <= combined_max_y);
+        // An open cascading submenu ("Export ▸") counts as part of the menu.
+        if (!open_submenu_label_.empty() && open_submenu_rect_.w > 0.0f)
+        {
+            const Rect& sr = open_submenu_rect_;
+            mouse_in_zone  = mouse_in_zone
+                            || (mouse.x >= sr.x - margin && mouse.x <= sr.x + sr.w + margin
+                                && mouse.y >= sr.y - margin && mouse.y <= sr.y + sr.h + margin);
+        }
 
         if (!mouse_in_zone && !ImGui::IsAnyItemActive())
         {
             SPECTRA_LOG_DEBUG("menu", "Auto-close: " + std::string(label));
             ImGui::CloseCurrentPopup();
             open_menu_label_.clear();
+            open_submenu_label_.clear();
         }
 
         // Multi-layer soft shadow behind popup (elevation 3)
@@ -389,151 +400,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                 ui::tokens::RADIUS_LG + soff * 0.5f);
         }
 
-        // ── Row layout: [check] [icon] label ............ shortcut ──
-        // Columns are reserved only when some item in this menu uses them, so
-        // plain menus keep their compact look.
-        struct RowText
-        {
-            std::string_view label;
-            std::string_view shortcut;
-        };
-        auto split_row = [](const ImGuiIntegration::MenuItem& it) -> RowText
-        {
-            // Legacy items may still encode the shortcut as "Label\tShortcut".
-            std::string_view l   = it.label;
-            const size_t     tab = l.find('\t');
-            if (tab != std::string_view::npos && it.shortcut.empty())
-                return {l.substr(0, tab), l.substr(tab + 1)};
-            return {l, it.shortcut};
-        };
-
-        const float pad_x     = ui::tokens::SPACE_2;
-        const float line_h    = ImGui::GetTextLineHeight();
-        const float item_h    = line_h + 10.0f;
-        const float check_w   = line_h * 0.8f;
-        bool        has_check = false;
-        bool        has_icon  = false;
-        float       max_label = 0.0f;
-        float       max_short = 0.0f;
-        for (const auto& item : items)
-        {
-            if (item.label.empty())
-                continue;
-            const RowText row = split_row(item);
-            has_check         = has_check || static_cast<bool>(item.checked);
-            has_icon          = has_icon || item.icon != 0;
-            max_label         = std::max(
-                max_label,
-                ImGui::CalcTextSize(row.label.data(), row.label.data() + row.label.size()).x);
-            if (!row.shortcut.empty())
-            {
-                max_short = std::max(max_short,
-                                     ImGui::CalcTextSize(row.shortcut.data(),
-                                                         row.shortcut.data() + row.shortcut.size())
-                                         .x);
-            }
-        }
-        const float check_col = has_check ? check_w + ui::tokens::SPACE_2 : 0.0f;
-        const float icon_sz   = line_h;
-        const float icon_col  = has_icon ? icon_sz + ui::tokens::SPACE_2 : 0.0f;
-        const float label_x   = pad_x + check_col + icon_col;
-        const float short_gap = max_short > 0.0f ? ui::tokens::SPACE_6 : 0.0f;
-        const float row_w     = label_x + max_label + short_gap + max_short + pad_x;
-
-        auto to_u32 = [](const ui::Color& c, float a)
-        { return ImGui::ColorConvertFloat4ToU32(ImVec4(c.r, c.g, c.b, a)); };
-
-        int row_index = 0;
-        for (const auto& item : items)
-        {
-            if (item.label.empty())
-            {
-                ImGui::Dummy(ImVec2(0, 2));
-                ImGui::PushStyleColor(ImGuiCol_Separator,
-                                      ImVec4(colors.border_subtle.r,
-                                             colors.border_subtle.g,
-                                             colors.border_subtle.b,
-                                             0.3f));
-                ImGui::Separator();
-                ImGui::PopStyleColor();
-                ImGui::Dummy(ImVec2(0, 2));
-                continue;
-            }
-
-            // Null callback + non-empty label → disabled / grayed-out item.
-            // text_tertiary is the theme field for placeholders / disabled text.
-            const bool    enabled = static_cast<bool>(item.callback);
-            const RowText row     = split_row(item);
-            const bool    checked = item.checked && item.checked();
-
-            ImGui::PushID(row_index++);
-            ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0, 0, 0, 0));
-            ImGui::PushStyleColor(ImGuiCol_HeaderHovered,
-                                  ImVec4(colors.accent_subtle.r,
-                                         colors.accent_subtle.g,
-                                         colors.accent_subtle.b,
-                                         0.5f));
-            ImGui::PushStyleColor(
-                ImGuiCol_HeaderActive,
-                ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
-            ImGuiSelectableFlags sel_flags =
-                enabled ? ImGuiSelectableFlags_None : ImGuiSelectableFlags_Disabled;
-            if (item.keep_open)
-                sel_flags |= ImGuiSelectableFlags_NoAutoClosePopups;
-            const bool clicked =
-                ImGui::Selectable("##menu_item", false, sel_flags, ImVec2(row_w, item_h));
-            ImGui::PopStyleColor(3);
-
-            const ImVec2 rmin     = ImGui::GetItemRectMin();
-            const ImVec2 rmax     = ImGui::GetItemRectMax();
-            const float  text_y   = rmin.y + (item_h - line_h) * 0.5f;
-            ImDrawList*  dl       = ImGui::GetWindowDrawList();
-            const ImU32  text_col = enabled ? to_u32(colors.text_primary, colors.text_primary.a)
-                                            : to_u32(colors.text_tertiary, colors.text_tertiary.a);
-
-            if (checked)
-            {
-                ImGui::RenderCheckMark(dl,
-                                       ImVec2(rmin.x + pad_x, rmin.y + (item_h - check_w) * 0.5f),
-                                       to_u32(colors.accent, enabled ? 1.0f : 0.5f),
-                                       check_w);
-            }
-            if (item.icon != 0 && font_icon_)
-            {
-                const char* glyph = ui::icon_str(static_cast<ui::Icon>(item.icon));
-                const ImU32 icon_col_u32 =
-                    checked ? to_u32(colors.accent, enabled ? 1.0f : 0.5f)
-                            : to_u32(colors.text_secondary, enabled ? 0.9f : 0.5f);
-                dl->AddText(font_icon_,
-                            icon_sz * 0.9f,
-                            ImVec2(rmin.x + pad_x + check_col, rmin.y + (item_h - icon_sz) * 0.5f),
-                            icon_col_u32,
-                            glyph);
-            }
-            dl->AddText(ImVec2(rmin.x + label_x, text_y),
-                        text_col,
-                        row.label.data(),
-                        row.label.data() + row.label.size());
-            if (!row.shortcut.empty())
-            {
-                const float sw = ImGui::CalcTextSize(row.shortcut.data(),
-                                                     row.shortcut.data() + row.shortcut.size())
-                                     .x;
-                dl->AddText(ImVec2(rmax.x - pad_x - sw, text_y),
-                            to_u32(colors.text_tertiary, enabled ? 1.0f : 0.6f),
-                            row.shortcut.data(),
-                            row.shortcut.data() + row.shortcut.size());
-            }
-            ImGui::PopID();
-
-            if (clicked && enabled)
-            {
-                ui::log_ui_action("menu", row.label, "ok");
-                item.callback();
-                if (!item.keep_open)
-                    open_menu_label_.clear();
-            }
-        }
+        draw_menu_rows(items, 0);
 
         ImGui::EndPopup();
     }
@@ -543,6 +410,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
         if (open_menu_label_ == label)
         {
             open_menu_label_.clear();
+            open_submenu_label_.clear();
         }
     }
 
@@ -551,6 +419,234 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor(4);
     ImGui::PopFont();
+}
+
+// Rows of a command-bar menu popup: [check] [icon] label ..... shortcut, plus
+// cascading submenus (MenuItem::children) that open to the right on hover.
+bool ImGuiIntegration::draw_menu_rows(const std::vector<MenuItem>& items, int depth)
+{
+    const auto& colors = theme_colors();
+    // ── Row layout: [check] [icon] label ............ shortcut ──
+    // Columns are reserved only when some item in this menu uses them, so
+    // plain menus keep their compact look.
+    struct RowText
+    {
+        std::string_view label;
+        std::string_view shortcut;
+    };
+    auto split_row = [](const ImGuiIntegration::MenuItem& it) -> RowText
+    {
+        // Legacy items may still encode the shortcut as "Label\tShortcut".
+        std::string_view l   = it.label;
+        const size_t     tab = l.find('\t');
+        if (tab != std::string_view::npos && it.shortcut.empty())
+            return {l.substr(0, tab), l.substr(tab + 1)};
+        return {l, it.shortcut};
+    };
+
+    const float pad_x     = ui::tokens::SPACE_2;
+    const float line_h    = ImGui::GetTextLineHeight();
+    const float item_h    = line_h + 10.0f;
+    const float check_w   = line_h * 0.8f;
+    bool        has_check = false;
+    bool        has_icon  = false;
+    float       max_label = 0.0f;
+    float       max_short = 0.0f;
+    for (const auto& item : items)
+    {
+        if (item.label.empty())
+            continue;
+        const RowText row = split_row(item);
+        has_check         = has_check || static_cast<bool>(item.checked);
+        has_icon          = has_icon || item.icon != 0;
+        max_label =
+            std::max(max_label,
+                     ImGui::CalcTextSize(row.label.data(), row.label.data() + row.label.size()).x);
+        if (!row.shortcut.empty())
+        {
+            max_short = std::max(
+                max_short,
+                ImGui::CalcTextSize(row.shortcut.data(), row.shortcut.data() + row.shortcut.size())
+                    .x);
+        }
+    }
+    const float check_col   = has_check ? check_w + ui::tokens::SPACE_2 : 0.0f;
+    const float icon_sz     = line_h;
+    const float icon_col    = has_icon ? icon_sz + ui::tokens::SPACE_2 : 0.0f;
+    const float label_x     = pad_x + check_col + icon_col;
+    bool        has_submenu = false;
+    for (const auto& item : items)
+        has_submenu = has_submenu || !item.children.empty();
+    const float chevron_w = has_submenu ? line_h : 0.0f;
+    const float short_gap = (max_short > 0.0f || has_submenu) ? ui::tokens::SPACE_6 : 0.0f;
+    const float row_w = label_x + max_label + short_gap + std::max(max_short, chevron_w) + pad_x;
+
+    auto to_u32 = [](const ui::Color& c, float a)
+    { return ImGui::ColorConvertFloat4ToU32(ImVec4(c.r, c.g, c.b, a)); };
+
+    int  row_index  = 0;
+    bool close_menu = false;
+    for (const auto& item : items)
+    {
+        if (item.label.empty())
+        {
+            ImGui::Dummy(ImVec2(0, 2));
+            ImGui::PushStyleColor(ImGuiCol_Separator,
+                                  ImVec4(colors.border_subtle.r,
+                                         colors.border_subtle.g,
+                                         colors.border_subtle.b,
+                                         0.3f));
+            ImGui::Separator();
+            ImGui::PopStyleColor();
+            ImGui::Dummy(ImVec2(0, 2));
+            continue;
+        }
+
+        // Null callback + non-empty label → disabled / grayed-out item.
+        // text_tertiary is the theme field for placeholders / disabled text.
+        const bool    is_submenu = !item.children.empty();
+        const bool    enabled    = is_submenu || static_cast<bool>(item.callback);
+        const RowText row        = split_row(item);
+        const bool    checked    = item.checked && item.checked();
+
+        // The row whose cascade is open keeps the hover highlight.
+        const bool sub_open = is_submenu && depth == 0 && open_submenu_label_ == item.label;
+
+        ImGui::PushID(row_index++);
+        ImGui::PushStyleColor(ImGuiCol_Header,
+                              sub_open ? ImVec4(colors.accent_subtle.r,
+                                                colors.accent_subtle.g,
+                                                colors.accent_subtle.b,
+                                                0.5f)
+                                       : ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(
+            ImGuiCol_HeaderHovered,
+            ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+        ImGui::PushStyleColor(
+            ImGuiCol_HeaderActive,
+            ImVec4(colors.accent_muted.r, colors.accent_muted.g, colors.accent_muted.b, 0.7f));
+        ImGuiSelectableFlags sel_flags =
+            enabled ? ImGuiSelectableFlags_None : ImGuiSelectableFlags_Disabled;
+        if (item.keep_open || is_submenu)
+            sel_flags |= ImGuiSelectableFlags_NoAutoClosePopups;
+        const bool clicked =
+            ImGui::Selectable("##menu_item", sub_open, sel_flags, ImVec2(row_w, item_h));
+        // The open cascade is a popup above this one: still track hover here so
+        // moving to another row switches or closes it.
+        const bool row_hovered = ImGui::IsItemHovered(
+            depth == 0 ? ImGuiHoveredFlags_AllowWhenBlockedByPopup : ImGuiHoveredFlags_None);
+        ImGui::PopStyleColor(3);
+
+        const ImVec2 rmin     = ImGui::GetItemRectMin();
+        const ImVec2 rmax     = ImGui::GetItemRectMax();
+        const float  text_y   = rmin.y + (item_h - line_h) * 0.5f;
+        ImDrawList*  dl       = ImGui::GetWindowDrawList();
+        const ImU32  text_col = enabled ? to_u32(colors.text_primary, colors.text_primary.a)
+                                        : to_u32(colors.text_tertiary, colors.text_tertiary.a);
+
+        if (checked)
+        {
+            ImGui::RenderCheckMark(dl,
+                                   ImVec2(rmin.x + pad_x, rmin.y + (item_h - check_w) * 0.5f),
+                                   to_u32(colors.accent, enabled ? 1.0f : 0.5f),
+                                   check_w);
+        }
+        if (item.icon != 0 && font_icon_)
+        {
+            const char* glyph        = ui::icon_str(static_cast<ui::Icon>(item.icon));
+            const ImU32 icon_col_u32 = checked
+                                           ? to_u32(colors.accent, enabled ? 1.0f : 0.5f)
+                                           : to_u32(colors.text_secondary, enabled ? 0.9f : 0.5f);
+            dl->AddText(font_icon_,
+                        icon_sz * 0.9f,
+                        ImVec2(rmin.x + pad_x + check_col, rmin.y + (item_h - icon_sz) * 0.5f),
+                        icon_col_u32,
+                        glyph);
+        }
+        dl->AddText(ImVec2(rmin.x + label_x, text_y),
+                    text_col,
+                    row.label.data(),
+                    row.label.data() + row.label.size());
+        if (is_submenu && font_icon_)
+        {
+            const char* glyph = ui::icon_str(ui::Icon::ChevronRight);
+            const float gsz   = line_h * 0.6f;
+            dl->AddText(font_icon_,
+                        gsz,
+                        ImVec2(rmax.x - pad_x - gsz, rmin.y + (item_h - gsz) * 0.5f),
+                        to_u32(colors.text_secondary, 0.9f),
+                        glyph);
+        }
+        else if (!row.shortcut.empty())
+        {
+            const float sw =
+                ImGui::CalcTextSize(row.shortcut.data(), row.shortcut.data() + row.shortcut.size())
+                    .x;
+            dl->AddText(ImVec2(rmax.x - pad_x - sw, text_y),
+                        to_u32(colors.text_tertiary, enabled ? 1.0f : 0.6f),
+                        row.shortcut.data(),
+                        row.shortcut.data() + row.shortcut.size());
+        }
+
+        // Cascading submenu (one level): hovering the row opens it to the right;
+        // hovering another row of this menu closes it.
+        if (depth == 0)
+        {
+            if (row_hovered || (is_submenu && clicked))
+                open_submenu_label_ = is_submenu ? item.label : std::string();
+            if (is_submenu)
+            {
+                const char* sub_id = "##cascade";
+                if (open_submenu_label_ == item.label)
+                {
+                    if (!ImGui::IsPopupOpen(sub_id))
+                        ImGui::OpenPopup(sub_id);
+                    ImGui::SetNextWindowPos(
+                        ImVec2(rmax.x + ui::tokens::SPACE_2, rmin.y - ui::tokens::SPACE_2));
+                    if (ImGui::BeginPopup(sub_id))
+                    {
+                        const ImVec2 wp    = ImGui::GetWindowPos();
+                        const ImVec2 ws    = ImGui::GetWindowSize();
+                        open_submenu_rect_ = Rect{wp.x, wp.y, ws.x, ws.y};
+                        if (draw_menu_rows(item.children, depth + 1))
+                        {
+                            ImGui::CloseCurrentPopup();
+                            close_menu = true;
+                        }
+                        ImGui::EndPopup();
+                    }
+                }
+                else if (ImGui::IsPopupOpen(sub_id) && ImGui::BeginPopup(sub_id))
+                {
+                    ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
+                }
+            }
+        }
+        ImGui::PopID();
+
+        if (clicked && enabled && !is_submenu)
+        {
+            ui::log_ui_action("menu", row.label, "ok");
+            item.callback();
+            if (!item.keep_open)
+            {
+                open_menu_label_.clear();
+                close_menu = true;
+            }
+        }
+    }
+
+    // A submenu item ran: close the top-level menu too.
+    if (depth == 0 && close_menu)
+    {
+        ImGui::CloseCurrentPopup();
+        open_menu_label_.clear();
+        open_submenu_label_.clear();
+        open_submenu_rect_ = Rect{};
+    }
+
+    return close_menu;
 }
 
 // Helper for drawing toolbar buttons with modern hover styling and themed tooltips

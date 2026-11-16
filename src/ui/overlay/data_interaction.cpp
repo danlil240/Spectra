@@ -9,13 +9,17 @@
     #include <spectra/axes.hpp>
     #include <spectra/axes3d.hpp>
     #include <spectra/figure.hpp>
+    #include <optional>
+    #include <spectra/chunked_series.hpp>
     #include <spectra/series.hpp>
     #include <spectra/series3d.hpp>
+    #include <spectra/series_image.hpp>
+    #include <spectra/series_stats.hpp>
 
     #include "core/axis_scale.hpp"
-    #include "data/sorted_x_query.hpp"
     #include "axes3d_pick.hpp"
     #include "crosshair_mapping.hpp"
+    #include "series_probe.hpp"
     #include "marker_actions.hpp"
     #include "measure_math.hpp"
     #include "ui/data/axis_link.hpp"
@@ -33,6 +37,7 @@ constexpr int SHIFT_MOD = 0x0001;   // GLFW_MOD_SHIFT
 void DataInteraction::set_fonts(ImFont* body, ImFont* heading, ImFont* icon)
 {
     tooltip_.set_fonts(body, heading);
+    compare_.set_fonts(body);
     region_.set_fonts(body, heading);
     legend_.set_fonts(body, icon);
     annotations_.set_fonts(body, heading);
@@ -42,6 +47,7 @@ void DataInteraction::set_theme_manager(ui::ThemeManager* tm)
 {
     theme_mgr_ = tm;
     crosshair_.set_theme_manager(tm);
+    compare_.set_theme_manager(tm);
     tooltip_.set_theme_manager(tm);
     markers_.set_theme_manager(tm);
     annotations_.set_theme_manager(tm);
@@ -408,8 +414,26 @@ void DataInteraction::draw_overlays(float       window_width,
         }
     }
 
-    // Draw tooltip last (on top)
-    tooltip_.draw(nearest_, window_width, window_height, dl);
+    // Compare-at-X readout with the crosshair: one tooltip listing every
+    // series at the cursor X.  Hidden (like the tooltip) under an open popup.
+    compare_drawn_ = false;
+    if (crosshair_.enabled() && compare_.enabled() && !compare_suppressed_ && active_axes_
+        && last_cursor_.valid && overlay_figure
+        && !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+    {
+        compare_drawn_ = compare_.draw(last_cursor_,
+                                       *overlay_figure,
+                                       *active_axes_,
+                                       axis_link_mgr_,
+                                       crosshair_.opacity(),
+                                       window_width,
+                                       window_height,
+                                       dl);
+    }
+
+    // Draw tooltip last (on top); the compare readout already lists the series.
+    if (!compare_drawn_)
+        tooltip_.draw(nearest_, window_width, window_height, dl);
 }
 
 bool DataInteraction::dispatch_series_selection_from_nearest()
@@ -492,6 +516,21 @@ bool DataInteraction::try_toggle_datatip_at_nearest()
                                   nearest_.series,
                                   nearest_.point_index,
                                   nearest_.axes3d);
+        return true;
+    }
+
+    if (active_axes_ && nearest_.kind != HoverHitKind::Vertex && nearest_.kind != HoverHitKind::Bar
+        && nearest_.kind != HoverHitKind::Bin)
+    {
+        // Between samples / inside an image / on a contour: pin a data tip at
+        // the picked position (no stored sample to toggle).
+        markers_.add(nearest_.data_x,
+                     nearest_.data_y,
+                     nearest_.series,
+                     nearest_.point_index,
+                     active_axes_,
+                     nearest_.dy_dx,
+                     nearest_.dy_dx_valid);
         return true;
     }
 
@@ -1240,7 +1279,20 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
     if (!over_plot)
         return best;
 
-    // Search all axes
+    // 2D candidates.  Samples (vertices) win when within the snap radius;
+    // otherwise a point on a line / contour segment within the radius; only
+    // then an area under the cursor (bar, histogram bin, image cell).  The
+    // closest vertex is still reported beyond the radius (tooltip fades out).
+    const float snap_px    = tooltip_.snap_radius();
+    const float snap2      = snap_px * snap_px;
+    float       seg_dist2  = std::numeric_limits<float>::max();
+    bool        area_found = false;
+    // A segment beats a vertex inside the radius only when it is clearly
+    // closer, so hovering near a sample keeps reporting that exact sample.
+    constexpr float    SEGMENT_BIAS_PX = 3.0f;
+    NearestPointResult seg_best;
+    NearestPointResult area_best;
+
     for (auto& axes_ptr : figure.axes())
     {
         if (!axes_ptr)
@@ -1257,6 +1309,116 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         const ScaleType   xscale  = axes_ptr->xscale();
         const AxisLimits  xlim    = axis_space_limits(xscale, axes_ptr->x_limits());
         const double      x_range = axis_mapping::axis_span(xlim);
+        const double      cur_dx  = map.to_data_x(cx);
+        const double      cur_dy  = map.to_data_y(cy);
+
+        // Snap window [lo, hi] in absolute data x around the cursor (the
+        // inverse mapping is not symmetric about the cursor on a log axis).
+        double win_lo = -std::numeric_limits<double>::infinity();
+        double win_hi = std::numeric_limits<double>::infinity();
+        if (vp.w > 0.0f)
+        {
+            const double cursor_ax_x = xlim.min + (static_cast<double>(cx - vp.x) / vp.w) * x_range;
+            const double radius_ax   = std::abs(x_range) * static_cast<double>(snap_px) / vp.w;
+            win_lo                   = from_axis_space(xscale, cursor_ax_x - radius_ax);
+            win_hi                   = from_axis_space(xscale, cursor_ax_x + radius_ax);
+            if (std::isnan(win_lo))
+                win_lo = -std::numeric_limits<double>::infinity();
+        }
+
+        // Fill the shared fields of a 2D candidate.
+        auto make_hit = [&](Series* s, int idx, HoverHitKind kind) -> NearestPointResult
+        {
+            NearestPointResult r;
+            r.found        = true;
+            r.series       = s;
+            r.series_index = idx;
+            r.axes         = axes_ptr.get();
+            r.kind         = kind;
+            return r;
+        };
+
+        // Screen position of an absolute data point (nullopt: not drawable).
+        auto to_screen = [&](double ax_x, double ax_y) -> std::optional<ImVec2>
+        {
+            if (!std::isfinite(ax_x) || !std::isfinite(ax_y) || !map.x_drawable(ax_x)
+                || !map.y_drawable(ax_y))
+                return std::nullopt;
+            return ImVec2(static_cast<float>(map.to_screen_x(ax_x)),
+                          static_cast<float>(map.to_screen_y(ax_y)));
+        };
+
+        // Vertex + segment pass over samples [b, e) of a polyline given by
+        // accessors; `segments` enables the between-samples hit.
+        auto scan_polyline = [&](Series*      s,
+                                 int          idx,
+                                 size_t       b,
+                                 size_t       e,
+                                 auto&&       get_x,
+                                 auto&&       get_y,
+                                 bool         vertices,
+                                 bool         segments,
+                                 HoverHitKind seg_kind)
+        {
+            const double xoff = s->x_offset();
+            const double yoff = s->y_offset();
+            last_query_points_examined_ += e - b;
+            std::optional<ImVec2> prev;
+            double                prev_x = 0.0, prev_y = 0.0;
+            for (size_t i = b; i < e; ++i)
+            {
+                const double abs_x = static_cast<double>(get_x(i)) + xoff;
+                const double abs_y = static_cast<double>(get_y(i)) + yoff;
+                const auto   p     = to_screen(abs_x, abs_y);
+                if (p && vertices)
+                {
+                    const float dx    = cx - p->x;
+                    const float dy    = cy - p->y;
+                    const float dist2 = dx * dx + dy * dy;
+                    if (dist2 < best_dist2)
+                    {
+                        best             = make_hit(s, idx, HoverHitKind::Vertex);
+                        best.point_index = i;
+                        best.data_x      = abs_x;
+                        best.data_y      = abs_y;
+                        best.screen_x    = p->x;
+                        best.screen_y    = p->y;
+                        best_dist2       = dist2;
+                    }
+                }
+                if (p && prev && segments)
+                {
+                    const auto c = probe::closest_on_segment(prev->x, prev->y, p->x, p->y, cx, cy);
+                    if (c.dist2 < seg_dist2 && c.dist2 <= snap2)
+                    {
+                        const auto sx        = static_cast<float>(prev->x + c.t * (p->x - prev->x));
+                        const auto sy        = static_cast<float>(prev->y + c.t * (p->y - prev->y));
+                        seg_best             = make_hit(s, idx, seg_kind);
+                        seg_best.point_index = c.t < 0.5 ? i - 1 : i;
+                        // Interpolate in axis space (what the renderer draws).
+                        seg_best.data_x = map.to_data_x(sx);
+                        seg_best.data_y = map.to_data_y(sy);
+                        if (c.t <= 0.0 || c.t >= 1.0)
+                        {
+                            seg_best.data_x = c.t <= 0.0 ? prev_x : abs_x;
+                            seg_best.data_y = c.t <= 0.0 ? prev_y : abs_y;
+                        }
+                        seg_best.screen_x = sx;
+                        seg_best.screen_y = sy;
+                        if (abs_x != prev_x)
+                        {
+                            seg_best.dy_dx =
+                                static_cast<float>((abs_y - prev_y) / (abs_x - prev_x));
+                            seg_best.dy_dx_valid = seg_kind == HoverHitKind::Segment;
+                        }
+                        seg_dist2 = static_cast<float>(c.dist2);
+                    }
+                }
+                prev   = p;
+                prev_x = abs_x;
+                prev_y = abs_y;
+            }
+        };
 
         int series_counter = -1;
         for (auto& series_ptr : axes_ptr->series())
@@ -1264,93 +1426,246 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             ++series_counter;
             if (!series_ptr || !series_ptr->visible())
                 continue;
+            Series* s = series_ptr.get();
 
             const float* x_data   = nullptr;
             const float* y_data   = nullptr;
             size_t       count    = 0;
             bool         x_sorted = false;
+            bool         has_line = false;
 
-            if (auto* ls = dynamic_cast<LineSeries*>(series_ptr.get()))
+            if (auto* ls = dynamic_cast<LineSeries*>(s))
             {
                 x_data   = ls->x_data().data();
                 y_data   = ls->y_data().data();
                 count    = ls->point_count();
                 x_sorted = ls->x_is_sorted();
+                has_line = ls->line_style() != LineStyle::None;
             }
-            else if (auto* sc = dynamic_cast<ScatterSeries*>(series_ptr.get()))
+            else if (auto* sc = dynamic_cast<ScatterSeries*>(s))
             {
                 x_data   = sc->x_data().data();
                 y_data   = sc->y_data().data();
                 count    = sc->point_count();
                 x_sorted = sc->x_is_sorted();
             }
+            else if (auto* cs = dynamic_cast<ChunkedLineSeries*>(s))
+            {
+                // Chunked storage: binary search the snap window in the
+                // sorted samples, then scan just that window.
+                const size_t                        chunks = cs->storage_chunk_count();
+                std::vector<std::span<const float>> xs, ys;
+                std::vector<size_t>                 starts;
+                size_t                              total = 0;
+                for (size_t c = 0; c < chunks; ++c)
+                {
+                    xs.push_back(cs->x_chunk(c));
+                    ys.push_back(cs->y_chunk(c));
+                    starts.push_back(total);
+                    total += std::min(xs.back().size(), ys.back().size());
+                }
+                if (total == 0)
+                    continue;
+                auto locate = [&](size_t i)
+                {
+                    const auto it = std::upper_bound(starts.begin(), starts.end(), i);
+                    const auto c  = static_cast<size_t>(it - starts.begin()) - 1;
+                    return std::pair<size_t, size_t>{c, i - starts[c]};
+                };
+                auto get_x = [&](size_t i)
+                {
+                    const auto [c, k] = locate(i);
+                    return xs[c][k];
+                };
+                auto get_y = [&](size_t i)
+                {
+                    const auto [c, k] = locate(i);
+                    return ys[c][k];
+                };
+                const double xoff  = s->x_offset();
+                auto         lower = [&](double v)
+                {
+                    size_t lo = 0, hi = total;
+                    while (lo < hi)
+                    {
+                        const size_t mid = lo + (hi - lo) / 2;
+                        if (static_cast<double>(get_x(mid)) < v)
+                            lo = mid + 1;
+                        else
+                            hi = mid;
+                    }
+                    return lo;
+                };
+                size_t b = lower(win_lo - xoff);
+                size_t e = lower(win_hi - xoff);
+                if (b > 0)
+                    --b;
+                if (e < total)
+                    ++e;
+                // Very dense windows (zoomed far out): scan the samples
+                // closest to the cursor only, the rest are sub-pixel.
+                constexpr size_t MAX_CHUNKED_SCAN = size_t(1) << 18;
+                if (e - b > MAX_CHUNKED_SCAN)
+                {
+                    const size_t mid = std::clamp(lower(cur_dx - xoff), b, e);
+                    b = mid > b + MAX_CHUNKED_SCAN / 2 ? mid - MAX_CHUNKED_SCAN / 2 : b;
+                    e = std::min(e, b + MAX_CHUNKED_SCAN);
+                }
+                scan_polyline(s,
+                              series_counter,
+                              b,
+                              e,
+                              get_x,
+                              get_y,
+                              true,
+                              cs->line_style() != LineStyle::None,
+                              HoverHitKind::Segment);
+                continue;
+            }
+            else if (auto* st = dynamic_cast<StemSeries*>(s))
+            {
+                // Stem heads are the samples.
+                x_data = st->stem_x().data();
+                y_data = st->stem_y().data();
+                count  = std::min(st->stem_x().size(), st->stem_y().size());
+            }
+            else if (auto* bs = dynamic_cast<BarSeries*>(s))
+            {
+                const double xoff = s->x_offset();
+                const double yoff = s->y_offset();
+                if (const auto bar = probe::bar_at(*bs, cur_dx - xoff, cur_dy - yoff))
+                {
+                    const double pos      = bs->bar_positions()[*bar];
+                    const double h        = bs->bar_heights()[*bar];
+                    const bool   vert     = bs->orientation() == BarOrientation::Vertical;
+                    area_best             = make_hit(s, series_counter, HoverHitKind::Bar);
+                    area_best.point_index = *bar;
+                    area_best.data_x      = (vert ? pos : h) + xoff;
+                    area_best.data_y      = (vert ? h : pos) + yoff;
+                    area_best.value       = h;
+                    area_best.has_value   = true;
+                    area_found            = true;
+                }
+                continue;
+            }
+            else if (auto* hs = dynamic_cast<HistogramSeries*>(s))
+            {
+                const double xoff = s->x_offset();
+                const double yoff = s->y_offset();
+                if (const auto bin = probe::histogram_bin_at(*hs, cur_dx - xoff, cur_dy - yoff))
+                {
+                    const auto& e         = hs->bin_edges();
+                    area_best             = make_hit(s, series_counter, HoverHitKind::Bin);
+                    area_best.point_index = *bin;
+                    area_best.range_lo    = e[*bin] + xoff;
+                    area_best.range_hi    = e[*bin + 1] + xoff;
+                    area_best.data_x      = (area_best.range_lo + area_best.range_hi) * 0.5;
+                    area_best.value       = hs->bin_counts()[*bin];
+                    area_best.data_y      = area_best.value + yoff;
+                    area_best.has_value   = true;
+                    area_found            = true;
+                }
+                continue;
+            }
+            else if (auto* img = dynamic_cast<ImageSeries*>(s))
+            {
+                size_t col = 0, row = 0;
+                if (!img->empty() && img->cell_at(cur_dx, cur_dy, col, row))
+                {
+                    area_best             = make_hit(s, series_counter, HoverHitKind::Pixel);
+                    area_best.point_index = row * img->cols() + col;
+                    area_best.cell_col    = col;
+                    area_best.cell_row    = row;
+                    img->cell_center(col, row, area_best.data_x, area_best.data_y);
+                    if (const auto v = img->value_at(cur_dx, cur_dy))
+                    {
+                        area_best.value     = *v;
+                        area_best.has_value = std::isfinite(*v);
+                    }
+                    area_found = true;
+                }
+                continue;
+            }
+            else if (auto* ct = dynamic_cast<ContourSeries*>(s))
+            {
+                const auto xs = ct->x_data();
+                const auto ys = ct->y_data();
+                scan_polyline(
+                    s,
+                    series_counter,
+                    0,
+                    std::min(xs.size(), ys.size()),
+                    [&](size_t i) { return xs[i]; },
+                    [&](size_t i) { return ys[i]; },
+                    false,
+                    true,
+                    HoverHitKind::Contour);
+                continue;
+            }
 
             if (!x_data || !y_data || count == 0)
                 continue;
 
             // x/y data are relative to the series offsets; limits are absolute.
-            const double xoff = series_ptr->x_offset();
-            const double yoff = series_ptr->y_offset();
+            const double xoff = s->x_offset();
 
             size_t query_begin = 0;
             size_t query_end   = count;
 
-            // For monotonic X data, only points within the tooltip's horizontal
-            // snap radius can be interactable. Binary search that exact range;
-            // keep one neighbor on either side so nearest-point reporting stays
-            // stable just outside the snap window. Unsorted data retains the
-            // full scan and therefore identical behavior.
+            // For monotonic X data, only points (and segments) around the
+            // snap window can be interactable.  Binary search that range,
+            // keeping one neighbour on either side so segments crossing the
+            // window and nearest-point reporting just outside it still work.
+            // Unsorted data retains the full scan.
             if (x_sorted && count > 64 && vp.w > 0.0f)
             {
-                // Snap window in axis space, mapped back to data space (the
-                // inverse mapping is not symmetric about the cursor on a log
-                // axis, so query the centre/half-width of [lo, hi]).
-                const double cursor_ax_x =
-                    xlim.min + (static_cast<double>(cx - vp.x) / vp.w) * x_range;
-                const double radius_ax =
-                    std::abs(x_range) * static_cast<double>(tooltip_.snap_radius()) / vp.w;
-                const double lo           = from_axis_space(xscale, cursor_ax_x - radius_ax);
-                const double hi           = from_axis_space(xscale, cursor_ax_x + radius_ax);
-                const double local_center = (lo + hi) * 0.5 - xoff;
-                const double local_radius = (hi - lo) * 0.5;
-                const auto   query = sorted_x_query_range(std::span<const float>(x_data, count),
-                                                        local_center,
-                                                        local_radius);
-                query_begin        = query.begin;
-                query_end          = query.end;
+                const auto q = probe::sorted_window(std::span<const float>(x_data, count),
+                                                    win_lo - xoff,
+                                                    win_hi - xoff);
+                query_begin  = q.begin;
+                query_end    = q.end;
             }
 
-            last_query_points_examined_ += query_end - query_begin;
-            for (size_t i = query_begin; i < query_end; ++i)
-            {
-                // Convert data point to screen coordinates.  Compute the
-                // normalization in double: (x + xoff - xlim.min) stays
-                // small and precise even for epoch-scale offsets.
-                const double abs_x = static_cast<double>(x_data[i]) + xoff;
-                const double abs_y = static_cast<double>(y_data[i]) + yoff;
-                if (!map.x_drawable(abs_x) || !map.y_drawable(abs_y))
-                    continue;   // not drawn on a log axis
-                const auto sx = static_cast<float>(map.to_screen_x(abs_x));
-                const auto sy = static_cast<float>(map.to_screen_y(abs_y));
-
-                float dx    = cx - sx;
-                float dy    = cy - sy;
-                float dist2 = dx * dx + dy * dy;
-
-                if (dist2 < best_dist2)
-                {
-                    best.found        = true;
-                    best.series       = series_ptr.get();
-                    best.series_index = series_counter;
-                    best.point_index  = i;
-                    best.data_x       = abs_x;
-                    best.data_y       = abs_y;
-                    best.screen_x     = sx;
-                    best.screen_y     = sy;
-                    best_dist2        = dist2;
-                }
-            }
+            scan_polyline(
+                s,
+                series_counter,
+                query_begin,
+                query_end,
+                [&](size_t i) { return x_data[i]; },
+                [&](size_t i) { return y_data[i]; },
+                true,
+                has_line,
+                HoverHitKind::Segment);
         }
+    }
+
+    // Pick between the vertex, segment and area candidates.
+    if (seg_best.found && seg_dist2 <= snap2)
+    {
+        const float vd = best.found ? std::sqrt(best_dist2) : std::numeric_limits<float>::max();
+        const float sd = std::sqrt(seg_dist2);
+        if (!(best.found && best_dist2 <= snap2) || sd + SEGMENT_BIAS_PX < vd)
+        {
+            best       = seg_best;
+            best_dist2 = seg_dist2;
+        }
+    }
+    if (area_found && !(best.found && best_dist2 <= snap2))
+    {
+        // The cursor is inside the area: anchor the tooltip at the cursor-side
+        // representative point (bar top / bin top / cell centre).
+        best = area_best;
+        const AxisMapping amap(*area_best.axes);
+        best.screen_x = static_cast<float>(amap.to_screen_x(best.data_x));
+        best.screen_y = static_cast<float>(amap.to_screen_y(best.data_y));
+        // Image cells can be large: keep the readout at the cursor.
+        if (best.kind == HoverHitKind::Pixel || !std::isfinite(best.screen_x)
+            || !std::isfinite(best.screen_y))
+        {
+            best.screen_x = cx;
+            best.screen_y = cy;
+        }
+        best_dist2 = 0.0f;
     }
 
     if (best.found)
@@ -1392,13 +1707,29 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
             best.ndc_depth   = pick.ndc_depth;
             best.is_3d       = true;
             best.axes3d      = axes3d;
+            best.axes        = nullptr;
+            best.kind        = HoverHitKind::Vertex;
+            best.has_value   = false;
             best.dy_dx_valid = false;
             best.dy_dx       = 0.0f;
         }
     }
 
-    // Compute dy/dx at the nearest point via finite difference (2D only)
-    if (best.found && !best.is_3d && best.series)
+    // Contour hit: report the level of the line under the cursor.
+    if (best.found && best.kind == HoverHitKind::Contour)
+    {
+        if (const auto* ct = dynamic_cast<const ContourSeries*>(best.series))
+        {
+            if (const auto level = probe::contour_level_for_point(*ct, best.point_index))
+            {
+                best.value     = *level;
+                best.has_value = true;
+            }
+        }
+    }
+
+    // Compute dy/dx at the nearest point via finite difference (2D samples only)
+    if (best.found && !best.is_3d && best.series && best.kind == HoverHitKind::Vertex)
     {
         const float* xd    = nullptr;
         const float* yd    = nullptr;
@@ -1457,6 +1788,94 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
 // ─── Overlay snapshot ────────────────────────────────────────────────────────
 
+namespace
+{
+bool figure_owns_axes(const Figure& figure, const AxesBase* axes)
+{
+    for (const auto& ax : figure.axes())
+        if (static_cast<const AxesBase*>(ax.get()) == axes)
+            return true;
+    for (const auto& ax : figure.all_axes())
+        if (ax.get() == axes)
+            return true;
+    return false;
+}
+
+bool figure_owns_series(const Figure& figure, const Series* series)
+{
+    for (const auto& ax : figure.axes())
+    {
+        if (!ax)
+            continue;
+        for (const auto& sp : ax->series())
+            if (sp.get() == series)
+                return true;
+    }
+    return false;
+}
+
+uint64_t fnv_mix(uint64_t h, const void* data, size_t n)
+{
+    const auto* p = static_cast<const unsigned char*>(data);
+    for (size_t i = 0; i < n; ++i)
+        h = (h ^ p[i]) * 1099511628211ULL;
+    return h;
+}
+
+template <typename T>
+uint64_t fnv_mix(uint64_t h, const T& v)
+{
+    return fnv_mix(h, &v, sizeof(T));
+}
+}   // namespace
+
+// A marker or annotation belongs to the figure that owns its axes (or, for
+// one without axes, its series).  Entries attached to nothing at all are kept
+// with every figure, as before.
+bool DataInteraction::marker_belongs_to(const DataMarker& m, const Figure& figure)
+{
+    if (m.axes)
+        return figure_owns_axes(figure, m.axes);
+    if (m.axes3d)
+        return figure_owns_axes(figure, m.axes3d);
+    if (m.series)
+        return figure_owns_series(figure, m.series);
+    return true;
+}
+
+bool DataInteraction::annotation_belongs_to(const Annotation& a, const Figure& figure)
+{
+    return !a.axes || figure_owns_axes(figure, a.axes);
+}
+
+uint64_t DataInteraction::overlay_fingerprint(const Figure& figure) const
+{
+    // Same content as capture_overlay_snapshot(): what a save would write.
+    const OverlaySnapshot snap = capture_overlay_snapshot(figure);
+    uint64_t              h    = 1469598103934665603ULL;
+    h                          = fnv_mix(h, snap.markers.size());
+    for (const auto& m : snap.markers)
+    {
+        h = fnv_mix(h, m.data_x);
+        h = fnv_mix(h, m.data_y);
+        h = fnv_mix(h, m.point_index);
+        h = fnv_mix(h, m.axes_index);
+        h = fnv_mix(h, m.series_label.data(), m.series_label.size());
+    }
+    h = fnv_mix(h, snap.annotations.size());
+    for (const auto& a : snap.annotations)
+    {
+        h = fnv_mix(h, a.data_x);
+        h = fnv_mix(h, a.data_y);
+        h = fnv_mix(h, a.offset_x);
+        h = fnv_mix(h, a.offset_y);
+        h = fnv_mix(h, a.color);
+        h = fnv_mix(h, a.axes_index);
+        h = fnv_mix(h, a.text.data(), a.text.size());
+    }
+    return h;
+}
+
 OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) const
 {
     OverlaySnapshot snap;
@@ -1481,6 +1900,8 @@ OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) 
     // Markers
     for (const auto& m : markers_.markers())
     {
+        if (!marker_belongs_to(m, figure))
+            continue;
         OverlaySnapshot::MarkerEntry me;
         me.data_x       = m.data_x;
         me.data_y       = m.data_y;
@@ -1493,7 +1914,7 @@ OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) 
     // Annotations
     for (const auto& ann : annotations_.annotations())
     {
-        if (ann.editing || ann.text.empty())
+        if (ann.editing || ann.text.empty() || !annotation_belongs_to(ann, figure))
             continue;
         OverlaySnapshot::AnnotationEntry ae;
         ae.data_x     = ann.data_x;
@@ -1513,7 +1934,13 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
 {
     set_crosshair(snapshot.crosshair_enabled);
     set_tooltip(snapshot.tooltip_enabled);
+    clear_markers();
+    annotations_.clear();
+    append_overlay_snapshot(snapshot, figure);
+}
 
+void DataInteraction::append_overlay_snapshot(const OverlaySnapshot& snapshot, Figure& figure)
+{
     // Helper: resolve an axes index to a pointer
     auto resolve_axes_ptr = [&](size_t idx) -> const Axes*
     {
@@ -1523,7 +1950,6 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
     };
 
     // Restore markers
-    clear_markers();
     for (const auto& me : snapshot.markers)
     {
         // Find the series by label to get a valid pointer
@@ -1564,7 +1990,6 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
     }
 
     // Restore annotations
-    annotations_.clear();
     for (const auto& ae : snapshot.annotations)
     {
         if (ae.text.empty())

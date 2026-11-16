@@ -2,11 +2,14 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <algorithm>
     #include <format>
 
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "ui/commands/shortcut_manager.hpp"
     #include "ui/input/axes_selection.hpp"
+    #include "ui/overlay/live_status.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -774,6 +777,52 @@ void ImGuiIntegration::draw_status_bar()
     bar.draw();
 }
 
+namespace
+{
+// Makes the status-bar pill drawn last (its text is the last item) clickable:
+// hand cursor and @p tooltip on hover; true when clicked.
+bool status_pill_clicked(const char* tooltip)
+{
+    ImVec2 mn = ImGui::GetItemRectMin();
+    ImVec2 mx = ImGui::GetItemRectMax();
+    mn.x -= ui::tokens::STATUS_BAR_PILL_PAD_H;
+    mx.x += ui::tokens::STATUS_BAR_PILL_PAD_H;
+    mn.y -= ui::tokens::STATUS_BAR_PILL_PAD_V;
+    mx.y += ui::tokens::STATUS_BAR_PILL_PAD_V;
+    if (!ImGui::IsWindowHovered() || !ImGui::IsMouseHoveringRect(mn, mx))
+        return false;
+    ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    ImGui::SetTooltip("%s", tooltip);
+    return ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+}
+}   // namespace
+
+void ImGuiIntegration::draw_tool_menu_items()
+{
+    struct ToolEntry
+    {
+        const char* label;
+        ToolMode    mode;
+    };
+    static constexpr ToolEntry TOOLS[] = {
+        {"Pan", ToolMode::Pan},
+        {"Box Zoom", ToolMode::BoxZoom},
+        {"Select", ToolMode::Select},
+        {"Measure", ToolMode::Measure},
+        {"Annotate", ToolMode::Annotate},
+        {"ROI", ToolMode::ROI},
+    };
+    for (const auto& t : TOOLS)
+    {
+        const std::string key =
+            menu_shortcut_text(shortcut_manager_, command_registry_, tool_command_id(t.mode));
+        if (ImGui::MenuItem(t.label,
+                            key.empty() ? nullptr : key.c_str(),
+                            interaction_mode_ == t.mode))
+            set_interaction_mode(t.mode);
+    }
+}
+
 void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
 {
     if (!layout_manager_)
@@ -902,6 +951,55 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                          break;
                  }
                  draw_pill(mode_label, mode_color, colors.bg_tertiary, 0.20f, mode_color);
+                 if (status_pill_clicked("Change tool"))
+                     ImGui::OpenPopup("##status_tool_menu");
+                 if (ImGui::BeginPopup("##status_tool_menu"))
+                 {
+                     draw_tool_menu_items();
+                     ImGui::EndPopup();
+                 }
+             }
+
+             // Live data: "Live" while every live axes follows, else
+             // "Paused · N s behind"; click toggles follow for all of them.
+             if (current_figure_)
+             {
+                 bool   any_live   = false;
+                 bool   all_follow = true;
+                 double behind     = 0.0;
+                 for (const auto& ax : current_figure_->axes())
+                 {
+                     if (!ax || !ax->has_presented_buffer())
+                         continue;
+                     const ui::LiveAxesStatus st = ui::live_status(*ax);
+                     any_live                    = true;
+                     all_follow                  = all_follow && st.following;
+                     behind                      = std::max(behind, st.behind_seconds);
+                 }
+                 if (any_live)
+                 {
+                     ui::LiveAxesStatus agg;
+                     agg.live              = true;
+                     agg.following         = all_follow;
+                     agg.behind_seconds    = behind;
+                     const std::string lbl = all_follow ? "Live" : ui::live_pill_label(agg);
+                     const ui::Color&  col = all_follow ? colors.success : colors.warning;
+                     ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);
+                     draw_pill(lbl.c_str(), col, colors.bg_tertiary, 0.20f, col);
+                     if (status_pill_clicked(all_follow ? "Pause live follow"
+                                                        : "Follow live data (End)"))
+                     {
+                         for (auto& ax : current_figure_->axes_mut())
+                         {
+                             if (!ax || !ax->has_presented_buffer())
+                                 continue;
+                             if (all_follow)
+                                 ui::pause_live_follow(*ax);
+                             else
+                                 ui::resume_live_follow(*ax);
+                         }
+                     }
+                 }
              }
 
              ImGui::SameLine(0.0f, ui::tokens::STATUS_BAR_GROUP_GAP);

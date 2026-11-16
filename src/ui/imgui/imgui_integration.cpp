@@ -2,6 +2,7 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <cmath>
     #include <format>
 
     #define GLFW_INCLUDE_NONE
@@ -27,6 +28,7 @@
     // Embedded Spectra logo icon
     #include "spectra_icon_embedded.hpp"
 
+    #include "ui/overlay/measure_math.hpp"
     #include "ui/theme/glass_draw.hpp"
     #include "ui/theme/theme_imgui.hpp"
     #include "ui/ui_interaction_log.hpp"
@@ -822,84 +824,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     // Crosshair is handled by data_interaction (auto-enabled when entering Measure mode)
     if (input_handler_ && input_handler_->tool_mode() == ToolMode::Measure)
     {
-        Axes* ax = input_handler_->measure_axes();
-        if (!ax)
-            ax = input_handler_->active_axes();
-        bool dragging   = input_handler_->is_measure_dragging();
-        bool has_result = input_handler_->has_measure_result();
-        if (ax && (dragging || has_result))
-        {
-            const auto& vp   = ax->viewport();
-            auto        xlim = ax->x_limits();
-            auto        ylim = ax->y_limits();
-
-            auto data_to_screen = [&](double dx_, double dy_, float& scr_x, float& scr_y)
-            {
-                double xr = xlim.max - xlim.min;
-                double yr = ylim.max - ylim.min;
-                if (xr == 0.0)
-                    xr = 1.0;
-                if (yr == 0.0)
-                    yr = 1.0;
-                scr_x = static_cast<float>(vp.x + (dx_ - xlim.min) / xr * vp.w);
-                scr_y = static_cast<float>(vp.y + (1.0 - (dy_ - ylim.min) / yr) * vp.h);
-            };
-
-            double sx = input_handler_->measure_start_data_x();
-            double sy = input_handler_->measure_start_data_y();
-            double ex = input_handler_->measure_end_data_x();
-            double ey = input_handler_->measure_end_data_y();
-
-            auto  mdx  = static_cast<float>(ex - sx);
-            auto  mdy  = static_cast<float>(ey - sy);
-            float dist = std::sqrt(mdx * mdx + mdy * mdy);
-            if (dist > 1e-6f)
-            {
-                auto* dl       = ImGui::GetForegroundDrawList();
-                auto  accent   = theme_colors().accent;
-                ImU32 line_col = IM_COL32(uint8_t(accent.r * 255),
-                                          uint8_t(accent.g * 255),
-                                          uint8_t(accent.b * 255),
-                                          220);
-                ImU32 dot_col  = IM_COL32(uint8_t(accent.r * 255),
-                                         uint8_t(accent.g * 255),
-                                         uint8_t(accent.b * 255),
-                                         255);
-                ImU32 bg_col   = IM_COL32(uint8_t(theme_colors().bg_elevated.r * 255),
-                                        uint8_t(theme_colors().bg_elevated.g * 255),
-                                        uint8_t(theme_colors().bg_elevated.b * 255),
-                                        230);
-
-                float scr_sx = NAN;
-                float scr_sy = NAN;
-                float scr_ex = NAN;
-                float scr_ey = NAN;
-                data_to_screen(sx, sy, scr_sx, scr_sy);
-                data_to_screen(ex, ey, scr_ex, scr_ey);
-
-                // Measurement line
-                dl->AddLine(ImVec2(scr_sx, scr_sy), ImVec2(scr_ex, scr_ey), line_col, 2.0f);
-
-                // Endpoint dots
-                dl->AddCircleFilled(ImVec2(scr_sx, scr_sy), 4.0f, dot_col);
-                dl->AddCircleFilled(ImVec2(scr_ex, scr_ey), 4.0f, dot_col);
-
-                // Distance label at midpoint
-                float             mid_x = (scr_sx + scr_ex) * 0.5f;
-                float             mid_y = (scr_sy + scr_ey) * 0.5f;
-                const std::string label =
-                    std::format("dX: {:.4f}  dY: {:.4f}  dist: {:.4f}", mdx, mdy, dist);
-                ImVec2 tsz = ImGui::CalcTextSize(label.c_str());
-                float  pad = 6.0f;
-                dl->AddRectFilled(ImVec2(mid_x - tsz.x * 0.5f - pad, mid_y - tsz.y - pad * 2),
-                                  ImVec2(mid_x + tsz.x * 0.5f + pad, mid_y - pad * 0.5f),
-                                  bg_col,
-                                  4.0f);
-                dl->AddText(ImVec2(mid_x - tsz.x * 0.5f, mid_y - tsz.y - pad),
-                            ui::to_imu32(theme_colors().text_primary, 0.94f),
-                            label.c_str());
-            }
-        }
+        draw_measure_overlay();
     }
 
     // Handle deferred CSV open request (from welcome screen button)
@@ -1103,6 +1028,123 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     update_plot_cursor();
 
     ui::log_imgui_frame_activations();
+}
+
+// ─── Measure tool overlay ───────────────────────────────────────────────────
+
+void ImGuiIntegration::draw_measure_overlay()
+{
+    auto*       dl     = ImGui::GetForegroundDrawList();
+    const auto& colors = theme_colors();
+    const ImU32 accent = ui::to_imu32(colors.accent, 1.0f);
+
+    // Snap ring: hollow circle around a point that sits on a data sample.
+    auto snap_ring = [&](float x, float y)
+    {
+        dl->AddCircle(ImVec2(x, y), 7.5f, ui::to_imu32(colors.bg_primary, 0.9f), 0, 3.5f);
+        dl->AddCircle(ImVec2(x, y), 7.5f, accent, 0, 1.75f);
+    };
+
+    Axes*      ax         = input_handler_->measure_axes();
+    const bool dragging   = input_handler_->is_measure_dragging();
+    const bool has_result = input_handler_->has_measure_result();
+
+    // Hover preview before the first point: show where a press would snap.
+    if (!ax && !dragging && !has_result)
+    {
+        Axes*       hover  = input_handler_->active_axes();
+        const auto& cursor = input_handler_->cursor_readout();
+        if (hover && cursor.valid)
+        {
+            double     px = 0.0;
+            double     py = 0.0;
+            const bool snapped =
+                input_handler_->measure_point_at(cursor.screen_x, cursor.screen_y, px, py);
+            const AxisMapping map(*hover);
+            if (snapped && map.x_drawable(px) && map.y_drawable(py))
+                snap_ring(static_cast<float>(map.to_screen_x(px)),
+                          static_cast<float>(map.to_screen_y(py)));
+        }
+        return;
+    }
+    if (!ax || !(dragging || has_result))
+        return;
+
+    // Measure in data space, draw in axis space (log axes stay straight).
+    const AxisMapping map(*ax);
+    const double      sx = input_handler_->measure_start_data_x();
+    const double      sy = input_handler_->measure_start_data_y();
+    const double      ex = input_handler_->measure_end_data_x();
+    const double      ey = input_handler_->measure_end_data_y();
+    if (!map.x_drawable(sx) || !map.y_drawable(sy) || !map.x_drawable(ex) || !map.y_drawable(ey))
+        return;
+    // Screen positions in double, clipped to the plot before drawing: zoomed
+    // far in, an endpoint can sit millions of pixels off screen.
+    const Rect&  vp     = ax->viewport();
+    const double ax0    = map.to_screen_x(sx);
+    const double ay0    = map.to_screen_y(sy);
+    const double bx0    = map.to_screen_x(ex);
+    const double by0    = map.to_screen_y(ey);
+    auto         inside = [&](double x, double y)
+    { return x >= vp.x && x <= vp.x + vp.w && y >= vp.y && y <= vp.y + vp.h; };
+    // Draws the visible part of a segment; returns its midpoint when drawn.
+    auto clipped_line =
+        [&](double x0, double y0, double x1, double y1, ImU32 col, float w, ImVec2* mid = nullptr)
+    {
+        if (!measure::clip_segment(vp, x0, y0, x1, y1))
+            return false;
+        dl->AddLine(ImVec2(static_cast<float>(x0), static_cast<float>(y0)),
+                    ImVec2(static_cast<float>(x1), static_cast<float>(y1)),
+                    col,
+                    w);
+        if (mid)
+            *mid = ImVec2(static_cast<float>((x0 + x1) * 0.5), static_cast<float>((y0 + y1) * 0.5));
+        return true;
+    };
+
+    if (inside(ax0, ay0))
+    {
+        dl->AddCircleFilled(ImVec2(static_cast<float>(ax0), static_cast<float>(ay0)), 4.0f, accent);
+        if (input_handler_->measure_start_snapped())
+            snap_ring(static_cast<float>(ax0), static_cast<float>(ay0));
+    }
+    if (std::hypot(bx0 - ax0, by0 - ay0) < 1.0)
+        return;   // first point only (two-click mode, before moving)
+
+    // Δx / Δy legs (dashed by alpha) and the measurement line.
+    const ImU32 leg = ui::to_imu32(colors.accent, 0.45f);
+    clipped_line(ax0, ay0, bx0, ay0, leg, 1.0f);
+    clipped_line(bx0, ay0, bx0, by0, leg, 1.0f);
+    ImVec2 mid;
+    if (!clipped_line(ax0, ay0, bx0, by0, ui::to_imu32(colors.accent, 0.86f), 2.0f, &mid))
+        return;   // the measurement is entirely off screen
+    if (inside(bx0, by0))
+    {
+        dl->AddCircleFilled(ImVec2(static_cast<float>(bx0), static_cast<float>(by0)), 4.0f, accent);
+        if (input_handler_->measure_end_snapped())
+            snap_ring(static_cast<float>(bx0), static_cast<float>(by0));
+    }
+
+    measure::MeasureFormat fmt = measure::measure_format(*ax, ex, ey);
+    if (input_handler_->measure_start_snapped() && input_handler_->measure_end_snapped())
+    {
+        // Both ends are exact samples: full precision, not pixel precision.
+        fmt.x_resolution = 0.0;
+        fmt.y_resolution = 0.0;
+    }
+    const measure::Measurement m = measure::compute_measurement(sx,
+                                                                sy,
+                                                                ex,
+                                                                ey,
+                                                                fmt.xscale,
+                                                                fmt.yscale,
+                                                                fmt.x_unit,
+                                                                fmt.y_unit);
+    DataInteraction::draw_measurement_label(dl,
+                                            mid.x,
+                                            mid.y,
+                                            measure::measurement_lines(m, fmt),
+                                            colors);
 }
 
 // ─── Tool mode and plot cursor ──────────────────────────────────────────────

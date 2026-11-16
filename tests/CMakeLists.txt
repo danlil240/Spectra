@@ -126,6 +126,7 @@ set(SPECTRA_UNIT_TESTS
     test_input
     test_series_data
     test_scatter_marker_defaults
+    test_stat_fill_style
     test_command_queue
     test_decimation
     test_filters
@@ -151,6 +152,7 @@ set(SPECTRA_UNIT_TESTS
     test_series_transform
     test_command_palette_registry
     test_welcome_actions
+    test_launch_files
     test_shortcut_manager
     test_undo_redo
     test_workspace

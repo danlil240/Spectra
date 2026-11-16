@@ -2,11 +2,14 @@
 
     #include "imgui_integration_internal.hpp"
 
+    #include <array>
     #include <algorithm>
     #include <format>
 
     #include "../logs/log_browser_panel.hpp"
     #include "../topics/topics_panel.hpp"
+    #include "ui/commands/welcome_actions.hpp"
+    #include "ui/figures/empty_axes_hint.hpp"
     #include "ui/commands/shortcut_manager.hpp"
     #include "ui/input/axes_selection.hpp"
     #include "ui/overlay/live_status.hpp"
@@ -84,6 +87,74 @@ void ImGuiIntegration::draw_canvas(Figure& figure)
         return;
     }
     draw_canvas_content(figure);
+}
+
+void ImGuiIntegration::draw_empty_axes_hints(Figure& figure)
+{
+    if (!layout_manager_)
+        return;
+    std::vector<const AxesBase*> empty_axes;
+    for (const auto& ax : figure.axes())
+        if (ax && axes_shows_empty_hint(*ax))
+            empty_axes.push_back(ax.get());
+    for (const auto& ax : figure.all_axes())
+        if (ax && axes_shows_empty_hint(*ax))
+            empty_axes.push_back(ax.get());
+    if (empty_axes.empty())
+        return;
+
+    const Rect        canvas       = layout_manager_->canvas_rect();
+    const bool        has_open_cmd = command_registry_ && command_registry_->find("file.open");
+    const std::string shortcut =
+        welcome_command_shortcut(command_registry_, shortcut_manager_, "file.open");
+    std::string subtitle = "Drop a file here or open one from File";
+    if (!shortcut.empty())
+        subtitle += " (" + shortcut + ")";
+
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollWithMouse;
+    const std::array<ui::widgets::EmptyStateAction, 1> actions{{
+        {.label = "Open file\xE2\x80\xA6", .id = "open_file", .primary = false},
+    }};
+
+    for (size_t i = 0; i < empty_axes.size(); ++i)
+    {
+        const Rect& vp    = empty_axes[i]->viewport();
+        const float mid_x = vp.x + vp.w * 0.5f;
+        const float mid_y = vp.y + vp.h * 0.5f;
+        if (mid_x < canvas.x || mid_x > canvas.x + canvas.w || mid_y < canvas.y
+            || mid_y > canvas.y + canvas.h)
+            continue;   // scrolled out of view
+        // Just wider than the subtitle so empty_state()'s left-aligned wrap
+        // reads centred; tall enough for icon, title, two subtitle lines and
+        // the button.
+        const float text_w = ImGui::CalcTextSize(subtitle.c_str()).x + ui::tokens::SPACE_2;
+        const float block_w =
+            std::min({ui::tokens::EMPTY_STATE_MAX_WIDTH, vp.w - 32.0f, std::max(220.0f, text_w)});
+        const float line_h  = ImGui::GetTextLineHeightWithSpacing();
+        const float block_h = std::min(vp.h - 16.0f,
+                                       ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
+                                           + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2);
+        ImGui::SetNextWindowPos(
+            ImVec2(std::floor(mid_x - block_w * 0.5f), std::floor(mid_y - block_h * 0.5f)));
+        ImGui::SetNextWindowSize(ImVec2(block_w, block_h));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        const std::string name    = "##empty_axes_hint" + std::to_string(i);
+        int               clicked = -1;
+        if (ImGui::Begin(name.c_str(), nullptr, flags))
+            clicked = ui::widgets::empty_state(ui::Icon::FileText,
+                                               "No data yet",
+                                               subtitle.c_str(),
+                                               actions);
+        ImGui::End();
+        ImGui::PopStyleVar(2);
+        if (clicked == 0)
+            run_welcome_action(has_open_cmd ? std::string("file.open")
+                                            : std::string(WELCOME_OPEN_FILE_ID));
+    }
 }
 
 void ImGuiIntegration::draw_canvas_content(Figure& figure)
@@ -251,6 +322,10 @@ void ImGuiIntegration::draw_canvas_content(Figure& figure)
     }
     ImGui::End();
     ImGui::PopStyleColor(2);
+
+    // "Drop a file here" over axes without series (ImGui only, so never part of
+    // exported images).
+    draw_empty_axes_hints(figure);
 
     if (!dl)
         return;

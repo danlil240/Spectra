@@ -2,6 +2,7 @@
 #include "core/config_paths.hpp"
 #include "core/json_key.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -89,6 +90,46 @@ bool read_json_bool(const std::string& json, const std::string& key, bool def)
     return def;
 }
 
+// Reads a JSON array of strings ("key": ["a", "b"]), unescaping \\ \" \n \r \t.
+std::vector<std::string> read_json_string_array(const std::string& json, const std::string& key)
+{
+    std::vector<std::string> out;
+    auto                     pos = json_find_key(json, key);
+    if (pos == std::string::npos)
+        return out;
+    pos = json.find(':', pos + key.size() + 2);
+    if (pos == std::string::npos)
+        return out;
+    pos = json.find_first_not_of(" \t\r\n", pos + 1);
+    if (pos == std::string::npos || json[pos] != '[')
+        return out;
+    ++pos;
+    while (pos < json.size())
+    {
+        pos = json.find_first_not_of(" \t\r\n,", pos);
+        if (pos == std::string::npos || json[pos] == ']')
+            break;
+        if (json[pos] != '"')
+            break;   // not a string array
+        std::string value;
+        ++pos;
+        while (pos < json.size() && json[pos] != '"')
+        {
+            char c = json[pos];
+            if (c == '\\' && pos + 1 < json.size())
+            {
+                const char e = json[++pos];
+                c            = e == 'n' ? '\n' : e == 'r' ? '\r' : e == 't' ? '\t' : e;
+            }
+            value += c;
+            ++pos;
+        }
+        ++pos;   // closing quote
+        out.push_back(std::move(value));
+    }
+    return out;
+}
+
 double read_json_number(const std::string& json, const std::string& key, double def)
 {
     auto pos = json_find_key(json, key);
@@ -118,7 +159,11 @@ std::string serialize(const SettingsData& d)
     os << "    \"timeline_visible\": " << (d.timeline_visible ? "true" : "false") << ",\n";
     os << "    \"ui_scale\": " << d.ui_scale << ",\n";
     os << "    \"transform_overwrite\": " << (d.transform_overwrite ? "true" : "false") << "\n";
-    os << "  }\n";
+    os << "  },\n";
+    os << "  \"recent_files\": [";
+    for (size_t i = 0; i < d.recent_files.size(); ++i)
+        os << (i ? ", " : "") << '"' << escape_json(d.recent_files[i]) << '"';
+    os << "]\n";
     os << "}\n";
     return os.str();
 }
@@ -186,6 +231,16 @@ bool SettingsStore::load(const std::string& path)
         static_cast<float>(read_json_number(json, "ui_scale", data_.ui_scale)));
     data_.transform_overwrite =
         read_json_bool(json, "transform_overwrite", data_.transform_overwrite);
+
+    data_.recent_files.clear();
+    for (const std::string& f : read_json_string_array(json, "recent_files"))
+    {
+        if (!f.empty()
+            && std::find(data_.recent_files.begin(), data_.recent_files.end(), f)
+                   == data_.recent_files.end()
+            && data_.recent_files.size() < MAX_RECENT_FILES)
+            data_.recent_files.push_back(f);
+    }
 
     loaded_path_ = path;
     return true;
@@ -267,6 +322,54 @@ void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore&
 {
     store.data_mut().default_data_palette = tm.current_data_palette_name();
     store.notify_change();
+}
+
+namespace
+{
+std::string normalize_recent_file(const std::string& path)
+{
+    std::error_code ec;
+    auto            abs = std::filesystem::absolute(path, ec);
+    return ec ? path : abs.lexically_normal().string();
+}
+}   // namespace
+
+void push_recent_file(std::vector<std::string>& list, const std::string& path, size_t max_entries)
+{
+    if (path.empty())
+        return;
+    const std::string norm = normalize_recent_file(path);
+    list.erase(std::remove(list.begin(), list.end(), norm), list.end());
+    list.insert(list.begin(), norm);
+    if (list.size() > std::max<size_t>(1, max_entries))
+        list.resize(std::max<size_t>(1, max_entries));
+}
+
+void remove_recent_file(std::vector<std::string>& list, const std::string& path)
+{
+    const std::string norm = normalize_recent_file(path);
+    list.erase(std::remove_if(list.begin(),
+                              list.end(),
+                              [&](const std::string& e) { return e == path || e == norm; }),
+               list.end());
+}
+
+void SettingsStore::add_recent_file(const std::string& path)
+{
+    push_recent_file(data_.recent_files, path);
+    notify_change();
+}
+
+void SettingsStore::forget_recent_file(const std::string& path)
+{
+    remove_recent_file(data_.recent_files, path);
+    notify_change();
+}
+
+void SettingsStore::clear_recent_files()
+{
+    data_.recent_files.clear();
+    notify_change();
 }
 
 bool remember_toggle_themes(const ui::ThemeManager& tm, SettingsStore& store)

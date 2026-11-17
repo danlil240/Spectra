@@ -779,8 +779,11 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
         if (dynamic_cast<Axes3D*>(&ax))
         {
             require_pipeline(grid3d_pipeline_, "3D axes");
-            const Rect cell =
-                axes3d_cell_rect(vp, figure.style(), static_cast<float>(w), static_cast<float>(h));
+            const Rect cell = axes3d_cell_rect(vp,
+                                               figure.style(),
+                                               static_cast<float>(w),
+                                               static_cast<float>(h),
+                                               ax.text_scale());
             render_axes(ax, vp, w, h, &cell);
             continue;
         }
@@ -920,9 +923,14 @@ vec3 shader_light_dir(const Axes3D& axes)
     return ld;
 }
 
-Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, float fig_h)
+Rect axes3d_cell_rect(const Rect&        vp,
+                      const FigureStyle& style,
+                      float              fig_w,
+                      float              fig_h,
+                      float              margin_scale)
 {
-    auto grow = [](float margin, float size) { return std::clamp(margin, 0.0f, size * 0.25f); };
+    auto grow = [margin_scale](float margin, float size)
+    { return std::clamp(margin * margin_scale, 0.0f, size * 0.25f); };
     const float x0 = std::max(0.0f, vp.x - grow(style.margin_left, vp.w));
     const float y0 = std::max(0.0f, vp.y - grow(style.margin_top, vp.h));
     const float x1 = std::min(fig_w, vp.x + vp.w + grow(style.margin_right, vp.w));

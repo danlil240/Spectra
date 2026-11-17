@@ -129,3 +129,59 @@ TEST(TextScaling, AnnotationFontSizeIsHonouredExactly)
     }
     fs::remove_all(dir);
 }
+
+// AxisStyle::title_size / label_size / tick_color reach the GPU text: a 36 px
+// title is drawn about twice as tall as the 18 px default, and a custom tick
+// label colour shows up in the image.
+TEST(TextScaling, AxisStyleSizesAndColoursAreDrawn)
+{
+    const fs::path dir = fs::temp_directory_path() / "spectra_test_axis_text_style";
+    fs::create_directories(dir);
+    constexpr uint32_t W = 640, H = 400;
+    // Room for every title size, so the plot area does not move between images.
+    auto make = [&](spectra::App& app, const std::string& title, const char* name) -> spectra::Axes&
+    {
+        auto& fig              = app.figure({.width = W, .height = H});
+        fig.style().margin_top = 110.0f;
+        auto& ax               = fig.subplot(1, 1, 1);
+        plot(ax);
+        if (*title.c_str())
+            ax.title(title);
+        fig.save_png((dir / name).string());
+        return ax;
+    };
+    {
+        spectra::App app({.headless = true, .socket_path = ""});
+        make(app, "", "none.png");
+        make(app, "HHHH", "t18.png");
+        make(app, "HHHH", "t36.png").axis_style().title_size = 36.0f;
+        make(app, "", "red_ticks.png").axis_style().tick_color =
+            spectra::Color{1.0f, 0.0f, 0.0f, 1.0f};
+        app.run();
+    }
+
+    Image none, t18, t36, red;
+    ASSERT_TRUE(load(dir / "none.png", none));
+    ASSERT_TRUE(load(dir / "t18.png", t18));
+    ASSERT_TRUE(load(dir / "t36.png", t36));
+    ASSERT_TRUE(load(dir / "red_ticks.png", red));
+
+    const InkBox b18 = diff_box(t18, none);
+    const InkBox b36 = diff_box(t36, none);
+    ASSERT_GT(b18.height(), 0);
+    ASSERT_GT(b36.height(), 0);
+    EXPECT_NEAR(static_cast<float>(b36.height()), 2.0f * b18.height(), 3.0f);
+    EXPECT_NEAR(static_cast<float>(b36.width()), 2.0f * b18.width(), 0.05f * b36.width() + 3.0f);
+
+    auto red_pixels = [](const Image& img)
+    {
+        int n = 0;
+        for (size_t p = 0; p + 3 < img.rgba.size(); p += 4)
+            if (img.rgba[p] > 180 && img.rgba[p + 1] < 90 && img.rgba[p + 2] < 90)
+                ++n;
+        return n;
+    };
+    EXPECT_EQ(red_pixels(none), 0);
+    EXPECT_GT(red_pixels(red), 30);
+    fs::remove_all(dir);
+}

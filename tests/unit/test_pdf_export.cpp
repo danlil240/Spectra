@@ -511,6 +511,22 @@ TEST(PdfExport, RotatedYLabelAndMediumTitle)
     EXPECT_NE(c.find("2 Tr"), std::string::npos);
 }
 
+TEST(PdfExport, AxisStyleFontSizesReachTheText)
+{
+    auto  fig     = make_line_figure();
+    auto& as      = fig.axes()[0]->axis_style();
+    as.label_size = 30.0f;
+    as.title_size = 40.0f;
+    as.tick_size  = 20.0f;
+    fig.compute_layout();
+    const MiniPdf pdf(PdfExporter::to_string(fig));
+    ASSERT_TRUE(pdf.ok()) << pdf.error();
+    const std::string c = all_content(pdf);
+    EXPECT_NE(c.find("/F1 30 Tf"), std::string::npos) << "axis labels";
+    EXPECT_NE(c.find("/F1 40 Tf"), std::string::npos) << "title";
+    EXPECT_NE(c.find("/F1 20 Tf"), std::string::npos) << "tick labels";
+}
+
 // ─── Transparency, markers, fills ──────────────────────────────────────────
 
 TEST(PdfExport, TransparencyUsesExtGState)

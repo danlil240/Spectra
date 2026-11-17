@@ -17,6 +17,7 @@ namespace spectra
 {
 class CommandRegistry;
 class PluginManager;
+class UndoManager;
 }   // namespace spectra
 
 namespace spectra::ui
@@ -49,6 +50,9 @@ class Inspector
     using DeferRemovalFn = std::function<void(AxesBase*, Series*)>;
     void set_defer_series_removal(DeferRemovalFn fn) { defer_removal_ = std::move(fn); }
 
+    // Undo history for property edits (not owned; may be null).
+    void         set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
+    UndoManager* undo_manager() const { return undo_mgr_; }
     // Command registry (not owned): the Style picker runs style.<name> so the
     // change is undoable like the palette command.
     void set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
@@ -86,8 +90,23 @@ class Inspector
     // Draw the series browser (list all series for quick selection)
     void draw_series_browser(Figure& fig);
 
+    // Axis style fields (grid, ticks, text sizes / colours), with one undo
+    // step per edit (a whole drag or colour-picker interaction).
+    void draw_axis_style_fields(AxesBase& ax);
+
     SelectionContext ctx_;
-    FigureViewModel* figure_vm_        = nullptr;
+    FigureViewModel* figure_vm_ = nullptr;
+    UndoManager*     undo_mgr_  = nullptr;
+
+    // Axis style edit in progress: the style before its first change, pushed
+    // as one undo step once no widget is active any more.
+    struct AxisStyleEdit
+    {
+        AxesBase* axes = nullptr;
+        AxisStyle before;
+        bool      open = false;
+    };
+    AxisStyleEdit    axis_style_edit_;
     SeriesClipboard* clipboard_        = nullptr;
     CommandRegistry* command_registry_ = nullptr;
     DeferRemovalFn   defer_removal_;

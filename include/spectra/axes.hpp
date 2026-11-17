@@ -55,15 +55,20 @@ enum class TickDirection : uint8_t
 struct StyleSheet;
 
 /// @brief Colours and sizes of ticks, labels and grid lines.
+///
+/// Colours with alpha 0 and sizes <= 0 follow the theme.  Sizes are in logical
+/// pixels; on screen they are multiplied by the UI scale setting (exports keep
+/// them as given).
 struct AxisStyle
 {
-    Color tick_color  = colors::black;
-    Color label_color = colors::black;
+    Color tick_color  = {0.0f, 0.0f, 0.0f, 0.0f};   ///< tick label colour; alpha=0 → theme
+    Color label_color = {0.0f, 0.0f, 0.0f, 0.0f};   ///< axis label colour; alpha=0 → theme
     Color grid_color  = {0.0f, 0.0f, 0.0f, 0.0f};   ///< alpha=0 → use theme grid_line color
     float tick_length = 5.0f;
-    float label_size  = 14.0f;
-    float title_size  = 16.0f;
+    float label_size  = 14.0f;   ///< axis label font size (px); <= 0 → theme (14)
+    float title_size  = 18.0f;   ///< axes title font size (px); <= 0 → theme (18)
     float grid_width  = 1.0f;
+    float tick_size   = 0.0f;   ///< tick label font size (px); <= 0 → theme (13)
 };
 
 /// @brief A closed axis range [min, max] in data coordinates.
@@ -129,6 +134,12 @@ class AxesBase
     /// Strip reserved right of the plot area (and colorbar) for an outside
     /// legend; zero-sized when none is reserved.
     const Rect& outside_legend_area() const { return outside_legend_area_; }
+
+    /// Screen scale of the axes text, tick marks and their padding (the UI
+    /// scale setting).  Set by the layout together with the viewport; 1 for
+    /// exports and headless layouts.
+    float text_scale() const { return text_scale_; }
+    void  set_text_scale(float s) { text_scale_ = (s > 0.0f && s < 16.0f) ? s : 1.0f; }
 
     /// @brief Axes title.
     const std::string& title() const { return title_; }
@@ -208,6 +219,7 @@ class AxesBase
     AxisStyle                            axis_style_;
     Rect                                 viewport_;
     Rect                                 outside_legend_area_{0.0f, 0.0f, 0.0f, 0.0f};
+    float                                text_scale_ = 1.0f;
     SeriesRemovedCallback                on_series_removed_;
     EventSystem*                         event_system_ = nullptr;
 };

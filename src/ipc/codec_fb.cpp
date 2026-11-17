@@ -336,7 +336,8 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.x_scale,
                                              ax.y_scale,
                                              ax.x_datetime,
-                                             ax.y_datetime);
+                                             ax.y_datetime,
+                                             ax.bar_mode);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -360,6 +361,7 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
     ax.y_scale    = fb->y_scale();
     ax.x_datetime = fb->x_datetime();
     ax.y_datetime = fb->y_datetime();
+    ax.bar_mode   = fb->bar_mode();
     if (fb->annotations())
     {
         for (const auto* fa : *fb->annotations())

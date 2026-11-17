@@ -154,8 +154,15 @@ class SnapshotAxisState(object):
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return False
 
+    # SnapshotAxisState
+    def BarMode(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(16)
+    builder.StartObject(17)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -261,6 +268,12 @@ def SnapshotAxisStateAddYDatetime(builder, yDatetime):
 
 def AddYDatetime(builder, yDatetime):
     SnapshotAxisStateAddYDatetime(builder, yDatetime)
+
+def SnapshotAxisStateAddBarMode(builder, barMode):
+    builder.PrependUint8Slot(16, barMode, 0)
+
+def AddBarMode(builder, barMode):
+    SnapshotAxisStateAddBarMode(builder, barMode)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

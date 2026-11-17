@@ -359,6 +359,7 @@ FigureId FigureManager::duplicate_figure(FigureId index)
         dst_ax.grid(src_ax.grid_enabled());
         dst_ax.show_border(src_ax.border_enabled());
         dst_ax.autoscale_mode(src_ax.get_autoscale_mode());
+        dst_ax.bar_mode(src_ax.bar_mode());
         dst_ax.axis_style() = src_ax.axis_style();
 
         // Deep-copy 2D series

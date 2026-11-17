@@ -82,7 +82,12 @@ class _FakeAxes:
     def scatter(self, x, y, label=""):
         return self._add("scatter", x=list(x), y=list(y), label=label)
 
-    def bar(self, x, heights, width=0.8, bottom=0.0, horizontal=False, label="", **style):
+    bar_mode = "grouped"
+
+    def bar(self, x, heights, width=0.8, bottom=0.0, horizontal=False, label="", stacked=None,
+            **style):
+        if stacked is not None:
+            self.bar_mode = "stacked" if stacked else "grouped"
         return self._add("bar", x=list(x), heights=list(heights), width=width, bottom=bottom,
                          horizontal=horizontal, label=label, **style)
 
@@ -160,11 +165,13 @@ def fake(monkeypatch):
     monkeypatch.setattr(st, "_ensure_axes", lambda: ax)
     monkeypatch.setattr(st, "_show_if_pending", lambda: None)
     monkeypatch.setattr(st, "_current_fig", fig)
-    for d in (st._axes_bounds, st._axes_sticky, st._axes_scales, st._errorbar_counts):
+    for d in (st._axes_bounds, st._axes_sticky, st._axes_scales, st._errorbar_counts,
+              st._axes_bars):
         d.clear()
     st._datetime_axes.clear()
     yield ax, fig
-    for d in (st._axes_bounds, st._axes_sticky, st._axes_scales, st._errorbar_counts):
+    for d in (st._axes_bounds, st._axes_sticky, st._axes_scales, st._errorbar_counts,
+              st._axes_bars):
         d.clear()
     st._datetime_axes.clear()
 
@@ -209,6 +216,80 @@ def test_bar_positions_categories_and_horizontal(fake):
     assert h.kw["horizontal"] and h.kw["bottom"] == 1.0 and h.kw["width"] == 0.4
     with pytest.raises(ValueError):
         sp.bar([1, 2], [1])
+
+
+def test_bar_value_axis_sticks_to_the_baseline(fake):
+    ax, _ = fake
+    sp.bar([0, 1, 2], [2, 4, 10])
+    assert ax.limits[1] == (0.0, 10.5)  # no margin below the bars
+    assert ax.limits[0][0] < -0.4  # the category axis keeps its margin
+
+
+def test_bar_negative_bars_hang_from_the_baseline(fake):
+    ax, _ = fake
+    sp.bar([0, 1], [-2, -10])
+    assert ax.limits[1] == (-10.5, 0.0)
+
+
+def test_bar_stacked_fits_the_stack(fake):
+    ax, _ = fake
+    sp.bar([0, 1, 2], [2, -1, 3], stacked=True)
+    sp.bar([0, 1, 2], [4, -2, 1], stacked=True)
+    assert ax.bar_mode == "stacked"
+    lo, hi = ax.limits[1]
+    assert lo < -3 and hi > 6  # 2+4 up, -1-2 down
+
+
+def test_bar_mode_change_refits_every_orientation(fake):
+    ax, _ = fake
+    sp.barh([0], [5])
+    sp.barh([0], [5])
+    assert ax.limits[0] == (0.0, 5.25)  # grouped: side by side
+    sp.bar([1], [1], stacked=True)  # axes-wide: the horizontal bars stack too
+    assert ax.limits[0][0] == 0.0 and ax.limits[0][1] >= 10.0
+
+
+def test_set_bar_mode_refits_easy_api_bars(fake):
+    ax, _ = fake
+    sp.bar([0, 1], [2, 3])
+    sp.bar([0, 1], [2, 3])
+    assert ax.limits[1] == (0.0, 3.15)
+    ax.bar_mode = "stacked"  # what Axes.set_bar_mode("stacked") records before refitting
+    easy._refit_bars(ax)
+    assert ax.limits[1] == (0.0, 6.3)
+
+
+def test_pyplot_bar_sequence_bottom_stacks(fake_plt):
+    ax, _ = fake_plt
+    plt.bar([0, 1], [1, 2])
+    s = plt.bar([0, 1], [3, 4], bottom=[1, 2])
+    assert ax.bar_mode == "stacked" and s.kw["bottom"] == 0.0
+    assert ax.limits[1] == (0.0, 6.3)
+    plt.barh([0, 1], [1, 2], left=0.5)
+    assert ax.created[-1].kw["bottom"] == 0.5
+
+
+def test_axes_set_bar_mode_sends_property():
+    sent = []
+
+    class _Session:
+        def _request(self, kind, payload):
+            sent.append((kind, payload))
+
+    a = Axes(_Session(), 1, 0)
+    assert a.bar_mode == "grouped"
+    calls = []
+    orig = easy._refit_bars
+    easy._refit_bars = calls.append
+    try:
+        a.set_bar_mode("overlay")
+        a.set_bar_mode("overlay")  # unchanged: no refit
+    finally:
+        easy._refit_bars = orig
+    assert calls == [a]
+    assert a.bar_mode == "overlay" and len(sent) == 2 and sent[0][0] == P.REQ_UPDATE_PROPERTY
+    with pytest.raises(ValueError):
+        a.set_bar_mode("sideways")
 
 
 def test_fill_between_orders_bounds_and_accepts_scalar(fake):

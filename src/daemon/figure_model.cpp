@@ -1241,6 +1241,12 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             break;
         }
 
+        case ipc::DiffOp::Type::SET_SERIES_DRAW_STYLE:
+            if (it == figures_.end() || op.series_index >= it->second.series.size())
+                return false;
+            ipc::apply_series_draw_style_op(it->second.series[op.series_index], op);
+            break;
+
         case ipc::DiffOp::Type::SET_KNOB_VALUE:
             for (auto& k : knobs_)
             {

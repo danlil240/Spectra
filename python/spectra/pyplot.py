@@ -38,7 +38,8 @@ __all__ = [
     "plot", "scatter", "bar", "barh", "hist", "errorbar", "fill_between", "stem",
     "semilogx", "semilogy", "loglog", "figure", "subplot", "subplots", "xlabel",
     "ylabel", "title", "suptitle", "legend", "xlim", "ylim", "xscale", "yscale",
-    "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style",
+    "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style", "step",
+    "stairs", "text", "annotate",
 ]
 
 # Pixels per inch for figsize (matplotlib's default dpi).
@@ -477,7 +478,14 @@ def plot(*args, **kwargs):
     linestyle = _pop_alias(kwargs, "linestyle", "ls")
     marker = kwargs.pop("marker", None)
     markersize = _pop_alias(kwargs, "markersize", "ms")
+    drawstyle = _pop_alias(kwargs, "drawstyle", "ds")
+    where = kwargs.pop("where", None)
     _ignore("plot", kwargs)
+    line_kw: Dict[str, Any] = {}
+    if drawstyle is not None:
+        line_kw["drawstyle"] = drawstyle
+    elif where is not None:
+        line_kw["where"] = where
     out = []
     for x, y, fmt in _split_plot_args(args):
         fcolor, fmarker, fline = _parse_fmt(fmt) if fmt else (None, None, None)
@@ -494,9 +502,77 @@ def plot(*args, **kwargs):
                             marker=mk)
         else:
             s = _sp.plot(*pos, color=color, width=width, label=style["label"], opacity=alpha,
-                         linestyle=ls, marker=mk, size=size)
+                         linestyle=ls, marker=mk, size=size, **line_kw)
         out.append(s)
     return out
+
+
+def step(*args, where: str = "pre", **kwargs):
+    """step([x], y, [fmt], where="pre"|"mid"|"post"): a stepwise constant line."""
+    kwargs.pop("drawstyle", None)
+    kwargs.pop("ds", None)
+    return plot(*args, where=where, **kwargs)
+
+
+def stairs(values, edges=None, *, baseline=None, fill: bool = False, **kwargs):
+    """stairs(values, edges): values[i] holds from edges[i] to edges[i + 1]."""
+    if baseline not in (None, 0, 0.0):
+        _ignore("stairs", {"baseline": baseline})
+    if fill:
+        _ignore("stairs", {"fill": fill})
+    style = _style(kwargs)
+    width = _pop_alias(kwargs, "linewidth", "lw")
+    alpha = kwargs.pop("alpha", None)
+    _ignore("stairs", kwargs)
+    return _sp.stairs(values, edges, color=style.get("color"), width=width,
+                      label=style["label"], opacity=alpha)
+
+
+def _text_style(kwargs: Dict[str, Any], fontsize: float) -> Dict[str, Any]:
+    """matplotlib text keywords -> easy-API text keywords (bbox, rotation, ...)."""
+    out: Dict[str, Any] = {}
+    rotation = kwargs.pop("rotation", None)
+    if rotation is not None:
+        out["rotation"] = (90.0 if rotation == "vertical"
+                           else 0.0 if rotation == "horizontal" else float(rotation))
+    bbox = kwargs.pop("bbox", None)
+    if isinstance(bbox, dict):
+        # matplotlib's pad is a fraction of the font size (default 0.3).
+        box = dict(bbox)
+        box.pop("boxstyle", None)
+        box.pop("alpha", None)
+        box["pad"] = float(box.get("pad", 0.3)) * (fontsize or 13.0)
+        out["bbox"] = box
+    elif bbox is not None:
+        out["bbox"] = bool(bbox)
+    # Spectra extension: a halo around the glyphs (path_effects in matplotlib).
+    halo = kwargs.pop("halo", None)
+    if halo is not None:
+        out["halo"] = halo
+    return out
+
+
+def text(x, y, s, fontdict=None, **kwargs):
+    """text(x, y, s): text at data coordinates; bbox=, rotation=, ha=, va=, color=."""
+    if fontdict:
+        kwargs = {**fontdict, **kwargs}
+    color = _pop_alias(kwargs, "color", "c")
+    fontsize = float(_pop_alias(kwargs, "fontsize", "size", default=0.0) or 0.0)
+    ha = _pop_alias(kwargs, "ha", "horizontalalignment", default="left")
+    va = _pop_alias(kwargs, "va", "verticalalignment", default="baseline")
+    extra = _text_style(kwargs, fontsize)
+    _ignore("text", kwargs)
+    return _sp.text(x, y, s, color=color, fontsize=fontsize, ha=ha, va=va, **extra)
+
+
+def annotate(text, xy, xytext=None, **kwargs):
+    """annotate(text, xy, xytext=None): label a point, with an arrow from xytext."""
+    color = _pop_alias(kwargs, "color", "c")
+    fontsize = float(_pop_alias(kwargs, "fontsize", "size", default=0.0) or 0.0)
+    kwargs.pop("arrowprops", None)   # an arrow is always drawn when xytext is given
+    extra = _text_style(kwargs, fontsize)
+    _ignore("annotate", kwargs)
+    return _sp.annotate(text, xy, xytext, color=color, fontsize=fontsize, **extra)
 
 
 def semilogx(*args, **kwargs):

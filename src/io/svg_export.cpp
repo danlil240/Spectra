@@ -345,10 +345,22 @@ class SvgWriter final : public VectorWriter
         text_length_attr(t.text, t.font_px);
         if (t.medium_weight)
             body_ += " font-weight=\"500\"";
+        halo_attrs(t);
         if (t.rotated)
             body_ += " transform=\"rotate(" + num(t.rot_deg) + " " + num(t.rot_x) + " "
                      + num(t.rot_y) + ")\"";
         body_ += ">" + xml_escape(t.text) + "</text>\n";
+    }
+
+    // Halo: the glyph outlines stroked in the halo colour, painted under the
+    // fill (inherited by every <tspan> of a mathtext label).
+    void halo_attrs(const VectorText& t)
+    {
+        if (t.halo && t.halo_width > 0.0f)
+            body_ += " stroke=\"" + hex(t.halo_color) + "\""
+                     + opacity_attr("stroke-opacity", t.halo_color.a) + " stroke-width=\""
+                     + num(2.0 * t.halo_width)
+                     + "\" stroke-linejoin=\"round\" paint-order=\"stroke\"";
     }
 
     // Mathtext ($...$): one <tspan> per run, each placed at its laid-out pen position
@@ -378,6 +390,7 @@ class SvgWriter final : public VectorWriter
         body_ += " fill=\"" + hex(t.color) + "\"" + opacity_attr("fill-opacity", t.color.a);
         if (t.medium_weight)
             body_ += " font-weight=\"500\"";
+        halo_attrs(t);
         if (t.rotated)
             body_ += " transform=\"rotate(" + num(t.rot_deg) + " " + num(t.rot_x) + " "
                      + num(t.rot_y) + ")\"";

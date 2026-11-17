@@ -398,18 +398,27 @@ class Axes:
         fontsize: float = 0.0,
         ha: str = "left",
         va: str = "bottom",
+        bbox=None,
+        halo=None,
+        rotation: float = 0.0,
     ) -> "TextAnnotation":
         """Place text with its anchor at data coordinates (x, y) (2D axes only).
 
         ``color`` is an RGBA tuple (None = theme text colour), ``fontsize`` is in
         pixels (0 = axis-label size), ``ha`` is "left"/"center"/"right" and
         ``va`` is "top"/"middle"/"bottom" (alignment relative to the anchor).
+        ``bbox`` draws a background box: True for the theme default, or a dict
+        with ``pad`` (pixels), ``facecolor`` / ``edgecolor`` (RGBA tuples) and
+        ``linewidth`` (0 = no border).  ``halo`` outlines the glyphs: True for
+        the theme background colour or an RGBA tuple.  ``rotation`` is in
+        degrees, counter-clockwise about the anchor.
         """
         ann = TextAnnotation(self, len(self._annotations), x, y, s)
         ann._color = tuple(color) if color is not None else None
         ann._font_size = float(fontsize)
         ann._halign = _parse_align(ha, _HALIGN, "ha")
         ann._valign = _parse_align(va, _VALIGN, "va")
+        ann._set_style(bbox, halo, rotation)
         ann._send(append=True)
         self._annotations.append(ann)
         return ann
@@ -422,19 +431,25 @@ class Axes:
         *,
         color: Optional[Tuple[float, float, float, float]] = None,
         fontsize: float = 0.0,
+        bbox=None,
+        halo=None,
+        rotation: float = 0.0,
     ) -> "TextAnnotation":
         """Place text centred at ``xytext`` with an arrow pointing to ``xy``.
 
         Without ``xytext`` the text sits at ``xy`` and no arrow is drawn.
+        ``bbox``, ``halo`` and ``rotation`` are as in :meth:`text`.
         """
         if xytext is None:
-            return self.text(xy[0], xy[1], s, color=color, fontsize=fontsize)
+            return self.text(xy[0], xy[1], s, color=color, fontsize=fontsize, bbox=bbox,
+                             halo=halo, rotation=rotation)
         ann = TextAnnotation(self, len(self._annotations), xytext[0], xytext[1], s)
         ann._color = tuple(color) if color is not None else None
         ann._font_size = float(fontsize)
         ann._halign = 1
         ann._valign = 1
         ann._arrow = (float(xy[0]), float(xy[1]))
+        ann._set_style(bbox, halo, rotation)
         ann._send(append=True)
         self._annotations.append(ann)
         return ann
@@ -604,6 +619,20 @@ _BAR_MODES = {"grouped": 0, "stacked": 1, "overlay": 2}
 _VALIGN = {"top": 0, "middle": 1, "center": 1, "centre": 1, "bottom": 2, "baseline": 2}
 
 
+def _rgba(c) -> Optional[Tuple[float, ...]]:
+    """RGBA tuple from None / "none" / an RGB(A) sequence of 0..1 floats."""
+    if c is None or (isinstance(c, str) and c.lower() == "none"):
+        return None
+    if isinstance(c, str):
+        from ._colors import to_rgba
+
+        c = to_rgba(c)
+    vals = tuple(float(v) for v in c)
+    if len(vals) not in (3, 4):
+        raise ValueError(f"expected an RGB or RGBA colour, got {c!r}")
+    return vals if len(vals) == 4 else vals + (1.0,)
+
+
 def _parse_align(value, table: dict, what: str) -> int:
     if isinstance(value, int) and 0 <= value <= 2:
         return value
@@ -632,6 +661,11 @@ class TextAnnotation:
         "_valign",
         "_arrow",
         "_visible",
+        "_bbox",
+        "_halo",
+        "_halo_color",
+        "_halo_width",
+        "_rotation",
     )
 
     def __init__(self, axes: Axes, index: int, x: float, y: float, text: str) -> None:
@@ -646,6 +680,39 @@ class TextAnnotation:
         self._valign = 2
         self._arrow: Optional[Tuple[float, float]] = None
         self._visible = True
+        # Background box: None, or (pad px, fill RGBA or None, edge RGBA or None, edge width).
+        self._bbox: Optional[Tuple[float, Optional[Tuple[float, ...]], Optional[Tuple[float, ...]], float]] = None
+        self._halo = False
+        self._halo_color: Optional[Tuple[float, ...]] = None
+        self._halo_width = 2.0
+        self._rotation = 0.0
+
+    def _set_style(self, bbox, halo, rotation) -> None:
+        """Store bbox / halo / rotation arguments (see Axes.text)."""
+        if bbox is None or bbox is False:
+            self._bbox = None
+        elif bbox is True:
+            self._bbox = (4.0, None, None, 1.0)
+        elif isinstance(bbox, dict):
+            fc = bbox.get("facecolor", bbox.get("fc"))
+            ec = bbox.get("edgecolor", bbox.get("ec"))
+            lw = bbox.get("linewidth", bbox.get("lw", 1.0))
+            self._bbox = (
+                float(bbox.get("pad", 4.0)),
+                _rgba(fc),
+                _rgba(ec),
+                0.0 if ec in ("none", "None") else float(lw),
+            )
+        else:
+            raise TypeError("bbox must be None, True/False or a dict")
+        if halo is None or halo is False:
+            self._halo = False
+        elif halo is True:
+            self._halo = True
+        else:
+            self._halo = True
+            self._halo_color = _rgba(halo)
+        self._rotation = float(rotation or 0.0)
 
     @property
     def index(self) -> int:
@@ -678,7 +745,25 @@ class TextAnnotation:
             float(ax),
             float(ay),
             1.0 if self._visible else 0.0,
-        ]
+        ] + self._packed_style()
+
+    def _packed_style(self) -> List[float]:
+        """Optional style tail of ipc::pack_annotation() (box, halo, rotation)."""
+        if self._bbox is None and not self._halo and self._rotation == 0.0:
+            return []
+
+        def rgba(c):
+            return list((tuple(c) + (1.0,))[:4]) if c is not None else [0.0, 0.0, 0.0, 1.0]
+
+        pad, fill, edge, edge_w = self._bbox if self._bbox is not None else (4.0, None, None, 1.0)
+        return (
+            [1.0 if self._bbox is not None else 0.0, float(pad)]
+            + [1.0 if fill is not None else 0.0] + rgba(fill)
+            + [1.0 if edge is not None else 0.0] + rgba(edge)
+            + [float(edge_w), 1.0 if self._halo else 0.0]
+            + [1.0 if self._halo_color is not None else 0.0] + rgba(self._halo_color)
+            + [float(self._halo_width), float(self._rotation)]
+        )
 
     def _send(self, append: bool = False) -> None:
         if self._index < 0:
@@ -727,6 +812,30 @@ class TextAnnotation:
 
     def set_visible(self, visible: bool = True) -> "TextAnnotation":
         self._visible = bool(visible)
+        self._send()
+        return self
+
+    def set_bbox(self, bbox=True) -> "TextAnnotation":
+        """Background box: True (theme default), False/None (none) or a dict
+        with ``pad``, ``facecolor``, ``edgecolor``, ``linewidth``."""
+        self._set_style(bbox, self._halo_color or self._halo, self._rotation)
+        self._send()
+        return self
+
+    def set_halo(self, halo=True, width: Optional[float] = None) -> "TextAnnotation":
+        """Glyph outline: True (theme background), an RGBA tuple, or False."""
+        self._halo_color = None
+        bb = self._bbox
+        self._set_style(None, halo, self._rotation)
+        self._bbox = bb
+        if width is not None:
+            self._halo_width = max(0.0, float(width))
+        self._send()
+        return self
+
+    def set_rotation(self, degrees: float) -> "TextAnnotation":
+        """Rotation in degrees, counter-clockwise about the anchor."""
+        self._rotation = float(degrees)
         self._send()
         return self
 

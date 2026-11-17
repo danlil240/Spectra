@@ -23,6 +23,7 @@
 #include "core/axis_scale.hpp"
 #include "core/axis_ticks.hpp"
 #include "core/datetime_ticks.hpp"
+#include "data/line_decimation.hpp"
 #include "io/text_metrics.hpp"
 
 namespace spectra
@@ -157,6 +158,28 @@ LineSeries& Axes::plot(std::span<const float> x, std::span<const float> y, const
 {
     auto& ref = line(x, y);
     ref.plot_style(style);
+    return ref;
+}
+
+LineSeries& Axes::step(std::span<const float> x,
+                       std::span<const float> y,
+                       std::string_view       fmt,
+                       DrawStyle              where)
+{
+    auto& ref = plot(x, y, fmt);
+    ref.draw_style(where == DrawStyle::Default ? DrawStyle::StepsPre : where);
+    return ref;
+}
+
+LineSeries& Axes::stairs(std::span<const float> values,
+                         std::span<const float> edges,
+                         std::string_view       fmt)
+{
+    std::vector<float> x;
+    std::vector<float> y;
+    data::stairs_points(values, edges, x, y);
+    auto& ref = plot(x, y, fmt);
+    ref.draw_style(DrawStyle::StepsPost);
     return ref;
 }
 

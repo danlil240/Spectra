@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -246,6 +247,20 @@ struct SnapshotAnnotationState
     bool        has_arrow = false;
     float       arrow_x = 0.0f, arrow_y = 0.0f;
     bool        visible = true;
+    // Background box, halo and rotation (TextAnnotation::bbox / halo /
+    // rotation); carried as the optional tail of pack_annotation().
+    bool                 has_bbox        = false;
+    float                bbox_pad        = 4.0f;
+    bool                 has_bbox_fill   = false;
+    std::array<float, 4> bbox_fill       = {0.0f, 0.0f, 0.0f, 1.0f};
+    bool                 has_bbox_edge   = false;
+    std::array<float, 4> bbox_edge       = {0.0f, 0.0f, 0.0f, 1.0f};
+    float                bbox_edge_width = 1.0f;
+    bool                 halo            = false;
+    bool                 has_halo_color  = false;
+    std::array<float, 4> halo_color      = {0.0f, 0.0f, 0.0f, 1.0f};
+    float                halo_width      = 2.0f;
+    float                rotation        = 0.0f;   // degrees, counter-clockwise
 
     bool operator==(const SnapshotAnnotationState&) const = default;
 };
@@ -309,6 +324,9 @@ struct SnapshotSeriesState
     // default (solid lines, circle scatter markers).
     uint8_t line_style   = SERIES_STYLE_UNSET;
     uint8_t marker_style = SERIES_STYLE_UNSET;
+    // Line series: spectra::DrawStyle and spectra::DenseLineMode (0 = default).
+    uint8_t draw_style = 0;
+    uint8_t dense_mode = 0;
 };
 
 // A single figure's full state.
@@ -419,6 +437,8 @@ struct DiffOp
         SET_FIGURE_LAYOUT       = 33,
         SET_SERIES_LINE_STYLE   = 40,   // f1=spectra::LineStyle
         SET_SERIES_MARKER_STYLE = 41,   // f1=spectra::MarkerStyle
+        // Line draw style: f1=spectra::DrawStyle, f2=spectra::DenseLineMode.
+        SET_SERIES_DRAW_STYLE = 42,
         SET_FIGURE_STYLE =
             43,   // (32-42: other open PRs) str_val=built-in plot style name (Figure::apply_style)
     };

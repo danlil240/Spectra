@@ -756,6 +756,46 @@ class PdfPageWriter final : public VectorWriter
         const double c     = std::cos(theta);
         const double s     = std::sin(theta);
 
+        // Every text run of the label, each at its own size and baseline,
+        // rotated about (rot_x, rot_y); drawn once per text render mode.
+        auto show_runs = [&]()
+        {
+            for (const mathtext::Run& r : runs)
+            {
+                if (r.kind != mathtext::Run::Kind::Text || r.text.empty())
+                    continue;
+                double x = t.x - off + r.x;
+                double y = t.y - static_cast<double>(r.shift) * t.font_px;
+                if (t.rotated)
+                {
+                    const double dx = x - t.rot_x;
+                    const double dy = y - t.rot_y;
+                    x               = t.rot_x + c * dx - s * dy;
+                    y               = t.rot_y + s * dx + c * dy;
+                }
+                out_ += "/F1 ";
+                put_pdf_num(out_, static_cast<double>(t.font_px) * r.scale, 3);
+                out_ += " Tf\n";
+                for (const double v : {c, s, s, -c})
+                {
+                    put_pdf_num(out_, v, 4);
+                    out_ += ' ';
+                }
+                put_xy(out_, x, y);
+                out_ += " Tm\n" + shown_string(r.text) + " Tj\n";
+            }
+        };
+        if (t.halo && t.halo_width > 0.0f)
+        {
+            // Halo: the glyph outlines stroked in the halo colour, under the fill.
+            set_stroke(t.halo_color);
+            set_line(2.0f * t.halo_width, VectorLineCap::Unset, VectorLineJoin::Round, {});
+            set_alpha(per_mille(t.halo_color.a), state_.fill_alpha);
+            out_ += "BT\n1 Tr\n";
+            show_runs();
+            out_ += "0 Tr\nET\n";
+        }
+
         set_fill(t.color);
         if (t.medium_weight)
         {
@@ -769,30 +809,7 @@ class PdfPageWriter final : public VectorWriter
         out_ += "BT\n";
         if (t.medium_weight)
             out_ += "2 Tr\n";
-        for (const mathtext::Run& r : runs)
-        {
-            if (r.kind != mathtext::Run::Kind::Text || r.text.empty())
-                continue;
-            double x = t.x - off + r.x;
-            double y = t.y - static_cast<double>(r.shift) * t.font_px;
-            if (t.rotated)
-            {
-                const double dx = x - t.rot_x;
-                const double dy = y - t.rot_y;
-                x               = t.rot_x + c * dx - s * dy;
-                y               = t.rot_y + s * dx + c * dy;
-            }
-            out_ += "/F1 ";
-            put_pdf_num(out_, static_cast<double>(t.font_px) * r.scale, 3);
-            out_ += " Tf\n";
-            for (const double v : {c, s, s, -c})
-            {
-                put_pdf_num(out_, v, 4);
-                out_ += ' ';
-            }
-            put_xy(out_, x, y);
-            out_ += " Tm\n" + shown_string(r.text) + " Tj\n";
-        }
+        show_runs();
         if (t.medium_weight)
             out_ += "0 Tr\n";
         out_ += "ET\n";

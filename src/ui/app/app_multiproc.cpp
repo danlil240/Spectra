@@ -502,6 +502,12 @@ void App::run_multiproc()
     std::unordered_map<uint64_t, ipc::SnapshotFigureState> sent_layout;
     std::unordered_map<AxisLimitsKey, std::vector<std::string>, AxisLimitsKeyHash, AxisLimitsKeyEq>
         sent_categories;
+    // Last-sent line draw style / dense mode per (figure, figure-wide series index).
+    std::unordered_map<AxisLimitsKey,
+                       std::pair<uint8_t, uint8_t>,
+                       AxisLimitsKeyHash,
+                       AxisLimitsKeyEq>
+        sent_draw_styles;
     for (const auto& fs : snap.figures)
     {
         for (size_t ai = 0; ai < fs.axes.size(); ++ai)
@@ -520,8 +526,13 @@ void App::run_multiproc()
             sent_layout[fs.figure_id] = std::move(lay);
         }
         for (size_t si = 0; si < fs.series.size(); ++si)
+        {
             sent_categories[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(si)}] =
                 fs.series[si].categories;
+            sent_draw_styles[AxisLimitsKey{fs.figure_id, static_cast<uint32_t>(si)}] = {
+                fs.series[si].draw_style,
+                fs.series[si].dense_mode};
+        }
     }
 
     // Wait until all agent windows are closed (backend sends CMD_CLOSE_WINDOW or drops connection)
@@ -768,6 +779,24 @@ void App::run_multiproc()
                                                                        global_idx,
                                                                        bar->categories()));
                                     sent = bar->categories();
+                                }
+                            }
+                            if (auto* line = dynamic_cast<const LineSeries*>(&s))
+                            {
+                                const std::pair<uint8_t, uint8_t> now{
+                                    ipc::draw_style_to_wire(line->draw_style()),
+                                    ipc::dense_mode_to_wire(line->dense_mode())};
+                                auto& sent =
+                                    sent_draw_styles[AxisLimitsKey{reg_to_ipc[id], global_idx}];
+                                if (sent != now)
+                                {
+                                    diff.ops.push_back(
+                                        ipc::make_series_draw_style_op(reg_to_ipc[id],
+                                                                       slot,
+                                                                       global_idx,
+                                                                       line->draw_style(),
+                                                                       line->dense_mode()));
+                                    sent = now;
                                 }
                             }
                             if (!s.is_dirty())

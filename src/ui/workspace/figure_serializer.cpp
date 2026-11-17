@@ -16,6 +16,8 @@
 #include <spectra/series_image.hpp>
 #include <spectra/series_stats.hpp>
 
+#include "ipc/annotation_state.hpp"
+#include "ipc/axes_format_state.hpp"
 #include "overlay_snapshot.hpp"
 #include "series_color_source.hpp"
 
@@ -105,6 +107,11 @@ enum ChunkTag : uint16_t
     // ContourSeries (contour lines).  Version-free: older readers skip them.
     TAG_SERIES_IMAGE   = 0x0058,
     TAG_SERIES_CONTOUR = 0x0059,
+    // Draw style + dense mode of the line in the preceding TAG_SERIES_LINE
+    // chunk, and box / halo / rotation of the preceding TAG_TEXT_ANNOTATION.
+    // Version-free: older readers skip them and draw plain lines / text.
+    TAG_LINE_DRAW_STYLE = 0x0064,
+    TAG_TEXT_ANN_STYLE  = 0x0065,
 
     TAG_END = 0xFFFF,
 };
@@ -533,6 +540,13 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_f64(ls->x_offset());   // v6: data origins
             w.write_f64(ls->y_offset());
             w.end_series_chunk(spos, *sp);
+            if (ls->draw_style() != DrawStyle::Default || ls->dense_mode() != DenseLineMode::Auto)
+            {
+                auto dpos = w.begin_chunk(TAG_LINE_DRAW_STYLE);
+                w.write_u8(static_cast<uint8_t>(ls->draw_style()));
+                w.write_u8(static_cast<uint8_t>(ls->dense_mode()));
+                w.end_chunk(dpos);
+            }
         }
         else if (auto* ss = dynamic_cast<ScatterSeries*>(sp.get()))
         {
@@ -713,6 +727,13 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
         w.write_f32(ann->arrow_y());
         w.write_u8(ann->visible() ? 1 : 0);
         w.end_chunk(apos);
+        const auto st = ipc::annotation_to_state(*ann);
+        if (ipc::has_annotation_style(st))
+        {
+            auto tpos = w.begin_chunk(TAG_TEXT_ANN_STYLE);
+            w.write_floats(ipc::pack_annotation_style(st));
+            w.end_chunk(tpos);
+        }
     }
 }
 
@@ -1087,6 +1108,10 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
     BarSeries* last_bar = nullptr;
     // 3D scatter of the last TAG_SERIES_SCAT3D chunk (target of TAG_SCAT3D_POINT_ATTRS).
     ScatterSeries3D* last_scatter3d = nullptr;
+    // Line / text annotation of the previous chunk (target of
+    // TAG_LINE_DRAW_STYLE / TAG_TEXT_ANN_STYLE).
+    LineSeries*     last_line = nullptr;
+    TextAnnotation* last_text = nullptr;
     // Series of the last series chunk (target of TAG_STAT_STYLE).
     Series* last_series = nullptr;
 
@@ -1308,7 +1333,8 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
 
             case TAG_SERIES_LINE:
             {
-                int idx = r.read_i32();
+                last_line = nullptr;
+                int idx   = r.read_i32();
                 if (idx < 0 || idx >= static_cast<int>(axes_ptrs.size()))
                 {
                     r.skip(len - 4);
@@ -1356,7 +1382,34 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 auto ps       = s.plot_style();
                 ps.line_width = lw;
                 s.plot_style(ps);
-                loaded = {&s, col};
+                loaded    = {&s, col};
+                last_line = &s;
+                break;
+            }
+
+            case TAG_LINE_DRAW_STYLE:
+            {
+                const uint8_t ds = r.read_u8();
+                const uint8_t dm = r.read_u8();
+                if (len > 2)
+                    r.skip(len - 2);
+                if (last_line && r.good())
+                {
+                    last_line->draw_style(ipc::draw_style_from_wire(ds));
+                    last_line->dense_mode(ipc::dense_mode_from_wire(dm));
+                }
+                break;
+            }
+
+            case TAG_TEXT_ANN_STYLE:
+            {
+                const auto tail = r.read_floats();
+                if (last_text && r.good() && tail.size() >= ipc::ANNOTATION_STYLE_FLOATS)
+                {
+                    ipc::SnapshotAnnotationState st = ipc::annotation_to_state(*last_text);
+                    ipc::unpack_annotation_style(tail, st);
+                    ipc::apply_annotation_state(*last_text, st);
+                }
                 break;
             }
 
@@ -2117,6 +2170,7 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                     ann.color(color);
                 if (has_arrow)
                     ann.arrow_to(arrow_x, arrow_y);
+                last_text = &ann;
                 break;
             }
 
@@ -2328,6 +2382,10 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
 
         if (loaded.series)
             last_series = loaded.series;
+        if (tag != TAG_SERIES_LINE && tag != TAG_LINE_DRAW_STYLE)
+            last_line = nullptr;
+        if (tag != TAG_TEXT_ANNOTATION && tag != TAG_TEXT_ANN_STYLE)
+            last_text = nullptr;
 
         // v7: palette / format-letter colours are restored as such, so they
         // keep following the theme.  Older files keep the saved RGB.

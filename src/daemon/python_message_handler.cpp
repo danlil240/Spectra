@@ -230,6 +230,19 @@ static bool apply_property_update(FigureModel&              fig_model,
             return false;
         diff.ops.push_back(std::move(op));
     }
+    else if (property == "draw_style")
+    {
+        // Line draw style: f1 = spectra::DrawStyle, f2 = spectra::DenseLineMode.
+        auto op = ipc::make_series_draw_style_op(figure_id,
+                                                 axes_index,
+                                                 series_index,
+                                                 ipc::draw_style_from_wire(f1),
+                                                 ipc::dense_mode_from_wire(f2));
+        if (fig_model.series_type(figure_id, series_index) != "line"
+            || !fig_model.apply_diff_op(op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "bar_mode")
     {
         // f1 = spectra::BarMode wire value (0 grouped, 1 stacked, 2 overlay).
@@ -514,7 +527,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         "legend",        "legend_visible", "add_knob",     "annotation",     "clear_annotations",
         "data_origin",   "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
         "categories",    "line_style",     "marker_style", "palette_index",  "suptitle",
-        "figure_layout", "style",          "bar_mode"};
+        "figure_layout", "style",          "bar_mode",     "draw_style"};
     bool known = false;
     for (const auto* p : known_props)
     {

@@ -103,6 +103,7 @@ table SnapshotAnnotationState {
     arrow_x: float = 0.0;
     arrow_y: float = 0.0;
     visible: bool = true;
+    style: [float];   // optional box / halo / rotation (ipc::pack_annotation_style)
 }
 
 table SnapshotAxisState {
@@ -146,6 +147,8 @@ table SnapshotSeriesState {
     categories: [string];      // bar category names
     line_style: ubyte = 255;   // spectra::LineStyle, 255 = series type default
     marker_style: ubyte = 255; // spectra::MarkerStyle, 255 = series type default
+    draw_style: ubyte = 0;     // spectra::DrawStyle (line series)
+    dense_mode: ubyte = 0;     // spectra::DenseLineMode (line series)
 }
 
 table SnapshotFigureState {
@@ -216,6 +219,7 @@ enum DiffOpType : uint8 {
     SET_FIGURE_LAYOUT = 33,
     SET_SERIES_LINE_STYLE = 40,
     SET_SERIES_MARKER_STYLE = 41,
+    SET_SERIES_DRAW_STYLE = 42,
     SET_FIGURE_STYLE = 43,   // 32-42 are taken by other open PRs
 }
 

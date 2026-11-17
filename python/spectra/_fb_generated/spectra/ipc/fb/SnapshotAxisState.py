@@ -155,42 +155,49 @@ class SnapshotAxisState(object):
         return False
 
     # SnapshotAxisState
-    def LightMode(self):
+    def BarMode(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(36))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 0
 
     # SnapshotAxisState
-    def Fog(self):
+    def LightMode(self):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(38))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotAxisState
+    def Fog(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
         return 0.0
 
     # SnapshotAxisState
     def LightAnglesSet(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(40))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
         if o != 0:
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return False
 
     # SnapshotAxisState
     def LightAzimuth(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(42))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(44))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
         return 0.0
 
     # SnapshotAxisState
     def LightElevation(self):
-        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(44))
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(46))
         if o != 0:
             return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
         return 0.0
 
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(21)
+    builder.StartObject(22)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -297,32 +304,38 @@ def SnapshotAxisStateAddYDatetime(builder, yDatetime):
 def AddYDatetime(builder, yDatetime):
     SnapshotAxisStateAddYDatetime(builder, yDatetime)
 
+def SnapshotAxisStateAddBarMode(builder, barMode):
+    builder.PrependUint8Slot(16, barMode, 0)
+
+def AddBarMode(builder, barMode):
+    SnapshotAxisStateAddBarMode(builder, barMode)
+
 def SnapshotAxisStateAddLightMode(builder, lightMode):
-    builder.PrependUint8Slot(16, lightMode, 0)
+    builder.PrependUint8Slot(17, lightMode, 0)
 
 def AddLightMode(builder, lightMode):
     SnapshotAxisStateAddLightMode(builder, lightMode)
 
 def SnapshotAxisStateAddFog(builder, fog):
-    builder.PrependFloat32Slot(17, fog, 0.0)
+    builder.PrependFloat32Slot(18, fog, 0.0)
 
 def AddFog(builder, fog):
     SnapshotAxisStateAddFog(builder, fog)
 
 def SnapshotAxisStateAddLightAnglesSet(builder, lightAnglesSet):
-    builder.PrependBoolSlot(18, lightAnglesSet, 0)
+    builder.PrependBoolSlot(19, lightAnglesSet, 0)
 
 def AddLightAnglesSet(builder, lightAnglesSet):
     SnapshotAxisStateAddLightAnglesSet(builder, lightAnglesSet)
 
 def SnapshotAxisStateAddLightAzimuth(builder, lightAzimuth):
-    builder.PrependFloat32Slot(19, lightAzimuth, 0.0)
+    builder.PrependFloat32Slot(20, lightAzimuth, 0.0)
 
 def AddLightAzimuth(builder, lightAzimuth):
     SnapshotAxisStateAddLightAzimuth(builder, lightAzimuth)
 
 def SnapshotAxisStateAddLightElevation(builder, lightElevation):
-    builder.PrependFloat32Slot(20, lightElevation, 0.0)
+    builder.PrependFloat32Slot(21, lightElevation, 0.0)
 
 def AddLightElevation(builder, lightElevation):
     SnapshotAxisStateAddLightElevation(builder, lightElevation)

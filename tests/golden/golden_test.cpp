@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <spectra/spectra.hpp>
@@ -292,6 +293,34 @@ static void scene_grid_only(App& /*app*/, Figure& fig)
     ax.title("Grid Only");
 }
 
+// Plot style presets: the same two auto-coloured lines under each style.
+static std::function<void(App&, Figure&)> scene_style(const std::string& style_name)
+{
+    return [style_name](App& /*app*/, Figure& fig)
+    {
+        fig.apply_style(style_name);
+        auto& ax = fig.subplot(1, 1, 1);
+
+        constexpr size_t   N = 200;
+        std::vector<float> x(N);
+        std::vector<float> y1(N);
+        std::vector<float> y2(N);
+        for (size_t i = 0; i < N; ++i)
+        {
+            x[i]  = static_cast<float>(i) * 0.05f;
+            y1[i] = std::sin(x[i]);
+            y2[i] = 0.6f * std::cos(x[i] * 1.5f);
+        }
+        ax.plot(x, y1).label("sin");
+        ax.plot(x, y2).label("cos");
+        ax.xlim(0.0f, 10.0f);
+        ax.ylim(-1.5f, 1.5f);
+        ax.title("Style: " + style_name);
+        ax.xlabel("Time (s)");
+        ax.ylabel("Amplitude");
+    };
+}
+
 // Mathtext ($...$) in the title, both axis labels (the Y one rotated), legend entries and
 // an annotation: Greek letters, symbols, sub/superscripts (stacked and nested).
 static void scene_mathtext(App& /*app*/, Figure& fig)
@@ -393,6 +422,21 @@ TEST(GoldenImage, EmptyAxes)
 TEST(GoldenImage, GridOnly)
 {
     run_golden_test("grid_only", scene_grid_only);
+}
+
+TEST(GoldenImage, StylePaper)
+{
+    run_golden_test("style_paper", scene_style("paper"));
+}
+
+TEST(GoldenImage, StyleTalk)
+{
+    run_golden_test("style_talk", scene_style("talk"));
+}
+
+TEST(GoldenImage, StyleMinimal)
+{
+    run_golden_test("style_minimal", scene_style("minimal"));
 }
 
 TEST(GoldenImage, MathText)

@@ -2,6 +2,7 @@
 
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
+#include "../ipc/style_state.hpp"
 #include "../ipc/series_style_state.hpp"
 #include "../ipc/style3d_state.hpp"
 
@@ -96,6 +97,7 @@ uint32_t FigureModel::add_axes(uint64_t figure_id,
     ax.y_min = y_min;
     ax.y_max = y_max;
     ax.is_3d = is_3d;
+    ipc::style_new_axes(it->second.style, ax);
     it->second.axes.push_back(std::move(ax));
     bump_revision();
     return static_cast<uint32_t>(it->second.axes.size() - 1);
@@ -154,6 +156,19 @@ ipc::DiffOp FigureModel::set_axis_zlimits(uint64_t figure_id,
     op.f1         = z_min;
     op.f2         = z_max;
     return op;
+}
+
+bool FigureModel::set_figure_style(uint64_t figure_id, const std::string& name, ipc::DiffOp* op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end()
+        || !ipc::restyle_snapshot(it->second.style, it->second.axes, it->second.series, name))
+        return false;
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_figure_style_op(figure_id, name);
+    return true;
 }
 
 ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible)
@@ -252,6 +267,27 @@ bool FigureModel::set_axis_format(uint64_t     figure_id,
         ax.x_datetime = x_datetime != 0;
     if (y_datetime != KEEP_AXIS_FORMAT)
         ax.y_datetime = y_datetime != 0;
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_axis_scale_op(figure_id, axes_index, ax);
+    return true;
+}
+
+bool FigureModel::set_bar_mode(uint64_t     figure_id,
+                               uint32_t     axes_index,
+                               int          bar_mode,
+                               ipc::DiffOp* op_out)
+{
+    if (bar_mode < 0 || bar_mode > static_cast<int>(BarMode::Overlay))
+        return false;
+
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size()
+        || it->second.axes[axes_index].is_3d)
+        return false;
+    auto& ax    = it->second.axes[axes_index];
+    ax.bar_mode = static_cast<uint8_t>(bar_mode);
     bump_revision();
     if (op_out)
         *op_out = ipc::make_axis_scale_op(figure_id, axes_index, ax);
@@ -377,6 +413,7 @@ uint32_t FigureModel::add_series(uint64_t           figure_id,
     s.name        = name;
     s.type        = type;
     s.color_index = next_auto_color_index(it->second.series, s.axes_index);
+    ipc::style_new_series(it->second.style, s);
     it->second.series.push_back(std::move(s));
     bump_revision();
     return static_cast<uint32_t>(it->second.series.size() - 1);
@@ -400,6 +437,7 @@ ipc::DiffOp FigureModel::add_series_with_diff(uint64_t           figure_id,
     s.type        = type;
     s.axes_index  = axes_index;
     s.color_index = next_auto_color_index(it->second.series, axes_index);
+    ipc::style_new_series(it->second.style, s);
     it->second.series.push_back(std::move(s));
     out_index = static_cast<uint32_t>(it->second.series.size() - 1);
     bump_revision();
@@ -980,6 +1018,7 @@ std::vector<uint64_t> FigureModel::load_snapshot(const ipc::StateSnapshotPayload
         fd.constrained_layout = fig.constrained_layout;
         fd.share_x            = fig.share_x;
         fd.share_y            = fig.share_y;
+        fd.style              = fig.style;
         fd.axes               = fig.axes;
         fd.series             = fig.series;
         figures_[id]          = std::move(fd);
@@ -1017,6 +1056,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot() const
         fig.constrained_layout = fd.constrained_layout;
         fig.share_x            = fd.share_x;
         fig.share_y            = fd.share_y;
+        fig.style              = fd.style;
         fig.axes               = fd.axes;
         fig.series             = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -1050,6 +1090,7 @@ ipc::StateSnapshotPayload FigureModel::snapshot(const std::vector<uint64_t>& fig
         fig.constrained_layout = fd.constrained_layout;
         fig.share_x            = fd.share_x;
         fig.share_y            = fd.share_y;
+        fig.style              = fd.style;
         fig.axes               = fd.axes;
         fig.series             = fd.series;
         snap.figures.push_back(std::move(fig));
@@ -1237,6 +1278,15 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.series[op.series_index].marker_style = v;
             break;
         }
+
+        case ipc::DiffOp::Type::SET_FIGURE_STYLE:
+            if (it == figures_.end()
+                || !ipc::restyle_snapshot(it->second.style,
+                                          it->second.axes,
+                                          it->second.series,
+                                          op.str_val))
+                return false;
+            break;
 
         case ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
         {

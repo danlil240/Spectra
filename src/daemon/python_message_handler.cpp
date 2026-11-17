@@ -206,6 +206,14 @@ static bool apply_property_update(FigureModel&              fig_model,
                                                        ipc::share_axes_from_wire(f2),
                                                        ipc::share_axes_from_wire(f3)));
     }
+    else if (property == "style")
+    {
+        // Built-in plot style (StyleSheet) of the figure, by name.
+        ipc::DiffOp op;
+        if (!fig_model.set_figure_style(figure_id, str_val, &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "grid")
     {
         diff.ops.push_back(fig_model.set_grid_visible(figure_id, axes_index, bool_val));
@@ -297,6 +305,16 @@ static bool apply_property_update(FigureModel&              fig_model,
                                        keep,
                                        keep,
                                        &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    else if (property == "bar_mode")
+    {
+        // f1 = spectra::BarMode wire value (0 grouped, 1 stacked, 2 overlay).
+        if (!(f1 >= 0.0 && f1 <= 2.0) || f1 != std::floor(f1))
+            return false;
+        ipc::DiffOp op;
+        if (!fig_model.set_bar_mode(figure_id, axes_index, static_cast<int>(f1), &op))
             return false;
         diff.ops.push_back(std::move(op));
     }
@@ -598,6 +616,8 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                                         "palette_index",
                                         "suptitle",
                                         "figure_layout",
+                                        "style",
+                                        "bar_mode",
                                         "depth_shade",
                                         "show_edges",
                                         "contour_projection",

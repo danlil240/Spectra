@@ -142,6 +142,8 @@ Axes& Figure::subplot(int rows, int cols, int index)
     if (!axes_[idx])
     {
         axes_[idx] = std::make_unique<Axes>();
+        if (style_sheet_)
+            axes_[idx]->apply_style(*style_sheet_);
         if (share_x_ != ShareAxes::None || share_y_ != ShareAxes::None)
             apply_share_modes(share_x_ != ShareAxes::None, share_y_ != ShareAxes::None);
     }
@@ -230,6 +232,8 @@ Axes3D& Figure::subplot3d(int rows, int cols, int index)
     if (!all_axes_[idx])
     {
         all_axes_[idx] = std::make_unique<Axes3D>();
+        if (style_sheet_)
+            all_axes_[idx]->apply_style(*style_sheet_);
     }
 
     return *static_cast<Axes3D*>(all_axes_[idx].get());
@@ -248,17 +252,18 @@ bool Figure::save_png(const std::string& path)
 
 bool Figure::save_png(const std::string& path, uint32_t export_width, uint32_t export_height)
 {
-    return save_png(path, ExportOptions{export_width, export_height, {}});
+    return save_png(path, ExportOptions{export_width, export_height, {}, false});
 }
 
 bool Figure::save_png(const std::string& path, const ExportOptions& options)
 {
     if (!export_path_is_writable(path, "PNG"))
         return false;
-    export_req_.png_path   = path;
-    export_req_.png_width  = options.width;
-    export_req_.png_height = options.height;
-    export_req_.png_theme  = options.theme;
+    export_req_.png_path        = path;
+    export_req_.png_width       = options.width;
+    export_req_.png_height      = options.height;
+    export_req_.png_theme       = options.theme;
+    export_req_.png_transparent = options.transparent;
     compute_layout();
     return true;
 }
@@ -272,8 +277,9 @@ bool Figure::save_svg(const std::string& path, const ExportOptions& options)
 {
     if (!export_path_is_writable(path, "SVG"))
         return false;
-    export_req_.svg_path  = path;
-    export_req_.svg_theme = options.theme;
+    export_req_.svg_path        = path;
+    export_req_.svg_theme       = options.theme;
+    export_req_.svg_transparent = options.transparent;
     compute_layout();
     return true;
 }
@@ -287,8 +293,9 @@ bool Figure::save_pdf(const std::string& path, const ExportOptions& options)
 {
     if (!export_path_is_writable(path, "PDF"))
         return false;
-    export_req_.pdf_path  = path;
-    export_req_.pdf_theme = options.theme;
+    export_req_.pdf_path        = path;
+    export_req_.pdf_theme       = options.theme;
+    export_req_.pdf_transparent = options.transparent;
     compute_layout();
     return true;
 }

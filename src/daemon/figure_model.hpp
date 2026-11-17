@@ -63,6 +63,11 @@ class FigureModel
                                  double   z_min,
                                  double   z_max);
 
+    // Apply the built-in plot style `name` (StyleSheet) to a figure: new axes
+    // and series follow it, existing ones are restyled like Figure::apply_style.
+    // Returns false (no change) for an unknown figure or style.
+    bool set_figure_style(uint64_t figure_id, const std::string& name, ipc::DiffOp* op_out);
+
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
 
@@ -89,6 +94,12 @@ class FigureModel
                                          int          x_datetime,
                                          int          y_datetime,
                                          ipc::DiffOp* op_out);
+
+    // Change how the bar series of a 2D axes share a position (spectra::BarMode
+    // wire value: 0 grouped, 1 stacked, 2 overlay).  Same contract as
+    // set_axis_format(): false on a bad figure / axes / value, otherwise
+    // *op_out holds the SET_AXIS_SCALE diff with the axes' full format state.
+    bool set_bar_mode(uint64_t figure_id, uint32_t axes_index, int bar_mode, ipc::DiffOp* op_out);
 
     // --- Text annotations (2D axes) ---
     // Each returns false (no change, no revision bump) when the figure, axes or
@@ -288,6 +299,7 @@ class FigureModel
         uint8_t                               constrained_layout = 1;
         uint8_t                               share_x            = 0;   // ShareAxes
         uint8_t                               share_y            = 0;
+        std::string                           style;   // built-in plot style name
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;
     };

@@ -687,7 +687,10 @@ void Renderer::begin_render_pass()
     // shows, so it follows the colour vision deficiency preview too.
     const ui::Color canvas =
         ui::simulate_cvd(theme_mgr_.colors().bg_canvas, theme_mgr_.cvd_preview());
-    backend_.begin_render_pass(Color(canvas.r, canvas.g, canvas.b, canvas.a));
+    Color bg_color(canvas.r, canvas.g, canvas.b, canvas.a);
+    if (transparent_background_)
+        bg_color = Color(0.0f, 0.0f, 0.0f, 0.0f);
+    backend_.begin_render_pass(bg_color);
     backend_.set_line_width(1.0f);   // Set default for VK_DYNAMIC_STATE_LINE_WIDTH
 }
 
@@ -759,6 +762,8 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
         auto& ax = *axes_ptr;
         if (!ax.has_series_removed_callback())
             ax.set_series_removed_callback(removal_cb);
+        // Grouped / stacked bars: lay out before their geometry is uploaded.
+        ax.sync_bar_layout();
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);
@@ -968,6 +973,21 @@ Rect axes3d_cell_rect(const Rect& vp, const FigureStyle& style, float fig_w, flo
     const float x1 = std::min(fig_w, vp.x + vp.w + grow(style.margin_right, vp.w));
     const float y1 = std::min(fig_h, vp.y + vp.h + grow(style.margin_bottom, vp.h));
     return Rect{x0, y0, std::max(0.0f, x1 - x0), std::max(0.0f, y1 - y0)};
+}
+
+void unpremultiply_rgba(uint8_t* rgba, size_t pixel_count)
+{
+    if (!rgba)
+        return;
+    for (size_t i = 0; i < pixel_count; ++i)
+    {
+        uint8_t*       p = rgba + i * 4;
+        const unsigned a = p[3];
+        if (a == 0 || a == 255)
+            continue;
+        for (int c = 0; c < 3; ++c)
+            p[c] = static_cast<uint8_t>(std::min(255u, (p[c] * 255u + a / 2) / a));
+    }
 }
 
 ExportViewport compute_export_viewport(uint32_t figure_width,

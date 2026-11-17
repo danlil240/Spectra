@@ -189,11 +189,14 @@ void App::run_multiproc()
             fig->config_.height = ev.layout_height;
             fig->compute_layout();
 
+            const bool transparent = fig->export_req_.png_transparent;
+            renderer_->set_transparent_background(transparent);
             if (backend_->begin_frame())
             {
                 renderer_->render_figure(*fig);
                 backend_->end_frame();
             }
+            renderer_->set_transparent_background(false);
             backend_->set_pixel_scale(1.0f);
 
             fig->config_.width  = orig_w;
@@ -214,6 +217,8 @@ void App::run_multiproc()
                 std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
                 if (backend_->readback_framebuffer(pixels.data(), export_w, export_h))
                 {
+                    if (transparent)
+                        unpremultiply_rgba(pixels.data(), static_cast<size_t>(export_w) * export_h);
                     if (!ImageExporter::write_png(fig->export_req_.png_path,
                                                   pixels.data(),
                                                   export_w,
@@ -240,12 +245,12 @@ void App::run_multiproc()
                         ui::is_light_plot_background(surface),
                         ui::effective_figure_background(fig->style(), surface));
                 }
-                if (!SvgExporter::write_svg(fig->export_req_.svg_path,
-                                            *fig,
-                                            theme_mgr_
-                                                ? ui::svg_style_from_theme(
-                                                      theme_mgr_->plot_surface_colors(fig->style()))
-                                                : SvgStyle{}))
+                SvgStyle svg_style =
+                    theme_mgr_
+                        ? ui::svg_style_from_theme(theme_mgr_->plot_surface_colors(fig->style()))
+                        : SvgStyle{};
+                svg_style.transparent_background = fig->export_req_.svg_transparent;
+                if (!SvgExporter::write_svg(fig->export_req_.svg_path, *fig, svg_style))
                     SPECTRA_LOG_ERROR("app", "Failed to write SVG: {}", fig->export_req_.svg_path);
             }
 

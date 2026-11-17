@@ -39,6 +39,7 @@ std::unique_ptr<Figure> make_figure()
     auto& bx = fig->subplot(1, 2, 2);
     bx.bar(std::vector<std::string>{"alpha", "beta", "gamma"}, std::vector<float>{1, 2, 3});
     bx.xaxis_datetime(true);
+    bx.bar_mode(BarMode::Stacked);
     fig->legend().position = LegendPosition::OutsideRight;
     return fig;
 }
@@ -69,8 +70,10 @@ void expect_restored(const Figure& fig)
     EXPECT_EQ(a.yscale(), ScaleType::Sqrt);
     EXPECT_FALSE(a.xaxis_datetime());
     EXPECT_TRUE(a.yaxis_datetime());
+    EXPECT_EQ(a.bar_mode(), BarMode::Grouped);
     const Axes& b = *fig.axes()[1];
     EXPECT_TRUE(b.xaxis_datetime());
+    EXPECT_EQ(b.bar_mode(), BarMode::Stacked);
     ASSERT_EQ(b.series().size(), 1u);
     auto* bar = dynamic_cast<const BarSeries*>(b.series()[0].get());
     ASSERT_NE(bar, nullptr);
@@ -108,6 +111,7 @@ TEST(AxesFormatTransport, OlderSnapshotsKeepDefaults)
     EXPECT_EQ(back.legend_position, static_cast<uint8_t>(LegendPosition::Best));
     EXPECT_EQ(back.axes[0].x_scale, 0);
     EXPECT_FALSE(back.axes[0].x_datetime);
+    EXPECT_EQ(back.axes[0].bar_mode, static_cast<uint8_t>(BarMode::Grouped));
 }
 
 TEST(AxesFormatTransport, DiffOpsUpdateTheDaemonModel)
@@ -121,6 +125,7 @@ TEST(AxesFormatTransport, DiffOpsUpdateTheDaemonModel)
     ipc::SnapshotAxisState fmt;
     fmt.x_scale    = static_cast<uint8_t>(ScaleType::Log2);
     fmt.y_datetime = true;
+    fmt.bar_mode   = static_cast<uint8_t>(BarMode::Overlay);
     ASSERT_TRUE(model.apply_diff_op(round_trip(ipc::make_axis_scale_op(fid, 0, fmt))));
     ASSERT_TRUE(model.apply_diff_op(
         round_trip(ipc::make_legend_position_op(fid, LegendPosition::TopLeft))));
@@ -133,6 +138,7 @@ TEST(AxesFormatTransport, DiffOpsUpdateTheDaemonModel)
     EXPECT_EQ(f.axes[0].x_scale, static_cast<uint8_t>(ScaleType::Log2));
     EXPECT_TRUE(f.axes[0].y_datetime);
     EXPECT_FALSE(f.axes[0].x_datetime);
+    EXPECT_EQ(f.axes[0].bar_mode, static_cast<uint8_t>(BarMode::Overlay));
     EXPECT_EQ(f.legend_position, static_cast<uint8_t>(LegendPosition::TopLeft));
     EXPECT_EQ(f.series[idx].categories, std::vector<std::string>({"a", "", "c d"}));
 }
@@ -147,6 +153,28 @@ TEST(AxesFormatTransport, MalformedOpsAreRejected)
     EXPECT_FALSE(ipc::categories_from_op(op, names));
     EXPECT_EQ(ipc::scale_from_wire(42), ScaleType::Linear);
     EXPECT_EQ(ipc::legend_position_from_wire(99), LegendPosition::Best);
+    EXPECT_EQ(ipc::bar_mode_from_wire(7), BarMode::Grouped);
+    EXPECT_EQ(ipc::bar_mode_from_wire(-1), BarMode::Grouped);
+}
+
+TEST(AxesFormatTransport, DaemonSetsBarMode)
+{
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    model.add_axes(fid);
+    ipc::DiffOp op;
+    EXPECT_FALSE(model.set_bar_mode(fid, 0, 3, &op));
+    EXPECT_FALSE(model.set_bar_mode(fid, 5, 1, &op));
+    ASSERT_TRUE(model.set_bar_mode(fid, 0, 1, &op));
+    EXPECT_EQ(op.type, ipc::DiffOp::Type::SET_AXIS_SCALE);
+
+    // The op carries it to a live window axes.
+    Axes                   live;
+    ipc::SnapshotAxisState sa;
+    ipc::apply_axis_scale_op(sa, round_trip(op));
+    ipc::apply_axis_format_state(live, sa);
+    EXPECT_EQ(live.bar_mode(), BarMode::Stacked);
+    EXPECT_EQ(model.snapshot().figures[0].axes[0].bar_mode, static_cast<uint8_t>(BarMode::Stacked));
 }
 
 TEST(AxesFormatTransport, WorkspaceJsonRoundTrip)

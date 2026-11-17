@@ -129,6 +129,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
         os << R"(      "custom_tab_title": ")" << escape_json(fig.custom_tab_title) << "\",\n";
         if (fig.legend_position >= 0)
             os << "      \"legend_position\": " << fig.legend_position << ",\n";
+        if (!fig.plot_style.empty())
+            os << R"(      "plot_style": ")" << escape_json(fig.plot_style) << "\",\n";
         if (fig.has_layout)
         {
             os << "      \"margin_top\": " << fig.margin_top << ",\n";
@@ -164,7 +166,12 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"x_scale\": " << ax.x_scale << ",\n";
             os << "          \"y_scale\": " << ax.y_scale << ",\n";
             os << "          \"x_datetime\": " << (ax.x_datetime ? "true" : "false") << ",\n";
-            os << "          \"y_datetime\": " << (ax.y_datetime ? "true" : "false") << "\n";
+            os << "          \"y_datetime\": " << (ax.y_datetime ? "true" : "false") << ",\n";
+            os << "          \"minor_grid\": " << (ax.minor_grid ? "true" : "false") << ",\n";
+            os << "          \"minor_ticks\": " << (ax.minor_ticks ? "true" : "false") << ",\n";
+            os << "          \"despine\": " << (ax.despine ? "true" : "false") << ",\n";
+            os << "          \"ticks_in\": " << (ax.ticks_in ? "true" : "false") << ",\n";
+            os << "          \"bar_mode\": " << ax.bar_mode << "\n";
             os << "        }";
             if (ai + 1 < fig.axes.size())
                 os << ",";
@@ -710,6 +717,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
 
         // Optional key (any version); -1 = absent
         fig.legend_position = static_cast<int>(read_number_value(fig_json, "legend_position", -1));
+        fig.plot_style      = read_string_value(fig_json, "plot_style");
 
         // Optional figure layout keys (any version)
         if (read_number_value(fig_json, "subplot_hgap", -1.0) >= 0.0)
@@ -750,10 +758,15 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
                 ax.is_3d = read_bool_value(ax_json, "is_3d", false);
             }
             // Optional keys (any version)
-            ax.x_scale    = static_cast<int>(read_number_value(ax_json, "x_scale", 0));
-            ax.y_scale    = static_cast<int>(read_number_value(ax_json, "y_scale", 0));
-            ax.x_datetime = read_bool_value(ax_json, "x_datetime", false);
-            ax.y_datetime = read_bool_value(ax_json, "y_datetime", false);
+            ax.x_scale     = static_cast<int>(read_number_value(ax_json, "x_scale", 0));
+            ax.y_scale     = static_cast<int>(read_number_value(ax_json, "y_scale", 0));
+            ax.x_datetime  = read_bool_value(ax_json, "x_datetime", false);
+            ax.y_datetime  = read_bool_value(ax_json, "y_datetime", false);
+            ax.minor_grid  = read_bool_value(ax_json, "minor_grid", true);
+            ax.minor_ticks = read_bool_value(ax_json, "minor_ticks", false);
+            ax.despine     = read_bool_value(ax_json, "despine", false);
+            ax.ticks_in    = read_bool_value(ax_json, "ticks_in", false);
+            ax.bar_mode    = static_cast<int>(read_number_value(ax_json, "bar_mode", 0));
             fig.axes.push_back(std::move(ax));
         }
 
@@ -1098,6 +1111,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
         fs.grid_rows            = fig->grid_rows();
         fs.grid_cols            = fig->grid_cols();
         fs.legend_position      = static_cast<int>(fig->legend().position);
+        fs.plot_style           = fig->style_name();
         {
             const auto& st        = fig->style();
             fs.has_layout         = true;
@@ -1124,6 +1138,10 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
             if (!ax_base)
                 return;
             WorkspaceData::AxisState as;
+            as.minor_grid  = ax_base->minor_grid_enabled();
+            as.minor_ticks = ax_base->minor_ticks_enabled();
+            as.despine     = ax_base->despined();
+            as.ticks_in    = ax_base->tick_direction() == TickDirection::In;
 
             if (auto* ax3d = dynamic_cast<const Axes3D*>(ax_base))
             {
@@ -1177,6 +1195,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 as.y_scale      = static_cast<int>(ax2d->yscale());
                 as.x_datetime   = ax2d->xaxis_datetime();
                 as.y_datetime   = ax2d->yaxis_datetime();
+                as.bar_mode     = static_cast<int>(ax2d->bar_mode());
 
                 for (const auto& ann : ax2d->annotations())
                 {
@@ -1469,6 +1488,9 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             && fs.legend_position <= static_cast<int>(LegendPosition::OutsideRight))
             fig->legend().position = static_cast<LegendPosition>(fs.legend_position);
 
+        // Plot style first; the per-axes state below then applies on top.
+        if (!fs.plot_style.empty() && fs.plot_style != fig->style_name())
+            fig->apply_style(fs.plot_style);
         // Files without layout keys keep the figure's layout.
         if (fs.has_layout)
         {
@@ -1507,6 +1529,10 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
             if (!ax_base || ai >= fs.axes.size())
                 return;
             const auto& as = fs.axes[ai];
+            ax_base->minor_grid(as.minor_grid);
+            ax_base->minor_ticks(as.minor_ticks);
+            ax_base->despine(as.despine);
+            ax_base->tick_direction(as.ticks_in ? TickDirection::In : TickDirection::Out);
 
             if (as.is_3d)
             {
@@ -1551,6 +1577,9 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                 ax2d->yscale(to_scale(as.y_scale));
                 ax2d->xaxis_datetime(as.x_datetime);
                 ax2d->yaxis_datetime(as.y_datetime);
+                ax2d->bar_mode(as.bar_mode >= 0 && as.bar_mode <= static_cast<int>(BarMode::Overlay)
+                                   ? static_cast<BarMode>(as.bar_mode)
+                                   : BarMode::Grouped);
 
                 // Files without the key (older formats) keep the current ones.
                 if (fs.has_text_annotations)

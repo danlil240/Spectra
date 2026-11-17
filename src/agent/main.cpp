@@ -19,6 +19,7 @@
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/codec.hpp"
+#include "../ipc/style_state.hpp"
 #include "live_series_index.hpp"
 #include "snapshot_figure_builder.hpp"
 #include "../ipc/message.hpp"
@@ -208,6 +209,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
             spectra::ipc::SnapshotSeriesState s;
             s.type       = op.str_val;
             s.axes_index = op.axes_index;
+            spectra::ipc::style_new_series(fig.style, s);
             // Auto colour by position in its axes (mirrors FigureModel::add_series).
             s.color_index = static_cast<int32_t>(std::count_if(
                 fig.series.begin(),
@@ -231,6 +233,7 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 break;
             spectra::ipc::SnapshotAxisState ax;
             ax.is_3d = op.bool_val;
+            spectra::ipc::style_new_axes(fig.style, ax);
             // Grow axes list to accommodate the new index
             if (fig.axes.size() <= op.axes_index)
                 fig.axes.resize(static_cast<size_t>(op.axes_index) + 1);
@@ -275,6 +278,9 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
         case spectra::ipc::DiffOp::Type::SET_LEGEND_POSITION:
             fig.legend_position = spectra::ipc::legend_position_to_wire(
                 spectra::ipc::legend_position_from_wire(op.f1));
+            break;
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_STYLE:
+            spectra::ipc::restyle_snapshot(fig.style, fig.axes, fig.series, op.str_val);
             break;
         case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
         case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
@@ -560,6 +566,9 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
             spectra::ipc::apply_figure_layout_state(fig, fs);
             break;
         }
+        case spectra::ipc::DiffOp::Type::SET_FIGURE_STYLE:
+            fig.apply_style(op.str_val);
+            break;
         case spectra::ipc::DiffOp::Type::SET_LIVE_FPS:
             fig.anim_.live_streaming = op.bool_val;
             if (op.f1 > 0.0)

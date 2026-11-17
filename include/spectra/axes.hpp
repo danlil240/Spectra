@@ -28,6 +28,14 @@ enum class AutoscaleMode
     Manual,   ///< User-specified limits only
 };
 
+/// @brief How several bar series on one axes share a category position.
+enum class BarMode : uint8_t
+{
+    Grouped,   ///< Side by side, each series in its own slot of the bar width (default)
+    Stacked,   ///< On top of each other; negative values stack downwards separately
+    Overlay,   ///< Drawn over each other at full width
+};
+
 /// @brief Axis scale transform.
 enum class ScaleType
 {
@@ -36,6 +44,15 @@ enum class ScaleType
     Log2,     ///< Base-2 logarithmic scale
     Sqrt,     ///< Square-root scale
 };
+
+/// @brief Which side of the axis line tick marks are drawn on.
+enum class TickDirection : uint8_t
+{
+    Out,   ///< Outside the plot area (default)
+    In,    ///< Inside the plot area
+};
+
+struct StyleSheet;
 
 /// @brief Colours and sizes of ticks, labels and grid lines.
 struct AxisStyle
@@ -124,6 +141,44 @@ class AxesBase
     bool border_enabled() const { return border_enabled_; }
     void show_border(bool enabled) { border_enabled_ = enabled; }
 
+    /// @brief Whether minor grid lines are drawn between the major ones (2D axes;
+    /// only while the grid is on).  On by default.
+    bool minor_grid_enabled() const { return minor_grid_enabled_; }
+    void minor_grid(bool enabled) { minor_grid_enabled_ = enabled; }
+
+    /// @brief Whether minor tick marks are drawn between the major ones (2D axes).
+    bool minor_ticks_enabled() const { return minor_ticks_enabled_; }
+    void minor_ticks(bool enabled) { minor_ticks_enabled_ = enabled; }
+
+    /// @brief Hide the top and right axis lines (2D axes), keeping the bottom
+    /// and left ones.  Has no effect while the border is hidden.
+    bool despined() const { return despined_; }
+    void despine(bool enabled = true) { despined_ = enabled; }
+
+    /// @brief Side of the axis lines the tick marks point to (2D axes).
+    TickDirection tick_direction() const { return tick_direction_; }
+    void          tick_direction(TickDirection d) { tick_direction_ = d; }
+
+    /// @brief Width of new line series (pixels).  Set by apply_style().
+    float default_line_width() const { return default_line_width_; }
+    /// @brief Marker size of new series (pixels).  Set by apply_style().
+    float default_marker_size() const { return default_marker_size_; }
+    /// @brief Set the line width and marker size of new series (values <= 0 or
+    /// non-finite are ignored).  Existing series are not changed.
+    void set_series_defaults(float line_width, float marker_size)
+    {
+        if (line_width > 0.0f && line_width < 1e4f)
+            default_line_width_ = line_width;
+        if (marker_size > 0.0f && marker_size < 1e4f)
+            default_marker_size_ = marker_size;
+    }
+
+    /// @brief Apply the axes part of a plot style: grid, minor grid / ticks,
+    /// spines, tick direction and length, font sizes, and the line width and
+    /// marker size of new series.  Existing series that still have the previous
+    /// default width / marker size take the new one; explicitly set ones keep theirs.
+    void apply_style(const StyleSheet& style);
+
     /// Colorbar visibility.  Drawn (and given layout space) when the axes holds a
     /// colormapped ScatterSeries or SurfaceSeries.
     bool colorbar_visible() const { return colorbar_visible_; }
@@ -141,9 +196,15 @@ class AxesBase
    protected:
     std::vector<std::unique_ptr<Series>> series_;
     std::string                          title_;
-    bool                                 grid_enabled_     = true;
-    bool                                 border_enabled_   = true;
-    bool                                 colorbar_visible_ = false;
+    bool                                 grid_enabled_        = true;
+    bool                                 border_enabled_      = true;
+    bool                                 colorbar_visible_    = false;
+    bool                                 minor_grid_enabled_  = true;
+    bool                                 minor_ticks_enabled_ = false;
+    bool                                 despined_            = false;
+    TickDirection                        tick_direction_      = TickDirection::Out;
+    float                                default_line_width_  = 2.0f;
+    float                                default_marker_size_ = 6.0f;
     AxisStyle                            axis_style_;
     Rect                                 viewport_;
     Rect                                 outside_legend_area_{0.0f, 0.0f, 0.0f, 0.0f};
@@ -317,6 +378,18 @@ class Axes : public AxesBase
     void      yscale(ScaleType s) { yscale_ = s; }
     ScaleType yscale() const { return yscale_; }
 
+    /// How bar series of the same orientation share a position (default
+    /// BarMode::Grouped).  Grouped places the series that have bars at the
+    /// same positions side by side within the widest bar width; series whose
+    /// positions no other series uses keep their full width.  Stacked stacks
+    /// the values of every visible bar series, starting from the first
+    /// series' baseline; positive and negative values stack separately.
+    void    bar_mode(BarMode mode) { bar_mode_ = mode; }
+    BarMode bar_mode() const { return bar_mode_; }
+    /// Apply bar_mode() to the bar series' layout (offset, width, per-bar
+    /// base).  Cheap when nothing changed; limits and the renderers call it.
+    void sync_bar_layout() const;
+
     /// Date-time axis: the values are Unix epoch seconds (UTC, e.g. from the
     /// double-precision plot()/line() overloads) and the ticks fall on calendar
     /// steps (seconds .. years) labelled as times and dates ("14:30", "Mar 05",
@@ -430,7 +503,7 @@ class Axes : public AxesBase
         std::vector<std::uint64_t> key;
         double                     x[3]  = {0.0, 0.0, 0.0};   // min, max, min_pos
         double                     y[3]  = {0.0, 0.0, 0.0};
-        double                     sx[3] = {0.0, 0.0, 0.0};   // sticky (grid) extent
+        double                     sx[3] = {0.0, 0.0, 0.0};   // sticky (grid, bar baseline) extent
         double                     sy[3] = {0.0, 0.0, 0.0};
         bool                       valid = false;
     };
@@ -464,6 +537,10 @@ class Axes : public AxesBase
     bool                  presented_buffer_following_ = false;
     std::optional<double> presented_buffer_right_edge_;
 
+    // Bar layout: the mode and the inputs of the last sync_bar_layout().
+    BarMode                            bar_mode_ = BarMode::Grouped;
+    mutable std::mutex                 bar_layout_mutex_;
+    mutable std::vector<std::uint64_t> bar_layout_key_;
     // Share groups (sharex()/sharey()); null when not shared.
     std::shared_ptr<AxesShareGroup> share_x_;
     std::shared_ptr<AxesShareGroup> share_y_;

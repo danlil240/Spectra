@@ -122,6 +122,7 @@ table SnapshotAxisState {
     y_scale: uint8 = 0;
     x_datetime: bool = false;    // date-time tick labels
     y_datetime: bool = false;
+    bar_mode: uint8 = 0;         // spectra::BarMode
     light_mode: uint8 = 0;       // spectra::LightMode (3D)
     fog: float = 0.0;            // Axes3D::fog
     light_angles_set: bool = false;
@@ -172,6 +173,7 @@ table SnapshotFigureState {
     constrained_layout: uint8 = 1;   // FigureStyle::constrained_layout
     share_x: uint8 = 0;           // spectra::ShareAxes of Figure::share_x()
     share_y: uint8 = 0;           // spectra::ShareAxes of Figure::share_y()
+    style: string;                // built-in plot style name, empty = none
 }
 
 table SnapshotKnobState {
@@ -223,6 +225,7 @@ enum DiffOpType : uint8 {
     SET_FIGURE_LAYOUT = 33,
     SET_SERIES_LINE_STYLE = 40,
     SET_SERIES_MARKER_STYLE = 41,
+    SET_FIGURE_STYLE = 43,   // 32-42 are taken by other open PRs
     SET_SERIES_STYLE_3D = 44,
     SET_AXES_LIGHT_3D = 45,
 }

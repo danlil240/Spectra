@@ -269,6 +269,8 @@ struct SnapshotAxisState
     uint8_t y_scale    = 0;
     bool    x_datetime = false;
     bool    y_datetime = false;
+    // How bar series share a position (spectra::BarMode).
+    uint8_t bar_mode = 0;
     // 3D light (Axes3D::light_mode / fog / light_angles).
     uint8_t light_mode       = 0;   // spectra::LightMode
     float   fog              = 0.0f;
@@ -342,6 +344,7 @@ struct SnapshotFigureState
     uint8_t                          constrained_layout = 1;
     uint8_t                          share_x            = 0;
     uint8_t                          share_y            = 0;
+    std::string                      style;   // built-in plot style name (StyleSheet), empty = none
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;
 };
@@ -421,7 +424,8 @@ struct DiffOp
         ADD_ANNOTATION    = 26,   // append to axes_index
         SET_ANNOTATION    = 27,   // replace annotation series_index of axes_index
         CLEAR_ANNOTATIONS = 28,   // remove every annotation of axes_index
-        // f1=x scale, f2=y scale (spectra::ScaleType), f3=x date-time, f4=y date-time (0/1)
+        // f1=x scale, f2=y scale (spectra::ScaleType), f3=x date-time, f4=y date-time (0/1),
+        // series_index=bar mode (spectra::BarMode)
         SET_AXIS_SCALE        = 29,
         SET_LEGEND_POSITION   = 30,   // f1=spectra::LegendPosition
         SET_SERIES_CATEGORIES = 31,   // bar category names: f1=count, str_val=names joined by 0x1F
@@ -430,6 +434,8 @@ struct DiffOp
         SET_FIGURE_LAYOUT       = 33,
         SET_SERIES_LINE_STYLE   = 40,   // f1=spectra::LineStyle
         SET_SERIES_MARKER_STYLE = 41,   // f1=spectra::MarkerStyle
+        SET_FIGURE_STYLE =
+            43,   // (32-42: other open PRs) str_val=built-in plot style name (Figure::apply_style)
         // 3D series style: f1=depth shade (SERIES_STYLE_UNSET / 0 / 1),
         // f2=edges over faces (0/1), f3=floor contour levels (0 = off),
         // data=surface edge colour RGBA (4 floats; empty keeps the current one).

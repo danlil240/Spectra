@@ -292,10 +292,14 @@ class ImGuiIntegration
     BoxZoomOverlay* box_zoom_overlay() const { return box_zoom_overlay_; }
 
     // Command palette & productivity (Agent F, owned externally by App)
-    void             set_command_palette(CommandPalette* cp) { command_palette_ = cp; }
-    void             set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
-    void             set_shortcut_manager(ShortcutManager* sm) { shortcut_manager_ = sm; }
-    void             set_undo_manager(UndoManager* um) { undo_manager_ = um; }
+    void set_command_palette(CommandPalette* cp) { command_palette_ = cp; }
+    void set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
+    void set_shortcut_manager(ShortcutManager* sm) { shortcut_manager_ = sm; }
+    void set_undo_manager(UndoManager* um)
+    {
+        undo_manager_ = um;
+        inspector_.set_undo_manager(um);
+    }
     CommandPalette*  command_palette() const { return command_palette_; }
     CommandRegistry* command_registry() const { return command_registry_; }
     ShortcutManager* shortcut_manager() const { return shortcut_manager_; }

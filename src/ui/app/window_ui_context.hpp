@@ -84,6 +84,12 @@ struct WindowUIContext
     TimelineEditor       timeline_editor;
     KeyframeInterpolator keyframe_interpolator;
     AnimationCurveEditor curve_editor;
+    // Animated figure whose clock the timeline currently drives (the active
+    // one); on a switch the playhead adopts the new figure's own time.
+    FigureId timeline_figure_id = INVALID_FIGURE_ID;
+    // Playhead at which keyframe tracks were last evaluated, so scrubbing or
+    // stepping while paused/stopped applies the tracks once per change.
+    float timeline_evaluated_playhead = -1.0f;
 
     ModeTransition mode_transition;
     // NOTE: per-figure home_limits live on FigureViewModel

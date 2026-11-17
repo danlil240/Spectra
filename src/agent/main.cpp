@@ -31,6 +31,7 @@
 #include <spectra/figure_registry.hpp>
 #include "ui/overlay/knob_manager.hpp"
 #include "ui/app/register_commands.hpp"
+#include "ui/app/remote_playback_clock.hpp"
 #include "ui/app/session_runtime.hpp"
 #include "ui/app/window_runtime.hpp"
 #include "ui/app/window_ui_context_builder.hpp"
@@ -86,6 +87,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #ifndef _WIN32
@@ -1083,15 +1085,14 @@ int main(int argc, char* argv[])
     if (ui_ctx_ptr && ui_ctx_ptr->fig_mgr)
     {
         spectra::WindowUIContextRuntimeWireOptions wire_opts;
-        wire_opts.ui_ctx                       = ui_ctx_ptr;
-        wire_opts.registry                     = &registry;
-        wire_opts.session                      = &session;
-        wire_opts.active_figure                = active_figure;
-        wire_opts.has_animation                = frame_state.has_animation;
-        wire_opts.tab_split_mode               = spectra::TabSplitMode::DuplicateThenSplit;
-        wire_opts.tab_drag_already_wired       = ui_built_by_builder;
-        wire_opts.wire_demo_animation_channels = false;
-        wire_opts.enable_window_tab_callbacks  = true;
+        wire_opts.ui_ctx                      = ui_ctx_ptr;
+        wire_opts.registry                    = &registry;
+        wire_opts.session                     = &session;
+        wire_opts.active_figure               = active_figure;
+        wire_opts.has_animation               = frame_state.has_animation;
+        wire_opts.tab_split_mode              = spectra::TabSplitMode::DuplicateThenSplit;
+        wire_opts.tab_drag_already_wired      = ui_built_by_builder;
+        wire_opts.enable_window_tab_callbacks = true;
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         wire_opts.window_manager = window_mgr.get();
     #endif
@@ -1155,6 +1156,11 @@ int main(int argc, char* argv[])
 
     auto last_heartbeat     = std::chrono::steady_clock::now();
     auto heartbeat_interval = std::chrono::milliseconds(heartbeat_ms);
+
+    // Timeline transport sent to the app (SET_ANIM_PLAYBACK) and the IPC
+    // figures whose timeline was auto-started once.
+    spectra::PlaybackSendFilter  playback_send_filter;
+    std::unordered_set<uint64_t> timeline_autoplayed;
 
     // File > Export PNG / SVG and Copy to Clipboard queue requests on the
     // figure; this window process writes them (same path as App::step()).
@@ -1569,6 +1575,63 @@ int main(int argc, char* argv[])
                          spectra::ipc::encode_state_diff(diff));
             }
         }
+
+#ifdef SPECTRA_USE_IMGUI
+        // ── Flush timeline transport to the app (animation clock) ────────
+        // The animated figure's on_frame runs in the app process; the
+        // timeline here is its clock (see ui/app/remote_playback_clock.hpp).
+        if (ui_ctx_ptr && frame_state.active_figure && frame_state.active_figure->has_animation())
+        {
+            uint64_t ipc_fig = 0;
+            for (size_t i = 0; i < all_ids.size() && i < assigned_figures.size(); ++i)
+            {
+                if (all_ids[i] == frame_state.active_figure_id)
+                {
+                    ipc_fig = assigned_figures[i];
+                    break;
+                }
+            }
+            auto& tl = ui_ctx_ptr->timeline_editor;
+            // An animated figure starts playing, as in-process (the timeline
+            // was wired before the snapshot named the figure animated).
+            if (ipc_fig != 0 && timeline_autoplayed.insert(ipc_fig).second
+                && tl.playback_state() == spectra::PlaybackState::Stopped)
+            {
+                tl.play();
+            }
+            spectra::RemotePlaybackState st = spectra::RemotePlaybackState::Stopped;
+            switch (tl.playback_state())
+            {
+                case spectra::PlaybackState::Playing:
+                case spectra::PlaybackState::Recording:
+                    st = spectra::RemotePlaybackState::Playing;
+                    break;
+                case spectra::PlaybackState::Paused:
+                    st = spectra::RemotePlaybackState::Paused;
+                    break;
+                default:
+                    break;
+            }
+            const double now_s =
+                std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
+            if (ipc_fig != 0 && playback_send_filter.should_send(ipc_fig, st, tl.playhead(), now_s))
+            {
+                spectra::ipc::StateDiffPayload diff;
+                spectra::ipc::DiffOp           op;
+                op.type         = spectra::ipc::DiffOp::Type::SET_ANIM_PLAYBACK;
+                op.figure_id    = ipc_fig;
+                op.series_index = static_cast<uint32_t>(st);
+                op.f1           = tl.playhead();
+                diff.ops.push_back(std::move(op));
+                send_ipc(*conn,
+                         spectra::ipc::MessageType::STATE_DIFF,
+                         session_id,
+                         ipc_window_id,
+                         spectra::ipc::encode_state_diff(diff));
+            }
+        }
+#endif
 
         // ── Send heartbeat ───────────────────────────────────────────────
         auto now = std::chrono::steady_clock::now();

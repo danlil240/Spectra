@@ -27,6 +27,7 @@
 #include <spectra/axes3d.hpp>
 #include <spectra/export.hpp>
 #include <spectra/figure.hpp>
+#include <spectra/frame.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
 
@@ -83,7 +84,14 @@
 
 #ifdef __linux__
     #include <execinfo.h>
-    #include <fcntl.h>
+#endif
+#include <fcntl.h>
+#ifdef _WIN32
+    #include <io.h>   // write/open/close for the crash handler
+    #ifndef STDERR_FILENO
+        #define STDERR_FILENO 2
+    #endif
+#else
     #include <unistd.h>
 #endif
 
@@ -1191,6 +1199,11 @@ class QAAgent
                               "Animated figure, rapid play/pause toggling every 5 frames",
                               [](QAAgent& qa) { return qa.scenario_animation_stress(); }});
 
+        scenarios_.push_back({"timeline_playback",
+                              "Timeline Play/Pause/Stop/scrub/step/loop drive the animated "
+                              "figure's clock; Play leaves static series untouched",
+                              [](QAAgent& qa) { return qa.scenario_timeline_playback(); }});
+
         scenarios_.push_back({"input_storm",
                               "500 random mouse events + 100 key presses in rapid succession",
                               [](QAAgent& qa) { return qa.scenario_input_storm(); }});
@@ -1854,6 +1867,261 @@ class QAAgent
         ui->timeline_editor.stop();
 #endif
         return true;
+    }
+
+    // Timeline transport drives the active figure's animation clock: Play,
+    // Pause, Stop, scrubbing (both directions, while playing or not), loop
+    // mode, open-ended growth and keyframe tracks.  Also checks that Play on
+    // a static figure leaves its series untouched.
+    bool scenario_timeline_playback()
+    {
+#ifdef SPECTRA_USE_IMGUI
+        auto* ui = app_->ui_context();
+        if (!ui || !ui->fig_mgr || !ui->imgui_ui || !ui->imgui_ui->is_initialized())
+            return true;
+        auto& tl   = ui->timeline_editor;
+        bool  ok   = true;
+        auto  fail = [&](const std::string& what)
+        {
+            add_issue(IssueSeverity::Error, "timeline", what);
+            ok = false;
+        };
+        constexpr float EPS      = 1e-4f;
+        auto            pump_for = [&](float seconds, const std::function<void()>& per_frame = {})
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < 2000; ++i)
+            {
+                pump_frames(1);
+                if (per_frame)
+                    per_frame();
+                if (std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count()
+                    >= seconds)
+                    break;
+            }
+        };
+
+        // ── 1. Static figure: Play must not touch user series ──────────────
+        {
+            auto&              fig = app_->figure({1280, 720});
+            auto&              ax  = fig.subplot(1, 1, 1);
+            std::vector<float> x(50), y(50);
+            for (int i = 0; i < 50; ++i)
+            {
+                x[i] = static_cast<float>(i) * 0.1f;
+                y[i] = std::cos(x[i]);
+            }
+            ax.line(x, y).label("timeline_static").width(2.0f);
+            pump_frames(2);
+
+            // Every line series of every figure (incl. the start-up figure)
+            struct Snap
+            {
+                LineSeries* s;
+                float       width, opacity;
+            };
+            std::vector<Snap> before;
+            for (auto id : app_->figure_registry().all_ids())
+                if (auto* f = app_->figure_registry().get(id))
+                    for (auto& a : f->axes())
+                        if (a)
+                            for (auto& sp : a->series_mut())
+                                if (auto* ls = dynamic_cast<LineSeries*>(sp.get()))
+                                    before.push_back({ls, ls->width(), ls->opacity()});
+
+            for (const FigureId target : {app_->figure_registry().all_ids().front(),
+                                          app_->figure_registry().all_ids().back()})
+            {
+                ui->fig_mgr->queue_switch(target);
+                pump_frames(2);
+                tl.stop();
+                tl.play();
+                pump_for(0.5f);
+                if (tl.playhead() <= 0.0f)
+                    fail("static figure: Play did not move the playhead");
+                tl.stop();
+                pump_frames(2);
+            }
+            for (const auto& b : before)
+                if (std::abs(b.s->width() - b.width) > EPS
+                    || std::abs(b.s->opacity() - b.opacity) > EPS)
+                    fail(std::format("static figure: timeline Play changed series '{}' (width {} "
+                                     "-> {}, opacity {} -> {})",
+                                     b.s->label(),
+                                     b.width,
+                                     b.s->width(),
+                                     b.opacity,
+                                     b.s->opacity()));
+            for (const auto& track : tl.tracks())
+                fail("timeline holds a track the user never created: " + track.name);
+            tl.stop();
+        }
+
+        // ── 2. Animated figure: the playhead is its clock ──────────────────
+        float              last_elapsed = -1.0f;
+        bool               last_paused  = false;
+        uint64_t           ticks        = 0;
+        Figure*            anim_fig     = nullptr;
+        std::vector<float> x(50), y(50);
+        for (int i = 0; i < 50; ++i)
+            x[i] = static_cast<float>(i) * 0.1f;
+        {
+            auto& fig  = app_->figure({1280, 720});
+            anim_fig   = &fig;
+            auto& ax   = fig.subplot(1, 1, 1);
+            auto& line = ax.line(x, y).label("timeline_anim");
+            fig.animate()
+                .fps(60)
+                .on_frame(
+                    [&line, &x, &last_elapsed, &last_paused, &ticks](Frame& f)
+                    {
+                        ++ticks;
+                        last_elapsed = f.elapsed_seconds();
+                        last_paused  = f.paused;
+                        std::vector<float> yy(x.size());
+                        for (size_t i = 0; i < x.size(); ++i)
+                            yy[i] = std::sin(x[i] + f.elapsed_seconds());
+                        line.set_y(yy);
+                    })
+                .play();
+            pump_frames(2);
+            ui->fig_mgr->queue_switch(app_->figure_registry().all_ids().back());
+            pump_frames(2);
+        }
+
+        // Animation callbacks run on animation ticks (fps-gated), not on
+        // every pumped frame: wait for n callbacks after a transport action.
+        auto pump_ticks = [&](uint64_t n)
+        {
+            const uint64_t target = ticks + n;
+            for (int i = 0; i < 2000 && ticks < target; ++i)
+                pump_frames(1);
+        };
+
+        tl.set_loop_mode(LoopMode::None);
+        tl.set_duration(60.0f);
+
+        // Stop → time 0
+        tl.stop();
+        pump_ticks(2);
+        if (std::abs(last_elapsed) > EPS)
+            fail(std::format("Stop: figure time {} (expected 0)", last_elapsed));
+
+        // Play → advances with the playhead
+        tl.play();
+        pump_for(0.3f);
+        if (last_elapsed <= 0.05f)
+            fail(std::format("Play: figure time only {} after 0.3 s", last_elapsed));
+        if (std::abs(last_elapsed - tl.playhead()) > EPS)
+            fail(std::format("Play: figure time {} != playhead {}", last_elapsed, tl.playhead()));
+        if (last_paused)
+            fail("Play: frame reported paused");
+
+        // Pause → frozen
+        tl.pause();
+        pump_ticks(2);
+        const float frozen = last_elapsed;
+        pump_for(0.2f);
+        if (std::abs(last_elapsed - frozen) > EPS)
+            fail(std::format("Pause: figure time moved {} -> {}", frozen, last_elapsed));
+        if (!last_paused)
+            fail("Pause: frame not reported paused");
+
+        // Scrub while paused
+        tl.set_playhead(2.0f);
+        pump_ticks(2);
+        if (std::abs(last_elapsed - 2.0f) > EPS)
+            fail(std::format("Scrub (paused) to 2.0: figure time {}", last_elapsed));
+
+        // Scrub backward while playing
+        tl.play();
+        pump_for(0.1f);
+        tl.set_playhead(0.5f);
+        pump_ticks(2);
+        if (last_elapsed < 0.5f - EPS || last_elapsed > 1.0f)
+            fail(std::format("Scrub back (playing) to 0.5: figure time {}", last_elapsed));
+
+        // Step forward / backward while paused
+        tl.pause();
+        tl.set_playhead(1.0f);
+        tl.step_forward();
+        pump_ticks(2);
+        if (std::abs(last_elapsed - (1.0f + 1.0f / tl.fps())) > 1e-3f)
+            fail(std::format("Step forward from 1.0: figure time {}", last_elapsed));
+
+        // Scrub while stopped shows the scrubbed time
+        tl.stop();
+        tl.set_playhead(1.5f);
+        pump_ticks(2);
+        if (std::abs(last_elapsed - 1.5f) > EPS)
+            fail(std::format("Scrub (stopped) to 1.5: figure time {}", last_elapsed));
+
+        // Loop mode wraps the figure clock
+        tl.set_duration(1.0f);
+        tl.set_loop_mode(LoopMode::Loop);
+        tl.play();   // Play from Stopped restarts at 0, so scrub after it
+        tl.set_playhead(0.8f);
+        pump_ticks(1);
+        float max_seen = 0.0f;
+        bool  wrapped  = false;
+        float prev     = last_elapsed;
+        pump_for(0.6f,
+                 [&]
+                 {
+                     max_seen = std::max(max_seen, last_elapsed);
+                     if (last_elapsed < prev - 0.1f)
+                         wrapped = true;
+                     prev = last_elapsed;
+                 });
+        if (max_seen > 1.0f + EPS || !wrapped)
+            fail(std::format("Loop over 1 s: max figure time {}, wrapped {}", max_seen, wrapped));
+
+        // Open-ended (no loop, no figure duration): keeps playing past the end
+        tl.set_loop_mode(LoopMode::None);
+        tl.set_duration(0.3f);
+        tl.set_playhead(0.0f);
+        tl.play();
+        pump_for(0.5f);
+        if (tl.playback_state() != PlaybackState::Playing || last_elapsed < 0.3f)
+            fail(std::format("Open-ended: state {} time {} duration {}",
+                             static_cast<int>(tl.playback_state()),
+                             last_elapsed,
+                             tl.duration()));
+
+        // Keyframe track is applied when scrubbing while paused
+        {
+            float          value = -1.0f;
+            const uint32_t track = tl.add_animated_track("qa_track", 0.0f);
+            tl.add_animated_keyframe(track, 0.0f, 0.0f, 1);
+            tl.add_animated_keyframe(track, 10.0f, 10.0f, 1);
+            uint32_t channel = 0;
+            for (const auto& [id, ch] : ui->keyframe_interpolator.channels())
+                if (ch.name() == "qa_track")
+                    channel = id;
+            ui->keyframe_interpolator.bind_callback(channel,
+                                                    "qa_track",
+                                                    [&value](float v) { value = v; });
+            tl.set_duration(60.0f);
+            tl.pause();
+            tl.set_playhead(5.0f);
+            pump_ticks(2);
+            if (std::abs(value - 5.0f) > 1e-2f)
+                fail(std::format("Keyframe track at scrubbed 5.0 = {}", value));
+            ui->keyframe_interpolator.unbind(channel);
+            ui->keyframe_interpolator.remove_channel(channel);
+            tl.remove_track(track);
+        }
+
+        tl.stop();
+        tl.set_loop_mode(LoopMode::None);
+        tl.set_duration(60.0f);
+        pump_ticks(2);
+        // The animated figure's callback captures locals of this scenario.
+        anim_fig->anim_.on_frame = nullptr;
+        return ok;
+#else
+        return true;
+#endif
     }
 
     bool scenario_input_storm()

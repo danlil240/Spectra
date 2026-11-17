@@ -990,15 +990,14 @@ void App::init_runtime()
     if (rt.ui_ctx_ptr && rt.ui_ctx_ptr->fig_mgr)
     {
         WindowUIContextRuntimeWireOptions wire_opts;
-        wire_opts.ui_ctx                       = rt.ui_ctx_ptr;
-        wire_opts.registry                     = &registry_;
-        wire_opts.session                      = &rt.session;
-        wire_opts.active_figure                = init_active;
-        wire_opts.has_animation                = rt.frame_state.has_animation;
-        wire_opts.tab_split_mode               = TabSplitMode::SplitPane;
-        wire_opts.tab_drag_already_wired       = (rt.window_mgr != nullptr);
-        wire_opts.wire_demo_animation_channels = (init_active != nullptr);
-        wire_opts.enable_window_tab_callbacks  = !config_.headless;
+        wire_opts.ui_ctx                      = rt.ui_ctx_ptr;
+        wire_opts.registry                    = &registry_;
+        wire_opts.session                     = &rt.session;
+        wire_opts.active_figure               = init_active;
+        wire_opts.has_animation               = rt.frame_state.has_animation;
+        wire_opts.tab_split_mode              = TabSplitMode::SplitPane;
+        wire_opts.tab_drag_already_wired      = (rt.window_mgr != nullptr);
+        wire_opts.enable_window_tab_callbacks = !config_.headless;
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         wire_opts.window_manager = rt.window_mgr.get();
     #endif

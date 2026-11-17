@@ -232,6 +232,7 @@ enum DiffOpType : uint8 {
     SET_FIGURE_STYLE = 43,   // 32-42 are taken by other open PRs
     SET_SERIES_STYLE_3D = 44,
     SET_AXES_LIGHT_3D = 45,
+    SET_ANIM_PLAYBACK = 46,
 }
 
 table DiffOp {

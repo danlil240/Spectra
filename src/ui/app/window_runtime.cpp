@@ -127,17 +127,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     // callbacks, the previous build_ui) count as the user's...
     ui_ctx.document.detect_changes();
 
-    // Advance timeline editor (drives interpolator evaluation).
-    // While Playing, an animated active figure drives the playhead itself from
-    // its own clock (drive_figure_anim below) — advancing here too would run
-    // at double speed.  Without such a figure (e.g. keyframe tracks over static
-    // data) nothing else moves the playhead, so the timeline advances itself.
-    const bool figure_drives_playhead =
-        allow_animation_tick && active_figure && has_animation && active_figure->anim_.on_frame;
-    if (timeline_editor.playback_state() != PlaybackState::Playing || !figure_drives_playhead)
-    {
-        timeline_editor.advance(scheduler.dt());
-    }
+    // The timeline is advanced further down, once the active figure is synced
+    // with the figure manager (see "Timeline clock").
 
     // Update mode transition animation — only animate camera, never axis limits
     if (active_figure && mode_transition.is_active())
@@ -287,48 +278,18 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
 #ifdef SPECTRA_USE_IMGUI
         if (is_active)
         {
-            auto tl_state = timeline_editor.playback_state();
-            if (tl_state == PlaybackState::Playing)
-            {
-                float tl_playhead = timeline_editor.playhead();
-                float diff        = tl_playhead - fig->anim_.time;
-                // If the figure's anim_time_ has advanced past the timeline
-                // playhead (e.g. it was running as non-active while a different
-                // tab was selected), sync the playhead forward to the figure
-                // instead of resetting the figure backward.
-                if (diff < -0.001f)
-                {
-                    // Figure is ahead of playhead — sync playhead to figure
-                    timeline_editor.set_playhead(fig->anim_.time);
-                }
-                else if (diff > 0.001f)
-                {
-                    // User scrubbed the playhead forward — sync figure to playhead
-                    fig->anim_.time = tl_playhead;
-                }
-                fig->anim_.time += frame.dt;
-                frame.elapsed_sec = fig->anim_.time;
-                fig->anim_.on_frame(frame);
-                if (fig->anim_.time > timeline_editor.duration())
-                {
-                    timeline_editor.set_duration(fig->anim_.time + 30.0f);
-                }
-                timeline_editor.set_playhead(fig->anim_.time);
-            }
-            else if (tl_state == PlaybackState::Paused)
-            {
-                fig->anim_.time   = timeline_editor.playhead();
-                frame.elapsed_sec = fig->anim_.time;
-                frame.dt          = 0.0f;
-                fig->anim_.on_frame(frame);
-            }
-            else
-            {
-                fig->anim_.time   = 0.0f;
-                frame.elapsed_sec = 0.0f;
-                frame.dt          = 0.0f;
-                fig->anim_.on_frame(frame);
-            }
+            // The timeline playhead IS the active figure's clock (advanced in
+            // "Timeline clock" below): scrubbing, stepping, Stop and looping
+            // all reach the figure, in either direction.
+            const auto tl_state = timeline_editor.playback_state();
+            const bool playing =
+                tl_state == PlaybackState::Playing || tl_state == PlaybackState::Recording;
+            fig->anim_.time   = timeline_editor.playhead();
+            frame.elapsed_sec = fig->anim_.time;
+            if (!playing)
+                frame.dt = 0.0f;
+            frame.paused = !playing;
+            fig->anim_.on_frame(frame);
         }
         else
         {
@@ -371,6 +332,57 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             }
         }
     };
+
+#ifdef SPECTRA_USE_IMGUI
+    // ── Timeline clock ──────────────────────────────────────────────────
+    // One clock: the timeline playhead.  It is advanced here (loop mode,
+    // loop region and keyframe tracks included) and the active animated
+    // figure renders at the playhead in drive_figure_anim().
+    {
+        const bool figure_animated =
+            active_figure && has_animation && static_cast<bool>(active_figure->anim_.on_frame);
+        if (!figure_animated)
+        {
+            ui_ctx.timeline_figure_id = INVALID_FIGURE_ID;
+        }
+        else if (ui_ctx.timeline_figure_id != active_figure_id)
+        {
+            // Newly active animated figure (start-up or tab switch): continue
+            // from its own clock instead of jumping it to a stale playhead.
+            ui_ctx.timeline_figure_id = active_figure_id;
+            const float t             = active_figure->anim_.time;
+            if (t > timeline_editor.duration())
+                timeline_editor.set_duration(t + 30.0f);
+            timeline_editor.set_playhead(t);
+        }
+
+        // An animated figure advances only on animation ticks (vsync gate);
+        // keyframe-only timelines advance with wall time.
+        const float tl_dt =
+            figure_animated ? (allow_animation_tick ? animation_dt : 0.0f) : scheduler.dt();
+
+        // Open-ended animation (no duration set, no looping): grow the
+        // timeline ahead of the playhead instead of stopping at its end.
+        // Includes figures animated by another process (multiproc app,
+        // Python live streaming), which have no on_frame here.
+        if (active_figure && has_animation && active_figure->anim_duration() <= 0.0f
+            && timeline_editor.loop_mode() == LoopMode::None
+            && timeline_editor.playback_state() == PlaybackState::Playing
+            && timeline_editor.playhead() + tl_dt >= timeline_editor.duration())
+        {
+            timeline_editor.set_duration(timeline_editor.duration() + 30.0f);
+        }
+
+        // advance() evaluates keyframe tracks while playing; a scrub, step or
+        // Stop while not playing still has to apply them at the new playhead.
+        if (!timeline_editor.advance(tl_dt)
+            && timeline_editor.playhead() != ui_ctx.timeline_evaluated_playhead)
+        {
+            timeline_editor.evaluate_at_playhead();
+        }
+        ui_ctx.timeline_evaluated_playhead = timeline_editor.playhead();
+    }
+#endif
 
     // Drive animation for the active figure
     if (allow_animation_tick && active_figure && has_animation)

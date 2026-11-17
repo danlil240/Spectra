@@ -537,6 +537,20 @@ def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
     return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style)
 
 
+def _bar_bottom(bottom):
+    """(scalar bottom, stacked) for matplotlib's ``bottom=`` / ``left=``.
+
+    A scalar is the bars' baseline.  A sequence is matplotlib's stacking
+    idiom (``bar(x, b, bottom=a)``): the axes switches to stacked bars, which
+    stack each series on the ones drawn before it.
+    """
+    if bottom is None:
+        return 0.0, None
+    try:
+        len(bottom)
+    except TypeError:
+        return float(bottom), None
+    return 0.0, True
 def _fill_style(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """Pop matplotlib's patch style keywords (edgecolor, linewidth, alpha)."""
     out: Dict[str, Any] = {}
@@ -560,8 +574,8 @@ def bar(x, height, width=0.8, bottom=None, align="center", **kwargs):
     if align != "center":
         _ignore("bar", {"align": align})
     _ignore("bar", kwargs)
-    return _sp.bar(x, height, bar_width=float(width),
-                   bottom=float(bottom) if bottom is not None else 0.0, **style)
+    base, stacked = _bar_bottom(bottom)
+    return _sp.bar(x, height, bar_width=float(width), bottom=base, stacked=stacked, **style)
 
 
 def barh(y, width, height=0.8, left=None, align="center", **kwargs):
@@ -570,8 +584,9 @@ def barh(y, width, height=0.8, left=None, align="center", **kwargs):
     if align != "center":
         _ignore("barh", {"align": align})
     _ignore("barh", kwargs)
-    return _sp.bar(y, width, bar_width=float(height),
-                   bottom=float(left) if left is not None else 0.0, horizontal=True, **style)
+    base, stacked = _bar_bottom(left)
+    return _sp.bar(y, width, bar_width=float(height), bottom=base, horizontal=True,
+                   stacked=stacked, **style)
 
 
 def hist(x, bins=10, density=False, cumulative=False, **kwargs):

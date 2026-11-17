@@ -115,6 +115,7 @@ class Inspector
     bool sec_preview_    = true;   // Sparkline preview
     bool sec_axes_stats_ = true;   // Per-axes aggregate stats
     bool sec_ref_lines_  = true;   // Reference lines management
+    bool sec_bars_       = true;   // Bar mode (axes with bar series)
 
     // Drag-reorder state (deferred to avoid mid-iteration mutation)
     struct PendingMove

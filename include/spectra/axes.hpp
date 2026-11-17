@@ -28,6 +28,14 @@ enum class AutoscaleMode
     Manual,   ///< User-specified limits only
 };
 
+/// @brief How several bar series on one axes share a category position.
+enum class BarMode : uint8_t
+{
+    Grouped,   ///< Side by side, each series in its own slot of the bar width (default)
+    Stacked,   ///< On top of each other; negative values stack downwards separately
+    Overlay,   ///< Drawn over each other at full width
+};
+
 /// @brief Axis scale transform.
 enum class ScaleType
 {
@@ -370,6 +378,18 @@ class Axes : public AxesBase
     void      yscale(ScaleType s) { yscale_ = s; }
     ScaleType yscale() const { return yscale_; }
 
+    /// How bar series of the same orientation share a position (default
+    /// BarMode::Grouped).  Grouped places the series that have bars at the
+    /// same positions side by side within the widest bar width; series whose
+    /// positions no other series uses keep their full width.  Stacked stacks
+    /// the values of every visible bar series, starting from the first
+    /// series' baseline; positive and negative values stack separately.
+    void    bar_mode(BarMode mode) { bar_mode_ = mode; }
+    BarMode bar_mode() const { return bar_mode_; }
+    /// Apply bar_mode() to the bar series' layout (offset, width, per-bar
+    /// base).  Cheap when nothing changed; limits and the renderers call it.
+    void sync_bar_layout() const;
+
     /// Date-time axis: the values are Unix epoch seconds (UTC, e.g. from the
     /// double-precision plot()/line() overloads) and the ticks fall on calendar
     /// steps (seconds .. years) labelled as times and dates ("14:30", "Mar 05",
@@ -483,7 +503,7 @@ class Axes : public AxesBase
         std::vector<std::uint64_t> key;
         double                     x[3]  = {0.0, 0.0, 0.0};   // min, max, min_pos
         double                     y[3]  = {0.0, 0.0, 0.0};
-        double                     sx[3] = {0.0, 0.0, 0.0};   // sticky (grid) extent
+        double                     sx[3] = {0.0, 0.0, 0.0};   // sticky (grid, bar baseline) extent
         double                     sy[3] = {0.0, 0.0, 0.0};
         bool                       valid = false;
     };
@@ -517,6 +537,10 @@ class Axes : public AxesBase
     bool                  presented_buffer_following_ = false;
     std::optional<double> presented_buffer_right_edge_;
 
+    // Bar layout: the mode and the inputs of the last sync_bar_layout().
+    BarMode                            bar_mode_ = BarMode::Grouped;
+    mutable std::mutex                 bar_layout_mutex_;
+    mutable std::vector<std::uint64_t> bar_layout_key_;
     // Share groups (sharex()/sharey()); null when not shared.
     std::shared_ptr<AxesShareGroup> share_x_;
     std::shared_ptr<AxesShareGroup> share_y_;

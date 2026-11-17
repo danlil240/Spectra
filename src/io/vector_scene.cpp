@@ -2076,6 +2076,9 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     const Rect vp = axes.viewport();
     if (!(vp.w >= 1.0f) || !(vp.h >= 1.0f))
         return;
+    // Grouped / stacked bars: same layout as on screen (before the limits,
+    // which may be fixed and then skip the data extent that also syncs it).
+    axes.sync_bar_layout();
     const SvgStyle& st   = c.style;
     const auto      xlim = axis_space_limits(axes.xscale(), axes.x_limits());
     const auto      ylim = axis_space_limits(axes.yscale(), axes.y_limits());

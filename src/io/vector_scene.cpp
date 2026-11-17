@@ -49,6 +49,7 @@
 #include "core/figure_layout.hpp"
 #include "core/image_colormap.hpp"
 #include "core/label_layout.hpp"
+#include "data/line_decimation.hpp"
 #include "io/svg_label_metrics.hpp"
 #include "io/text_metrics.hpp"
 #include "render/scatter_marker.hpp"
@@ -976,6 +977,67 @@ void emit_contour_series(SceneContext&        c,
                          const Color&         col,
                          float                alpha);
 
+// A LineSeries' line: through its points, or the step corners of a step
+// draw style (data::expand_steps, as the renderer).  Density mode splits the
+// path into short pieces drawn translucently (one path never overlaps itself
+// in the output), so overlapping pieces build up like the renderer's segments.
+void emit_line_path(SceneContext&     c,
+                    const LineSeries& ls,
+                    const DataToSvg&  m,
+                    const Color&      col,
+                    float             alpha)
+{
+    const size_t           n  = ls.point_count();
+    std::span<const float> lx = ls.x_data().first(n);
+    std::span<const float> ly = ls.y_data().first(n);
+    std::vector<float>     sx;
+    std::vector<float>     sy;
+    if (data::is_step_style(ls.draw_style()))
+    {
+        data::expand_steps(lx, ly, ls.draw_style(), sx, sy);
+        lx = sx;
+        ly = sy;
+    }
+    const double    xoff  = ls.x_offset();
+    const double    yoff  = ls.y_offset();
+    const LineStyle style = ls.plot_style().line_style;
+
+    float density = 1.0f;
+    if (ls.dense_mode() == DenseLineMode::Density)
+    {
+        size_t visible = 0;
+        for (size_t i = 0; i < n; ++i)
+        {
+            const double px = m.map_x(xoff + ls.x_data()[i]);
+            visible += (px >= m.vp_x && px <= m.vp_x + m.vp_w) ? 1 : 0;
+        }
+        density = data::density_alpha(visible, static_cast<size_t>(std::ceil(m.vp_w)));
+    }
+    if (density >= 1.0f)
+    {
+        emit_stroke_path(c,
+                         polyline_path(lx, ly, m, xoff, yoff),
+                         "line",
+                         col,
+                         alpha,
+                         ls.width(),
+                         style);
+        return;
+    }
+    constexpr size_t PIECE_SEGMENTS = 8;
+    for (size_t i = 0; i + 1 < lx.size(); i += PIECE_SEGMENTS)
+    {
+        const size_t len = std::min(PIECE_SEGMENTS + 1, lx.size() - i);
+        emit_stroke_path(c,
+                         polyline_path(lx.subspan(i, len), ly.subspan(i, len), m, xoff, yoff),
+                         "line",
+                         col,
+                         alpha * density,
+                         ls.width(),
+                         style);
+    }
+}
+
 void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
 {
     if (auto* cs = dynamic_cast<const CustomSeries*>(&s))
@@ -1032,13 +1094,7 @@ void emit_series_2d(SceneContext& c, const Series& s, const DataToSvg& m)
     if (auto* ls = dynamic_cast<const LineSeries*>(&s))
     {
         if (style.has_line() && ls->point_count() >= 2)
-            emit_stroke_path(c,
-                             polyline_path(ls->x_data(), ls->y_data(), m, xoff, yoff),
-                             "line",
-                             col,
-                             alpha,
-                             ls->width(),
-                             style.line_style);
+            emit_line_path(c, *ls, m, col, alpha);
         if (style.has_marker())
             emit_markers(c,
                          ls->x_data(),
@@ -2043,13 +2099,41 @@ void emit_annotations(SceneContext& c, const Axes& axes, const DataToSvg& m, int
         const float h   = 1.2f * fs;
         const auto  box = annotation_layout::text_box(ax, ay, w, h, ann->halign(), ann->valign());
 
+        // Background box (rotated with the text), as in the renderer.
+        if (ann->bbox())
+        {
+            const auto& bb = *ann->bbox();
+            const auto  q  = annotation_layout::rotate_box(annotation_layout::padded(box, bb.pad),
+                                                         ax,
+                                                         ay,
+                                                         ann->rotation());
+            const VectorPoint quad[4] = {{q.x[0], q.y[0]},
+                                         {q.x[1], q.y[1]},
+                                         {q.x[2], q.y[2]},
+                                         {q.x[3], q.y[3]}};
+            const Color       fill    = bb.fill.value_or(c.style.background);
+            VectorStyle       bs      = fill_style(fill, bb.fill ? fill.a : 0.9f);
+            if (bb.edge_width > 0.0f)
+            {
+                const Color edge  = bb.edge.value_or(c.style.axis_line);
+                bs.stroke         = VectorPaint::rgb(edge);
+                bs.stroke_width   = bb.edge_width;
+                bs.stroke_opacity = bb.edge ? edge.a : 0.5f;
+            }
+            c.w.polygon(6, quad, bs);
+        }
+
         if (ann->has_arrow())
         {
             annotation_layout::Arrow g;
             const auto               tx = static_cast<float>(m.map_x(ann->arrow_x()));
             const auto               ty = static_cast<float>(m.map_y(ann->arrow_y()));
             if (std::isfinite(tx) && std::isfinite(ty)
-                && annotation_layout::arrow_geometry(box, tx, ty, g))
+                && annotation_layout::arrow_geometry(
+                    annotation_layout::annotation_extent(*ann, ax, ay, w, h),
+                    tx,
+                    ty,
+                    g))
             {
                 VectorStyle ls          = stroke_style(col, 1.3f, col.a);
                 ls.opacity_before_width = true;
@@ -2069,6 +2153,20 @@ void emit_annotations(SceneContext& c, const Axes& axes, const DataToSvg& m, int
         t.font_px = fs;
         t.color   = col;
         t.anchor  = static_cast<VectorAnchor>(std::clamp(static_cast<int>(ann->halign()), 0, 2));
+        if (ann->rotation() != 0.0f)
+        {
+            // SVG rotates clockwise; the annotation's rotation is counter-clockwise.
+            t.rotated = true;
+            t.rot_deg = -ann->rotation();
+            t.rot_x   = ax;
+            t.rot_y   = ay;
+        }
+        if (ann->halo() && ann->halo_width() > 0.0f)
+        {
+            t.halo       = true;
+            t.halo_color = ann->halo_color().value_or(c.style.background);
+            t.halo_width = ann->halo_width();
+        }
         c.w.text(t);
     }
     c.w.end_group();

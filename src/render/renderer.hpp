@@ -327,6 +327,22 @@ class Renderer
         return a * style_opacity < 0.99f;
     }
 
+    // View of the axes whose series are being uploaded / drawn (2D only):
+    // limits in data space and the plot width in framebuffer pixel columns.
+    // Drives M4 decimation and the density-mode opacity of dense lines.
+    struct LineView
+    {
+        bool     valid   = false;
+        double   x_min   = 0.0;
+        double   x_max   = 0.0;
+        uint32_t columns = 0;
+    };
+    LineView line_view_;
+
+    // True when `line` would be M4-decimated for `view` (Auto mode, sorted x,
+    // no markers, far more visible points than pixel columns).
+    static bool line_wants_m4(const LineSeries& line, const LineView& view);
+
     void render_series(Series&             series,
                        const Rect&         viewport,
                        const VisibleRange* visible             = nullptr,
@@ -603,6 +619,19 @@ class Renderer
         int      sorted_ready_slot   = -1;
         uint64_t sorted_ready_serial = 0;
 
+        // Line2D drawn from derived geometry (step corners and/or M4
+        // decimation): the ssbo holds line_vertex_count line vertices, then
+        // (steps with markers) the data points for the markers at marker_base.
+        bool      line_transformed  = false;
+        bool      line_decimated    = false;
+        DrawStyle line_draw_style   = DrawStyle::Default;
+        uint32_t  line_vertex_count = 0;
+        uint32_t  marker_base       = 0;
+        uint32_t  marker_count      = 0;
+        // View the decimated geometry was built for (re-decimate when it changes).
+        double   decim_x_min   = 0.0;
+        double   decim_x_max   = 0.0;
+        uint32_t decim_columns = 0;
         // Dashed 2D lines: CPU copy of the uploaded vec2 points and, per frame
         // slot, an (x, y, dash phase) buffer for the line pipeline, rebuilt
         // when the data, the zoom or the dash period changes.
@@ -621,6 +650,18 @@ class Renderer
         DashPhaseKey dash_phase_key[FRAME_BUFFER_SLOTS];
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
+
+    // Line2D upload with step corners and/or M4 decimation.  Returns false
+    // (and uploads nothing) when the line is drawn from its plain points.
+    bool upload_line_geometry(LineSeries&    line,
+                              SeriesGpuData& gpu,
+                              double         origin_x,
+                              double         origin_y,
+                              ScaleType      xscale,
+                              ScaleType      yscale);
+    // Segment range of a Line2D's ssbo to draw for the visible data points.
+    static LineDrawRange line_segments_to_draw(const SeriesGpuData& gpu,
+                                               const LineDrawRange& range);
 
     // Flat fill + thin outline of a bar / histogram / box / violin series
     // (render_2d.cpp).
@@ -713,7 +754,13 @@ class Renderer
     // Reusable scratch buffer for interleaving series data before GPU upload.
     // Avoids per-frame heap allocations for animated/streaming series.
     std::vector<float> upload_scratch_;
-    std::vector<float> dash_phase_scratch_;
+    // Line geometry scratch (M4 indices, gathered points, step vertices).
+    std::vector<uint32_t> line_keep_scratch_;
+    std::vector<float>    line_x_scratch_;
+    std::vector<float>    line_y_scratch_;
+    std::vector<float>    step_x_scratch_;
+    std::vector<float>    step_y_scratch_;
+    std::vector<float>    dash_phase_scratch_;
     // Logical px per axis-space unit of the 2D axes being drawn (set with its
     // projection in render_axes); used for dash phases.
     double line_px_per_unit_x_ = 1.0;

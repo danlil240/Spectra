@@ -18,6 +18,8 @@
 #include <spectra/series_stats.hpp>
 #include <sstream>
 
+#include "ipc/annotation_state.hpp"
+#include "ipc/axes_format_state.hpp"
 #include "series_color_source.hpp"
 
 namespace spectra
@@ -232,6 +234,11 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"point_count\": " << s.point_count << ",\n";
             os << "          \"opacity\": " << s.opacity << ",\n";
             os << "          \"line_style\": " << s.line_style << ",\n";
+            if (s.draw_style != 0 || s.dense_mode != 0)
+            {
+                os << "          \"draw_style\": " << s.draw_style << ",\n";
+                os << "          \"dense_mode\": " << s.dense_mode << ",\n";
+            }
             os << "          \"marker_style\": " << s.marker_style << ",\n";
             os << "          \"colormap_type\": " << s.colormap_type << ",\n";
             os << "          \"ambient\": " << s.ambient << ",\n";
@@ -285,6 +292,13 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"has_arrow\": " << (t.has_arrow ? "true" : "false") << ",\n";
             os << "          \"arrow_x\": " << t.arrow_x << ",\n";
             os << "          \"arrow_y\": " << t.arrow_y << ",\n";
+            if (!t.style.empty())
+            {
+                os << "          \"style\": [";
+                for (size_t k = 0; k < t.style.size(); ++k)
+                    os << (k > 0 ? ", " : "") << t.style[k];
+                os << "],\n";
+            }
             os << "          \"visible\": " << (t.visible ? "true" : "false") << "\n";
             os << "        }";
             if (ti + 1 < fig.text_annotations.size())
@@ -647,6 +661,35 @@ static std::vector<std::string> parse_json_array(const std::string& json, const 
 }
 
 // Parse an array of strings (finds [...] after key).  Empty when absent.
+// Numbers of a flat numeric array value ("key": [1, 2.5, ...]); empty when absent.
+static std::vector<float> parse_json_number_array(const std::string& json, const std::string& key)
+{
+    std::vector<float> out;
+    auto               pos = json_find_key(json, key);
+    if (pos == std::string::npos)
+        return out;
+    auto open  = json.find('[', pos);
+    auto close = open == std::string::npos ? open : json.find(']', open);
+    if (open == std::string::npos || close == std::string::npos)
+        return out;
+    const std::string body = json.substr(open + 1, close - open - 1);
+    size_t            p    = 0;
+    while (p < body.size())
+    {
+        while (p < body.size() && (body[p] == ' ' || body[p] == ',' || body[p] == '\n'))
+            ++p;
+        if (p >= body.size())
+            break;
+        char*       endp = nullptr;
+        const float v    = std::strtof(body.c_str() + p, &endp);
+        if (endp == body.c_str() + p)
+            break;
+        out.push_back(v);
+        p = static_cast<size_t>(endp - body.c_str());
+    }
+    return out;
+}
+
 static std::vector<std::string> parse_json_string_array(const std::string& json,
                                                         const std::string& key)
 {
@@ -791,6 +834,8 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             s.categories   = parse_json_string_array(ser_json, "categories");
             s.axes_index   = static_cast<int>(read_number_value(ser_json, "axes_index", -1));
             s.binding      = read_string_value(ser_json, "binding");
+            s.draw_style   = static_cast<int>(read_number_value(ser_json, "draw_style", 0));
+            s.dense_mode   = static_cast<int>(read_number_value(ser_json, "dense_mode", 0));
             // v2 field
             s.opacity = static_cast<float>(read_number_value(ser_json, "opacity", 1.0));
             // v3 fields
@@ -885,6 +930,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             t.arrow_x    = static_cast<float>(read_number_value(t_json, "arrow_x", 0));
             t.arrow_y    = static_cast<float>(read_number_value(t_json, "arrow_y", 0));
             t.visible    = read_bool_value(t_json, "visible", true);
+            t.style      = parse_json_number_array(t_json, "style");
             fig.text_annotations.push_back(std::move(t));
         }
 
@@ -1214,13 +1260,16 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                         t.color_b   = ann->color()->b;
                         t.color_a   = ann->color()->a;
                     }
-                    t.font_size = ann->font_size();
-                    t.halign    = static_cast<int>(ann->halign());
-                    t.valign    = static_cast<int>(ann->valign());
-                    t.has_arrow = ann->has_arrow();
-                    t.arrow_x   = ann->arrow_x();
-                    t.arrow_y   = ann->arrow_y();
-                    t.visible   = ann->visible();
+                    t.font_size   = ann->font_size();
+                    t.halign      = static_cast<int>(ann->halign());
+                    t.valign      = static_cast<int>(ann->valign());
+                    t.has_arrow   = ann->has_arrow();
+                    t.arrow_x     = ann->arrow_x();
+                    t.arrow_y     = ann->arrow_y();
+                    t.visible     = ann->visible();
+                    const auto st = ipc::annotation_to_state(*ann);
+                    if (ipc::has_annotation_style(st))
+                        t.style = ipc::pack_annotation_style(st);
                     fs.text_annotations.push_back(std::move(t));
                 }
             }
@@ -1286,6 +1335,8 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 if (auto* ls = dynamic_cast<LineSeries*>(s.get()))
                 {
                     ss.type        = "line";
+                    ss.draw_style  = static_cast<int>(ls->draw_style());
+                    ss.dense_mode  = static_cast<int>(ls->dense_mode());
                     ss.line_width  = ls->width();
                     ss.marker_size = ls->marker_size();
                     ss.point_count = ls->x_data().size();
@@ -1454,6 +1505,11 @@ std::unique_ptr<Figure> Workspace::build_layout_figure(const WorkspaceData::Figu
         if (ss.marker_style >= 0
             && ss.marker_style <= static_cast<int>(MarkerStyle::FilledTriangleUp))
             s->marker_style(static_cast<MarkerStyle>(ss.marker_style));
+        if (auto* ls = dynamic_cast<LineSeries*>(s))
+        {
+            ls->draw_style(ipc::draw_style_from_wire(ss.draw_style));
+            ls->dense_mode(ipc::dense_mode_from_wire(ss.dense_mode));
+        }
         const Color rgb{ss.color_r, ss.color_g, ss.color_b, ss.color_a};
         if (ss.color_source.empty())
         {
@@ -1600,6 +1656,12 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                             ann.color(Color(t.color_r, t.color_g, t.color_b, t.color_a));
                         if (t.has_arrow)
                             ann.arrow_to(t.arrow_x, t.arrow_y);
+                        if (t.style.size() >= ipc::ANNOTATION_STYLE_FLOATS)
+                        {
+                            auto st = ipc::annotation_to_state(ann);
+                            ipc::unpack_annotation_style(t.style, st);
+                            ipc::apply_annotation_state(ann, st);
+                        }
                     }
                 }
             }

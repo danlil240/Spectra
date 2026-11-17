@@ -47,6 +47,27 @@ enum class MarkerStyle : uint8_t
     FilledTriangleUp,   // 'A'  ▲  (non-MATLAB extension)
 };
 
+// ─── Draw Styles ─────────────────────────────────────────────────────────────
+// How a line connects consecutive points (matplotlib's drawstyle).
+
+enum class DrawStyle : uint8_t
+{
+    Default,     // straight segments between points
+    StepsPre,    // vertical first: the step happens at the start of each interval
+    StepsMid,    // the step happens halfway between the two points
+    StepsPost,   // horizontal first: each value holds until the next x
+};
+
+// ─── Dense Line Modes ────────────────────────────────────────────────────────
+// How a line with many more visible points than pixel columns is drawn.
+
+enum class DenseLineMode : uint8_t
+{
+    Auto,      // min/max (M4) decimation per pixel column: same picture, less work
+    Exact,     // always draw every point
+    Density,   // draw every point translucently so overlaps show where data is dense
+};
+
 // ─── Plot Style ──────────────────────────────────────────────────────────────
 // Unified style combining line, marker, color, and sizing.
 

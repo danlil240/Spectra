@@ -87,6 +87,7 @@ inline bool is_series_property_op(ipc::DiffOp::Type t)
         case ipc::DiffOp::Type::SET_OPACITY:
         case ipc::DiffOp::Type::SET_SERIES_DATA:
         case ipc::DiffOp::Type::SET_SERIES_LABEL:
+        case ipc::DiffOp::Type::SET_SERIES_DRAW_STYLE:
             return true;
         default:
             return false;

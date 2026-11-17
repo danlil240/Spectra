@@ -131,6 +131,7 @@ set(SPECTRA_UNIT_TESTS
     test_stat_fill_style
     test_command_queue
     test_decimation
+    test_plot_extras
     test_filters
     test_tick_generation
     test_axes_layout_fit

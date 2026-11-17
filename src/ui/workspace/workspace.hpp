@@ -100,6 +100,9 @@ struct WorkspaceData
         // Data binding URI (optional "binding" key; see data_binding.hpp).
         // Layout files store this instead of the data.
         std::string binding;
+        // Line series: DrawStyle / DenseLineMode (optional keys, default 0).
+        int draw_style = 0;
+        int dense_mode = 0;
     };
 
     // 2D text annotation (Axes::text / Axes::annotate).  Stored in the
@@ -119,6 +122,9 @@ struct WorkspaceData
         bool        has_arrow = false;
         float       arrow_x = 0.0f, arrow_y = 0.0f;
         bool        visible = true;
+        // Box / halo / rotation (ipc::pack_annotation_style() layout;
+        // optional "style" key, empty = plain text).
+        std::vector<float> style;
     };
 
     struct FigureState

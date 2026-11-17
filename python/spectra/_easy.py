@@ -671,6 +671,55 @@ def plot(
     return series
 
 
+def step(
+    *args,
+    where: str = "pre",
+    color: Union[str, Tuple, List, None] = None,
+    width: Optional[float] = None,
+    label: str = "",
+    **kwargs,
+):
+    """Step plot, like ``matplotlib.pyplot.step``: the value changes in steps.
+
+    ``where`` is ``"pre"`` (default: each y holds over the interval ending at
+    its x), ``"post"`` (each y holds until the next x) or ``"mid"``.
+
+    Usage::
+
+        sp.step(t, mode, where="post", label="flight mode")
+    """
+    kwargs.pop("drawstyle", None)
+    kwargs.pop("ds", None)
+    return plot(*args, color=color, width=width, label=label, where=where, **kwargs)
+
+
+def stairs(
+    values,
+    edges=None,
+    color: Union[str, Tuple, List, None] = None,
+    width: Optional[float] = None,
+    label: str = "",
+    **kwargs,
+):
+    """Stairs, like ``matplotlib.pyplot.stairs``: ``values[i]`` holds from
+    ``edges[i]`` to ``edges[i + 1]`` (``edges`` defaults to ``0..len(values)``).
+
+    Usage::
+
+        counts = [3, 5, 2]
+        sp.stairs(counts, [0.0, 1.0, 2.0, 3.0])
+    """
+    vals = _to_list(values)
+    if not vals:
+        raise ValueError("stairs() needs at least one value")
+    e = list(range(len(vals) + 1)) if edges is None else _to_list(edges)
+    if len(e) != len(vals) + 1:
+        raise ValueError("stairs() needs len(edges) == len(values) + 1")
+    x = [float(v) for v in e]
+    y = [float(v) for v in vals] + [float(vals[-1])]
+    return plot(x, y, color=color, width=width, label=label, drawstyle="steps-post", **kwargs)
+
+
 def _series_name(data: Any) -> str:
     """The ``name`` of a pandas/polars Series, used as the default legend label."""
     if isinstance(data, (list, tuple)) or not hasattr(data, "to_numpy"):
@@ -2134,15 +2183,25 @@ def text(
     fontsize: float = 0.0,
     ha: str = "left",
     va: str = "bottom",
+    bbox=None,
+    halo=None,
+    rotation: float = 0.0,
 ):
     """Place text at data coordinates (x, y) on the current 2D axes.
+
+    ``bbox=True`` draws a background box (theme colours) so the text stays
+    readable over data; a dict sets ``pad`` (pixels), ``facecolor``,
+    ``edgecolor`` and ``linewidth``.  ``halo=True`` (or a colour) outlines the
+    glyphs instead.  ``rotation`` is in degrees, counter-clockwise.
 
     Usage::
 
         sp.text(2.0, 0.5, "peak", color="red", fontsize=16)
+        sp.text(2.0, 0.5, "peak", bbox=True, rotation=30)
     """
     ax = _state._ensure_axes()
-    ann = ax.text(x, y, s, color=_parse_color(color), fontsize=fontsize, ha=ha, va=va)
+    ann = ax.text(x, y, s, color=_parse_color(color), fontsize=fontsize, ha=ha, va=va,
+                  bbox=bbox, halo=halo, rotation=rotation)
     _state._show_if_pending()
     return ann
 
@@ -2153,15 +2212,21 @@ def annotate(
     xytext: Optional[Tuple[float, float]] = None,
     color: Union[str, Tuple, List, None] = None,
     fontsize: float = 0.0,
+    bbox=None,
+    halo=None,
+    rotation: float = 0.0,
 ):
     """Label the point ``xy``; with ``xytext`` the text sits there with an arrow to ``xy``.
 
+    ``bbox``, ``halo`` and ``rotation`` are as in :func:`text`.
+
     Usage::
 
-        sp.annotate("local max", xy=(3.1, 0.9), xytext=(4.0, 1.2))
+        sp.annotate("local max", xy=(3.1, 0.9), xytext=(4.0, 1.2), bbox=True)
     """
     ax = _state._ensure_axes()
-    ann = ax.annotate(s, xy, xytext, color=_parse_color(color), fontsize=fontsize)
+    ann = ax.annotate(s, xy, xytext, color=_parse_color(color), fontsize=fontsize, bbox=bbox,
+                      halo=halo, rotation=rotation)
     _state._show_if_pending()
     return ann
 
@@ -2546,6 +2611,11 @@ def _apply_series_style(
 ):
     """Apply optional styling to a series.
 
+    Line series also take ``drawstyle`` (alias ``ds``: ``"default"``,
+    ``"steps-pre"``/``"steps"``, ``"steps-mid"``, ``"steps-post"``), ``where``
+    (``"pre"``/``"mid"``/``"post"``, as in matplotlib's ``step``) and
+    ``dense`` (``"auto"``, ``"exact"`` or ``"density"``).
+
     ``linestyle`` / ``marker`` are backend tokens or names (see _style.py);
     ``ls`` is accepted as an alias of ``linestyle``.
     """
@@ -2562,3 +2632,16 @@ def _apply_series_style(
         series.set_marker_size(float(size))
     if opacity is not None:
         series.set_opacity(float(opacity))
+    drawstyle = kwargs.pop("drawstyle", None) or kwargs.pop("ds", None)
+    where = kwargs.pop("where", None)
+    if drawstyle is None and where is not None:
+        drawstyle = f"steps-{where}"
+    dense = kwargs.pop("dense", None)
+    if (drawstyle is not None or dense is not None) and getattr(series, "_type", "") == "line":
+        from ._series import parse_dense_mode, parse_drawstyle
+
+        if drawstyle is not None:
+            series._draw_style = parse_drawstyle(drawstyle)
+        if dense is not None:
+            series._dense_mode = parse_dense_mode(dense)
+        series._send_draw_style()

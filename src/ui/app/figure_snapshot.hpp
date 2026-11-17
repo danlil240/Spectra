@@ -647,7 +647,11 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             ss.marker_style = static_cast<uint8_t>(s.marker_style());
 
             if (auto* line = dynamic_cast<const LineSeries*>(&s))
+            {
                 ss.line_width = line->width();
+                ss.draw_style = ipc::draw_style_to_wire(line->draw_style());
+                ss.dense_mode = ipc::dense_mode_to_wire(line->dense_mode());
+            }
             else if (auto* scatter = dynamic_cast<const ScatterSeries*>(&s))
                 ss.marker_size = scatter->size();
             else if (auto* l3 = dynamic_cast<const LineSeries3D*>(&s))

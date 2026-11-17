@@ -11,6 +11,7 @@
 #include <gtest/gtest.h>
 #include <map>
 #include <optional>
+#include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/custom_series.hpp>
 #include <spectra/export.hpp>
@@ -497,6 +498,39 @@ TEST(PdfExport, MathtextIsSetRunByRun)
     // The scripts are set at 70% of the 18 px title size.
     const std::string c = all_content(pdf);
     EXPECT_NE(c.find("/F1 12.6 Tf"), std::string::npos);
+}
+
+// A rotated mathtext annotation with a halo and a box: every run is drawn in
+// the stroked halo pass and again filled, all with the rotated text matrix.
+TEST(PdfExport, MathtextAnnotationKeepsRotationHaloAndBox)
+{
+    if (!inter_metrics_available())
+        GTEST_SKIP() << "build has no embedded Inter font";
+    auto  fig = make_line_figure();
+    auto& ax  = *dynamic_cast<Axes*>(fig.axes()[0].get());
+    ax.text(2.0f, 1.0f, "$\\alpha_1$ peak").bbox(true).halo(true).rotation(30.0f);
+    fig.compute_layout();
+    const MiniPdf pdf(keep_evidence("pdf_mathtext_annotation.pdf", PdfExporter::to_string(fig)));
+    ASSERT_TRUE(pdf.ok()) << pdf.error();
+    const auto text = extract_text(pdf);
+    // Halo pass + fill pass: each run appears twice, and no '$' is left.
+    EXPECT_EQ(std::count(text.begin(), text.end(), std::string("\xCE\xB1")), 2);
+    EXPECT_EQ(std::count(text.begin(), text.end(), std::string(" peak")), 2);
+    EXPECT_TRUE(std::none_of(text.begin(),
+                             text.end(),
+                             [](const std::string& t)
+                             { return t.find('$') != std::string::npos; }));
+    const std::string c = all_content(pdf);
+    // The halo is a stroked-text pass holding every run.
+    const size_t halo = c.find("BT\n1 Tr\n");
+    ASSERT_NE(halo, std::string::npos);
+    const size_t halo_end = c.find("ET\n", halo);
+    size_t       runs     = 0;
+    for (size_t p = c.find(" Tj", halo); p < halo_end; p = c.find(" Tj", p + 1))
+        ++runs;
+    EXPECT_GE(runs, 3u);   // alpha, subscript 1, " peak"
+    // Rotated 30 degrees counter-clockwise (Y-down page): [cos -sin -sin -cos].
+    EXPECT_NE(c.find("0.866 -0.5 -0.5 -0.866 "), std::string::npos);
 }
 
 TEST(PdfExport, RotatedYLabelAndMediumTitle)

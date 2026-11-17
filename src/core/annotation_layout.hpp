@@ -44,6 +44,74 @@ inline Box text_box(float                  ax,
     return {x0, y0, x0 + w, y0 + h};
 }
 
+// Box grown by `pad` on every side.
+inline Box padded(const Box& b, float pad)
+{
+    return {b.x0 - pad, b.y0 - pad, b.x1 + pad, b.y1 + pad};
+}
+
+// Corners of a box rotated about a pivot, in order top-left, top-right,
+// bottom-right, bottom-left of the unrotated box.
+struct Quad
+{
+    float x[4] = {};
+    float y[4] = {};
+};
+
+// Box `b` rotated by `degrees` counter-clockwise on screen (y grows
+// downwards) about (px, py).  0 degrees gives the box's own corners.
+inline Quad rotate_box(const Box& b, float px, float py, float degrees)
+{
+    const float rad   = degrees * 3.14159265358979f / 180.0f;
+    const float c     = std::cos(rad);
+    const float s     = std::sin(rad);
+    const float cx[4] = {b.x0, b.x1, b.x1, b.x0};
+    const float cy[4] = {b.y0, b.y0, b.y1, b.y1};
+    Quad        q;
+    for (int i = 0; i < 4; ++i)
+    {
+        const float dx = cx[i] - px;
+        const float dy = cy[i] - py;
+        q.x[i]         = px + dx * c + dy * s;
+        q.y[i]         = py - dx * s + dy * c;
+    }
+    return q;
+}
+
+// Axis-aligned bounds of a quad.
+inline Box bounds(const Quad& q)
+{
+    Box b{q.x[0], q.y[0], q.x[0], q.y[0]};
+    for (int i = 1; i < 4; ++i)
+    {
+        b.x0 = std::fmin(b.x0, q.x[i]);
+        b.y0 = std::fmin(b.y0, q.y[i]);
+        b.x1 = std::fmax(b.x1, q.x[i]);
+        b.y1 = std::fmax(b.y1, q.y[i]);
+    }
+    return b;
+}
+
+// Screen-space extent an annotation's arrow starts from: its text box (with
+// the background box padding, when it has one) rotated about the anchor.
+inline Box annotation_extent(const TextAnnotation& ann, float ax, float ay, float w, float h)
+{
+    Box b = text_box(ax, ay, w, h, ann.halign(), ann.valign());
+    if (ann.bbox())
+        b = padded(b, ann.bbox()->pad);
+    if (ann.rotation() == 0.0f)
+        return b;
+    return bounds(rotate_box(b, ax, ay, ann.rotation()));
+}
+
+// Offsets (unit circle, 8 directions) at which a halo copy of the text is
+// drawn, scaled by the halo width.
+inline constexpr int   HALO_COPIES = 8;
+inline constexpr float HALO_DIR_X[8] =
+    {1.0f, 0.7071f, 0.0f, -0.7071f, -1.0f, -0.7071f, 0.0f, 0.7071f};
+inline constexpr float HALO_DIR_Y[8] =
+    {0.0f, 0.7071f, 1.0f, 0.7071f, 0.0f, -0.7071f, -1.0f, -0.7071f};
+
 // Start point of an arrow aimed from the centre of `b` at (tx, ty): where that
 // ray leaves `b` grown by `gap`.  Returns false when the target lies inside the
 // grown box (the arrow would be hidden behind the text).

@@ -167,8 +167,11 @@ TEST(AxisTextStyleLayout, MarginsGrowWithFontSize)
     EXPECT_LT(big.y + big.h, plain.y + plain.h);
     EXPECT_GT(big.x, plain.x);
     EXPECT_GE(big.x + 0.5f, left_label_extent(ax));
-    // The right edge does not move.
-    EXPECT_FLOAT_EQ(big.x + big.w, plain.x + plain.w);
+    // The right edge only moves in (constrained layout) to keep the last,
+    // larger x tick label inside the figure.
+    EXPECT_LE(big.x + big.w, plain.x + plain.w);
+    EXPECT_GE(800.0f - (big.x + big.w) + 0.5f, measure_decorations(ax).right);
+    EXPECT_GT(big.x + big.w, plain.x + plain.w - 0.1f * plain.w);
 }
 
 TEST(AxisTextStyleLayout, ExtentsGrowMonotonicallyWithFontSize)

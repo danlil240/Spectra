@@ -76,6 +76,9 @@ enum ChunkTag : uint16_t
     // Box style (BoxStyle) of a 3D axes.  Version-free: older readers skip it
     // and keep the default box.
     TAG_AXES3D_BOX = 0x0050,
+    // Bar mode (spectra::BarMode) of a 2D axes, written when not the default
+    // (grouped).  Version-free: older readers skip it.
+    TAG_AXES_BAR_MODE = 0x0052,
     // Figure layout: constrained-layout flag, sharex / sharey modes and the
     // suptitle.  Written after the axes chunks so loading can re-link the
     // shared axes.  Version-free: older readers skip it.
@@ -394,6 +397,14 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
         w.write_u8(axes.xaxis_datetime() ? 1 : 0);
         w.write_u8(axes.yaxis_datetime() ? 1 : 0);
         w.end_chunk(fpos);
+    }
+
+    if (axes.bar_mode() != BarMode::Grouped)
+    {
+        auto mpos = w.begin_chunk(TAG_AXES_BAR_MODE);
+        w.write_i32(axes_index);
+        w.write_u8(static_cast<uint8_t>(axes.bar_mode()));
+        w.end_chunk(mpos);
     }
 
     // Write series for this axes
@@ -1900,6 +1911,18 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 axes->yscale(to_scale(ys));
                 axes->xaxis_datetime(xd);
                 axes->yaxis_datetime(yd);
+                break;
+            }
+
+            case TAG_AXES_BAR_MODE:
+            {
+                const int32_t ai   = r.read_i32();
+                const uint8_t mode = r.read_u8();
+                Axes*         axes = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                         ? dynamic_cast<Axes*>(axes_ptrs[static_cast<size_t>(ai)])
+                                         : nullptr;
+                if (axes && r.good() && mode <= static_cast<uint8_t>(BarMode::Overlay))
+                    axes->bar_mode(static_cast<BarMode>(mode));
                 break;
             }
 

@@ -45,6 +45,8 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- Timeline: the playhead is now the animated figure's clock. Scrubbing or stepping backward while playing, scrubbing while stopped, loop mode / loop region and keyframe tracks while paused all reach the plot; pressing Play on a static plot no longer fades and thickens its lines (start-up figures no longer get demo "Opacity"/"Width"/"Size" keyframe tracks). In the multiproc runtime the window's timeline now drives the app's `on_frame` animation (new `SET_ANIM_PLAYBACK` IPC op).
+
 - Golden image tests resolve their baselines through an absolute path set by CMake, so `ctest` compares images instead of silently skipping every scene (ccache made `__FILE__` relative and ctest runs from `build/tests`); a missing baseline now fails unless `SPECTRA_GOLDEN_STRICT=0`. 22 stale 3D baselines were regenerated for the Back box style.
 - Browser builds embed a DejaVu Sans symbol subset as the text fallback font, so symbols Inter lacks (for example ∇, ∮, ⇌) no longer render as boxes.
 - The WebGPU backend prefers a UNORM surface format, matching the Vulkan swapchain, so theme colours are not gamma-shifted on native Dawn.

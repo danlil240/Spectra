@@ -88,7 +88,7 @@ FigureId FigureManager::create_figure(const FigureConfig& config)
     return id;
 }
 
-bool FigureManager::close_figure(FigureId index)
+bool FigureManager::close_figure(FigureId index, bool keep_window)
 {
     size_t pos = id_to_pos(index);
     if (pos == SIZE_MAX)
@@ -99,7 +99,7 @@ bool FigureManager::close_figure(FigureId index)
     SPECTRA_LOG_TRACE("figure", "Closing figure id={}", index);
 
     // Last figure: request window close instead of closing the figure
-    if (ordered_ids_.size() <= 1)
+    if (ordered_ids_.size() <= 1 && !keep_window)
     {
         if (on_window_close_request_)
             on_window_close_request_();
@@ -124,7 +124,11 @@ bool FigureManager::close_figure(FigureId index)
     registry_.unregister_figure(index);
 
     // Adjust active index
-    if (active_index_ == index)
+    if (ordered_ids_.empty())
+    {
+        active_index_ = INVALID_FIGURE_ID;
+    }
+    else if (active_index_ == index)
     {
         // Switch to nearest remaining figure
         size_t new_pos = (pos < ordered_ids_.size()) ? pos : ordered_ids_.size() - 1;
@@ -799,9 +803,11 @@ bool FigureManager::process_pending()
 
     if (pending_close_ != INVALID_FIGURE_ID)
     {
-        FigureId idx   = pending_close_;
-        pending_close_ = INVALID_FIGURE_ID;
-        close_figure(idx);
+        FigureId   idx             = pending_close_;
+        const bool keep_window     = pending_close_keep_window_;
+        pending_close_             = INVALID_FIGURE_ID;
+        pending_close_keep_window_ = false;
+        close_figure(idx, keep_window);
         changed = true;
     }
 
@@ -826,7 +832,14 @@ void FigureManager::queue_create()
 
 void FigureManager::queue_close(FigureId index)
 {
-    pending_close_ = index;
+    pending_close_             = index;
+    pending_close_keep_window_ = false;
+}
+
+void FigureManager::queue_close_keep_window(FigureId index)
+{
+    pending_close_             = index;
+    pending_close_keep_window_ = true;
 }
 
 void FigureManager::queue_switch(FigureId index)

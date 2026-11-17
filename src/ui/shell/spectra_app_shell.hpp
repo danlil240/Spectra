@@ -82,8 +82,11 @@ class SpectraAppShell : public AppShell
                                     const PanelMenuHooks&      hooks);
     // Plugin export formats under File (rebuilt each frame; formats can change).
     static void sync_plugin_export_menu(MenuBar& bar, spectra::ImGuiIntegration* imgui);
-    // File > Recent Layouts submenu (rebuilt each frame from the window's LayoutSession).
-    static constexpr const char* RECENT_LAYOUTS_MENU = "Recent Layouts";
+    // File > Open Recent submenu (rebuilt each frame from the window's
+    // LayoutSession: saved/opened .spectra workspaces, figures and layouts).
+    static constexpr const char* RECENT_LAYOUTS_MENU = "Open Recent";
+    // File > Export submenu (PNG, SVG, PDF, CSV, layout, plugin formats).
+    static constexpr const char* EXPORT_MENU = "Export";
     static void sync_recent_layouts_menu(MenuBar& bar, spectra::ImGuiIntegration* imgui);
 
    protected:

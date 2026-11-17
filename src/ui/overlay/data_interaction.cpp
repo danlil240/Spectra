@@ -1788,6 +1788,94 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
 
 // ─── Overlay snapshot ────────────────────────────────────────────────────────
 
+namespace
+{
+bool figure_owns_axes(const Figure& figure, const AxesBase* axes)
+{
+    for (const auto& ax : figure.axes())
+        if (static_cast<const AxesBase*>(ax.get()) == axes)
+            return true;
+    for (const auto& ax : figure.all_axes())
+        if (ax.get() == axes)
+            return true;
+    return false;
+}
+
+bool figure_owns_series(const Figure& figure, const Series* series)
+{
+    for (const auto& ax : figure.axes())
+    {
+        if (!ax)
+            continue;
+        for (const auto& sp : ax->series())
+            if (sp.get() == series)
+                return true;
+    }
+    return false;
+}
+
+uint64_t fnv_mix(uint64_t h, const void* data, size_t n)
+{
+    const auto* p = static_cast<const unsigned char*>(data);
+    for (size_t i = 0; i < n; ++i)
+        h = (h ^ p[i]) * 1099511628211ULL;
+    return h;
+}
+
+template <typename T>
+uint64_t fnv_mix(uint64_t h, const T& v)
+{
+    return fnv_mix(h, &v, sizeof(T));
+}
+}   // namespace
+
+// A marker or annotation belongs to the figure that owns its axes (or, for
+// one without axes, its series).  Entries attached to nothing at all are kept
+// with every figure, as before.
+bool DataInteraction::marker_belongs_to(const DataMarker& m, const Figure& figure)
+{
+    if (m.axes)
+        return figure_owns_axes(figure, m.axes);
+    if (m.axes3d)
+        return figure_owns_axes(figure, m.axes3d);
+    if (m.series)
+        return figure_owns_series(figure, m.series);
+    return true;
+}
+
+bool DataInteraction::annotation_belongs_to(const Annotation& a, const Figure& figure)
+{
+    return !a.axes || figure_owns_axes(figure, a.axes);
+}
+
+uint64_t DataInteraction::overlay_fingerprint(const Figure& figure) const
+{
+    // Same content as capture_overlay_snapshot(): what a save would write.
+    const OverlaySnapshot snap = capture_overlay_snapshot(figure);
+    uint64_t              h    = 1469598103934665603ULL;
+    h                          = fnv_mix(h, snap.markers.size());
+    for (const auto& m : snap.markers)
+    {
+        h = fnv_mix(h, m.data_x);
+        h = fnv_mix(h, m.data_y);
+        h = fnv_mix(h, m.point_index);
+        h = fnv_mix(h, m.axes_index);
+        h = fnv_mix(h, m.series_label.data(), m.series_label.size());
+    }
+    h = fnv_mix(h, snap.annotations.size());
+    for (const auto& a : snap.annotations)
+    {
+        h = fnv_mix(h, a.data_x);
+        h = fnv_mix(h, a.data_y);
+        h = fnv_mix(h, a.offset_x);
+        h = fnv_mix(h, a.offset_y);
+        h = fnv_mix(h, a.color);
+        h = fnv_mix(h, a.axes_index);
+        h = fnv_mix(h, a.text.data(), a.text.size());
+    }
+    return h;
+}
+
 OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) const
 {
     OverlaySnapshot snap;
@@ -1812,6 +1900,8 @@ OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) 
     // Markers
     for (const auto& m : markers_.markers())
     {
+        if (!marker_belongs_to(m, figure))
+            continue;
         OverlaySnapshot::MarkerEntry me;
         me.data_x       = m.data_x;
         me.data_y       = m.data_y;
@@ -1824,7 +1914,7 @@ OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) 
     // Annotations
     for (const auto& ann : annotations_.annotations())
     {
-        if (ann.editing || ann.text.empty())
+        if (ann.editing || ann.text.empty() || !annotation_belongs_to(ann, figure))
             continue;
         OverlaySnapshot::AnnotationEntry ae;
         ae.data_x     = ann.data_x;
@@ -1844,7 +1934,13 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
 {
     set_crosshair(snapshot.crosshair_enabled);
     set_tooltip(snapshot.tooltip_enabled);
+    clear_markers();
+    annotations_.clear();
+    append_overlay_snapshot(snapshot, figure);
+}
 
+void DataInteraction::append_overlay_snapshot(const OverlaySnapshot& snapshot, Figure& figure)
+{
     // Helper: resolve an axes index to a pointer
     auto resolve_axes_ptr = [&](size_t idx) -> const Axes*
     {
@@ -1854,7 +1950,6 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
     };
 
     // Restore markers
-    clear_markers();
     for (const auto& me : snapshot.markers)
     {
         // Find the series by label to get a valid pointer
@@ -1895,7 +1990,6 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
     }
 
     // Restore annotations
-    annotations_.clear();
     for (const auto& ae : snapshot.annotations)
     {
         if (ae.text.empty())

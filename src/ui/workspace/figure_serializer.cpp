@@ -13,6 +13,7 @@
 #include <spectra/logger.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_stats.hpp>
 
 #include "ipc/annotation_state.hpp"
@@ -91,6 +92,16 @@ enum ChunkTag : uint16_t
     // Per-point colour values (+ colormap and range) and sizes of the 3D
     // scatter in the preceding TAG_SERIES_SCAT3D chunk.  Version-free.
     TAG_SCAT3D_POINT_ATTRS = 0x0061,
+    // Plot-style options of an axes (minor grid / ticks, despine, tick
+    // direction, default series width / marker size) and the plot style name +
+    // palette of the figure.  Version-free: older readers skip them and keep
+    // the defaults (which match files written before these existed).
+    TAG_AXES_PLOT_STYLE   = 0x0056,
+    TAG_FIGURE_PLOT_STYLE = 0x0057,
+    // Grid-valued 2D series: ImageSeries (imshow / heatmap / contourf) and
+    // ContourSeries (contour lines).  Version-free: older readers skip them.
+    TAG_SERIES_IMAGE   = 0x0058,
+    TAG_SERIES_CONTOUR = 0x0059,
     // Draw style + dense mode of the line in the preceding TAG_SERIES_LINE
     // chunk, and box / halo / rotation of the preceding TAG_TEXT_ANNOTATION.
     // Version-free: older readers skip them and draw plain lines / text.
@@ -312,7 +323,73 @@ static Colormap decode_colormap(uint8_t v)
     return Colormap(type, (v & COLORMAP_REVERSED_BIT) != 0);
 }
 
+// Colormap including a user table (Colormap::from_colors): the encoded type,
+// then for Custom its lookup table (reversal applied) as u32 count + RGBA8.
+template <typename Writer>
+static void write_colormap_full(Writer& w, const Colormap& cm)
+{
+    if (!cm.is_custom())
+    {
+        w.write_u8(encode_colormap(cm));
+        w.write_u32(0);
+        return;
+    }
+    w.write_u8(static_cast<uint8_t>(ColormapType::Custom));
+    const auto lut = cm.rgba8();
+    w.write_u32(static_cast<uint32_t>(Colormap::LUT_SIZE));
+    for (uint8_t b : lut)
+        w.write_u8(b);
+}
+
+template <typename Reader>
+static Colormap read_colormap_full(Reader& r)
+{
+    const uint8_t  code = r.read_u8();
+    const uint32_t n    = r.read_u32();
+    if (n == 0 || n > Colormap::LUT_SIZE)
+        return decode_colormap(code);
+    std::vector<Color> colors(n);
+    for (auto& c : colors)
+    {
+        const float rr = r.read_u8() / 255.0f;
+        const float gg = r.read_u8() / 255.0f;
+        const float bb = r.read_u8() / 255.0f;
+        const float aa = r.read_u8() / 255.0f;
+        c              = Color{rr, gg, bb, aa};
+    }
+    return Colormap::from_colors(colors);
+}
+
 // ─── Save implementation ────────────────────────────────────────────────────
+
+// TAG_AXES_PLOT_STYLE flag bits.
+enum : uint8_t
+{
+    AXES_STYLE_MINOR_GRID  = 1u << 0,
+    AXES_STYLE_MINOR_TICKS = 1u << 1,
+    AXES_STYLE_DESPINE     = 1u << 2,
+    AXES_STYLE_TICKS_IN    = 1u << 3,
+};
+static constexpr uint32_t AXES_PLOT_STYLE_BYTES = 4 + 1 + 4 + 4;
+
+static void write_axes_plot_style(BinaryWriter& w, const AxesBase& axes, int axes_index)
+{
+    uint8_t flags = 0;
+    if (axes.minor_grid_enabled())
+        flags |= AXES_STYLE_MINOR_GRID;
+    if (axes.minor_ticks_enabled())
+        flags |= AXES_STYLE_MINOR_TICKS;
+    if (axes.despined())
+        flags |= AXES_STYLE_DESPINE;
+    if (axes.tick_direction() == TickDirection::In)
+        flags |= AXES_STYLE_TICKS_IN;
+    auto pos = w.begin_chunk(TAG_AXES_PLOT_STYLE);
+    w.write_i32(axes_index);
+    w.write_u8(flags);
+    w.write_f32(axes.default_line_width());
+    w.write_f32(axes.default_marker_size());
+    w.end_chunk(pos);
+}
 
 // Fill style of a bar / histogram / box / violin series, nullptr otherwise.
 static const StatFillStyle* stat_fill_style_of(const Series& s)
@@ -405,6 +482,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
         w.write_u8(axes.yaxis_datetime() ? 1 : 0);
         w.end_chunk(fpos);
     }
+    write_axes_plot_style(w, axes, axes_index);
 
     if (axes.bar_mode() != BarMode::Grouped)
     {
@@ -451,6 +529,54 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
             w.write_floats(ss->color_values_data());
             w.write_f64(ss->x_offset());   // v6: data origins
             w.write_f64(ss->y_offset());
+            w.end_series_chunk(spos, *sp);
+        }
+        else if (auto* img = dynamic_cast<ImageSeries*>(sp.get()))
+        {
+            auto spos = w.begin_chunk(TAG_SERIES_IMAGE);
+            w.write_i32(axes_index);
+            w.write_series_common(*img);
+            w.write_u8(static_cast<uint8_t>(img->channels()));
+            w.write_u8(static_cast<uint8_t>(img->node_aligned()));
+            w.write_u8(static_cast<uint8_t>(img->interpolation()));
+            w.write_u8(static_cast<uint8_t>(img->origin()));
+            w.write_u32(static_cast<uint32_t>(img->cols()));
+            w.write_u32(static_cast<uint32_t>(img->rows()));
+            w.write_floats(img->data());
+            w.write_f64(img->x0());
+            w.write_f64(img->x1());
+            w.write_f64(img->y0());
+            w.write_f64(img->y1());
+            write_colormap_full(w, img->cmap());
+            w.write_u8(static_cast<uint8_t>(img->colormap_range_set()));
+            w.write_f32(img->vmin());
+            w.write_f32(img->vmax());
+            w.write_floats(img->levels());
+            w.write_u8(static_cast<uint8_t>(img->show_values()));
+            w.write_i32(img->value_decimals());
+            for (const auto* names : {&img->x_categories(), &img->y_categories()})
+            {
+                w.write_u32(static_cast<uint32_t>(names->size()));
+                for (const auto& n : *names)
+                    w.write_string(n);
+            }
+            w.end_series_chunk(spos, *sp);
+        }
+        else if (auto* ct = dynamic_cast<ContourSeries*>(sp.get()))
+        {
+            auto spos = w.begin_chunk(TAG_SERIES_CONTOUR);
+            w.write_i32(axes_index);
+            w.write_series_common(*ct);
+            w.write_f32(ct->width());
+            w.write_u32(static_cast<uint32_t>(ct->cols()));
+            w.write_u32(static_cast<uint32_t>(ct->rows()));
+            w.write_floats(ct->z_data());
+            w.write_floats(ct->x_coords());
+            w.write_floats(ct->y_coords());
+            w.write_floats(ct->level_values());
+            write_colormap_full(w, ct->cmap());
+            w.write_f32(ct->vmin());
+            w.write_f32(ct->vmax());
             w.end_series_chunk(spos, *sp);
         }
         else if (auto* band = dynamic_cast<BandSeries*>(sp.get()))
@@ -645,6 +771,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
         w.write_u8(static_cast<uint8_t>(axes.box_style()));
         w.end_chunk(bpos);
     }
+    write_axes_plot_style(w, axes, axes_index);
 
     if (axes.equal_aspect())
     {
@@ -879,6 +1006,16 @@ bool FigureSerializer::save(std::ostream& f, const Figure& figure, const Overlay
             w.write_i32(static_cast<int32_t>(ann.axes_index));
             w.end_chunk(apos);
         }
+    }
+
+    // Plot style name and figure palette (after the axes, so loading it does
+    // not restyle them; it only becomes the style of axes added later).
+    if (figure.style_sheet() || !figure.style().palette.empty())
+    {
+        auto pos = w.begin_chunk(TAG_FIGURE_PLOT_STYLE);
+        w.write_string(figure.style_name());
+        w.write_string(figure.style().palette);
+        w.end_chunk(pos);
     }
 
     // End marker
@@ -1303,6 +1440,119 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 ps.line_width = lw;
                 s.plot_style(ps);
                 loaded = {&s, col};
+                break;
+            }
+
+            case TAG_SERIES_IMAGE:
+            case TAG_SERIES_CONTOUR:
+            {
+                const auto chunk_end = chunk_start + static_cast<std::streamoff>(len);
+                int        idx       = r.read_i32();
+                auto*      axes      = (idx >= 0 && idx < static_cast<int>(axes_ptrs.size()))
+                                           ? dynamic_cast<Axes*>(axes_ptrs[idx])
+                                           : nullptr;
+                if (!axes)
+                {
+                    r.skip(len - 4);
+                    break;
+                }
+                std::string lbl = r.read_string();
+                Color       col = r.read_color();
+                bool        vis = r.read_u8() != 0;
+                (void)r.read_u8();    // line style
+                (void)r.read_u8();    // marker style
+                (void)r.read_f32();   // marker size
+                float opac = r.read_f32();
+                (void)r.read_f32();   // plot-style line width
+                bool excl  = r.read_u8() != 0;
+                bool inleg = r.read_u8() != 0;
+                (void)r.read_u8();   // reference line
+
+                Series* made = nullptr;
+                if (static_cast<ChunkTag>(tag) == TAG_SERIES_IMAGE)
+                {
+                    const int                channels = r.read_u8();
+                    const bool               node     = r.read_u8() != 0;
+                    const auto               interp = static_cast<ImageInterpolation>(r.read_u8());
+                    const auto               origin = static_cast<ImageOrigin>(r.read_u8());
+                    const size_t             cols   = r.read_u32();
+                    const size_t             rows   = r.read_u32();
+                    auto                     data   = r.read_floats();
+                    const double             x0 = r.read_f64(), x1 = r.read_f64();
+                    const double             y0 = r.read_f64(), y1 = r.read_f64();
+                    Colormap                 cm        = read_colormap_full(r);
+                    const bool               range_set = r.read_u8() != 0;
+                    const float              vmin      = r.read_f32();
+                    const float              vmax      = r.read_f32();
+                    auto                     levels    = r.read_floats();
+                    const bool               show_vals = r.read_u8() != 0;
+                    const int                decimals  = r.read_i32();
+                    std::vector<std::string> cats[2];
+                    for (auto& names : cats)
+                    {
+                        const uint32_t n = r.read_u32();
+                        if (n > len)   // each name takes at least 4 bytes
+                            break;
+                        for (uint32_t i = 0; i < n && r.good(); ++i)
+                            names.push_back(r.read_string());
+                    }
+                    const size_t ch = channels == 4 ? 4 : 1;
+                    if (!r.good() || data.size() != cols * rows * ch)
+                    {
+                        r.seek(chunk_end);
+                        break;
+                    }
+                    auto& img = axes->imshow({}, 0, 0);
+                    img.node_aligned(node);
+                    if (ch == 4)
+                        img.set_rgba(data, cols, rows, 4);
+                    else
+                        img.set_data(data, cols, rows);
+                    img.extent(x0, x1, y0, y1)
+                        .interpolation(interp)
+                        .origin(origin)
+                        .colormap(cm)
+                        .levels(std::move(levels))
+                        .show_values(show_vals, decimals);
+                    if (range_set)
+                        img.colormap_range(vmin, vmax);
+                    if (!cats[0].empty())
+                        img.x_categories(std::move(cats[0]));
+                    if (!cats[1].empty())
+                        img.y_categories(std::move(cats[1]));
+                    made = &img;
+                }
+                else
+                {
+                    const float  width  = r.read_f32();
+                    const size_t cols   = r.read_u32();
+                    const size_t rows   = r.read_u32();
+                    auto         z      = r.read_floats();
+                    auto         xs     = r.read_floats();
+                    auto         ys     = r.read_floats();
+                    auto         levels = r.read_floats();
+                    Colormap     cm     = read_colormap_full(r);
+                    const float  vmin   = r.read_f32();
+                    const float  vmax   = r.read_f32();
+                    if (!r.good() || z.size() != cols * rows || xs.size() != cols
+                        || ys.size() != rows)
+                    {
+                        r.seek(chunk_end);
+                        break;
+                    }
+                    auto& ct = axes->contour(z, cols, rows);
+                    ct.set_coordinates(xs, ys);
+                    ct.levels(std::move(levels)).colormap(cm).colormap_range(vmin, vmax);
+                    ct.width(width);
+                    made = &ct;
+                }
+                made->label(lbl);
+                made->color(col);
+                made->visible(vis);
+                made->opacity(opac);
+                made->set_excluded_from_autoscale(excl);
+                made->set_show_in_legend(inleg);
+                loaded = {made, col};
                 break;
             }
 
@@ -1896,6 +2146,47 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                                           : nullptr;
                 if (axes && r.good() && style <= static_cast<uint8_t>(BoxStyle::None))
                     axes->box_style(static_cast<BoxStyle>(style));
+                break;
+            }
+
+            case TAG_AXES_PLOT_STYLE:
+            {
+                if (len < AXES_PLOT_STYLE_BYTES)
+                {
+                    r.skip(len);
+                    break;
+                }
+                const int32_t ai          = r.read_i32();
+                const uint8_t flags       = r.read_u8();
+                const float   line_width  = r.read_f32();
+                const float   marker_size = r.read_f32();
+                AxesBase*     axes        = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                                ? axes_ptrs[static_cast<size_t>(ai)]
+                                                : nullptr;
+                r.seek(chunk_start + static_cast<std::streamoff>(len));
+                if (!axes || !r.good())
+                    break;
+                // Only the flags and new-series defaults: the grid, tick length
+                // and font sizes travel in the axes chunk, series widths in theirs.
+                axes->minor_grid((flags & AXES_STYLE_MINOR_GRID) != 0);
+                axes->minor_ticks((flags & AXES_STYLE_MINOR_TICKS) != 0);
+                axes->despine((flags & AXES_STYLE_DESPINE) != 0);
+                axes->tick_direction((flags & AXES_STYLE_TICKS_IN) ? TickDirection::In
+                                                                   : TickDirection::Out);
+                axes->set_series_defaults(line_width, marker_size);
+                break;
+            }
+
+            case TAG_FIGURE_PLOT_STYLE:
+            {
+                const std::string name    = r.read_string();
+                const std::string palette = r.read_string();
+                r.seek(chunk_start + static_cast<std::streamoff>(len));
+                if (!r.good())
+                    break;
+                figure.style().palette = palette;
+                if (const StyleSheet* st = style::find(name))
+                    figure.set_style_sheet(*st);
                 break;
             }
 

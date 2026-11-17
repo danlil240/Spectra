@@ -494,6 +494,10 @@ static flatbuffers::Offset<fb::SnapshotFigureState> build_fb_figure(
     const auto suptitle_off = fig.suptitle.empty() ? flatbuffers::Offset<flatbuffers::String>()
                                                    : fbb.CreateString(fig.suptitle);
 
+    flatbuffers::Offset<flatbuffers::String> style_off;
+    if (!fig.style.empty())
+        style_off = fbb.CreateString(fig.style);
+
     std::vector<flatbuffers::Offset<fb::SnapshotAxisState>> axes_offsets;
     axes_offsets.reserve(fig.axes.size());
     for (const auto& ax : fig.axes)
@@ -523,6 +527,8 @@ static flatbuffers::Offset<fb::SnapshotFigureState> build_fb_figure(
     b.add_constrained_layout(fig.constrained_layout);
     b.add_share_x(fig.share_x);
     b.add_share_y(fig.share_y);
+    if (!fig.style.empty())
+        b.add_style(style_off);
     return b.Finish();
 }
 
@@ -544,6 +550,8 @@ static SnapshotFigureState read_fb_figure(const fb::SnapshotFigureState* fb)
         fig.suptitle = fb->suptitle()->str();
     if (fb->title())
         fig.title = fb->title()->str();
+    if (fb->style())
+        fig.style = fb->style()->str();
     if (fb->axes())
     {
         for (const auto* ax : *fb->axes())

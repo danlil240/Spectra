@@ -87,6 +87,7 @@
 #include <cstdint>
 #include <functional>
 #include <initializer_list>
+#include <optional>
 #include <span>
 #include <spectra/app.hpp>
 #include <spectra/axes.hpp>
@@ -98,6 +99,7 @@
 #include <spectra/series3d.hpp>
 #include <spectra/series_image.hpp>
 #include <spectra/series_stats.hpp>
+#include <spectra/style.hpp>
 #include <string>
 #include <string_view>
 
@@ -362,6 +364,54 @@ inline void tab_name(const std::string& name)
     s.ensure_figure();
     s.current_fig->set_tab_title(name);
 }
+
+// ─── Plot Styles ────────────────────────────────────────────────────────────
+//
+//   spectra::style::use("paper");          // every figure created from now on
+//   {
+//       spectra::style::context talk("talk");   // only figures created in this scope
+//       spectra::plot(x, y);
+//   }
+//
+// Built-in styles: spectra::style::available() ("default", "paper", "talk",
+// "minimal", "dark-paper").  Existing figures keep their look; restyle one
+// with Figure::apply_style().
+
+namespace style
+{
+
+/// Use the built-in style @p name for figures created from now on (like
+/// matplotlib's plt.style.use).  Returns false for an unknown name.
+inline bool use(std::string_view name)
+{
+    return detail::easy_state().ensure_app().use_style(name);
+}
+
+/// Scoped style: figures created while it lives use @p name; the previous
+/// default style is restored when it goes out of scope.
+class context
+{
+   public:
+    explicit context(std::string_view name)
+        : app_(detail::easy_state().ensure_app()), previous_(app_.default_style())
+    {
+        ok_ = app_.use_style(name);
+    }
+    ~context() { app_.set_default_style(previous_); }
+
+    context(const context&)            = delete;
+    context& operator=(const context&) = delete;
+
+    /// False when the style name was unknown (the default style is unchanged).
+    bool ok() const { return ok_; }
+
+   private:
+    App&                      app_;
+    std::optional<StyleSheet> previous_;
+    bool                      ok_ = false;
+};
+
+}   // namespace style
 
 // ─── Subplot Selection ──────────────────────────────────────────────────────
 

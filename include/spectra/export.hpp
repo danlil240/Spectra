@@ -51,6 +51,10 @@ struct SvgStyle
     /// @font-face named "Inter"), so viewers without Inter installed render the
     /// exact face.  Off by default: it adds roughly 30-60 KB to the file.
     bool embed_font = false;
+
+    /// Leave out the background rectangle (a transparent page).  `background`
+    /// still decides the ink colours that must contrast with it.
+    bool transparent_background = false;
 };
 
 class SvgExporter

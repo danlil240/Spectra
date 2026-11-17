@@ -286,6 +286,11 @@ class Session:
         fig = Figure(self, figure_id, title)
         fig._size = (int(width), int(height))
         self._figures.append(fig)
+        # spectra.style.use() / style.context(): new figures take that style.
+        from . import style as _style
+
+        if _style.current() is not None:
+            fig.apply_style(_style.current())
         return fig
 
     def reconnect(self, session_id: int = 0, session_token: str = "") -> dict:

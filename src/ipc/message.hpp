@@ -347,6 +347,7 @@ struct SnapshotFigureState
     uint8_t                          constrained_layout = 1;
     uint8_t                          share_x            = 0;
     uint8_t                          share_y            = 0;
+    std::string                      style;   // built-in plot style name (StyleSheet), empty = none
     std::vector<SnapshotAxisState>   axes;
     std::vector<SnapshotSeriesState> series;
 };
@@ -438,6 +439,8 @@ struct DiffOp
         SET_SERIES_MARKER_STYLE = 41,   // f1=spectra::MarkerStyle
         // Line draw style: f1=spectra::DrawStyle, f2=spectra::DenseLineMode.
         SET_SERIES_DRAW_STYLE = 42,
+        SET_FIGURE_STYLE =
+            43,   // (32-42: other open PRs) str_val=built-in plot style name (Figure::apply_style)
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

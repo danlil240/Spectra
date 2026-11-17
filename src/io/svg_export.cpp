@@ -449,8 +449,9 @@ class SvgWriter final : public VectorWriter
         }
         if (!defs.empty())
             svg += "  <defs>\n" + defs + "  </defs>\n";
-        svg += "  <rect class=\"background\" width=\"100%\" height=\"100%\" fill=\""
-               + hex(style_.background) + "\"/>\n";
+        if (!style_.transparent_background)
+            svg += "  <rect class=\"background\" width=\"100%\" height=\"100%\" fill=\""
+                   + hex(style_.background) + "\"/>\n";
         svg += body_;
         svg += "</svg>\n";
         return svg;

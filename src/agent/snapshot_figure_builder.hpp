@@ -208,6 +208,10 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
     else if (snap.height > 0)
         cfg.height = snap.height;
     auto fig = std::make_unique<Figure>(cfg);
+    // Plot style first: the axes created below take it (Figure::subplot), and
+    // the snapshot's own axes / series state then applies on top.
+    if (!snap.style.empty())
+        fig->apply_style(snap.style);
 
     int rows = std::clamp(snap.grid_rows, int32_t(1), MAX_GRID_DIM);
     int cols = std::clamp(snap.grid_cols, int32_t(1), MAX_GRID_DIM);

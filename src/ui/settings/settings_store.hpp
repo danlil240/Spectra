@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "ui/settings/export_settings.hpp"
+
 namespace spectra::ui
 {
 class ThemeManager;
@@ -31,6 +33,9 @@ struct SettingsData
     // Data files (CSV, ULog, MCAP, ...) opened or dropped most recently, newest
     // first, absolute paths; shown on the start page.  See push_recent_file().
     std::vector<std::string> recent_files;
+
+    // Last choices of the Export options dialog (file.export_dialog).
+    ExportDialogSettings export_dialog;
 };
 
 // Longest SettingsData::recent_files list.

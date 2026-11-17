@@ -40,7 +40,12 @@ struct WorkspaceData
         int  y_scale    = 0;
         bool x_datetime = false;
         bool y_datetime = false;
-        int  bar_mode   = 0;   // BarMode (0 grouped)
+        // Optional plot-style keys (absent: the defaults below).
+        bool minor_grid  = true;
+        bool minor_ticks = false;
+        bool despine     = false;
+        bool ticks_in    = false;
+        int  bar_mode    = 0;   // BarMode (0 grouped)
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)
@@ -152,6 +157,8 @@ struct WorkspaceData
         int         share_x            = 0;
         int         share_y            = 0;
         std::string suptitle;
+        // Built-in plot style (StyleSheet) name; empty = none (optional key).
+        std::string plot_style;
     };
 
     struct PanelState

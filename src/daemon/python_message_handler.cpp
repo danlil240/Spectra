@@ -128,6 +128,14 @@ static bool apply_property_update(FigureModel&              fig_model,
                                                        ipc::share_axes_from_wire(f2),
                                                        ipc::share_axes_from_wire(f3)));
     }
+    else if (property == "style")
+    {
+        // Built-in plot style (StyleSheet) of the figure, by name.
+        ipc::DiffOp op;
+        if (!fig_model.set_figure_style(figure_id, str_val, &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "grid")
     {
         diff.ops.push_back(fig_model.set_grid_visible(figure_id, axes_index, bool_val));
@@ -519,7 +527,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         "legend",        "legend_visible", "add_knob",     "annotation",     "clear_annotations",
         "data_origin",   "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
         "categories",    "line_style",     "marker_style", "palette_index",  "suptitle",
-        "figure_layout", "bar_mode",       "draw_style"};
+        "figure_layout", "style",          "bar_mode",     "draw_style"};
     bool known = false;
     for (const auto* p : known_props)
     {

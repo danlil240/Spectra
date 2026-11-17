@@ -32,8 +32,19 @@ class Figure:
     All mutations are sent to the backend via IPC.
     """
 
-    __slots__ = ("_session", "_id", "_title", "_axes_list", "_visible", "_shown_once", "_window_id",
-                 "_suptitle", "_layout", "_size")
+    __slots__ = (
+        "_session",
+        "_id",
+        "_title",
+        "_axes_list",
+        "_visible",
+        "_shown_once",
+        "_window_id",
+        "_suptitle",
+        "_layout",
+        "_size",
+        "_style",
+    )
 
     def __init__(self, session: Session, figure_id: int, title: str = "") -> None:
         self._session = session
@@ -46,6 +57,7 @@ class Figure:
         self._suptitle = ""
         self._layout = [True, 0, 0]  # constrained, sharex, sharey
         self._size = None  # (width, height) the figure was created with, if known
+        self._style: Optional[str] = None
 
     @property
     def id(self) -> int:
@@ -64,6 +76,29 @@ class Figure:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
         self._title = value
+
+    @property
+    def style(self) -> Optional[str]:
+        """Name of the plot style applied with :meth:`apply_style`, or ``None``."""
+        return self._style
+
+    def apply_style(self, name: str) -> None:
+        """Apply the built-in plot style ``name`` to this figure.
+
+        ``"default"``, ``"paper"``, ``"talk"``, ``"minimal"`` or ``"dark-paper"``
+        (see :mod:`spectra.style`).  Existing axes and series are restyled; axes
+        and series added later follow the style too.
+        """
+        from . import style as _style
+
+        _style._check(name)
+        payload = codec.encode_req_update_property(
+            figure_id=self._id,
+            prop="style",
+            str_val=name,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+        self._style = name
 
     def suptitle(self, text: str) -> None:
         """Set the figure title drawn centred above the subplot grid ("" removes it)."""

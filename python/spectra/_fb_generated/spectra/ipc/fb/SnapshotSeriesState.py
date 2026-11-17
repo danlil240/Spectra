@@ -211,8 +211,56 @@ class SnapshotSeriesState(object):
             return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
         return 0
 
+    # SnapshotSeriesState
+    def DepthShade(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(48))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
+    # SnapshotSeriesState
+    def ShowEdges(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(50))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotSeriesState
+    def ContourLevels(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(52))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
+        return 0
+
+    # SnapshotSeriesState
+    def EdgeColor(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return 0
+
+    # SnapshotSeriesState
+    def EdgeColorAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float32Flags, o)
+        return 0
+
+    # SnapshotSeriesState
+    def EdgeColorLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotSeriesState
+    def EdgeColorIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        return o == 0
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(22)
+    builder.StartObject(26)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -360,6 +408,36 @@ def SnapshotSeriesStateAddDenseMode(builder, denseMode):
 
 def AddDenseMode(builder, denseMode):
     SnapshotSeriesStateAddDenseMode(builder, denseMode)
+
+def SnapshotSeriesStateAddDepthShade(builder, depthShade):
+    builder.PrependUint8Slot(22, depthShade, 255)
+
+def AddDepthShade(builder, depthShade):
+    SnapshotSeriesStateAddDepthShade(builder, depthShade)
+
+def SnapshotSeriesStateAddShowEdges(builder, showEdges):
+    builder.PrependBoolSlot(23, showEdges, 0)
+
+def AddShowEdges(builder, showEdges):
+    SnapshotSeriesStateAddShowEdges(builder, showEdges)
+
+def SnapshotSeriesStateAddContourLevels(builder, contourLevels):
+    builder.PrependInt32Slot(24, contourLevels, 0)
+
+def AddContourLevels(builder, contourLevels):
+    SnapshotSeriesStateAddContourLevels(builder, contourLevels)
+
+def SnapshotSeriesStateAddEdgeColor(builder, edgeColor):
+    builder.PrependUOffsetTRelativeSlot(25, flatbuffers.number_types.UOffsetTFlags.py_type(edgeColor), 0)
+
+def AddEdgeColor(builder, edgeColor):
+    SnapshotSeriesStateAddEdgeColor(builder, edgeColor)
+
+def SnapshotSeriesStateStartEdgeColorVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartEdgeColorVector(builder, numElems):
+    return SnapshotSeriesStateStartEdgeColorVector(builder, numElems)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

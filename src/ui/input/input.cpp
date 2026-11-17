@@ -606,6 +606,7 @@ void InputHandler::clear_cursor_readout()
 {
     cursor_readout_.valid     = false;
     cursor_readout_.in_window = false;
+    cursor_readout_.over_3d   = false;
 }
 
 void InputHandler::on_mouse_move(double x, double y)
@@ -666,6 +667,7 @@ void InputHandler::on_mouse_move(double x, double y)
         cursor_readout_.valid    = true;
         cursor_readout_.screen_x = x;
         cursor_readout_.screen_y = y;
+        cursor_readout_.over_3d  = hit2d == nullptr;
         if (hit2d)
             screen_to_data(x, y, cursor_readout_.data_x, cursor_readout_.data_y);
 
@@ -695,6 +697,7 @@ void InputHandler::on_mouse_move(double x, double y)
     else
     {
         cursor_readout_.valid    = false;
+        cursor_readout_.over_3d  = false;
         cursor_readout_.screen_x = x;
         cursor_readout_.screen_y = y;
 

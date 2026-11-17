@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -170,6 +171,19 @@ class FigureModel
     // values). Returns a DiffOp.
     ipc::DiffOp set_series_line_style(uint64_t figure_id, uint32_t series_index, uint8_t style);
     ipc::DiffOp set_series_marker_style(uint64_t figure_id, uint32_t series_index, uint8_t style);
+
+    // 3D style of a series (depth shade, surface edges / floor contours):
+    // `edit` changes the stored fields; returns a SET_SERIES_STYLE_3D op
+    // carrying all of them.
+    ipc::DiffOp update_series_style_3d(uint64_t figure_id,
+                                       uint32_t series_index,
+                                       const std::function<void(ipc::SnapshotSeriesState&)>& edit);
+
+    // 3D light of an axes (light mode, fog, light angles), likewise; returns
+    // a SET_AXES_LIGHT_3D op.
+    ipc::DiffOp update_axes_light_3d(uint64_t                                            figure_id,
+                                     uint32_t                                            axes_index,
+                                     const std::function<void(ipc::SnapshotAxisState&)>& edit);
 
     // Set series opacity. Returns a DiffOp.
     ipc::DiffOp set_opacity(uint64_t figure_id, uint32_t series_index, float opacity);

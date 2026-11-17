@@ -1039,7 +1039,7 @@ TEST_F(Regression3DTest, No2DRegressions)
 
 TEST_F(Regression3DTest, FrameUBOSize)
 {
-    EXPECT_EQ(sizeof(FrameUBO), 256u);
+    EXPECT_EQ(sizeof(FrameUBO), 288u);
 }
 
 TEST_F(Regression3DTest, SeriesPushConstantsSize)

@@ -18,6 +18,7 @@
 #include <spectra/series_stats.hpp>
 #include <vector>
 
+#include "core/axes3d_box.hpp"
 #include "core/axis_scale.hpp"
 #include "io/text_metrics.hpp"
 #include "ui/imgui/axes3d_renderer.hpp"
@@ -259,6 +260,10 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
         backend_.destroy_buffer(gpu.fill_buffer);
     if (gpu.outlier_buffer)
         backend_.destroy_buffer(gpu.outlier_buffer);
+    if (gpu.aux_index_buffer)
+        backend_.destroy_buffer(gpu.aux_index_buffer);
+    if (gpu.aux_vertex_buffer)
+        backend_.destroy_buffer(gpu.aux_vertex_buffer);
     for (auto& b : gpu.sorted_index_buffer)
         if (b)
             backend_.destroy_buffer(b);
@@ -918,10 +923,50 @@ vec3 shader_light_dir(const Axes3D& axes)
 {
     if (!axes.lighting_enabled())
         return {0.0f, 0.0f, 0.0f};
+    if (axes.light_mode() == LightMode::Headlight)
+    {
+        // Towards the camera in box space, mapped back through the model's
+        // per-axis scale (the shaders apply mat3(model) to the direction).
+        Camera cam = axes.camera();
+        cam.apply_orbit_changes();
+        const vec3  to_cam = cam.position - cam.target;
+        const mat4  model  = axes.data_to_normalized_matrix();
+        const auto& m      = model.m;
+        const vec3  d{std::fabs(m[0]) > 1e-30f ? to_cam.x / m[0] : 0.0,
+                     std::fabs(m[5]) > 1e-30f ? to_cam.y / m[5] : 0.0,
+                     std::fabs(m[10]) > 1e-30f ? to_cam.z / m[10] : 0.0};
+        if (vec3_length_sq(d) > 1e-12)
+            return vec3_normalize(d);
+        return {0.5f, 0.7f, 1.0f};
+    }
     const vec3 ld = axes.light_dir();
     if (!(vec3_length_sq(ld) > 1e-6))   // also catches NaN
         return {0.5f, 0.7f, 1.0f};
     return ld;
+}
+
+void Renderer::set_depth_cue(FrameUBO& ubo, const Axes3D& axes)
+{
+    // Far fragments fade towards the plot surface the axes sit on.
+    const ui::Color& bg = plot_colors().bg_canvas;
+    if (theme_mgr_.current().linearize_colors)
+    {
+        auto lin = [](float c)
+        { return (c <= 0.04045f) ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); };
+        ubo.depth_cue_color[0] = lin(bg.r);
+        ubo.depth_cue_color[1] = lin(bg.g);
+        ubo.depth_cue_color[2] = lin(bg.b);
+    }
+    else
+    {
+        ubo.depth_cue_color[0] = bg.r;
+        ubo.depth_cue_color[1] = bg.g;
+        ubo.depth_cue_color[2] = bg.b;
+    }
+    ubo.fog = axes.fog();
+    mat4 view_m;
+    std::memcpy(view_m.m, ubo.view, sizeof(ubo.view));
+    axes3d_box::depth_cue_range(view_m, ubo.depth_cue_near, ubo.depth_cue_far);
 }
 
 Rect axes3d_cell_rect(const Rect&        vp,
@@ -1074,6 +1119,8 @@ void Renderer::render_axes(AxesBase&   axes,
         ubo.light_dir[0] = ld.x;
         ubo.light_dir[1] = ld.y;
         ubo.light_dir[2] = ld.z;
+
+        set_depth_cue(ubo, *axes3d);
     }
     else if (auto* axes2d = dynamic_cast<Axes*>(&axes))
     {
@@ -1190,6 +1237,17 @@ void Renderer::render_axes(AxesBase&   axes,
         const auto& cam       = axes3d->camera();
         vec3        cam_pos   = cam.position;
         mat4        model_mat = axes3d->data_to_normalized_matrix();
+
+        // Surface contour projections lie on the back z pane (the floor seen
+        // from above), nudged inside the box so the box clip keeps them.
+        {
+            const auto   zl    = axes3d->z_limits();
+            const double lo[3] = {0.0, 0.0, zl.min};
+            const double hi[3] = {0.0, 0.0, zl.max};
+            const double fz = axes3d_box::back_plane(axes3d_box::compute_faces(*axes3d), 2, lo, hi);
+            const double inset = (zl.max - zl.min) * 1e-3 * (fz <= zl.min ? 1.0 : -1.0);
+            contour_floor_z_   = static_cast<float>(fz + inset);
+        }
 
         // Collect visible series with their distances.
         struct SortEntry

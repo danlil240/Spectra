@@ -57,6 +57,31 @@ void Axes3D::zlim(double min, double max)
     zlim_ = AxisLimits{min, max};
 }
 
+void Axes3D::light_angles(float azimuth_deg, float elevation_deg)
+{
+    constexpr double DEG = 3.14159265358979323846 / 180.0;
+    const double     az  = static_cast<double>(azimuth_deg) * DEG;
+    const double     el  = static_cast<double>(elevation_deg) * DEG;
+    light_dir_           = {std::cos(el) * std::cos(az), std::cos(el) * std::sin(az), std::sin(el)};
+}
+
+float Axes3D::light_azimuth() const
+{
+    if (light_dir_.x == 0.0 && light_dir_.y == 0.0)
+        return 0.0f;
+    constexpr double RAD = 180.0 / 3.14159265358979323846;
+    return static_cast<float>(std::atan2(light_dir_.y, light_dir_.x) * RAD);
+}
+
+float Axes3D::light_elevation() const
+{
+    const double len = vec3_length(light_dir_);
+    if (!(len > 0.0))
+        return 0.0f;
+    constexpr double RAD = 180.0 / 3.14159265358979323846;
+    return static_cast<float>(std::asin(std::clamp(light_dir_.z / len, -1.0, 1.0)) * RAD);
+}
+
 void Axes3D::xlabel(const std::string& lbl)
 {
     xlabel_ = lbl;

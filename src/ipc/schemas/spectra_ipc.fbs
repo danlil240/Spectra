@@ -124,6 +124,11 @@ table SnapshotAxisState {
     x_datetime: bool = false;    // date-time tick labels
     y_datetime: bool = false;
     bar_mode: uint8 = 0;         // spectra::BarMode
+    light_mode: uint8 = 0;       // spectra::LightMode (3D)
+    fog: float = 0.0;            // Axes3D::fog
+    light_angles_set: bool = false;
+    light_azimuth: float = 0.0;  // degrees, when light_angles_set
+    light_elevation: float = 0.0;
 }
 
 table SnapshotSeriesState {
@@ -149,6 +154,10 @@ table SnapshotSeriesState {
     marker_style: ubyte = 255; // spectra::MarkerStyle, 255 = series type default
     draw_style: ubyte = 0;     // spectra::DrawStyle (line series)
     dense_mode: ubyte = 0;     // spectra::DenseLineMode (line series)
+    depth_shade: ubyte = 255;  // 3D depth shade 0/1, 255 = series type default
+    show_edges: bool = false;  // surface edge lines over the faces
+    contour_levels: int32 = 0; // surface floor contour levels, 0 = off
+    edge_color: [float];       // surface edge RGBA (4 floats), absent = default
 }
 
 table SnapshotFigureState {
@@ -221,6 +230,8 @@ enum DiffOpType : uint8 {
     SET_SERIES_MARKER_STYLE = 41,
     SET_SERIES_DRAW_STYLE = 42,
     SET_FIGURE_STYLE = 43,   // 32-42 are taken by other open PRs
+    SET_SERIES_STYLE_3D = 44,
+    SET_AXES_LIGHT_3D = 45,
 }
 
 table DiffOp {

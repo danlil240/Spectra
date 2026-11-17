@@ -826,6 +826,47 @@ void Renderer::upload_series_data(Series&   series,
         gpu.index_count = active_mesh->indices.size();
         ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
+        // Edge lines over the faces: the wireframe's line indices address the
+        // same row-major grid vertices as the solid mesh in gpu.ssbo.
+        gpu.aux_index_count = 0;
+        if (surface->show_edges() && !surface->wireframe())
+        {
+            if (!surface->is_wireframe_mesh_generated())
+                surface->generate_wireframe_mesh();
+            const auto& edge_idx = surface->wireframe_mesh().indices;
+            if (surface->is_wireframe_mesh_generated() && !edge_idx.empty())
+            {
+                const size_t bytes = edge_idx.size() * sizeof(uint32_t);
+                if (gpu.aux_index_buffer)
+                    backend_.destroy_buffer(gpu.aux_index_buffer);
+                gpu.aux_index_buffer = backend_.create_buffer(BufferUsage::Index, bytes);
+                if (gpu.aux_index_buffer)
+                {
+                    backend_.upload_buffer(gpu.aux_index_buffer, edge_idx.data(), bytes);
+                    gpu.aux_index_count = edge_idx.size();
+                }
+            }
+        }
+
+        // Contour projection: iso-line segments, moved to the floor in the shader.
+        gpu.aux_vertex_count = 0;
+        if (surface->contour_projection())
+        {
+            const std::vector<float> segs = surface->contour_segments();
+            if (!segs.empty())
+            {
+                const size_t bytes = segs.size() * sizeof(float);
+                if (gpu.aux_vertex_buffer)
+                    backend_.destroy_buffer(gpu.aux_vertex_buffer);
+                gpu.aux_vertex_buffer = backend_.create_buffer(BufferUsage::Vertex, bytes);
+                if (gpu.aux_vertex_buffer)
+                {
+                    backend_.upload_buffer(gpu.aux_vertex_buffer, segs.data(), bytes);
+                    gpu.aux_vertex_count = segs.size() / 6;
+                }
+            }
+        }
+
         series.clear_dirty();
     }
     // Handle mesh (vertex buffer + index buffer)

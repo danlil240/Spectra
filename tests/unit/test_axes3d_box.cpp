@@ -313,3 +313,27 @@ TEST(SurfaceColormapRange, ColorbarUsesSurfaceRangeNotAxesLimits)
     EXPECT_DOUBLE_EQ(src->vmin, 0.0);
     EXPECT_DOUBLE_EQ(src->vmax, 1.0);
 }
+
+// ─── Depth cue range ─────────────────────────────────────────────────────────
+
+TEST(Axes3DBoxDepthCue, RangeSpansTheBoxAndOrdersNearToFar)
+{
+    Camera cam;
+    cam.set_azimuth(40.0f).set_elevation(25.0f).set_distance(20.0f);
+    cam.apply_orbit_changes();
+    const mat4 view = cam.view_matrix();
+    float      nd = 0.0f, fd = 0.0f;
+    axes3d_box::depth_cue_range(view, nd, fd);
+    EXPECT_GT(nd, 0.0f);
+    EXPECT_GT(fd, nd);
+    // The box diagonal bounds the depth span.
+    EXPECT_LE(fd - nd, 2.0f * Axes3D::box_half_size() * std::sqrt(3.0f) + 1e-3f);
+
+    // A point towards the camera reads nearer than one away from it.
+    const vec3  to_cam = vec3_normalize(cam.position - cam.target);
+    const float t_near = axes3d_box::depth_cue_t(view, nd, fd, to_cam * 2.0);
+    const float t_far  = axes3d_box::depth_cue_t(view, nd, fd, to_cam * -2.0);
+    EXPECT_LT(t_near, 0.5f);
+    EXPECT_GT(t_far, 0.5f);
+    EXPECT_NEAR(axes3d_box::depth_cue_t(view, nd, fd, {0.0, 0.0, 0.0}), 0.5f, 0.05f);
+}

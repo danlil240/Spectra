@@ -66,6 +66,19 @@ class DataInteraction
 
     // Nearest-point result from the last update
     const NearestPointResult& nearest_point() const { return nearest_; }
+
+    // Status-bar X/Y/Z of the 3D pick of the last update(): the scatter / line
+    // point or surface / mesh vertex the 3D tooltip shows.  False when the
+    // cursor is over no 3D data.
+    bool readout_3d(double& x, double& y, double& z) const
+    {
+        if (!nearest_.found || !nearest_.is_3d || nearest_.distance_px > tooltip_.snap_radius_3d())
+            return false;
+        x = nearest_.data_x;
+        y = nearest_.data_y;
+        z = nearest_.data_z;
+        return true;
+    }
     size_t last_query_points_examined() const { return last_query_points_examined_; }
 
     // Crosshair control

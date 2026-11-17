@@ -10,8 +10,10 @@
 // the viewer.  As in matplotlib and MATLAB, the grid panes go on the far faces
 // so they always stay behind the data.
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <spectra/axes3d.hpp>
 #include <spectra/camera.hpp>
 #include <spectra/math3d.hpp>
@@ -196,6 +198,38 @@ inline uint16_t edge_mask(BoxStyle style, const BoxFaces& f)
 inline double back_plane(const BoxFaces& f, int axis, const double lo[3], const double hi[3])
 {
     return f.back_hi[static_cast<size_t>(axis)] ? hi[axis] : lo[axis];
+}
+
+// View-space distance range [near, far] of the eight corners of the normalized
+// 3D box under `view`: what the depth cue (series depth shade, Axes3D::fog)
+// fades over (the renderer's FrameUBO::depth_cue_near/far, SVG export).
+inline void depth_cue_range(const mat4& view, float& near_out, float& far_out)
+{
+    const double hs = Axes3D::box_half_size();
+    double       lo = std::numeric_limits<double>::max();
+    double       hi = std::numeric_limits<double>::lowest();
+    for (int c = 0; c < 8; ++c)
+    {
+        const vec4 p =
+            mat4_mul_vec4(view,
+                          vec4{(c & 1) ? hs : -hs, (c & 2) ? hs : -hs, (c & 4) ? hs : -hs, 1.0});
+        lo = std::min(lo, -p.z);
+        hi = std::max(hi, -p.z);
+    }
+    near_out = static_cast<float>(lo);
+    far_out  = static_cast<float>(hi);
+}
+
+// Depth cue factor in [0, 1] of box-space point `world` (0 at the nearest box
+// corner, 1 at the farthest), as apply_depth_cue() in the 3D shaders.
+inline float depth_cue_t(const mat4& view, float near_d, float far_d, const vec3& world)
+{
+    const float span = far_d - near_d;
+    if (!(span > 1e-6f))
+        return 0.0f;
+    const vec4  p = mat4_mul_vec4(view, vec4{world, 1.0});
+    const float d = static_cast<float>(-p.z);
+    return std::clamp((d - near_d) / span, 0.0f, 1.0f);
 }
 
 }   // namespace spectra::axes3d_box

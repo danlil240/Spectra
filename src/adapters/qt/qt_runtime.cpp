@@ -616,6 +616,12 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
                 const auto& readout = state->input_handler->cursor_readout();
                 imgui_ui_->set_cursor_data(readout.data_x, readout.data_y, readout.valid);
                 data_interaction_->update(readout, figure);
+                if (readout.over_3d)
+                {
+                    double     x = 0.0, y = 0.0, z = 0.0;
+                    const bool picked = data_interaction_->readout_3d(x, y, z);
+                    imgui_ui_->set_cursor_data_3d(x, y, z, picked);
+                }
             }
         }
         else

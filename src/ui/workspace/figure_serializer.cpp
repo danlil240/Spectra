@@ -112,6 +112,14 @@ enum ChunkTag : uint16_t
     // Version-free: older readers skip them and draw plain lines / text.
     TAG_LINE_DRAW_STYLE = 0x0064,
     TAG_TEXT_ANN_STYLE  = 0x0065,
+    // Light mode (LightMode) and fog strength of a 3D axes; written only when
+    // not the defaults.  Version-free: older readers keep a fixed light, no fog.
+    TAG_AXES3D_LIGHT = 0x005A,
+    // 3D style of the series in the preceding series chunk: depth shade
+    // (line / scatter), edges over faces + edge colour and floor contour
+    // projection + level count (surface).  Written only when not the
+    // defaults.  Version-free.
+    TAG_SERIES3D_STYLE = 0x005B,
 
     TAG_END = 0xFFFF,
 };
@@ -816,6 +824,29 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
         w.end_chunk(epos);
     }
 
+    if (axes.light_mode() != LightMode::Fixed || axes.fog() > 0.0f)
+    {
+        auto lpos = w.begin_chunk(TAG_AXES3D_LIGHT);
+        w.write_i32(axes_index);
+        w.write_u8(static_cast<uint8_t>(axes.light_mode()));
+        w.write_f32(axes.fog());
+        w.end_chunk(lpos);
+    }
+
+    // TAG_SERIES3D_STYLE after a series chunk: flags bit 0 depth shade, bit 1
+    // edges, bit 2 contour projection; edge colour; contour level count.
+    auto write_style3d = [&w](bool depth_shade, const SurfaceSeries* surf)
+    {
+        const bool edges    = surf && surf->show_edges();
+        const bool contours = surf && surf->contour_projection();
+        auto       spos     = w.begin_chunk(TAG_SERIES3D_STYLE);
+        w.write_u8(
+            static_cast<uint8_t>((depth_shade ? 1 : 0) | (edges ? 2 : 0) | (contours ? 4 : 0)));
+        w.write_color(surf ? surf->edge_color() : SurfaceSeries{}.edge_color());
+        w.write_i32(surf ? surf->contour_levels() : SurfaceSeries{}.contour_levels());
+        w.end_chunk(spos);
+    };
+
     // Write 3D series
     for (const auto& sp : axes.series())
     {
@@ -830,6 +861,8 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             w.write_floats(ls->y_data());
             w.write_floats(ls->z_data());
             w.end_series_chunk(spos, *sp);
+            if (ls->depth_shade() != LineSeries3D{}.depth_shade())
+                write_style3d(ls->depth_shade(), nullptr);
         }
         else if (auto* ss = dynamic_cast<ScatterSeries3D*>(sp.get()))
         {
@@ -853,6 +886,8 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
                 w.write_floats(ss->sizes_data());
                 w.end_chunk(apos);
             }
+            if (ss->depth_shade() != ScatterSeries3D{}.depth_shade())
+                write_style3d(ss->depth_shade(), nullptr);
         }
         else if (auto* surf = dynamic_cast<SurfaceSeries*>(sp.get()))
         {
@@ -878,6 +913,13 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
             // which older readers locate from the chunk end, so they skip it).
             w.write_u8(static_cast<uint8_t>(surf->colormap_range_set()));
             w.end_series_chunk(spos, *sp);
+            const SurfaceSeries defaults;
+            auto                same_color = [](const Color& a, const Color& b)
+            { return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a; };
+            if (surf->show_edges() || surf->contour_projection()
+                || !same_color(surf->edge_color(), defaults.edge_color())
+                || surf->contour_levels() != defaults.contour_levels())
+                write_style3d(false, surf);
         }
         else if (auto* ms = dynamic_cast<MeshSeries*>(sp.get()))
         {
@@ -2280,6 +2322,61 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                                          : nullptr;
                 if (axes && r.good())
                     axes->equal_aspect(on);
+                break;
+            }
+
+            case TAG_AXES3D_LIGHT:
+            {
+                if (len < 9)
+                {
+                    r.skip(len);
+                    break;
+                }
+                const int32_t ai   = r.read_i32();
+                const uint8_t mode = r.read_u8();
+                const float   fog  = r.read_f32();
+                if (len > 9)
+                    r.skip(len - 9);
+                Axes3D* axes = (ai >= 0 && static_cast<size_t>(ai) < axes_ptrs.size())
+                                   ? dynamic_cast<Axes3D*>(axes_ptrs[static_cast<size_t>(ai)])
+                                   : nullptr;
+                if (!axes || !r.good())
+                    break;
+                if (mode <= static_cast<uint8_t>(LightMode::Headlight))
+                    axes->light_mode(static_cast<LightMode>(mode));
+                if (std::isfinite(fog))
+                    axes->fog(fog);
+                break;
+            }
+
+            case TAG_SERIES3D_STYLE:
+            {
+                constexpr uint32_t STYLE3D_BYTES = 1 + 16 + 4;
+                if (!last_series || len < STYLE3D_BYTES)
+                {
+                    r.skip(len);
+                    break;
+                }
+                const uint8_t flags  = r.read_u8();
+                const Color   ec     = r.read_color();
+                const int32_t levels = r.read_i32();
+                if (len > STYLE3D_BYTES)
+                    r.skip(len - STYLE3D_BYTES);
+                if (!r.good())
+                    break;
+                const bool shade = (flags & 1) != 0;
+                if (auto* l3 = dynamic_cast<LineSeries3D*>(last_series))
+                    l3->depth_shade(shade);
+                else if (auto* s3 = dynamic_cast<ScatterSeries3D*>(last_series))
+                    s3->depth_shade(shade);
+                else if (auto* surf = dynamic_cast<SurfaceSeries*>(last_series))
+                {
+                    surf->show_edges((flags & 2) != 0);
+                    surf->edge_color(ec);
+                    surf->contour_projection((flags & 4) != 0);
+                    if (levels > 0 && levels <= 1000)
+                        surf->contour_levels(levels);
+                }
                 break;
             }
 

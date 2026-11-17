@@ -285,6 +285,12 @@ struct SnapshotAxisState
     bool    y_datetime = false;
     // How bar series share a position (spectra::BarMode).
     uint8_t bar_mode = 0;
+    // 3D light (Axes3D::light_mode / fog / light_angles).
+    uint8_t light_mode       = 0;   // spectra::LightMode
+    float   fog              = 0.0f;
+    bool    light_angles_set = false;
+    float   light_azimuth    = 0.0f;
+    float   light_elevation  = 0.0f;
 };
 
 // SnapshotSeriesState::line_style / marker_style value meaning "not set".
@@ -327,6 +333,14 @@ struct SnapshotSeriesState
     // Line series: spectra::DrawStyle and spectra::DenseLineMode (0 = default).
     uint8_t draw_style = 0;
     uint8_t dense_mode = 0;
+    // 3D styles: depth shade (SERIES_STYLE_UNSET = the type's default, else
+    // 0 / 1), surface edges over faces, surface floor contour level count
+    // (0 = no contour projection), surface edge colour (RGBA, defaults to
+    // SurfaceSeries' default).
+    uint8_t              depth_shade    = SERIES_STYLE_UNSET;
+    bool                 show_edges     = false;
+    int32_t              contour_levels = 0;
+    std::array<float, 4> edge_color     = {0.0f, 0.0f, 0.0f, 0.35f};
 };
 
 // A single figure's full state.
@@ -441,6 +455,13 @@ struct DiffOp
         SET_SERIES_DRAW_STYLE = 42,
         SET_FIGURE_STYLE =
             43,   // (32-42: other open PRs) str_val=built-in plot style name (Figure::apply_style)
+        // 3D series style: f1=depth shade (SERIES_STYLE_UNSET / 0 / 1),
+        // f2=edges over faces (0/1), f3=floor contour levels (0 = off),
+        // data=surface edge colour RGBA (4 floats; empty keeps the current one).
+        SET_SERIES_STYLE_3D = 44,
+        // 3D axes light: f1=spectra::LightMode, f2=fog (0..1), f3/f4=light
+        // azimuth/elevation in degrees (applied when bool_val).
+        SET_AXES_LIGHT_3D = 45,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

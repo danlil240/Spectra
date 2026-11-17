@@ -15,6 +15,7 @@
     #include "ui/input/axes_selection.hpp"
     #include "ui/overlay/axis_readout.hpp"
     #include "ui/overlay/live_status.hpp"
+    #include "ui/overlay/readout_format.hpp"
     #include "ui/shell/spectra_app_shell.hpp"
     #include "ui/shell/status_bar.hpp"
     #include "ui/theme/glass_draw.hpp"
@@ -984,18 +985,24 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              };
 
              {
-                 // Date-time aware, with the digits one pixel resolves on the
-                 // hovered axes (not a fixed 4 decimals).
+                 // 3D: picked X / Y / Z.  2D: date-time aware, with the
+                 // digits one pixel resolves on the hovered axes.
                  const Axes* cur_axes =
                      data_interaction_ ? data_interaction_->active_axes() : nullptr;
                  const CursorReadout* cur =
                      data_interaction_ ? &data_interaction_->last_cursor() : nullptr;
-                 const std::string cursor_buf = ui::format_cursor_status(cur_axes,
-                                                                         cursor_data_valid_,
-                                                                         cursor_data_x_,
-                                                                         cursor_data_y_,
-                                                                         cur ? cur->screen_x : 0.0,
-                                                                         cur ? cur->screen_y : 0.0);
+                 const std::string cursor_buf =
+                     cursor_data_3d_ ? ui::format_status_cursor(cursor_data_valid_,
+                                                                true,
+                                                                cursor_data_x_,
+                                                                cursor_data_y_,
+                                                                cursor_data_z_)
+                                     : ui::format_cursor_status(cur_axes,
+                                                                cursor_data_valid_,
+                                                                cursor_data_x_,
+                                                                cursor_data_y_,
+                                                                cur ? cur->screen_x : 0.0,
+                                                                cur ? cur->screen_y : 0.0);
                  draw_pill(cursor_buf.c_str(),
                            colors.text_secondary,
                            colors.bg_tertiary,

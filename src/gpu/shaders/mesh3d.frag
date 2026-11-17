@@ -1,6 +1,6 @@
 #version 450
 
-// Per-frame UBO (set 0, binding 0)
+// Per-frame UBO (set 0, binding 0) — must match FrameUBO in backend.hpp
 layout(set = 0, binding = 0) uniform FrameUBO {
     mat4 projection;
     mat4 view;
@@ -12,6 +12,13 @@ layout(set = 0, binding = 0) uniform FrameUBO {
     float near_plane;
     vec3 light_dir;
     float far_plane;
+    vec2 viewport_origin;
+    float pixel_scale;
+    float _pad1;
+    vec3 depth_cue_color;
+    float fog;
+    float depth_cue_near;
+    float depth_cue_far;
 };
 
 // Per-series push constant — must match SeriesPushConstants
@@ -36,6 +43,18 @@ layout(location = 1) in vec3 v_normal;
 layout(location = 2) in vec3 v_view_dir;
 
 layout(location = 0) out vec4 out_color;
+
+// Depth cue (series depth shade / Axes3D::fog): fade `rgb` towards the plot
+// background by `strength` times the fragment's depth within the axes box
+// (0 at its nearest corner, 1 at its farthest).  `world_pos` is box space.
+vec3 apply_depth_cue(vec3 rgb, vec3 world_pos, float strength) {
+    float s = max(strength, fog);
+    float span = depth_cue_far - depth_cue_near;
+    if (s <= 0.0 || span <= 1e-6) return rgb;
+    float d = -(view * vec4(world_pos, 1.0)).z;
+    float t = clamp((d - depth_cue_near) / span, 0.0, 1.0);
+    return mix(rgb, depth_cue_color, s * t);
+}
 
 void main() {
     // Flat face normal, computed in uniform control flow (before any discard)
@@ -64,7 +83,7 @@ void main() {
     // Lighting disabled (Axes3D::lighting_enabled(false)): the renderer sends a
     // zero light_dir, and the surface is drawn in its flat base colour.
     if (dot(light_dir, light_dir) < 1e-12) {
-        out_color = vec4(base_color, color.a * opacity);
+        out_color = vec4(apply_depth_cue(base_color, v_world_pos, 0.0), color.a * opacity);
         return;
     }
 
@@ -102,5 +121,5 @@ void main() {
 
     vec3 lit_color = clamp(base_color * shade + spec_color, 0.0, 1.0);
 
-    out_color = vec4(lit_color, color.a * opacity);
+    out_color = vec4(apply_depth_cue(lit_color, v_world_pos, 0.0), color.a * opacity);
 }

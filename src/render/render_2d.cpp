@@ -353,6 +353,8 @@ void Renderer::render_series(Series&             series,
                 backend_.bind_pipeline(is_transparent ? line3d_transparent_pipeline_
                                                       : line3d_pipeline_);
                 pc.line_width = line3d->width();
+                // Depth shade strength (line3d.frag).
+                pc._pad2[0] = line3d->depth_shade() ? DEPTH_SHADE_STRENGTH : 0.0f;
                 backend_.push_constants(pc);
                 backend_.bind_buffer(gpu.ssbo, 0);
                 uint32_t segments = static_cast<uint32_t>(line3d->point_count()) - 1;
@@ -379,6 +381,8 @@ void Renderer::render_series(Series&             series,
             pc._pad2[1]    = marker.edge_mix;
             // Per-point colours / sizes: two vec4 per point (render_upload).
             pc._pad2[0] = gpu.ssbo_stride_floats == 8 ? 1.0f : 0.0f;
+            // Depth shade strength (scatter3d.frag).
+            pc.dash_total = scatter3d->depth_shade() ? DEPTH_SHADE_STRENGTH : 0.0f;
             backend_.push_constants(pc);
             backend_.bind_buffer(gpu.ssbo, 0);
             backend_.draw_instanced(6, static_cast<uint32_t>(scatter3d->point_count()));
@@ -450,6 +454,46 @@ void Renderer::render_series(Series&             series,
                     backend_.bind_buffer(gpu.ssbo, 0);
                     backend_.bind_index_buffer(sorted_index_buffer_or(gpu, is_transparent));
                     backend_.draw_indexed(static_cast<uint32_t>(surf_mesh.indices.size()));
+
+                    // Edge lines over the faces, in the edge colour (unlit).
+                    if (surface->show_edges() && gpu.aux_index_buffer && gpu.aux_index_count > 0)
+                    {
+                        SeriesPushConstants epc = pc;
+                        const Color&        ec  = surface->edge_color();
+                        epc.color[0]            = ec.r;
+                        epc.color[1]            = ec.g;
+                        epc.color[2]            = ec.b;
+                        epc.color[3]            = ec.a * pc.color[3];
+                        epc.dash_count          = 0;
+                        epc.dash_pattern[2]     = 0.0f;
+                        epc.dash_pattern[5]     = 1.0f;
+                        const bool edge_blend   = epc.color[3] * epc.opacity < 0.99f;
+                        backend_.bind_pipeline(edge_blend
+                                                   ? surface_wireframe3d_transparent_pipeline_
+                                                   : surface_wireframe3d_pipeline_);
+                        backend_.bind_texture(lut, 1);
+                        backend_.push_constants(epc);
+                        backend_.bind_buffer(gpu.ssbo, 0);
+                        backend_.bind_index_buffer(gpu.aux_index_buffer);
+                        backend_.draw_indexed(static_cast<uint32_t>(gpu.aux_index_count));
+                    }
+                }
+
+                // Contour projection on the floor of the box (colormapped iso-lines).
+                if (surface->contour_projection() && gpu.aux_vertex_buffer
+                    && gpu.aux_vertex_count > 0)
+                {
+                    SeriesPushConstants cpc = pc;
+                    cpc.dash_pattern[2]     = 0.0f;
+                    cpc.dash_pattern[5]     = 2.0f;
+                    cpc.dash_pattern[6]     = contour_floor_z_;
+                    cpc.color[3]            = 1.0f;
+                    cpc.opacity             = 1.0f;
+                    backend_.bind_pipeline(surface_wireframe3d_pipeline_);
+                    backend_.bind_texture(lut, 1);
+                    backend_.push_constants(cpc);
+                    backend_.bind_buffer(gpu.aux_vertex_buffer, 0);
+                    backend_.draw(static_cast<uint32_t>(gpu.aux_vertex_count));
                 }
             }
             break;

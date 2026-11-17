@@ -60,6 +60,8 @@ struct WorkspaceData
         bool        lighting_enabled  = true;
         bool        equal_aspect      = false;
         float       light_dir_x = 1.0f, light_dir_y = 1.0f, light_dir_z = 1.0f;
+        int         light_mode = 0;      // spectra::LightMode
+        float       fog        = 0.0f;   // Axes3D::fog()
     };
 
     struct SeriesState

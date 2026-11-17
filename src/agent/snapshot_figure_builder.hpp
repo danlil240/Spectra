@@ -25,6 +25,7 @@
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/message.hpp"
 #include "../ipc/series_style_state.hpp"
+#include "../ipc/style3d_state.hpp"
 #include "live_series_index.hpp"
 #include "ui/app/figure_snapshot.hpp"
 
@@ -99,6 +100,7 @@ inline void add_3d_series(Axes3D& ax3d, const ipc::SnapshotSeriesState& ss)
         auto& s = ax3d.scatter3d(xs, ys, zs);
         apply_snapshot_common(s, ss);
         s.size(ss.marker_size);
+        ipc::apply_series_style_3d(s, ss);
     }
     else if (ss.type == "surface")
     {
@@ -133,12 +135,14 @@ inline void add_3d_series(Axes3D& ax3d, const ipc::SnapshotSeriesState& ss)
 
         auto& s = ax3d.surface(ux, uy, z_grid);
         apply_snapshot_common(s, ss);
+        ipc::apply_series_style_3d(s, ss);
     }
     else   // "line3d", and "mesh" (vertices + indices are not sent; drawn as a line)
     {
         auto& s = ax3d.line3d(xs, ys, zs);
         apply_snapshot_common(s, ss);
         s.width(ss.line_width);
+        ipc::apply_series_style_3d(s, ss);
     }
 }
 
@@ -239,6 +243,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
                 ax3d.ylabel(sa.y_label);
             if (!sa.title.empty())
                 ax3d.title(sa.title);
+            ipc::apply_axes_light_3d(ax3d, sa);
         }
         else
         {

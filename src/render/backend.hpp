@@ -154,6 +154,15 @@ struct FrameUBO
     float viewport_y  = 0.0f;
     float pixel_scale = 1.0f;
     float _pad1       = 0.0f;
+    // 3D depth cue (series depth shade, Axes3D::fog): colour far fragments
+    // fade towards (the plot background), the axes-wide fog strength, and
+    // the view-space distance range of the axes box (near / far corner) the
+    // fade is spread over.
+    float depth_cue_color[3]{};
+    float fog            = 0.0f;
+    float depth_cue_near = 0.0f;
+    float depth_cue_far  = 0.0f;
+    float _pad2[2]{};
 };
 
 struct SeriesPushConstants

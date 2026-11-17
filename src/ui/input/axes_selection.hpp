@@ -52,6 +52,23 @@ inline std::vector<AxesSlot> figure_axes_slots(Figure& fig)
     return out;
 }
 
+// Number of axes (2D and 3D) and of series across them, for the figure summary.
+struct FigureCounts
+{
+    int axes   = 0;
+    int series = 0;
+};
+inline FigureCounts figure_counts(Figure& fig)
+{
+    FigureCounts c;
+    for (const AxesSlot& s : figure_axes_slots(fig))
+    {
+        ++c.axes;
+        c.series += static_cast<int>(s.base->series().size());
+    }
+    return c;
+}
+
 // Select one axes slot in `ctx` (sets axes for 2D, axes_base always).
 inline void select_axes_slot(SelectionContext& ctx, Figure& fig, const AxesSlot& slot)
 {

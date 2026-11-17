@@ -23,6 +23,7 @@
 #include "live_series_index.hpp"
 #include "snapshot_figure_builder.hpp"
 #include "../ipc/message.hpp"
+#include "../ipc/style3d_state.hpp"
 #include "../ipc/transport.hpp"
 #include "../render/renderer.hpp"
 #include "../render/vulkan/vk_backend.hpp"
@@ -296,6 +297,14 @@ void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectr
                 fig.series[op.series_index].categories = std::move(names);
             break;
         }
+        case spectra::ipc::DiffOp::Type::SET_SERIES_STYLE_3D:
+            if (op.series_index < fig.series.size())
+                spectra::ipc::series_style_3d_from_op(op, fig.series[op.series_index]);
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXES_LIGHT_3D:
+            if (op.axes_index < fig.axes.size())
+                spectra::ipc::axes_light_3d_from_op(op, fig.axes[op.axes_index]);
+            break;
         default:
             // Includes SET_LIVE_FPS (handled on live Figure, not cache).
             break;
@@ -514,6 +523,22 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 s->marker_style(ms);
             break;
         }
+        case spectra::ipc::DiffOp::Type::SET_SERIES_STYLE_3D:
+            if (auto* s = find_live_series())
+            {
+                spectra::ipc::SnapshotSeriesState ss;
+                spectra::ipc::series_style_3d_from_op(op, ss);
+                spectra::ipc::apply_series_style_3d(*s, ss);
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_AXES_LIGHT_3D:
+            if (ax3d)
+            {
+                spectra::ipc::SnapshotAxisState sa;
+                spectra::ipc::axes_light_3d_from_op(op, sa);
+                spectra::ipc::apply_axes_light_3d(*ax3d, sa);
+            }
+            break;
         case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
             if (ax2d)
                 ax2d->xlabel(op.str_val);

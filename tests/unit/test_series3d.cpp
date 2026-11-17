@@ -1339,3 +1339,97 @@ TEST(ShapeSeries3DColor, TranslucentShapeColorFlagsTransparency)
     EXPECT_FALSE(sh.has_transparent_shape());
     EXPECT_TRUE(sh.draw_ranges().empty());
 }
+
+// ─── Depth shade, surface edges and contour projection ─────────────────────
+
+TEST(Series3DStyle, Defaults)
+{
+    ScatterSeries3D sc;
+    LineSeries3D    ln;
+    SurfaceSeries   sf;
+    EXPECT_TRUE(sc.depth_shade());   // subtle depth cue on by default for points
+    EXPECT_FALSE(ln.depth_shade());
+    EXPECT_FALSE(sf.show_edges());
+    EXPECT_FALSE(sf.contour_projection());
+    EXPECT_EQ(sf.contour_levels(), 10);
+    sc.depth_shade(false);
+    EXPECT_FALSE(sc.depth_shade());
+    sf.contour_levels(0);
+    EXPECT_EQ(sf.contour_levels(), 1);
+}
+
+TEST(Series3DStyle, SurfaceOptionsMarkDirty)
+{
+    std::vector<float> g = {0.0f, 1.0f};
+    std::vector<float> z = {0.0f, 1.0f, 1.0f, 2.0f};
+    SurfaceSeries      sf(g, g, z);
+    sf.clear_dirty();
+    sf.show_edges(true);
+    EXPECT_TRUE(sf.is_dirty());
+    sf.clear_dirty();
+    sf.contour_projection(true);
+    EXPECT_TRUE(sf.is_dirty());
+}
+
+TEST(Series3DStyle, ContourSegmentsFollowLevels)
+{
+    // z = x on a 5 x 3 grid over x in [0, 4]: iso-lines are vertical lines x = level.
+    std::vector<float> xg = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f};
+    std::vector<float> yg = {10.0f, 11.0f, 12.0f};
+    std::vector<float> z;
+    for (size_t r = 0; r < yg.size(); ++r)
+        for (float x : xg)
+            z.push_back(x);
+    SurfaceSeries sf(xg, yg, z);
+    sf.contour_levels(4);
+    const std::vector<float> segs = sf.contour_segments();
+    ASSERT_FALSE(segs.empty());
+    ASSERT_EQ(segs.size() % 12, 0u);   // two {x, y, level, 0, 0, 0} vertices per segment
+    for (size_t k = 0; k < segs.size(); k += 6)
+    {
+        EXPECT_NEAR(segs[k], segs[k + 2], 1e-5f);   // on the iso-line x = level
+        EXPECT_GE(segs[k + 1], 10.0f);
+        EXPECT_LE(segs[k + 1], 12.0f);
+        EXPECT_GT(segs[k + 2], 0.0f);
+        EXPECT_LT(segs[k + 2], 4.0f);
+    }
+}
+
+TEST(Series3DStyle, ContourSegmentsEmptyForFlatOrTinyGrid)
+{
+    std::vector<float> g = {0.0f, 1.0f};
+    std::vector<float> flat(4, 3.0f);
+    EXPECT_TRUE(SurfaceSeries(g, g, flat).contour_segments().empty());
+    EXPECT_TRUE(SurfaceSeries().contour_segments().empty());
+}
+
+TEST(Axes3DLightAndFog, LightAnglesRoundTrip)
+{
+    Axes3D ax;
+    EXPECT_EQ(ax.light_mode(), LightMode::Fixed);
+    EXPECT_FLOAT_EQ(ax.fog(), 0.0f);
+    ax.light_angles(30.0f, 45.0f);
+    EXPECT_NEAR(ax.light_azimuth(), 30.0f, 1e-3f);
+    EXPECT_NEAR(ax.light_elevation(), 45.0f, 1e-3f);
+    const vec3 d = ax.light_dir();
+    EXPECT_NEAR(vec3_length(d), 1.0, 1e-6);
+    EXPECT_NEAR(d.z, std::sqrt(0.5), 1e-6);
+    ax.light_angles(-120.0f, -10.0f);
+    EXPECT_NEAR(ax.light_azimuth(), -120.0f, 1e-3f);
+    EXPECT_NEAR(ax.light_elevation(), -10.0f, 1e-3f);
+    // Straight up: azimuth is undefined, reported as 0.
+    ax.light_dir(0.0f, 0.0f, 2.0f);
+    EXPECT_FLOAT_EQ(ax.light_azimuth(), 0.0f);
+    EXPECT_NEAR(ax.light_elevation(), 90.0f, 1e-3f);
+}
+
+TEST(Axes3DLightAndFog, FogIsClamped)
+{
+    Axes3D ax;
+    ax.fog(0.4f);
+    EXPECT_FLOAT_EQ(ax.fog(), 0.4f);
+    ax.fog(3.0f);
+    EXPECT_FLOAT_EQ(ax.fog(), 1.0f);
+    ax.fog(-1.0f);
+    EXPECT_FLOAT_EQ(ax.fog(), 0.0f);
+}

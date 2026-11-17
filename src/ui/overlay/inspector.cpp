@@ -120,14 +120,9 @@ void Inspector::draw_figure_properties(Figure& fig)
     ImGui::PushStyleColor(
         ImGuiCol_Text,
         ImVec4(c.text_secondary.r, c.text_secondary.g, c.text_secondary.b, c.text_secondary.a));
-    int total_series = 0;
-    for (const auto& ax : fig.axes())
-    {
-        if (ax)
-            total_series += static_cast<int>(ax->series().size());
-    }
-    const std::string subtitle =
-        std::format("{} axes, {} series", static_cast<int>(fig.axes().size()), total_series);
+    // 2D and 3D axes (subplot3d() axes live in all_axes() only).
+    const FigureCounts counts   = figure_counts(fig);
+    const std::string  subtitle = std::format("{} axes, {} series", counts.axes, counts.series);
     ImGui::TextUnformatted(subtitle.c_str());
     ImGui::PopStyleColor();
 
@@ -1423,18 +1418,28 @@ void Inspector::draw_axes3d_properties(Axes3D& ax, int index)
             {
                 ax.lighting_enabled(lit);
             }
-            vec3 dir     = ax.light_dir();
-            auto lx      = static_cast<float>(dir.x);
-            auto ly      = static_cast<float>(dir.y);
-            auto lz      = static_cast<float>(dir.z);
-            bool changed = false;
-            changed |= widgets::drag_field("Light X", lx, 0.01f, -1.0f, 1.0f, "%.2f");
-            changed |= widgets::drag_field("Light Y", ly, 0.01f, -1.0f, 1.0f, "%.2f");
-            changed |= widgets::drag_field("Light Z", lz, 0.01f, -1.0f, 1.0f, "%.2f");
-            if (changed)
+            if (lit)
             {
-                ax.light_dir(lx, ly, lz);
+                // Fixed: a direction tied to the data axes; Headlight: from the camera.
+                const char* light_modes[] = {"Fixed", "Headlight"};
+                int         mode          = static_cast<int>(ax.light_mode());
+                if (widgets::combo_field("Light", mode, light_modes, 2))
+                    ax.light_mode(static_cast<LightMode>(mode));
+                if (ax.light_mode() == LightMode::Fixed)
+                {
+                    float az      = ax.light_azimuth();
+                    float el      = ax.light_elevation();
+                    bool  changed = false;
+                    changed |= widgets::slider_field("Azimuth", az, -180.0f, 180.0f, "%.0f deg");
+                    changed |= widgets::slider_field("Elevation", el, -90.0f, 90.0f, "%.0f deg");
+                    if (changed)
+                        ax.light_angles(az, el);
+                }
             }
+            // Depth cue for every series (scatter points also have their own).
+            float fog = ax.fog();
+            if (widgets::slider_field("Fog", fog, 0.0f, 1.0f, fog > 0.0f ? "%.2f" : "off"))
+                ax.fog(fog);
             widgets::end_group();
             widgets::small_spacing();
             widgets::end_animated_section();
@@ -1664,6 +1669,67 @@ static void draw_colormap_controls(S& series)
         series.colormap_reversed(reversed);
 }
 
+// Phong material of a surface / mesh: 0 keeps the shader default.
+template <typename S>
+static void draw_material_controls(S& series)
+{
+    float amb = series.ambient();
+    if (widgets::slider_field("Ambient", amb, 0.0f, 1.0f, amb > 0.0f ? "%.2f" : "auto"))
+        series.ambient(amb);
+    float spec = series.specular();
+    if (widgets::slider_field("Specular", spec, 0.0f, 1.0f, spec > 0.0f ? "%.2f" : "auto"))
+        series.specular(spec);
+    float shin = series.shininess();
+    if (widgets::slider_field("Shininess", shin, 0.0f, 128.0f, shin > 0.0f ? "%.0f" : "auto"))
+        series.shininess(shin);
+    bool two_sided = series.double_sided();
+    if (widgets::toggle_field("Double-sided", two_sided))
+        series.double_sided(two_sided);
+}
+
+// Surface: colormap, colormap alpha, edges, wireframe, floor contours, material.
+static void draw_surface_controls(SurfaceSeries& surface)
+{
+    draw_colormap_controls(surface);
+    bool cmap_alpha = surface.colormap_alpha();
+    if (widgets::toggle_field("Colormap Alpha", cmap_alpha))
+        surface.colormap_alpha(cmap_alpha);
+    bool wire = surface.wireframe();
+    if (widgets::toggle_field("Wireframe", wire))
+        surface.wireframe(wire);
+    if (!wire)
+    {
+        bool edges = surface.show_edges();
+        if (widgets::toggle_field("Edges", edges))
+            surface.show_edges(edges);
+        if (edges)
+        {
+            spectra::Color ec = surface.edge_color();
+            if (widgets::color_field("Edge Color", ec))
+                surface.edge_color(ec);
+        }
+    }
+    bool contours = surface.contour_projection();
+    if (widgets::toggle_field("Floor Contours", contours))
+        surface.contour_projection(contours);
+    if (contours)
+    {
+        auto levels = static_cast<float>(surface.contour_levels());
+        if (widgets::slider_field("Contour Levels", levels, 2.0f, 40.0f, "%.0f"))
+            surface.contour_levels(static_cast<int>(std::lround(levels)));
+    }
+    draw_material_controls(surface);
+}
+
+// Mesh: wireframe and material.
+static void draw_mesh_controls(MeshSeries& mesh)
+{
+    bool wire = mesh.wireframe();
+    if (widgets::toggle_field("Wireframe", wire))
+        mesh.wireframe(wire);
+    draw_material_controls(mesh);
+}
+
 void Inspector::draw_series_properties(Series& s, int /*index*/)
 {
     const auto& c = theme();
@@ -1676,11 +1742,26 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
         ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, c.text_primary.a));
 
     // Determine type name
+    auto* const line3d    = dynamic_cast<LineSeries3D*>(&s);
+    auto* const scatter3d = dynamic_cast<ScatterSeries3D*>(&s);
+    auto* const surface   = dynamic_cast<SurfaceSeries*>(&s);
+    auto* const mesh      = dynamic_cast<MeshSeries*>(&s);
     const char* type_name = "Series";
     if (dynamic_cast<LineSeries*>(&s))
         type_name = "Line Series";
     else if (dynamic_cast<ScatterSeries*>(&s))
         type_name = "Scatter Series";
+    else if (line3d)
+        type_name = "3D Line";
+    else if (scatter3d)
+        type_name = "3D Scatter";
+    else if (surface)
+        type_name = "Surface";
+    else if (mesh)
+        type_name = "Mesh";
+    // 3D series draw no dashes; surfaces, meshes and 3D lines no markers.
+    const bool is_3d       = line3d || scatter3d || surface || mesh;
+    const bool has_markers = !(line3d || surface || mesh);
 
     const char*       name  = s.label().empty() ? "Unnamed" : s.label().c_str();
     const std::string title = std::format("{}: {}", type_name, name);
@@ -1733,7 +1814,8 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                     s.visible(vis);
             }
 
-            // Line style dropdown (all series types)
+            // Line style dropdown (2D series)
+            if (!is_3d)
             {
                 static const char* line_style_names[] =
                     {"None", "Solid", "Dashed", "Dotted", "Dash-Dot", "Dash-Dot-Dot"};
@@ -1744,7 +1826,8 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 }
             }
 
-            // Marker style dropdown (all series types)
+            // Marker style dropdown (series that draw markers)
+            if (has_markers)
             {
                 static const char* marker_style_names[] = {"None",
                                                            "Point",
@@ -1772,7 +1855,7 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
             }
 
             // Marker size (shown when marker is not None)
-            if (s.marker_style() != spectra::MarkerStyle::None)
+            if (has_markers && !scatter3d && s.marker_style() != spectra::MarkerStyle::None)
             {
                 float msz = s.marker_size();
                 if (widgets::slider_field("Marker Size", msz, 1.0f, 30.0f, "%.1f px"))
@@ -1834,8 +1917,30 @@ void Inspector::draw_series_properties(Series& s, int /*index*/)
                 if (!scatter->color_values_data().empty())
                     draw_colormap_controls(*scatter);
             }
-            if (auto* surface = dynamic_cast<SurfaceSeries*>(&s))
-                draw_colormap_controls(*surface);
+            if (line3d)
+            {
+                float w = line3d->width();
+                if (widgets::slider_field("Line Width", w, 0.5f, 12.0f, "%.1f px"))
+                    line3d->width(w);
+                bool shade = line3d->depth_shade();
+                if (widgets::toggle_field("Depth Shade", shade))
+                    line3d->depth_shade(shade);
+            }
+            if (scatter3d)
+            {
+                float sz = scatter3d->size();
+                if (widgets::slider_field("Point Size", sz, 0.5f, 30.0f, "%.1f px"))
+                    scatter3d->size(sz);
+                bool shade = scatter3d->depth_shade();
+                if (widgets::toggle_field("Depth Shade", shade))
+                    scatter3d->depth_shade(shade);
+                if (!scatter3d->color_values_data().empty())
+                    draw_colormap_controls(*scatter3d);
+            }
+            if (surface)
+                draw_surface_controls(*surface);
+            if (mesh)
+                draw_mesh_controls(*mesh);
             if (auto* image = dynamic_cast<ImageSeries*>(&s); image && !image->is_rgba())
                 draw_colormap_controls(*image);
             if (auto* contour = dynamic_cast<ContourSeries*>(&s))

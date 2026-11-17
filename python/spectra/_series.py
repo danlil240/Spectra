@@ -583,6 +583,53 @@ class Series:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_depth_shade(self, enabled: bool = True) -> None:
+        """3D scatter / line: fade the parts farther from the camera towards the
+        background (matplotlib's ``depthshade``).  On by default for 3D scatter."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="depth_shade",
+            bool_val=bool(enabled),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_show_edges(self, enabled: bool = True, color=None) -> None:
+        """Surface: draw the grid edge lines over the shaded faces.
+
+        ``color`` is an optional RGBA (or RGB) tuple of floats in [0, 1] for
+        the edge lines; ``None`` keeps the current edge colour."""
+        data = None
+        if color is not None:
+            rgba = [float(c) for c in color]
+            if len(rgba) == 3:
+                rgba.append(1.0)
+            if len(rgba) != 4:
+                raise ValueError("color must have 3 or 4 components")
+            data = rgba
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="show_edges",
+            bool_val=bool(enabled),
+            data=data,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_contour_projection(self, enabled: bool = True, levels: int = 10) -> None:
+        """Surface: project ``levels`` contour lines onto the floor of the 3D box
+        (MATLAB's ``surfc``)."""
+        if enabled and int(levels) < 1:
+            raise ValueError("levels must be at least 1")
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="contour_projection",
+            f1=float(levels),
+            bool_val=bool(enabled),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def set_format(self, fmt: str) -> None:
         """Apply a MATLAB / matplotlib format string such as "r--o" or "g^"."""
         from ._style import resolve_style

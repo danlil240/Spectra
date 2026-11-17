@@ -125,7 +125,7 @@ TEST_F(SingleWindowFixture, BufferCreateDestroy)
 
 TEST_F(SingleWindowFixture, FrameUBOLayout)
 {
-    EXPECT_EQ(sizeof(FrameUBO), 256u);
+    EXPECT_EQ(sizeof(FrameUBO), 288u);
 }
 
 TEST_F(SingleWindowFixture, PushConstantsLayout)

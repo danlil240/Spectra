@@ -18,6 +18,12 @@ std::uint64_t SeriesDirtyFlag::next_generation()
 
 // --- Series (base) ---
 
+std::uint64_t Series::next_instance_id()
+{
+    static std::atomic<std::uint64_t> counter{0};
+    return counter.fetch_add(1, std::memory_order_relaxed) + 1;
+}
+
 void PendingSeriesDataDeleter::operator()(PendingSeriesData* ptr) const
 {
     delete ptr;

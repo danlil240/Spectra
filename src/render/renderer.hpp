@@ -73,6 +73,11 @@ struct ExportViewport
     uint32_t layout_height = 0;
     float    pixel_scale   = 1.0f;
 };
+// Convert an RGBA8 image drawn onto transparent black (premultiplied colour)
+// to straight alpha, as PNG expects.  Opaque and fully transparent pixels are
+// left as they are.
+void unpremultiply_rgba(uint8_t* rgba, size_t pixel_count);
+
 ExportViewport compute_export_viewport(uint32_t figure_width,
                                        uint32_t figure_height,
                                        uint32_t export_width,
@@ -187,6 +192,12 @@ class Renderer
     // embeds and other overlay-less paths leave it false.  Colorbars are always
     // drawn by the renderer (there is no overlay version).
     void set_legend_overlay_active(bool active) { legend_overlay_active_ = active; }
+
+    // Offscreen exports with ExportOptions::transparent: begin_render_pass()
+    // clears to transparent black and the figure background is not drawn, so
+    // the framebuffer holds premultiplied colour (see unpremultiply_rgba()).
+    void set_transparent_background(bool transparent) { transparent_background_ = transparent; }
+    bool transparent_background() const { return transparent_background_; }
     bool legend_overlay_active() const { return legend_overlay_active_; }
 
     // Pointer position (figure pixels) for hover feedback of the renderer-drawn
@@ -730,10 +741,11 @@ class Renderer
     std::vector<AnnotationArrowDraw> annotation_arrow_draws_;
 
     // Legend / colorbar annotation state (render_annotations.cpp).
-    bool                            legend_overlay_active_ = false;
-    bool                            pointer_valid_         = false;
-    float                           pointer_x_             = 0.0f;
-    float                           pointer_y_             = 0.0f;
+    bool                            legend_overlay_active_  = false;
+    bool                            pointer_valid_          = false;
+    bool                            transparent_background_ = false;
+    float                           pointer_x_              = 0.0f;
+    float                           pointer_y_              = 0.0f;
     std::vector<LegendOverflowCell> legend_overflow_cells_;
     float                           annotation_fig_w_ = 0.0f;   // figure size during
     float                           annotation_fig_h_ = 0.0f;   // render_annotations()

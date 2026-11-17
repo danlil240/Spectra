@@ -201,6 +201,8 @@ set(SPECTRA_UNIT_TESTS
     test_split_view
     test_dock_system
     test_plot_style
+    test_style_presets
+    test_offscreen_export_gpu
     test_axis_link
     test_data_transform
     test_shared_cursor
@@ -515,6 +517,7 @@ set(SPECTRA_GPU_TESTS
     test_ui_shell_welcome_gpu
     test_window_export_extent
     test_figure_export_gpu
+    test_offscreen_export_gpu
 )
 
 foreach(_test ${SPECTRA_UNIT_TESTS})
@@ -527,8 +530,8 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
     if(_test STREQUAL "test_multi_window")
         continue()
     endif()
-    # The log browser panel is part of the ImGui UI.
-    if(_test MATCHES "^test_(log_browser_panel|data_sidebar)$" AND NOT DEFINED imgui_SOURCE_DIR)
+    # The log browser panel, the data sidebar and the Export dialog back end are part of the ImGui UI.
+    if(_test MATCHES "^test_(log_browser_panel|data_sidebar|offscreen_export_gpu)$" AND NOT DEFINED imgui_SOURCE_DIR)
         continue()
     endif()
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unit/${_test}.cpp)
@@ -543,6 +546,10 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             set_tests_properties(unit_${_test} PROPERTIES
                 LABELS "gpu"
                 RESOURCE_LOCK gpu)
+        endif()
+        # Decodes the exported PNGs.
+        if(_test STREQUAL "test_offscreen_export_gpu")
+            target_include_directories(unit_${_test} SYSTEM PRIVATE ${CMAKE_SOURCE_DIR}/third_party/stb)
         endif()
         # The backend's REQ_EXPORT_FIGURE renderer lives with spectra-backend, not the library.
         if(_test MATCHES "^test_(python_mpl_api|figure_export_gpu)$")

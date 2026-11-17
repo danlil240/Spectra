@@ -1068,7 +1068,8 @@ std::string pdf_export_to_string(std::span<const PdfPage> pages, const SvgExport
         const double  w   = std::max(1u, fig.width());
         const double  h   = std::max(1u, fig.height());
         PdfPageWriter writer(objs, res, w, h);
-        writer.background(page.style.background);
+        if (!page.style.transparent_background)
+            writer.background(page.style.background);
         draw_vector_scene(fig, page.style, host, writer);
         const int contents = objs.add(stream_object("", writer.content()));
         kids.push_back(objs.add("<< /Type /Page /Parent " + ref(tree) + " /MediaBox [0 0 "

@@ -210,4 +210,51 @@ inline std::vector<double> log_minor_ticks(ScaleType s, double lo, double hi)
     return out;
 }
 
+/// Minor tick / grid positions (data space) within [lo, hi] (data limits):
+/// log_minor_ticks() on log axes; otherwise MINOR_TICK_SUBDIVISIONS - 1 values
+/// between each pair of major ticks, also continued past the first and last
+/// major tick to the limits (at most a few major intervals' worth).
+inline constexpr int MINOR_TICK_SUBDIVISIONS = 5;
+/// Minor tick mark length as a fraction of the major tick length.
+inline constexpr float MINOR_TICK_LENGTH_RATIO = 0.55f;
+
+inline std::vector<double> minor_tick_values(ScaleType                  s,
+                                             const std::vector<double>& majors,
+                                             double                     lo,
+                                             double                     hi)
+{
+    if (is_log_scale(s))
+        return log_minor_ticks(s, lo, hi);
+    constexpr int       SUBDIV     = MINOR_TICK_SUBDIVISIONS;
+    constexpr int       MAX_MARGIN = 4 * SUBDIV;
+    std::vector<double> out;
+    const size_t        n = majors.size();
+    for (size_t i = 0; i + 1 < n; ++i)
+    {
+        const double step = (majors[i + 1] - majors[i]) / SUBDIV;
+        for (int k = 1; k < SUBDIV; ++k)
+            out.push_back(majors[i] + step * k);
+    }
+    if (n >= 2)
+    {
+        const double step0 = (majors[1] - majors[0]) / SUBDIV;
+        for (int k = 1; std::isfinite(step0) && step0 > 0 && k <= MAX_MARGIN; ++k)
+        {
+            const double v = majors[0] - step0 * k;
+            if (v < lo)
+                break;
+            out.push_back(v);
+        }
+        const double step1 = (majors[n - 1] - majors[n - 2]) / SUBDIV;
+        for (int k = 1; std::isfinite(step1) && step1 > 0 && k <= MAX_MARGIN; ++k)
+        {
+            const double v = majors[n - 1] + step1 * k;
+            if (v > hi)
+                break;
+            out.push_back(v);
+        }
+    }
+    return out;
+}
+
 }   // namespace spectra

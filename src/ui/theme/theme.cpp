@@ -86,9 +86,29 @@ ThemeGlassSettings ThemeGlassSettings::light_defaults()
 // in init_runtime() / shutdown_runtime().
 static ThemeManager* s_current_instance = nullptr;
 
+// Per-thread override, set by claim_current() for an App created while
+// another App already owns s_current_instance; instance() prefers it.
+static thread_local ThemeManager* t_thread_instance = nullptr;
+
 void ThemeManager::set_current(ThemeManager* tm)
 {
     s_current_instance = tm;
+}
+
+void ThemeManager::claim_current(ThemeManager* tm)
+{
+    if (s_current_instance == nullptr || s_current_instance == tm)
+        s_current_instance = tm;
+    else
+        t_thread_instance = tm;
+}
+
+void ThemeManager::release_current(ThemeManager* tm)
+{
+    if (t_thread_instance == tm)
+        t_thread_instance = nullptr;
+    else if (s_current_instance == tm)
+        s_current_instance = nullptr;
 }
 
 void ThemeManager::ensure_initialized()
@@ -104,6 +124,8 @@ void ThemeManager::ensure_initialized()
 
 ThemeManager& ThemeManager::instance()
 {
+    if (t_thread_instance)
+        return *t_thread_instance;   // initialised by its owning App
     assert(s_current_instance
            && "ThemeManager::instance() called before set_current(). "
               "Every entry point (App, agent, embed, Qt) must create a ThemeManager "
@@ -483,6 +505,14 @@ ThemeColors ThemeManager::plot_surface_colors(const FigureStyle& style) const
 
 const DataPalette& ThemeManager::plot_surface_data_palette(const FigureStyle& style) const
 {
+    // A figure palette (FigureStyle::palette, e.g. from a plot style) wins over
+    // the app selection; "default" is the same as empty.
+    if (!style.palette.empty() && style.palette != "default")
+    {
+        auto it = data_palettes_.find(style.palette);
+        if (it != data_palettes_.end() && !it->second.colors.empty())
+            return it->second;
+    }
     // Only "default" follows the theme; an explicitly chosen palette (and a
     // palette transition in progress) is kept as selected.
     if (current_data_palette_name_ == "default" && !display_palette_valid_)

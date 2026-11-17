@@ -164,6 +164,7 @@ table SnapshotFigureState {
     constrained_layout: uint8 = 1;   // FigureStyle::constrained_layout
     share_x: uint8 = 0;           // spectra::ShareAxes of Figure::share_x()
     share_y: uint8 = 0;           // spectra::ShareAxes of Figure::share_y()
+    style: string;                // built-in plot style name, empty = none
 }
 
 table SnapshotKnobState {
@@ -215,6 +216,7 @@ enum DiffOpType : uint8 {
     SET_FIGURE_LAYOUT = 33,
     SET_SERIES_LINE_STYLE = 40,
     SET_SERIES_MARKER_STYLE = 41,
+    SET_FIGURE_STYLE = 43,   // 32-42 are taken by other open PRs
 }
 
 table DiffOp {

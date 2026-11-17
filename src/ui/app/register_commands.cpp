@@ -49,6 +49,7 @@ void register_standard_commands(const CommandBindings& b)
     register_descriptors(reg, mgr, make_plot_commands(ctx));
     register_descriptors(reg, mgr, make_data_commands(ctx));
     register_descriptors(reg, mgr, make_app_commands(ctx));
+    register_descriptors(reg, mgr, make_style_commands(ctx));
 
     ui_ctx.shortcut_mgr.register_defaults();
 

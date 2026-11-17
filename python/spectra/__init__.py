@@ -45,6 +45,7 @@ from ._errors import (
 from ._animation import ipc_sleep, FramePacer, BackendAnimator
 from ._log import set_log_level, get_log_level
 from .topic import Publisher
+from . import style
 from ._inline import use_inline, use_window, display_mode
 
 # ─── Easy API (one-liners, everything in background) ─────────────────────────
@@ -188,6 +189,8 @@ __all__ = [
     "semilogx",
     "semilogy",
     "loglog",
+    # Plot style presets (spectra.style.use / spectra.style.context)
+    "style",
     # Backward compat
     "line",
     # Advanced API — full control

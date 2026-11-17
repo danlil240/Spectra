@@ -147,8 +147,10 @@ App::App(const AppConfig& config) : config_(config)
     // Create the App-owned ThemeManager and register it as the active instance
     // so ThemeManager::instance() returns this object instead of the fallback
     // singleton for the lifetime of this App.
+    // (Thread-scoped when another App in this process already owns it, e.g.
+    // the Export dialog's headless preview App on a worker thread.)
     theme_mgr_ = std::make_unique<ui::ThemeManager>();
-    ui::ThemeManager::set_current(theme_mgr_.get());
+    ui::ThemeManager::claim_current(theme_mgr_.get());
     theme_mgr_->ensure_initialized();
 
     renderer_ = std::make_unique<Renderer>(*backend_, *theme_mgr_);
@@ -203,7 +205,7 @@ App::~App()
 
     // Clear the singleton pointer before the ThemeManager member is destroyed
     // to prevent any remaining call sites from dereferencing a dangling pointer.
-    ui::ThemeManager::set_current(nullptr);
+    ui::ThemeManager::release_current(theme_mgr_.get());
     theme_mgr_.reset();
     if (backend_)
     {
@@ -1111,8 +1113,12 @@ void App::init_runtime()
     // execution and file writes, so they must never be on by default.  See SECURITY.md.
     {
         const char* auto_env = std::getenv("SPECTRA_AUTO_SOCKET");
-        const bool  want_automation =
-            automation_security::automation_requested(config_.enable_automation);
+        // The environment opt-in is for interactive apps only: headless Apps
+        // (file exports, the Export dialog's preview) run inside another
+        // process that already owns the automation socket and MCP port.
+        const bool want_automation =
+            config_.enable_automation
+            || (!config_.headless && automation_security::automation_requested(false));
 
         if (want_automation)
         {
@@ -1497,9 +1503,10 @@ void App::shutdown_runtime()
             const bool view_differs =
                 ui::ScopedExportTheme::needed_for(theme_mgr_.get(), f.export_req_.png_theme);
             ui::ScopedExportTheme export_theme(theme_mgr_.get(), f.export_req_.png_theme);
+            const bool            transparent = f.export_req_.png_transparent;
             bool needs_render = (&f != rt.active_figure) || !framebuffer_holds_active
                                 || (export_w != f.width()) || (export_h != f.height())
-                                || export_theme.active() || view_differs;
+                                || export_theme.active() || view_differs || transparent;
 
             if (needs_render)
             {
@@ -1521,11 +1528,13 @@ void App::shutdown_runtime()
                 f.config_.height = ev.layout_height;
                 f.compute_layout();
 
+                renderer_->set_transparent_background(transparent);
                 if (backend_->begin_frame())
                 {
                     renderer_->render_figure(f);
                     backend_->end_frame();
                 }
+                renderer_->set_transparent_background(false);
                 backend_->set_pixel_scale(1.0f);
 
                 f.config_.width  = orig_w;
@@ -1544,6 +1553,8 @@ void App::shutdown_runtime()
             std::vector<uint8_t> pixels(static_cast<size_t>(export_w) * export_h * 4);
             if (backend_->readback_framebuffer(pixels.data(), export_w, export_h))
             {
+                if (transparent)
+                    unpremultiply_rgba(pixels.data(), static_cast<size_t>(export_w) * export_h);
                 if (!ImageExporter::write_png(f.export_req_.png_path,
                                               pixels.data(),
                                               export_w,

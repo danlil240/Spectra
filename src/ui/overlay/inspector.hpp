@@ -15,6 +15,7 @@ struct ImFont;
 
 namespace spectra
 {
+class CommandRegistry;
 class PluginManager;
 class UndoManager;
 }   // namespace spectra
@@ -52,6 +53,10 @@ class Inspector
     // Undo history for property edits (not owned; may be null).
     void         set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
     UndoManager* undo_manager() const { return undo_mgr_; }
+    // Command registry (not owned): the Style picker runs style.<name> so the
+    // change is undoable like the palette command.
+    void set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
+
     // Axis range edited in the X / Y AXIS "Range" fields: @p ax already has
     // its new limits, @p old_x / @p old_y are the previous ones.  Calls of one
     // continuous edit (a drag) share @p edit_key.  ImGuiIntegration records
@@ -65,6 +70,7 @@ class Inspector
 
    private:
     void draw_figure_properties(Figure& fig);
+    void draw_style_picker(Figure& fig);
     void draw_axes_properties(Axes& ax, int index);
     void draw_axes3d_properties(Axes3D& ax, int index);
 
@@ -101,7 +107,8 @@ class Inspector
         bool      open = false;
     };
     AxisStyleEdit    axis_style_edit_;
-    SeriesClipboard* clipboard_ = nullptr;
+    SeriesClipboard* clipboard_        = nullptr;
+    CommandRegistry* command_registry_ = nullptr;
     DeferRemovalFn   defer_removal_;
     AxesLimitsEditFn on_limits_edited_;
 
@@ -112,6 +119,7 @@ class Inspector
 
     // Collapsible section states
     bool sec_appearance_ = true;
+    bool sec_plot_style_ = true;
     bool sec_margins_    = true;
     bool sec_legend_     = true;
     bool sec_axis_x_     = true;

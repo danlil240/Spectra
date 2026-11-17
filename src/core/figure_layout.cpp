@@ -5,6 +5,7 @@
 #include <spectra/figure.hpp>
 
 #include "core/axis_scale.hpp"
+#include "core/axis_text_style.hpp"
 #include "io/text_metrics.hpp"
 #include "ui/overlay/legend_layout.hpp"
 
@@ -14,59 +15,101 @@ namespace spectra
 namespace
 {
 
-// Renderer / SVG constants for the y axis decorations (render_geometry.cpp,
-// svg_export.cpp): tick label padding, gap to the y label, label font.
-constexpr float TICK_PADDING  = 5.0f;
-constexpr float YLABEL_GAP    = 6.0f;
-constexpr float TICK_FONT_PX  = 13.0f;
-constexpr float LABEL_FONT_PX = 14.0f;
-constexpr float TITLE_FONT_PX = 18.0f;
-// Gap between the tick label row and the X label row (render_geometry.cpp).
+// Renderer / SVG constants for the axis decorations (render_geometry.cpp,
+// vector_scene.cpp): tick label padding, gap to the y label, gap between the
+// x tick labels and the x label row, all in logical pixels (scaled with the
+// axes' text scale).
+constexpr float TICK_PADDING   = 5.0f;
+constexpr float YLABEL_GAP     = 6.0f;
 constexpr float XLABEL_ROW_GAP = 4.0f;
+constexpr float OFFSET_ROW_GAP = 4.0f;
+constexpr float TITLE_PADDING  = 5.0f;
+constexpr float VERTICAL_OUTER = 6.0f;
 // Space above the suptitle.
 constexpr float SUPTITLE_PAD = 8.0f;
-// Rotated label thickness: the renderer's line height for the Label tier.
-constexpr float LABEL_LINE_FACTOR = 1.25f;
 // Clearance kept past an outermost x tick label that overhangs the plot edge:
 // it only has to stay clear of the figure edge / neighbour, so a label that
 // already fits the style margin never grows it.
 constexpr float EDGE_TICK_PAD = 2.0f;
 
+// Metrics of `axes` at the theme font sizes and scale 1 (what the default
+// margins are sized for): the baseline bottom/top growth is measured against.
+AxisTextMetrics default_metrics(const Axes& axes)
+{
+    AxisStyle base;
+    base.tick_length = axes.axis_style().tick_length;
+    return axis_text_metrics(base, 1.0f);
+}
+
+// Suptitle line height at text scale `s`.
+float suptitle_line_height(float s)
+{
+    return SUPTITLE_FONT_PX * SUPTITLE_SCALE * PLOT_TEXT_LINE_FACTOR * s;
+}
+
 }   // namespace
 
 float left_label_extent(const Axes& axes)
 {
-    float tick_w = 0.0f;
+    const AxisTextMetrics m      = axis_text_metrics(axes);
+    float                 tick_w = 0.0f;
     if (axes.y_tick_labels_visible())
     {
         const TickResult ticks = axes.compute_y_ticks();
         for (const auto& l : ticks.labels)
-            tick_w = std::max(tick_w, inter_text_width(l, TICK_FONT_PX));
+            tick_w = std::max(tick_w, inter_text_width(l, m.tick_px));
     }
-    float need = axes.axis_style().tick_length + TICK_PADDING + tick_w;
+    float need = m.tick_length + m.px(TICK_PADDING) + tick_w;
     if (!axes.ylabel().empty())
-        need += YLABEL_GAP + LABEL_FONT_PX * LABEL_LINE_FACTOR;
-    return need + LEFT_LABEL_OUTER_PAD;
+        need += m.px(YLABEL_GAP) + m.label_px * PLOT_TEXT_LINE_FACTOR;
+    return need + m.px(LEFT_LABEL_OUTER_PAD);
+}
+
+float bottom_label_extent(const Axes& axes, const AxisTextMetrics& m)
+{
+    // Tick marks, then the tick labels (hidden on inner shared axes).
+    const bool  show_x = axes.x_tick_labels_visible();
+    const float tick_h = m.tick_px * PLOT_TEXT_LINE_FACTOR;
+    float       need   = m.tick_length;
+    if (show_x)
+        need += m.px(TICK_PADDING) + tick_h;
+    // Row under the tick label row: the X label and/or the X tick offset /
+    // multiplier annotation (drawn at the tick size on the same row,
+    // render_plot_text()).
+    float row_h = 0.0f;
+    if (!axes.xlabel().empty())
+        row_h = m.label_px * PLOT_TEXT_LINE_FACTOR;
+    if (show_x && !axes.compute_x_ticks().offset_label.empty())
+        row_h = std::max(row_h, tick_h);
+    if (row_h > 0.0f)
+        need = m.tick_length + m.px(TICK_PADDING) + tick_h + m.px(XLABEL_ROW_GAP) + row_h;
+    return need + m.px(VERTICAL_OUTER);
+}
+
+float top_label_extent(const Axes& axes, const AxisTextMetrics& m)
+{
+    // The title and the Y tick offset annotation share the row above the plot.
+    float need = 0.0f;
+    if (!axes.title().empty())
+        need = m.title_px * PLOT_TEXT_LINE_FACTOR + m.px(TITLE_PADDING);
+    if (axes.y_tick_labels_visible() && !axes.compute_y_ticks().offset_label.empty())
+        need = std::max(need, m.tick_px * PLOT_TEXT_LINE_FACTOR + m.px(OFFSET_ROW_GAP));
+    return need > 0.0f ? need + m.px(VERTICAL_OUTER) : 0.0f;
 }
 
 AxesDecorations measure_decorations(const Axes& axes)
 {
-    AxesDecorations d;
-    const Rect&     vp     = axes.viewport();
-    const float     tl     = axes.axis_style().tick_length;
-    const float     tick_h = TICK_FONT_PX * LABEL_LINE_FACTOR;
-    const float     lbl_h  = LABEL_FONT_PX * LABEL_LINE_FACTOR;
-    const float     ttl_h  = TITLE_FONT_PX * LABEL_LINE_FACTOR;
-    const bool      show_x = axes.x_tick_labels_visible();
-    const bool      show_y = axes.y_tick_labels_visible();
+    AxesDecorations       d;
+    const AxisTextMetrics m  = axis_text_metrics(axes);
+    const Rect&           vp = axes.viewport();
 
     d.left = left_label_extent(axes);
 
     // X tick labels are centred on their ticks: the outer ones may stick out
     // past the plot edges.
-    const TickResult xt = axes.compute_x_ticks();
-    if (show_x && vp.w > 0.0f)
+    if (axes.x_tick_labels_visible() && vp.w > 0.0f)
     {
+        const TickResult xt     = axes.compute_x_ticks();
         const ScaleType  sc     = axes.xscale();
         const AxisLimits lim    = axes.x_limits();
         const double     a0     = to_axis_space(sc, lim.min);
@@ -80,55 +123,60 @@ AxesDecorations measure_decorations(const Axes& axes)
                 vp.x + static_cast<float>((to_axis_space(sc, xt.positions[i]) - a0) / range) * vp.w;
             if (!(px >= vp.x - 0.5f && px <= vp.x + vp.w + 0.5f))
                 continue;
-            const float half = inter_text_width(xt.labels[i], TICK_FONT_PX) * 0.5f;
+            const float half = inter_text_width(xt.labels[i], m.tick_px) * 0.5f;
             over_l           = std::max(over_l, vp.x - (px - half));
             over_r           = std::max(over_r, px + half - (vp.x + vp.w));
         }
         if (over_l > 0.0f)
-            d.left = std::max(d.left, over_l + EDGE_TICK_PAD);
+            d.left = std::max(d.left, over_l + m.px(EDGE_TICK_PAD));
         if (over_r > 0.0f)
-            d.right = over_r + EDGE_TICK_PAD;
+            d.right = over_r + m.px(EDGE_TICK_PAD);
     }
 
-    // Below: tick marks, tick labels, then the X label / offset row.
-    float bottom = tl;
-    if (show_x)
-        bottom += TICK_PADDING + tick_h;
-    if (!axes.xlabel().empty() || (show_x && !xt.offset_label.empty()))
-        bottom = tl + TICK_PADDING + tick_h + XLABEL_ROW_GAP + lbl_h;
-    d.bottom = bottom + LEFT_LABEL_OUTER_PAD;
-
-    // Above: the title, sharing its row with the Y offset label.
-    float top = 0.0f;
-    if (show_y && !axes.compute_y_ticks().offset_label.empty())
-        top = XLABEL_ROW_GAP + tick_h;
-    if (!axes.title().empty())
-        top = std::max(top, TICK_PADDING + ttl_h);
-    d.top = top > 0.0f ? top + LEFT_LABEL_OUTER_PAD : 0.0f;
+    d.bottom = bottom_label_extent(axes, m);
+    d.top    = top_label_extent(axes, m);
     return d;
 }
 
-float suptitle_band_height(const Figure& fig)
+float suptitle_band_height(const Figure& fig, float text_scale)
 {
     if (fig.suptitle().empty())
         return 0.0f;
-    return SUPTITLE_PAD + SUPTITLE_FONT_PX * SUPTITLE_SCALE * LABEL_LINE_FACTOR;
+    if (!(text_scale > 0.0f))
+        text_scale = 1.0f;
+    return SUPTITLE_PAD * text_scale + suptitle_line_height(text_scale);
+}
+
+float figure_text_scale(const Figure& fig)
+{
+    for (const auto& a : fig.all_axes())
+        if (a)
+            return a->text_scale();
+    for (const auto& a : fig.axes())
+        if (a)
+            return a->text_scale();
+    return 1.0f;
 }
 
 GridSpacing compute_figure_spacing(const Figure&                       fig,
                                    const std::vector<AxesDecorations>& decor,
                                    float                               width,
                                    float                               height,
-                                   const Margins&                      outer)
+                                   const Margins&                      outer,
+                                   float                               gap_scale)
 {
     const int          rows  = std::max(1, fig.grid_rows());
     const int          cols  = std::max(1, fig.grid_cols());
     const FigureStyle& style = fig.style();
+    if (!(gap_scale > 0.0f))
+        gap_scale = 1.0f;
 
     GridSpacing sp;
     sp.outer = outer;
-    sp.col_gaps.assign(static_cast<size_t>(cols - 1), std::max(0.0f, style.subplot_hgap));
-    sp.row_gaps.assign(static_cast<size_t>(rows - 1), std::max(0.0f, style.subplot_vgap));
+    sp.col_gaps.assign(static_cast<size_t>(cols - 1),
+                       std::max(0.0f, style.subplot_hgap * gap_scale));
+    sp.row_gaps.assign(static_cast<size_t>(rows - 1),
+                       std::max(0.0f, style.subplot_vgap * gap_scale));
     if (!style.constrained_layout)
         return sp;
 
@@ -260,27 +308,48 @@ void update_shared_tick_labels(Figure& fig)
     }
 }
 
-}   // namespace
-
-void apply_subplot_layout(Figure& fig, const std::vector<Rect>& rects, const Margins& margins)
+void set_text_scale(Figure& fig, float text_scale)
 {
-    apply_subplot_layout(
-        fig,
-        rects,
-        std::vector<float>(static_cast<size_t>(std::max(1, fig.grid_cols())), margins.left));
+    for (auto& a : fig.axes())
+        if (a)
+            a->set_text_scale(text_scale);
+    for (auto& a : fig.all_axes())
+        if (a)
+            a->set_text_scale(text_scale);
 }
 
-void apply_subplot_layout(Figure&                   fig,
-                          const std::vector<Rect>&  rects,
-                          const std::vector<float>& left_room)
+}   // namespace
+
+void apply_subplot_layout(Figure&                  fig,
+                          const std::vector<Rect>& rects,
+                          const Margins&           margins,
+                          float                    text_scale)
+{
+    set_text_scale(fig, text_scale);
+    const size_t cols = static_cast<size_t>(std::max(1, fig.grid_cols()));
+    const size_t rows = (rects.size() + cols - 1) / cols;
+    SubplotRoom  room;
+    room.left.assign(cols, margins.left);
+    room.top.assign(rows, margins.top);
+    room.bottom.assign(rows, margins.bottom);
+    apply_subplot_layout(fig, rects, room);
+}
+
+void apply_subplot_layout(Figure& fig, const std::vector<Rect>& rects, const SubplotRoom& room)
 {
     const int    cols  = std::max(1, fig.grid_cols());
     const size_t slots = rects.size();
-    auto         room  = [&](size_t col) { return col < left_room.size() ? left_room[col] : 0.0f; };
+    const size_t rows  = (slots + static_cast<size_t>(cols) - 1) / static_cast<size_t>(cols);
+    auto at = [](const std::vector<float>& v, size_t i) { return i < v.size() ? v[i] : 0.0f; };
 
-    // Pass 1: outside-legend strips and the left growth each column needs.
+    // Pass 1: outside-legend strips and the growth each column (left) and row
+    // (top, bottom) needs.  Top / bottom only grow for text larger than what
+    // the default margins are sized for (custom font sizes, UI scale), so
+    // figures with the theme font sizes keep their layout.
     std::vector<float> legend_w(slots, 0.0f);
     std::vector<float> grow(static_cast<size_t>(cols), 0.0f);
+    std::vector<float> grow_top(rows, 0.0f);
+    std::vector<float> grow_bottom(rows, 0.0f);
     for (size_t i = 0; i < slots; ++i)
     {
         AxesBase* a = slot_axes(fig, i);
@@ -292,12 +361,25 @@ void apply_subplot_layout(Figure&                   fig,
             continue;
         a2->set_viewport(rects[i], legend_w[i]);   // provisional: tick count follows the height
         const size_t col   = i % static_cast<size_t>(cols);
-        const float  extra = left_label_extent(*a2) - room(col);
+        const float  extra = left_label_extent(*a2) - at(room.left, col);
         if (extra > 0.0f)
         {
             const float cap = rects[i].w * LEFT_GROWTH_MAX_FRACTION;
             grow[col]       = std::max(grow[col], std::min(extra, cap));
         }
+
+        const AxisTextMetrics m            = axis_text_metrics(*a2);
+        const AxisTextMetrics base         = default_metrics(*a2);
+        const float           vcap         = rects[i].h * VERTICAL_GROWTH_MAX_FRACTION;
+        const size_t          row          = i / static_cast<size_t>(cols);
+        const float           extra_bottom = bottom_label_extent(*a2, m)
+                                   - std::max(at(room.bottom, row), bottom_label_extent(*a2, base));
+        if (extra_bottom > 0.0f)
+            grow_bottom[row] = std::max(grow_bottom[row], std::min(extra_bottom, vcap));
+        const float extra_top =
+            top_label_extent(*a2, m) - std::max(at(room.top, row), top_label_extent(*a2, base));
+        if (extra_top > 0.0f)
+            grow_top[row] = std::max(grow_top[row], std::min(extra_top, vcap));
     }
 
     // Pass 2: final viewports (3D axes keep the plain cell).
@@ -309,7 +391,13 @@ void apply_subplot_layout(Figure&                   fig,
             const float g =
                 std::min(grow[i % static_cast<size_t>(cols)], r.w * LEFT_GROWTH_MAX_FRACTION);
             r.x += g;
-            r.w = std::max(0.0f, r.w - g);
+            r.w               = std::max(0.0f, r.w - g);
+            const size_t row  = i / static_cast<size_t>(cols);
+            const float  vcap = r.h * VERTICAL_GROWTH_MAX_FRACTION;
+            const float  gt   = std::min(grow_top[row], vcap);
+            const float  gb   = std::min(grow_bottom[row], vcap);
+            r.y += gt;
+            r.h = std::max(0.0f, r.h - gt - gb);
             fig.axes()[i]->set_viewport(r, legend_w[i]);
         }
         if (i < fig.all_axes().size() && fig.all_axes()[i])
@@ -320,19 +408,25 @@ void apply_subplot_layout(Figure&                   fig,
 float layout_figure(Figure&        fig,
                     const Rect&    content,
                     const Margins& outer,
-                    float          min_subplot_height)
+                    float          min_subplot_height,
+                    float          text_scale)
 {
+    if (!(text_scale > 0.0f))
+        text_scale = 1.0f;
     const int    rows  = std::max(1, fig.grid_rows());
     const int    cols  = std::max(1, fig.grid_cols());
     const size_t slots = static_cast<size_t>(rows) * static_cast<size_t>(cols);
-    const float  band  = suptitle_band_height(fig);
+    const float  band  = suptitle_band_height(fig, text_scale);
 
+    // The text scale first: every measurement below depends on it.
+    set_text_scale(fig, text_scale);
     update_shared_tick_labels(fig);
 
     // Manual spacing first: the final one when constrained layout is off, the
     // provisional viewports the labels are measured at otherwise.
     std::vector<AxesDecorations> decor(slots);
-    GridSpacing sp = compute_figure_spacing(fig, decor, content.w, content.h - band, outer);
+    GridSpacing                  sp =
+        compute_figure_spacing(fig, decor, content.w, content.h - band, outer, text_scale);
     if (fig.style().constrained_layout)
     {
         GridSpacing prov = sp;
@@ -353,8 +447,9 @@ float layout_figure(Figure&        fig,
             a->set_viewport(rects0[i], legend_layout::reserved_width(*a, fig.legend(), rects0[i]));
             decor[i] = measure_decorations(*a);
         }
-        sp = compute_figure_spacing(fig, decor, content.w, content.h - band, outer);
+        sp = compute_figure_spacing(fig, decor, content.w, content.h - band, outer, text_scale);
     }
+    const float outer_top = sp.outer.top;
     sp.outer.top += band;
 
     float      content_h = 0.0f;
@@ -368,17 +463,34 @@ float layout_figure(Figure&        fig,
                                            min_subplot_height,
                                            &content_h);
 
-    // Room left of each column: the outer margin, else the gap minus what the
-    // column on its left needs on its right side.
-    std::vector<float> left_room(static_cast<size_t>(cols), sp.outer.left);
+    // Room around each column / row: the outer margin, else the gap minus
+    // what the neighbouring column / row needs on its facing side.
+    auto decor_at = [&](int r, int c) -> const AxesDecorations&
+    { return decor[static_cast<size_t>(r * cols + c)]; };
+    SubplotRoom room;
+    room.left.assign(static_cast<size_t>(cols), sp.outer.left);
     for (int c = 1; c < cols; ++c)
     {
         float right_need = 0.0f;
         for (int r = 0; r < rows; ++r)
-            right_need = std::max(right_need, decor[static_cast<size_t>(r * cols + c - 1)].right);
-        left_room[c] = std::max(0.0f, sp.col_gaps[c - 1] - right_need);
+            right_need = std::max(right_need, decor_at(r, c - 1).right);
+        room.left[c] = std::max(0.0f, sp.col_gaps[c - 1] - right_need);
     }
-    apply_subplot_layout(fig, rects, left_room);
+    room.top.assign(static_cast<size_t>(rows), outer_top);
+    room.bottom.assign(static_cast<size_t>(rows), sp.outer.bottom);
+    for (int r = 0; r + 1 < rows; ++r)
+    {
+        float top_need    = 0.0f;   // of the row below
+        float bottom_need = 0.0f;   // of this row
+        for (int c = 0; c < cols; ++c)
+        {
+            top_need    = std::max(top_need, decor_at(r + 1, c).top);
+            bottom_need = std::max(bottom_need, decor_at(r, c).bottom);
+        }
+        room.bottom[r]  = std::max(0.0f, sp.row_gaps[r] - top_need);
+        room.top[r + 1] = std::max(0.0f, sp.row_gaps[r] - bottom_need);
+    }
+    apply_subplot_layout(fig, rects, room);
 
     if (band > 0.0f && !rects.empty())
     {
@@ -386,9 +498,9 @@ float layout_figure(Figure&        fig,
         const float x1 =
             rects[static_cast<size_t>(cols - 1)].x + rects[static_cast<size_t>(cols - 1)].w;
         fig.set_suptitle_rect(Rect{x0,
-                                   content.y + SUPTITLE_PAD,
+                                   content.y + SUPTITLE_PAD * text_scale,
                                    std::max(0.0f, x1 - x0),
-                                   SUPTITLE_FONT_PX * SUPTITLE_SCALE * LABEL_LINE_FACTOR});
+                                   suptitle_line_height(text_scale)});
     }
     else
     {

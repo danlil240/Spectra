@@ -88,8 +88,8 @@ class TextRenderer
                    TextVAlign         valign = TextVAlign::Top,
                    float              scale  = 1.0f);
 
-    // Queue rotated text (angle in radians, clockwise on screen, rotated around
-    // (x,y)); `scale` as in draw_text().
+    // Queue rotated text (angle in radians, rotated around (x,y)).  `scale`
+    // as for draw_text().
     void draw_text_rotated(const std::string& text,
                            float              x,
                            float              y,
@@ -133,6 +133,7 @@ class TextRenderer
 
     // Queue text with depth testing (for 3D labels occluded by geometry).
     // ndc_depth: depth value in [0,1] range from the 3D MVP projection.
+    // `scale` as for draw_text().
     void draw_text_depth(const std::string& text,
                          float              x,
                          float              y,
@@ -140,7 +141,8 @@ class TextRenderer
                          FontSize           size,
                          uint32_t           color_rgba,
                          TextAlign          align  = TextAlign::Left,
-                         TextVAlign         valign = TextVAlign::Top);
+                         TextVAlign         valign = TextVAlign::Top,
+                         float              scale  = 1.0f);
 
     // Flush all queued text: upload vertex buffer, bind pipeline + texture, draw.
     // Must be called inside an active render pass.

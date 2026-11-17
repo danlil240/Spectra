@@ -777,6 +777,25 @@ TextRenderer::TextExtent TextRenderer::measure_text(const std::string& text,
     return {width * scale, fd.line_height * scale};
 }
 
+namespace
+{
+
+// Glyph quad magnified / minified by `scale` (same atlas texels).
+GlyphInfo scaled_glyph(GlyphInfo g, float scale)
+{
+    if (scale != 1.0f)
+    {
+        g.x_offset *= scale;
+        g.y_offset *= scale;
+        g.width *= scale;
+        g.height *= scale;
+        g.x_advance *= scale;
+    }
+    return g;
+}
+
+}   // namespace
+
 void TextRenderer::draw_text(const std::string& text,
                              float              x,
                              float              y,
@@ -944,10 +963,13 @@ void TextRenderer::draw_text_depth(const std::string& text,
                                    FontSize           size,
                                    uint32_t           color_rgba,
                                    TextAlign          align,
-                                   TextVAlign         valign)
+                                   TextVAlign         valign,
+                                   float              scale)
 {
     if (!initialized_ || text.empty())
         return;
+    if (!(scale > 0.0f))
+        scale = 1.0f;
     if (mathtext::has_markup(text))
     {
         queue_math_text(depth_vertices_,
@@ -959,18 +981,19 @@ void TextRenderer::draw_text_depth(const std::string& text,
                         color_rgba,
                         align,
                         valign,
-                        1.0f);
+                        scale);
         return;
     }
 
-    const auto& fd = font(size);
+    const auto& fd          = font(size);
+    const float line_height = fd.line_height * scale;
 
     float offset_x = 0.0f;
     float offset_y = 0.0f;
 
     if (align != TextAlign::Left)
     {
-        auto ext = measure_text(text, size);
+        auto ext = measure_text(text, size, scale);
         if (align == TextAlign::Center)
             offset_x = -ext.width * 0.5f;
         else if (align == TextAlign::Right)
@@ -978,12 +1001,12 @@ void TextRenderer::draw_text_depth(const std::string& text,
     }
 
     if (valign == TextVAlign::Middle)
-        offset_y = -fd.line_height * 0.5f;
+        offset_y = -line_height * 0.5f;
     else if (valign == TextVAlign::Bottom)
-        offset_y = -fd.line_height;
+        offset_y = -line_height;
 
     float cursor_x = x + offset_x;
-    float cursor_y = y + offset_y + fd.ascent;
+    float cursor_y = y + offset_y + fd.ascent * scale;
 
     for (size_t i = 0; i < text.size();)
     {
@@ -993,7 +1016,7 @@ void TextRenderer::draw_text_depth(const std::string& text,
         if (!gp)
             continue;
 
-        const auto& g = *gp;
+        const GlyphInfo g = scaled_glyph(*gp, scale);
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(depth_vertices_, g, cursor_x, cursor_y, ndc_depth, color_rgba);
@@ -1017,9 +1040,10 @@ void TextRenderer::draw_text_rotated(const std::string& text,
     if (!(scale > 0.0f))
         scale = 1.0f;
 
-    const auto& fd    = font(size);
-    float       cos_a = std::cos(angle_rad);
-    float       sin_a = std::sin(angle_rad);
+    const auto& fd          = font(size);
+    const float line_height = fd.line_height * scale;
+    float       cos_a       = std::cos(angle_rad);
+    float       sin_a       = std::sin(angle_rad);
     if (mathtext::has_markup(text))
     {
         queue_math_text(vertices_,
@@ -1050,7 +1074,6 @@ void TextRenderer::draw_text_rotated(const std::string& text,
             offset_x = -ext.width;
     }
 
-    const float line_height = fd.line_height * scale;
     if (valign == TextVAlign::Middle)
         offset_y = -line_height * 0.5f;
     else if (valign == TextVAlign::Bottom)
@@ -1067,15 +1090,7 @@ void TextRenderer::draw_text_rotated(const std::string& text,
         if (!gp)
             continue;
 
-        GlyphInfo g = *gp;
-        if (scale != 1.0f)
-        {
-            g.x_offset *= scale;
-            g.y_offset *= scale;
-            g.width *= scale;
-            g.height *= scale;
-            g.x_advance *= scale;
-        }
+        const GlyphInfo g = scaled_glyph(*gp, scale);
         if (g.width > 0 && g.height > 0)
         {
             append_glyph(vertices_, g, cursor_x, cursor_y, 0.0f, color_rgba, cos_a, sin_a, x, y);

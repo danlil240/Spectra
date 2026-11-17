@@ -32,6 +32,34 @@ void undoable_set(UndoManager*                  mgr,
         mgr->push_value<T>(description, before, after, std::move(setter));
 }
 
+// ─── Axis style ──────────────────────────────────────────────────────────────
+
+// Set an axes' AxisStyle (tick / label sizes and colours, grid, tick length)
+// to `after`; undo restores `before`.  Nothing is pushed when they are equal.
+inline void undoable_axis_style(UndoManager*       mgr,
+                                AxesBase&          ax,
+                                const AxisStyle&   before,
+                                const AxisStyle&   after,
+                                const std::string& description = "Change axis style")
+{
+    ax.axis_style() = after;
+    auto same_color = [](const Color& a, const Color& b)
+    { return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a; };
+    const bool unchanged =
+        same_color(before.tick_color, after.tick_color)
+        && same_color(before.label_color, after.label_color)
+        && same_color(before.grid_color, after.grid_color)
+        && before.tick_length == after.tick_length && before.label_size == after.label_size
+        && before.title_size == after.title_size && before.grid_width == after.grid_width
+        && before.tick_size == after.tick_size;
+    if (!mgr || unchanged)
+        return;
+    AxesBase* ptr = &ax;
+    mgr->push(UndoAction{description,
+                         [ptr, before]() { ptr->axis_style() = before; },
+                         [ptr, after]() { ptr->axis_style() = after; }});
+}
+
 // ─── Axis limits ─────────────────────────────────────────────────────────────
 
 inline void undoable_xlim(UndoManager* mgr, Axes& ax, float new_min, float new_max)

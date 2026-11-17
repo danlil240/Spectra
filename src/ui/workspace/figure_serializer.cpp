@@ -72,6 +72,11 @@ enum ChunkTag : uint16_t
     // bar series in the preceding TAG_SERIES_BAR chunk.  Also version-free.
     TAG_BAR_CATEGORIES = 0x0045,
     TAG_AXES_FORMAT    = 0x0046,
+    // AxisStyle text colours and font sizes of the preceding TAG_AXES_2D /
+    // TAG_AXES_3D chunk.  Version-free; its absence marks a file written
+    // before the renderer honoured these fields (they are reset to the theme
+    // defaults so the figure keeps the look it was saved with).
+    TAG_AXES_TEXT_STYLE = 0x0048,
     // Fill alpha / edge width / edge colour (StatFillStyle) of the bar,
     // histogram, box or violin series of the preceding series chunk; written
     // only when it differs from the default.  Version-free.
@@ -362,6 +367,34 @@ static Colormap read_colormap_full(Reader& r)
 
 // ─── Save implementation ────────────────────────────────────────────────────
 
+// TAG_AXES_TEXT_STYLE payload: two colours and three f32 sizes.
+static constexpr uint32_t AXES_TEXT_STYLE_BYTES = 2 * 16 + 3 * 4;
+
+static void write_axes_text_style(BinaryWriter& w, const AxisStyle& as)
+{
+    auto pos = w.begin_chunk(TAG_AXES_TEXT_STYLE);
+    w.write_color(as.tick_color);
+    w.write_color(as.label_color);
+    w.write_f32(as.label_size);
+    w.write_f32(as.title_size);
+    w.write_f32(as.tick_size);
+    w.end_chunk(pos);
+}
+
+// Files without TAG_AXES_TEXT_STYLE were written while the renderer ignored
+// these AxisStyle fields (their defaults were opaque black and a 16 px title):
+// load them as the theme defaults so the figure looks as it did when saved.
+// A following TAG_AXES_TEXT_STYLE chunk restores the saved values.
+static void reset_legacy_axes_text_style(AxisStyle& as)
+{
+    const AxisStyle defaults;
+    as.tick_color  = defaults.tick_color;
+    as.label_color = defaults.label_color;
+    as.label_size  = defaults.label_size;
+    as.title_size  = defaults.title_size;
+    as.tick_size   = defaults.tick_size;
+}
+
 // TAG_AXES_PLOT_STYLE flag bits.
 enum : uint8_t
 {
@@ -472,6 +505,7 @@ static void write_axes_2d(BinaryWriter& w, const Axes& axes, int axes_index)
     w.write_f64(yl.max);
 
     w.end_chunk(pos);
+    write_axes_text_style(w, as);
 
     {
         auto fpos = w.begin_chunk(TAG_AXES_FORMAT);
@@ -764,6 +798,7 @@ static void write_axes_3d(BinaryWriter& w, const Axes3D& axes, int axes_index)
     w.write_f32(cam.up.z);
 
     w.end_chunk(pos);
+    write_axes_text_style(w, as);
 
     {
         auto bpos = w.begin_chunk(TAG_AXES3D_BOX);
@@ -1196,6 +1231,7 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 as.label_size  = r.read_f32();
                 as.title_size  = r.read_f32();
                 as.grid_width  = r.read_f32();
+                reset_legacy_axes_text_style(as);
 
                 if (version >= 6)   // full-precision limits
                 {
@@ -1271,6 +1307,7 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 as.label_size  = r.read_f32();
                 as.title_size  = r.read_f32();
                 as.grid_width  = r.read_f32();
+                reset_legacy_axes_text_style(as);
 
                 // Camera
                 auto& cam           = axes.camera();
@@ -2134,6 +2171,32 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 if (has_arrow)
                     ann.arrow_to(arrow_x, arrow_y);
                 last_text = &ann;
+                break;
+            }
+
+            case TAG_AXES_TEXT_STYLE:
+            {
+                if (len < AXES_TEXT_STYLE_BYTES)
+                {
+                    r.skip(len);
+                    break;
+                }
+                AxisStyle loaded_style;
+                loaded_style.tick_color  = r.read_color();
+                loaded_style.label_color = r.read_color();
+                loaded_style.label_size  = r.read_f32();
+                loaded_style.title_size  = r.read_f32();
+                loaded_style.tick_size   = r.read_f32();
+                if (len > AXES_TEXT_STYLE_BYTES)
+                    r.skip(len - AXES_TEXT_STYLE_BYTES);   // fields added later
+                if (!r.good() || axes_ptrs.empty() || !axes_ptrs.back())
+                    break;
+                auto& as       = axes_ptrs.back()->axis_style();
+                as.tick_color  = loaded_style.tick_color;
+                as.label_color = loaded_style.label_color;
+                as.label_size  = loaded_style.label_size;
+                as.title_size  = loaded_style.title_size;
+                as.tick_size   = loaded_style.tick_size;
                 break;
             }
 

@@ -135,6 +135,7 @@ set(SPECTRA_UNIT_TESTS
     test_filters
     test_tick_generation
     test_axes_layout_fit
+    test_axis_text_style
     test_axes_format_transport
     test_series_style_transport
     test_series_visibility

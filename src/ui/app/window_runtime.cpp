@@ -30,6 +30,7 @@
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
     #include "ui/layout/layout_manager.hpp"
+    #include "ui/theme/theme.hpp"
 #endif
 
 #if defined(SPECTRA_USE_SDL3)
@@ -824,6 +825,11 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
             // Update dock system layout with current canvas bounds
             dock_system.update_layout(canvas);
 
+            // The UI scale setting also scales the plot text, tick marks and
+            // margins on screen (exports lay out at scale 1).
+            const float plot_scale =
+                imgui_ui->theme_mgr() ? imgui_ui->theme_mgr()->ui_scale() : 1.0f;
+
             if (dock_system.is_split())
             {
                 // Per-pane layout: each pane renders its own figure
@@ -837,11 +843,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         // Use figure's style margins, clamped to fit pane bounds
                         const auto& fs_style = fig->style();
                         Margins     pane_margins;
-                        pane_margins.left  = std::min(fs_style.margin_left, pinfo.bounds.w * 0.3f);
-                        pane_margins.right = std::min(fs_style.margin_right, pinfo.bounds.w * 0.2f);
+                        pane_margins.left =
+                            std::min(fs_style.margin_left * plot_scale, pinfo.bounds.w * 0.3f);
+                        pane_margins.right =
+                            std::min(fs_style.margin_right * plot_scale, pinfo.bounds.w * 0.2f);
                         pane_margins.bottom =
-                            std::min(fs_style.margin_bottom, pinfo.bounds.h * 0.3f);
-                        pane_margins.top = std::min(fs_style.margin_top, pinfo.bounds.h * 0.2f);
+                            std::min(fs_style.margin_bottom * plot_scale, pinfo.bounds.h * 0.3f);
+                        pane_margins.top =
+                            std::min(fs_style.margin_top * plot_scale, pinfo.bounds.h * 0.2f);
 
                         const float min_sub_h = fs_style.min_subplot_height;
                         const float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
@@ -849,7 +858,8 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                             *fig,
                             Rect{pinfo.bounds.x, origin_y, pinfo.bounds.w, pinfo.bounds.h},
                             pane_margins,
-                            min_sub_h);
+                            min_sub_h,
+                            plot_scale);
                         fig->set_content_height(content_h);
 
                         // Clamp scroll offset to valid range
@@ -868,18 +878,20 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 // Use figure's style margins for layout
                 const auto& af_style = active_figure->style();
                 Margins     fig_margins;
-                fig_margins.left = af_style.margin_left;
+                fig_margins.left = af_style.margin_left * plot_scale;
                 // Keep the plot clear of the inspector tab on the canvas' right edge.
-                fig_margins.right  = LayoutManager::plot_margin_right(af_style.margin_right);
-                fig_margins.top    = af_style.margin_top;
-                fig_margins.bottom = af_style.margin_bottom;
+                fig_margins.right =
+                    LayoutManager::plot_margin_right(af_style.margin_right * plot_scale);
+                fig_margins.top    = af_style.margin_top * plot_scale;
+                fig_margins.bottom = af_style.margin_bottom * plot_scale;
 
                 const float min_sub_h = af_style.min_subplot_height;
                 const float origin_y  = cb.y - active_figure->scroll_offset_y();
                 const float content_h = layout_figure(*active_figure,
                                                       Rect{cb.x, origin_y, cb.w, cb.h},
                                                       fig_margins,
-                                                      min_sub_h);
+                                                      min_sub_h,
+                                                      plot_scale);
                 active_figure->set_content_height(content_h);
 
                 // Clamp scroll offset to valid range

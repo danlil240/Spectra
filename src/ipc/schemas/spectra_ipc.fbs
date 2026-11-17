@@ -123,6 +123,7 @@ table SnapshotAxisState {
     y_scale: uint8 = 0;
     x_datetime: bool = false;    // date-time tick labels
     y_datetime: bool = false;
+    bar_mode: uint8 = 0;         // spectra::BarMode
 }
 
 table SnapshotSeriesState {

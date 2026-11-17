@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <format>
 #include <limits>
+#include <map>
 #include <optional>
+#include <set>
+#include <utility>
 #include <vector>
 #include <spectra/axes.hpp>
 #include <spectra/chunked_series.hpp>
@@ -784,7 +787,8 @@ static bool consume_sticky_extent(const Series& s, AxisExtent& x, AxisExtent& y)
         if (bs->point_count() == 0)
             return false;
         const bool horizontal = bs->orientation() == BarOrientation::Horizontal;
-        consume_finite_value(bs->baseline(), horizontal ? x : y, horizontal ? xoff : yoff);
+        // value_origin(): the baseline, or the stack origin when stacked.
+        consume_finite_value(bs->value_origin(), horizontal ? x : y, horizontal ? xoff : yoff);
         return true;
     }
     if (const auto* hs = dynamic_cast<const HistogramSeries*>(&s))
@@ -1178,8 +1182,171 @@ static AxisExtent to_extent(const double (&v)[3])
     return e;
 }
 
+// ─── Bar layout (Axes::bar_mode()) ──────────────────────────────────────────
+
+// Gap between neighbouring bars of a group, as a fraction of a slot.
+static constexpr float BAR_GROUP_GAP = 0.1f;
+
+// Offsets of a bar series along its category and value axes: logical value =
+// stored float + offset (Series::x_offset()/y_offset(), as drawn and autoscaled).
+static double bar_category_offset(const BarSeries& b)
+{
+    return b.orientation() == BarOrientation::Vertical ? b.x_offset() : b.y_offset();
+}
+
+static double bar_value_offset(const BarSeries& b)
+{
+    return b.orientation() == BarOrientation::Vertical ? b.y_offset() : b.x_offset();
+}
+
+// Side-by-side layout of the series that share a bar position (in logical,
+// offset-applied coordinates) with another series; the others keep the
+// plain layout.
+static void layout_grouped_bars(const std::vector<BarSeries*>& bars)
+{
+    std::map<double, int> users;   // logical position -> number of series with a bar there
+    for (const BarSeries* b : bars)
+    {
+        const double     off = bar_category_offset(*b);
+        std::set<double> own;
+        for (float p : b->bar_positions())
+            if (std::isfinite(p))
+                own.insert(static_cast<double>(p) + off);
+        for (double p : own)
+            ++users[p];
+    }
+
+    std::vector<BarSeries*> group;
+    for (BarSeries* b : bars)
+    {
+        const double off    = bar_category_offset(*b);
+        const bool   shared = std::any_of(b->bar_positions().begin(),
+                                        b->bar_positions().end(),
+                                        [&](float p)
+                                        {
+                                            const auto it =
+                                                users.find(static_cast<double>(p) + off);
+                                            return it != users.end() && it->second > 1;
+                                        });
+        if (shared)
+            group.push_back(b);
+        else
+            b->reset_layout();
+    }
+    if (group.size() < 2)
+    {
+        for (BarSeries* b : group)
+            b->reset_layout();
+        return;
+    }
+
+    float width = 0.0f;
+    for (const BarSeries* b : group)
+        width = std::max(width, b->bar_width());
+    const float slot = width / static_cast<float>(group.size());
+    for (size_t k = 0; k < group.size(); ++k)
+    {
+        const float offset = -0.5f * width + slot * (static_cast<float>(k) + 0.5f);
+        group[k]->set_layout(offset, slot * (1.0f - BAR_GROUP_GAP), {}, false, std::nullopt);
+    }
+}
+
+// Stacked layout: each bar starts where the bars of the earlier series at the
+// same logical position end.  Positive and negative values stack separately,
+// both from the first series' baseline.  Stacking runs in logical
+// (offset-applied) coordinates; each series stores its bases relative to its
+// own value offset.
+static void layout_stacked_bars(const std::vector<BarSeries*>& bars)
+{
+    if (bars.size() < 2)
+    {
+        for (BarSeries* b : bars)
+            b->reset_layout();
+        return;
+    }
+    const BarSeries& first = *bars.front();
+    const double     origin =
+        static_cast<double>(first.baseline()) + bar_value_offset(first);   // logical
+    std::map<double, std::pair<double, double>> tops;   // position -> {positive, negative} top
+    for (BarSeries* b : bars)
+    {
+        const double       cat_off    = bar_category_offset(*b);
+        const double       val_off    = bar_value_offset(*b);
+        const auto&        pos        = b->bar_positions();
+        const auto&        h          = b->bar_heights();
+        const size_t       n          = std::min(pos.size(), h.size());
+        const float        own_origin = static_cast<float>(origin - val_off);
+        std::vector<float> bases(n, own_origin);
+        for (size_t i = 0; i < n; ++i)
+        {
+            if (!std::isfinite(pos[i]))
+                continue;
+            auto& top = tops.try_emplace(static_cast<double>(pos[i]) + cat_off, origin, origin)
+                            .first->second;
+            if (!std::isfinite(h[i]))
+            {
+                bases[i] = static_cast<float>(top.first - val_off);
+                continue;
+            }
+            double& acc = h[i] >= 0.0f ? top.first : top.second;
+            bases[i]    = static_cast<float>(acc - val_off);
+            acc += static_cast<double>(h[i]);
+        }
+        b->set_layout(0.0f, -1.0f, std::move(bases), true, own_origin);
+    }
+}
+
+static void apply_bar_layout(BarMode mode, const std::vector<BarSeries*>& bars)
+{
+    for (BarOrientation o : {BarOrientation::Vertical, BarOrientation::Horizontal})
+    {
+        std::vector<BarSeries*> shown;
+        for (BarSeries* b : bars)
+        {
+            if (b->orientation() != o)
+                continue;
+            if (b->visible() && mode != BarMode::Overlay)
+                shown.push_back(b);
+            else
+                b->reset_layout();
+        }
+        if (mode == BarMode::Grouped)
+            layout_grouped_bars(shown);
+        else if (mode == BarMode::Stacked)
+            layout_stacked_bars(shown);
+    }
+}
+
+void Axes::sync_bar_layout() const
+{
+    std::lock_guard         lock(bar_layout_mutex_);
+    std::vector<BarSeries*> bars;
+    auto                    make_key = [&]()
+    {
+        std::vector<std::uint64_t> key{static_cast<std::uint64_t>(bar_mode_)};
+        for (const BarSeries* b : bars)
+        {
+            key.push_back(reinterpret_cast<std::uintptr_t>(b));
+            key.push_back(b->change_generation());
+            key.push_back(b->visible() ? 1 : 0);
+        }
+        return key;
+    };
+    for (const auto& s : series_)
+        if (auto* b = dynamic_cast<BarSeries*>(s.get()))
+            bars.push_back(b);
+    if (bars.empty() && bar_layout_key_.size() <= 1)
+        return;
+    if (make_key() == bar_layout_key_)
+        return;
+    apply_bar_layout(bar_mode_, bars);
+    // Keyed after applying: set_layout() bumps the generation of what it changed.
+    bar_layout_key_ = make_key();
+}
+
 const Axes::DataExtentCache& Axes::data_extent_cached() const
 {
+    sync_bar_layout();
     std::vector<std::uint64_t> key;
     key.reserve(series_.size() * 3);
     for (const auto& s : series_)

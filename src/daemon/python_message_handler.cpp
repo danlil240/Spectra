@@ -235,6 +235,16 @@ static bool apply_property_update(FigureModel&              fig_model,
             return false;
         diff.ops.push_back(std::move(op));
     }
+    else if (property == "bar_mode")
+    {
+        // f1 = spectra::BarMode wire value (0 grouped, 1 stacked, 2 overlay).
+        if (!(f1 >= 0.0 && f1 <= 2.0) || f1 != std::floor(f1))
+            return false;
+        ipc::DiffOp op;
+        if (!fig_model.set_bar_mode(figure_id, axes_index, static_cast<int>(f1), &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "categories")
     {
         // Bar category names: f1 = count, str_val = names joined by 0x1F.
@@ -509,7 +519,7 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
         "legend",        "legend_visible", "add_knob",     "annotation",     "clear_annotations",
         "data_origin",   "xscale",         "yscale",       "xaxis_datetime", "yaxis_datetime",
         "categories",    "line_style",     "marker_style", "palette_index",  "suptitle",
-        "figure_layout", "draw_style"};
+        "figure_layout", "bar_mode",       "draw_style"};
     bool known = false;
     for (const auto* p : known_props)
     {

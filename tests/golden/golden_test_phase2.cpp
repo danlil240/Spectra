@@ -547,6 +547,43 @@ static bool render_scene_pixels(const std::function<void(Figure&)>& setup,
     return ok;
 }
 
+// Three bar series at the same categories: grouped side by side (default).
+static void scene_grouped_bars(App& /*app*/, Figure& fig)
+{
+    auto&                          ax = fig.subplot(1, 1, 1);
+    const std::vector<std::string> names{"Q1", "Q2", "Q3", "Q4"};
+    ax.bar(names, std::vector<float>{3.0f, 5.0f, 4.0f, 6.0f})
+        .label("north")
+        .color(rgb(0.20f, 0.45f, 0.80f));
+    ax.bar(names, std::vector<float>{2.0f, 4.5f, 5.5f, 3.0f})
+        .label("south")
+        .color(rgb(0.90f, 0.50f, 0.15f));
+    ax.bar(names, std::vector<float>{4.0f, 2.5f, 3.0f, 5.0f})
+        .label("west")
+        .color(rgb(0.25f, 0.65f, 0.35f));
+    ax.title("Grouped bars");
+    ax.grid(true);
+}
+
+// Stacked bars with negative values stacking below the axis.
+static void scene_stacked_bars(App& /*app*/, Figure& fig)
+{
+    auto&                          ax = fig.subplot(1, 1, 1);
+    const std::vector<std::string> names{"A", "B", "C", "D", "E"};
+    ax.bar_mode(BarMode::Stacked);
+    ax.bar(names, std::vector<float>{3.0f, 2.0f, 4.0f, 1.0f, 2.5f})
+        .label("base")
+        .color(rgb(0.20f, 0.45f, 0.80f));
+    ax.bar(names, std::vector<float>{2.0f, -1.5f, 1.0f, 3.0f, -2.0f})
+        .label("delta")
+        .color(rgb(0.90f, 0.50f, 0.15f));
+    ax.bar(names, std::vector<float>{-1.0f, -2.0f, 2.0f, 1.5f, 1.0f})
+        .label("extra")
+        .color(rgb(0.25f, 0.65f, 0.35f));
+    ax.title("Stacked bars");
+    ax.grid(true);
+}
+
 // ─── Phase 2 Golden Test Cases ──────────────────────────────────────────────
 
 TEST(GoldenImagePhase2, StepsAndAnnotations)
@@ -664,6 +701,16 @@ TEST(GoldenImagePhase2, Subplot3x1)
 TEST(GoldenImagePhase2, NegativeAxes)
 {
     run_golden_test("p2_negative_axes", scene_negative_axes);
+}
+
+TEST(GoldenImagePhase2, GroupedBars)
+{
+    run_golden_test("p2_grouped_bars", scene_grouped_bars);
+}
+
+TEST(GoldenImagePhase2, StackedBars)
+{
+    run_golden_test("p2_stacked_bars", scene_stacked_bars);
 }
 
 // ─── Diff framework stress tests ────────────────────────────────────────────

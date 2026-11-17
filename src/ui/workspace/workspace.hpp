@@ -40,6 +40,7 @@ struct WorkspaceData
         int  y_scale    = 0;
         bool x_datetime = false;
         bool y_datetime = false;
+        int  bar_mode   = 0;   // BarMode (0 grouped)
     };
 
     // v4: 3D axes state (one per 3D axes, indexed parallel to AxisState)

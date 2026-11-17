@@ -1,8 +1,9 @@
-// axes_format_state.hpp — Axis scales, date-time tick mode, legend position,
-// figure layout (suptitle, constrained layout, shared axes), bar category
-// names and line draw styles between the core model and IPC (snapshot fields
-// and the SET_AXIS_SCALE / SET_LEGEND_POSITION / SET_FIGURE_SUPTITLE /
-// SET_FIGURE_LAYOUT / SET_SERIES_CATEGORIES / SET_SERIES_DRAW_STYLE diff ops).
+// axes_format_state.hpp — Axis scales, date-time tick mode, bar mode, legend
+// position, figure layout (suptitle, constrained layout, shared axes), bar
+// category names and line draw styles between the core model and IPC
+// (snapshot fields and the SET_AXIS_SCALE / SET_LEGEND_POSITION /
+// SET_FIGURE_SUPTITLE / SET_FIGURE_LAYOUT / SET_SERIES_CATEGORIES /
+// SET_SERIES_DRAW_STYLE diff ops).
 //
 // Header-only so the app, daemon, window agent and unit tests share one copy.
 // Values read from a peer are validated (an IPC peer is untrusted).
@@ -60,7 +61,20 @@ inline uint8_t legend_position_to_wire(LegendPosition p)
     return static_cast<uint8_t>(p);
 }
 
-// ─── Axis scale / date-time ─────────────────────────────────────────────────
+inline BarMode bar_mode_from_wire(double v)
+{
+    const int i = static_cast<int>(v);
+    if (!(v >= 0.0) || i > static_cast<int>(BarMode::Overlay))
+        return BarMode::Grouped;
+    return static_cast<BarMode>(i);
+}
+
+inline uint8_t bar_mode_to_wire(BarMode m)
+{
+    return static_cast<uint8_t>(m);
+}
+
+// ─── Axis scale / date-time / bar mode ──────────────────────────────────────
 
 inline void axis_format_to_state(const Axes& ax, SnapshotAxisState& sa)
 {
@@ -68,6 +82,7 @@ inline void axis_format_to_state(const Axes& ax, SnapshotAxisState& sa)
     sa.y_scale    = scale_to_wire(ax.yscale());
     sa.x_datetime = ax.xaxis_datetime();
     sa.y_datetime = ax.yaxis_datetime();
+    sa.bar_mode   = bar_mode_to_wire(ax.bar_mode());
 }
 
 inline void apply_axis_format_state(Axes& ax, const SnapshotAxisState& sa)
@@ -76,12 +91,13 @@ inline void apply_axis_format_state(Axes& ax, const SnapshotAxisState& sa)
     ax.yscale(scale_from_wire(sa.y_scale));
     ax.xaxis_datetime(sa.x_datetime);
     ax.yaxis_datetime(sa.y_datetime);
+    ax.bar_mode(bar_mode_from_wire(sa.bar_mode));
 }
 
 inline bool same_axis_format(const SnapshotAxisState& a, const SnapshotAxisState& b)
 {
     return a.x_scale == b.x_scale && a.y_scale == b.y_scale && a.x_datetime == b.x_datetime
-           && a.y_datetime == b.y_datetime;
+           && a.y_datetime == b.y_datetime && a.bar_mode == b.bar_mode;
 }
 
 inline DiffOp make_axis_scale_op(uint64_t                 figure_id,
@@ -89,13 +105,14 @@ inline DiffOp make_axis_scale_op(uint64_t                 figure_id,
                                  const SnapshotAxisState& sa)
 {
     DiffOp op;
-    op.type       = DiffOp::Type::SET_AXIS_SCALE;
-    op.figure_id  = figure_id;
-    op.axes_index = axes_index;
-    op.f1         = sa.x_scale;
-    op.f2         = sa.y_scale;
-    op.f3         = sa.x_datetime ? 1.0 : 0.0;
-    op.f4         = sa.y_datetime ? 1.0 : 0.0;
+    op.type         = DiffOp::Type::SET_AXIS_SCALE;
+    op.figure_id    = figure_id;
+    op.axes_index   = axes_index;
+    op.f1           = sa.x_scale;
+    op.f2           = sa.y_scale;
+    op.f3           = sa.x_datetime ? 1.0 : 0.0;
+    op.f4           = sa.y_datetime ? 1.0 : 0.0;
+    op.series_index = sa.bar_mode;
     return op;
 }
 
@@ -105,6 +122,7 @@ inline void apply_axis_scale_op(SnapshotAxisState& sa, const DiffOp& op)
     sa.y_scale    = scale_to_wire(scale_from_wire(op.f2));
     sa.x_datetime = op.f3 != 0.0;
     sa.y_datetime = op.f4 != 0.0;
+    sa.bar_mode   = bar_mode_to_wire(bar_mode_from_wire(op.series_index));
 }
 
 // ─── Legend position ────────────────────────────────────────────────────────

@@ -166,7 +166,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
             os << "          \"x_scale\": " << ax.x_scale << ",\n";
             os << "          \"y_scale\": " << ax.y_scale << ",\n";
             os << "          \"x_datetime\": " << (ax.x_datetime ? "true" : "false") << ",\n";
-            os << "          \"y_datetime\": " << (ax.y_datetime ? "true" : "false") << "\n";
+            os << "          \"y_datetime\": " << (ax.y_datetime ? "true" : "false") << ",\n";
+            os << "          \"bar_mode\": " << ax.bar_mode << "\n";
             os << "        }";
             if (ai + 1 < fig.axes.size())
                 os << ",";
@@ -795,6 +796,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
             ax.y_scale    = static_cast<int>(read_number_value(ax_json, "y_scale", 0));
             ax.x_datetime = read_bool_value(ax_json, "x_datetime", false);
             ax.y_datetime = read_bool_value(ax_json, "y_datetime", false);
+            ax.bar_mode   = static_cast<int>(read_number_value(ax_json, "bar_mode", 0));
             fig.axes.push_back(std::move(ax));
         }
 
@@ -1217,6 +1219,7 @@ WorkspaceData Workspace::capture(const std::vector<Figure*>& figures,
                 as.y_scale      = static_cast<int>(ax2d->yscale());
                 as.x_datetime   = ax2d->xaxis_datetime();
                 as.y_datetime   = ax2d->yaxis_datetime();
+                as.bar_mode     = static_cast<int>(ax2d->bar_mode());
 
                 for (const auto& ann : ax2d->annotations())
                 {
@@ -1598,6 +1601,9 @@ bool Workspace::apply(const WorkspaceData& data, std::vector<Figure*>& figures)
                 ax2d->yscale(to_scale(as.y_scale));
                 ax2d->xaxis_datetime(as.x_datetime);
                 ax2d->yaxis_datetime(as.y_datetime);
+                ax2d->bar_mode(as.bar_mode >= 0 && as.bar_mode <= static_cast<int>(BarMode::Overlay)
+                                   ? static_cast<BarMode>(as.bar_mode)
+                                   : BarMode::Grouped);
 
                 // Files without the key (older formats) keep the current ones.
                 if (fs.has_text_annotations)

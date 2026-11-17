@@ -27,6 +27,7 @@ class Axes:
         "_is_3d",
         "_figure_axes",
         "_annotations",
+        "_bar_mode",
     )
 
     def __init__(self, session: Session, figure_id: int, axes_index: int, is_3d: bool = False) -> None:
@@ -39,6 +40,7 @@ class Axes:
         # indices are figure-wide, so a removal must re-index every axes.
         self._figure_axes: Optional[List["Axes"]] = None
         self._annotations: List["TextAnnotation"] = []
+        self._bar_mode = "grouped"
 
     @property
     def index(self) -> int:
@@ -80,6 +82,7 @@ class Axes:
         fill_alpha: Optional[float] = None,
         edge_width: Optional[float] = None,
         edge_color: Optional[Sequence[float]] = None,
+        stacked: Optional[bool] = None,
     ) -> Series:
         """Add a native bar series (filled bars, legend swatch).
 
@@ -87,7 +90,12 @@ class Axes:
         x = i and the axis is labelled with the names.  ``fill_alpha`` (default
         0.88), ``edge_width`` (pixels, default 1) and ``edge_color`` (RGB(A)
         floats; default a theme-aware shade of the fill) style the bars.
+        Several bar series at the same positions are drawn side by side
+        (grouped); ``stacked=True`` stacks them instead (``stacked=False``
+        groups them again), see :meth:`set_bar_mode`.
         """
+        if stacked is not None:
+            self.set_bar_mode("stacked" if stacked else "grouped")
         names = _category_names(x)
         hv = _floats(heights)
         xv = [float(i) for i in range(len(names))] if names is not None else _floats(x)
@@ -309,6 +317,35 @@ class Axes:
             f1=float(scale_to_wire(scale)),
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_bar_mode(self, mode: str) -> None:
+        """How several bar series at the same positions are drawn.
+
+        ``"grouped"`` (default) puts them side by side, ``"stacked"`` stacks
+        them (negative values stack downwards separately) and ``"overlay"``
+        draws them over each other.
+        """
+        if mode not in _BAR_MODES:
+            raise ValueError(f"bar mode must be one of {sorted(_BAR_MODES)}, got {mode!r}")
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="bar_mode",
+            f1=float(_BAR_MODES[mode]),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+        changed = mode != self._bar_mode
+        self._bar_mode = mode
+        if changed:
+            # The easy API fits limits client-side: refit its bars to the mode.
+            from . import _easy
+
+            _easy._refit_bars(self)
+
+    @property
+    def bar_mode(self) -> str:
+        """The bar mode last set from Python (``"grouped"`` by default)."""
+        return self._bar_mode
 
     def set_xaxis_datetime(self, enabled: bool = True) -> None:
         """Show x tick labels as dates/times (x values are Unix epoch seconds, UTC)."""
@@ -576,6 +613,9 @@ def _category_names(x) -> Optional[List[str]]:
 # "annotation" property: series_index that appends (mirrors the daemon).
 _ANNOTATION_APPEND = 0xFFFFFFFF
 _HALIGN = {"left": 0, "center": 1, "centre": 1, "right": 2}
+# spectra::BarMode wire values.
+_BAR_MODES = {"grouped": 0, "stacked": 1, "overlay": 2}
+
 _VALIGN = {"top": 0, "middle": 1, "center": 1, "centre": 1, "bottom": 2, "baseline": 2}
 
 

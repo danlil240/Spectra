@@ -354,6 +354,7 @@ class _EasyState:
         self._axes_sticky: dict = {}
         self._errorbar_counts: dict = {}  # (figure_id, axes_index) -> errorbar calls
         self._axes_scales: dict = {}  # (figure_id, axes_index) -> [xscale, yscale]
+        self._axes_bars: dict = {}  # (figure_id, axes_index) -> [(x, h, bottom, horiz, width)]
         self._datetime_axes: set = set()  # (figure_id, axes_index) with date-time x ticks
         self._subplot_cache: dict = {}  # (figure_id, rows, cols, index) -> Axes
         # sharex / sharey groups: (figure_id, axes_index) -> {"x": key, "y": key}
@@ -473,6 +474,7 @@ class _EasyState:
         self._axes_sticky.clear()
         self._errorbar_counts.clear()
         self._axes_scales.clear()
+        self._axes_bars.clear()
         self._datetime_axes.clear()
         self._subplot_cache.clear()
         self._share_groups.clear()
@@ -1021,6 +1023,7 @@ def bar(
     fill_alpha: Optional[float] = None,
     edge_width: Optional[float] = None,
     edge_color: Union[str, Tuple, List, None] = None,
+    stacked: Optional[bool] = None,
 ):
     """Bar chart drawn by the native bar series (filled bars, legend swatch).
 
@@ -1031,10 +1034,15 @@ def bar(
     (default 0.88), ``edge_width`` (pixels, default 1) and ``edge_color``
     (default: a shade of the fill) style the bars.
 
+    Several bar series at the same positions are drawn side by side
+    (grouped).  ``stacked=True`` stacks them on top of each other instead
+    (negative values stack downwards); it applies to the whole axes.
+
     Usage::
 
         sp.bar([1, 2, 3], [10, 20, 15])
         sp.bar(["a", "b", "c"], [3, 5, 2], color="g")
+        sp.bar(["a", "b", "c"], [1, 2, 1], stacked=True)
     """
     _check_color(color)
     bw = float(width) if width is not None else float(bar_width)
@@ -1050,19 +1058,70 @@ def bar(
 
     ax = _state._ensure_axes()
     series = ax.bar(names if names is not None else xv, hv, width=bw, bottom=float(bottom),
-                    horizontal=horizontal, label=label,
+                    horizontal=horizontal, label=label, stacked=stacked,
                     **_stat_style_kwargs(fill_alpha, edge_width, edge_color))
     _apply_color(series, color)
-    hw = bw / 2.0
-    pos = [v - hw for v in xv] + [v + hw for v in xv]
-    ext = list(hv) + [float(bottom)]
-    if horizontal:
-        _auto_fit_axes(ax, ext, pos, sticky_x=[float(bottom)])
-    else:
+    ax_key = (ax._figure_id, ax._index)
+    _state._axes_bars.setdefault(ax_key, []).append(
+        (xv, hv, float(bottom), bool(horizontal), bw))
+    if not horizontal:
         _mark_datetime_x(ax, names is None and _is_datetime_like(x))
-        _auto_fit_axes(ax, pos, ext, sticky_y=[float(bottom)])
+    _refit_bars(ax)
     _state._show_if_pending()
     return series
+
+
+def _bar_value_extent(same, mode: str):
+    """Values the bars of one orientation must show, and their baselines.
+
+    Mirrors Axes::sync_bar_layout(): stacked bars (two or more series of one
+    orientation) stack from the first series' bottom, positives and
+    negatives separately; otherwise each bar spans bottom .. height.
+    """
+    if mode != "stacked" or len(same) < 2:
+        ext = [v for b in same for v in b[1]] + [b[2] for b in same]
+        return ext, sorted({b[2] for b in same})
+    origin = same[0][2]
+    tops: dict = {}
+    ext = [origin]
+    for xv, hv, *_ in same:
+        for p, h in zip(xv, hv):
+            if not (math.isfinite(p) and math.isfinite(h)):
+                continue
+            pos_top, neg_top = tops.get(p, (origin, origin))
+            if h >= 0:
+                pos_top += h
+                ext.append(pos_top)
+            else:
+                neg_top += h
+                ext.append(neg_top)
+            tops[p] = (pos_top, neg_top)
+    return ext, [origin]
+
+
+def _refit_bars(ax) -> None:
+    """Fit the axes limits to its bars (both orientations) in its bar mode.
+
+    Called after each bar() and whenever the axes' bar mode changes, since
+    the mode is axes-wide: switching to stacked grows the stacks of every
+    orientation, not only the new bar's.  Limits only ever grow (bounds
+    accumulate across calls).  Bar baselines become sticky edges.
+    """
+    ax_key = (ax._figure_id, ax._index)
+    bars = _state._axes_bars.get(ax_key)
+    if not bars:
+        return
+    mode = getattr(ax, "bar_mode", "grouped")
+    for horizontal in (False, True):
+        same = [b for b in bars if b[3] == horizontal]
+        if not same:
+            continue
+        ext, origins = _bar_value_extent(same, mode)
+        pos = [p + d * b[4] / 2.0 for b in same for p in b[0] for d in (-1.0, 1.0)]
+        if horizontal:
+            _auto_fit_axes(ax, ext, pos, sticky_x=origins)
+        else:
+            _auto_fit_axes(ax, pos, ext, sticky_y=origins)
 
 
 def barh(
@@ -1072,6 +1131,7 @@ def barh(
     color: Union[str, Tuple, List, None] = None,
     label: str = "",
     left: float = 0.0,
+    stacked: Optional[bool] = None,
     **style,
 ):
     """Horizontal bar chart (``bar(..., horizontal=True)``).
@@ -1080,7 +1140,7 @@ def barh(
     :func:`bar`.
     """
     return bar(y, widths, bar_width=height, color=color, label=label, bottom=left,
-               horizontal=True, **style)
+               horizontal=True, stacked=stacked, **style)
 
 
 def fill_between(

@@ -755,6 +755,8 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
         auto& ax = *axes_ptr;
         if (!ax.has_series_removed_callback())
             ax.set_series_removed_callback(removal_cb);
+        // Grouped / stacked bars: lay out before their geometry is uploaded.
+        ax.sync_bar_layout();
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);

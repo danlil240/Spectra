@@ -257,6 +257,27 @@ bool FigureModel::set_axis_format(uint64_t     figure_id,
     return true;
 }
 
+bool FigureModel::set_bar_mode(uint64_t     figure_id,
+                               uint32_t     axes_index,
+                               int          bar_mode,
+                               ipc::DiffOp* op_out)
+{
+    if (bar_mode < 0 || bar_mode > static_cast<int>(BarMode::Overlay))
+        return false;
+
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size()
+        || it->second.axes[axes_index].is_3d)
+        return false;
+    auto& ax    = it->second.axes[axes_index];
+    ax.bar_mode = static_cast<uint8_t>(bar_mode);
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_axis_scale_op(figure_id, axes_index, ax);
+    return true;
+}
+
 // --- Text annotations ---
 
 bool FigureModel::add_annotation(uint64_t                            figure_id,

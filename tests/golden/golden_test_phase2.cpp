@@ -63,10 +63,9 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
 
 static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
-                            uint32_t                           width             = 640,
-                            uint32_t                           height            = 480,
-                            double                             tolerance_percent = 0.5,
-                            double                             max_mae           = 1.0)
+                            uint32_t                           width  = 640,
+                            uint32_t                           height = 480,
+                            const GoldenTolerance&             tol    = GoldenTolerance{})
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
     fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
@@ -133,9 +132,6 @@ static void run_golden_test(const std::string&                 scene_name,
     ASSERT_EQ(bw, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(bh, height) << "Baseline height mismatch for: " << scene_name;
 
-    GoldenTolerance tol;
-    tol.max_percent = tolerance_percent;
-    tol.max_mae     = max_mae;
     DiffResult diff = compare_images(actual_pixels.data(),
                                      baseline_pixels.data(),
                                      width,
@@ -149,6 +145,7 @@ static void run_golden_test(const std::string&                 scene_name,
                                         tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_img.data(), width, height);
 
+    std::cout << diff.stats_line(scene_name) << "\n";
     EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << scene_name << "\n"
                                   << diff.describe(tol) << "  Diff image saved to: " << diff_path;
 }
@@ -610,9 +607,13 @@ TEST(GoldenImagePhase2, DenseLineDecimationIsVisuallyLossless)
                                     640,
                                     480,
                                     decimated));
+    // Two different draw paths, not a render vs its baseline: keep the loose
+    // anti-aliasing budget rather than the tight baseline defaults.
     GoldenTolerance tol;
-    tol.max_percent = 0.5;
-    tol.max_mae     = 1.0;
+    tol.pixel_threshold   = 24;
+    tol.max_percent       = 0.5;
+    tol.max_mae           = 1.0;
+    tol.max_tile_fraction = 0.10;
     const DiffResult diff =
         compare_images(decimated.data(), exact.data(), 640, 480, tol.pixel_threshold);
     EXPECT_TRUE(diff.passed(tol)) << diff.describe(tol);
@@ -645,9 +646,13 @@ TEST(GoldenImagePhase2, EmptiedDecimatedLineDisappears)
                                     480,
                                     emptied,
                                     empty_line));
+    // Two different draw paths, not a render vs its baseline: keep the loose
+    // anti-aliasing budget rather than the tight baseline defaults.
     GoldenTolerance tol;
-    tol.max_percent = 0.1;
-    tol.max_mae     = 0.5;
+    tol.pixel_threshold   = 24;
+    tol.max_percent       = 0.1;
+    tol.max_mae           = 0.5;
+    tol.max_tile_fraction = 0.10;
     const DiffResult diff =
         compare_images(emptied.data(), reference.data(), 640, 480, tol.pixel_threshold);
     EXPECT_TRUE(diff.passed(tol)) << diff.describe(tol);

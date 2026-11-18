@@ -13,6 +13,7 @@
     #include <spectra/logger.hpp>
 
     #include <cassert>
+    #include <cstddef>
     #include <cstring>
     #include <stdexcept>
     #include <string>
@@ -69,6 +70,15 @@ static constexpr uint32_t WGPU_SERIES_PC_SLOT_SIZE =
     (sizeof(SeriesPushConstants) + WGPU_UBO_ALIGN - 1) & ~(WGPU_UBO_ALIGN - 1);
 static constexpr uint64_t WGPU_SERIES_PC_RING_SIZE =
     static_cast<uint64_t>(WGPU_SERIES_PC_SLOT_SIZE) * WGPU_SERIES_PC_RING_SLOTS;
+
+// push_constants() copies SeriesPushConstants bytes verbatim into the SeriesPC
+// uniform.  WGSL packs dash_pattern as array<vec4<f32>, 2> (uniform arrays need
+// a 16-byte element stride), which only lines up while it sits on a 16-byte
+// boundary and the fields after it keep these offsets.
+static_assert(offsetof(SeriesPushConstants, dash_pattern) % 16 == 0);
+static_assert(offsetof(SeriesPushConstants, dash_total) == 80);
+static_assert(offsetof(SeriesPushConstants, _pad2) == 88);
+static_assert(sizeof(SeriesPushConstants) == 96);
 
 // ─── Event pump ───────────────────────────────────────────────────────────────
 

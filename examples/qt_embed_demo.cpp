@@ -1,7 +1,7 @@
 // qt_embed_demo.cpp — Qt6 example embedding a Spectra plot via Vulkan canvas.
 //
 // Build (requires Qt6):
-//   cmake -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON \
+//   cmake -DSPECTRA_USE_QT=ON -DSPECTRA_BUILD_QT_EXAMPLE=ON
 //         -DSPECTRA_BUILD_EXAMPLES=ON -DCMAKE_PREFIX_PATH=/path/to/Qt6 ..
 //   make qt_embed_demo
 //
@@ -86,9 +86,9 @@ class SpectraVulkanWindow : public QWindow
         if (!runtime_ || !isExposed())
             return false;
 
-        auto dpr = devicePixelRatio();
-        auto w   = static_cast<uint32_t>(width() * dpr);
-        auto h   = static_cast<uint32_t>(height() * dpr);
+        // Framebuffer pixels: device-independent size * devicePixelRatio.
+        const uint32_t w = spectra::framebuffer_extent(width(), devicePixelRatio());
+        const uint32_t h = spectra::framebuffer_extent(height(), devicePixelRatio());
         if (w == 0 || h == 0)
             return false;
 
@@ -96,7 +96,6 @@ class SpectraVulkanWindow : public QWindow
             return false;
 
         attached_ = true;
-        last_dpr_ = dpr;
         return true;
     }
 
@@ -153,15 +152,9 @@ class SpectraVulkanWindow : public QWindow
 
         if (attached_ && runtime_)
         {
-            // Re-expose after hide (minimize→restore, monitor move, etc.)
-            // Check for DPR change (moved to a different-scale monitor).
-            auto dpr = devicePixelRatio();
-            if (dpr != last_dpr_)
-            {
-                last_dpr_ = dpr;
-                runtime_->mark_swapchain_dirty(this);
-            }
-
+            // Re-expose after hide (minimize→restore, monitor move, etc.).
+            // A devicePixelRatio change (moved to a different-scale monitor)
+            // is picked up by QtRuntime::begin_frame().
             // Ensure a frame is rendered promptly after becoming visible again.
             renderFrame();
         }
@@ -181,9 +174,8 @@ class SpectraVulkanWindow : public QWindow
     {
         if (!input_)
             return;
-        auto pos = event->position();
-        auto dpr = devicePixelRatio();
-        input_->on_mouse_move(pos.x() * dpr, pos.y() * dpr);
+        const QPointF pos = layoutPos(event->position());
+        input_->on_mouse_move(pos.x(), pos.y());
         requestUpdate();
     }
 
@@ -191,15 +183,10 @@ class SpectraVulkanWindow : public QWindow
     {
         if (!input_)
             return;
-        auto pos = event->position();
-        auto dpr = devicePixelRatio();
-        int  btn = qtButtonToSpectra(event->button());
-        int  mod = qtModsToSpectra(event->modifiers());
-        input_->on_mouse_button(btn,
-                                spectra::embed::ACTION_PRESS,
-                                mod,
-                                pos.x() * dpr,
-                                pos.y() * dpr);
+        const QPointF pos = layoutPos(event->position());
+        int           btn = qtButtonToSpectra(event->button());
+        int           mod = qtModsToSpectra(event->modifiers());
+        input_->on_mouse_button(btn, spectra::embed::ACTION_PRESS, mod, pos.x(), pos.y());
         requestUpdate();
     }
 
@@ -207,15 +194,10 @@ class SpectraVulkanWindow : public QWindow
     {
         if (!input_)
             return;
-        auto pos = event->position();
-        auto dpr = devicePixelRatio();
-        int  btn = qtButtonToSpectra(event->button());
-        int  mod = qtModsToSpectra(event->modifiers());
-        input_->on_mouse_button(btn,
-                                spectra::embed::ACTION_RELEASE,
-                                mod,
-                                pos.x() * dpr,
-                                pos.y() * dpr);
+        const QPointF pos = layoutPos(event->position());
+        int           btn = qtButtonToSpectra(event->button());
+        int           mod = qtModsToSpectra(event->modifiers());
+        input_->on_mouse_button(btn, spectra::embed::ACTION_RELEASE, mod, pos.x(), pos.y());
         requestUpdate();
     }
 
@@ -223,11 +205,10 @@ class SpectraVulkanWindow : public QWindow
     {
         if (!input_)
             return;
-        auto  pos = event->position();
-        auto  dpr = devicePixelRatio();
-        float dy  = static_cast<float>(event->angleDelta().y()) / 120.0f;
-        float dx  = static_cast<float>(event->angleDelta().x()) / 120.0f;
-        input_->on_scroll(dx, dy, pos.x() * dpr, pos.y() * dpr);
+        const QPointF pos = layoutPos(event->position());
+        float         dy  = static_cast<float>(event->angleDelta().y()) / 120.0f;
+        float         dx  = static_cast<float>(event->angleDelta().x()) / 120.0f;
+        input_->on_scroll(dx, dy, pos.x(), pos.y());
         requestUpdate();
     }
 
@@ -251,6 +232,13 @@ class SpectraVulkanWindow : public QWindow
     }
 
    private:
+    // Qt event positions are in device-independent pixels, the units the
+    // figure is laid out in: map them, never multiply by devicePixelRatio().
+    QPointF layoutPos(const QPointF& window_pos)
+    {
+        return runtime_ ? runtime_->map_to_layout(this, window_pos) : window_pos;
+    }
+
     void renderFrame()
     {
         if (!attached_ || !runtime_ || !figure_)
@@ -262,9 +250,9 @@ class SpectraVulkanWindow : public QWindow
         if (!isExposed())
             return;
 
-        auto dpr = devicePixelRatio();
-        auto w   = static_cast<uint32_t>(width() * dpr);
-        auto h   = static_cast<uint32_t>(height() * dpr);
+        // Framebuffer pixels: device-independent size * devicePixelRatio.
+        const uint32_t w = spectra::framebuffer_extent(width(), devicePixelRatio());
+        const uint32_t h = spectra::framebuffer_extent(height(), devicePixelRatio());
         if (w == 0 || h == 0)
             return;
 
@@ -364,7 +352,6 @@ class SpectraVulkanWindow : public QWindow
     AnimationTickCallback             animation_tick_;
     QTimer*                           timer_    = nullptr;
     bool                              attached_ = false;
-    qreal                             last_dpr_ = 1.0;
 
     using Clock = std::chrono::steady_clock;
     Clock::time_point last_frame_time_{};

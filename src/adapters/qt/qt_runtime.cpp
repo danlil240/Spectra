@@ -282,6 +282,8 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
     state->window_ctx                = VulkanBackend::create_window_context();
     state->window_ctx->id            = next_window_id_++;
     state->window_ctx->native_window = static_cast<void*>(window);
+    state->device_pixel_ratio        = window->devicePixelRatio();
+    state->surface_scale = compute_surface_scale(window->width(), window->height(), width, height);
 
     if (auto pending_it = pending_input_handlers_.find(window);
         pending_it != pending_input_handlers_.end())
@@ -318,7 +320,9 @@ bool QtRuntime::attach_window(QWindow* window, uint32_t width, uint32_t height)
         // Must be wired before init_headless(): it initializes the theme and the
         // overlay draw path dereferences the theme manager unconditionally.
         imgui_ui_->set_theme_manager(&theme_mgr_);
-        if (!imgui_ui_->init_headless(*backend_, width, height))
+        if (!imgui_ui_->init_headless(*backend_,
+                                      state->surface_scale.layout_width,
+                                      state->surface_scale.layout_height))
         {
             SPECTRA_LOG_WARN(
                 "qt_runtime",
@@ -409,6 +413,30 @@ bool QtRuntime::has_window(QWindow* window) const
     return find_window_state(window) != nullptr;
 }
 
+SurfaceScale QtRuntime::surface_scale(QWindow* window) const
+{
+    if (const auto* state = find_window_state(window))
+    {
+        return state->surface_scale;
+    }
+    return SurfaceScale{};
+}
+
+QPointF QtRuntime::map_to_layout(QWindow* window, const QPointF& window_pos) const
+{
+    const auto* state = find_window_state(window);
+    if (!state || !window)
+    {
+        return window_pos;
+    }
+    const LayoutPoint p = window_to_layout(state->surface_scale,
+                                           window->width(),
+                                           window->height(),
+                                           static_cast<float>(window_pos.x()),
+                                           static_cast<float>(window_pos.y()));
+    return QPointF(p.x, p.y);
+}
+
 bool QtRuntime::resize(QWindow* window, uint32_t width, uint32_t height)
 {
     if (!initialized_ || !window || width == 0 || height == 0)
@@ -472,6 +500,22 @@ bool QtRuntime::begin_frame(QWindow* window)
     }
 
     backend_->set_active_window(state->window_ctx.get());
+
+    // devicePixelRatio changes when the window moves to a screen with another
+    // scale: the logical size stays, the framebuffer size does not, and not
+    // every platform reports that as OUT_OF_DATE.  Recreate right away (no
+    // debounce unless a resize is also pending).
+    const double dpr = window->devicePixelRatio();
+    if (dpr != state->device_pixel_ratio)
+    {
+        SPECTRA_LOG_DEBUG("qt_runtime",
+                          "devicePixelRatio of window {} changed {} -> {}",
+                          state->window_ctx->id,
+                          state->device_pixel_ratio,
+                          dpr);
+        state->device_pixel_ratio          = dpr;
+        state->window_ctx->swapchain_dirty = true;
+    }
 
     // Handle swapchain recreation if needed (dirty from resize or OUT_OF_DATE)
     if (state->window_ctx->swapchain_dirty || state->window_ctx->swapchain_invalidated)
@@ -591,15 +635,30 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
 
     backend_->set_active_window(state->window_ctx.get());
 
-    auto sw_u = backend_->swapchain_width();
-    auto sh_u = backend_->swapchain_height();
-    auto sw   = static_cast<float>(sw_u);
-    auto sh   = static_cast<float>(sh_u);
+    // The swapchain is in framebuffer pixels; lay the figure and the UI out in
+    // the window's device-independent pixels and draw them pixel_scale times
+    // larger (same scheme as EmbedSurface::set_dpi_scale and the GLFW app).
+    const uint32_t fb_w  = backend_->swapchain_width();
+    const uint32_t fb_h  = backend_->swapchain_height();
+    SurfaceScale   scale = compute_surface_scale(window->width(), window->height(), fb_w, fb_h);
+    backend_->set_pixel_scale(scale.pixel_scale);
+    if (backend_->pixel_scale() != scale.pixel_scale)
+    {
+        // Backend draws 1:1 only: lay out in framebuffer pixels instead.
+        backend_->set_pixel_scale(1.0f);
+        scale = SurfaceScale{fb_w, fb_h, 1.0f};
+    }
+    state->surface_scale = scale;
 
-    const bool size_changed = (figure.width() != sw_u || figure.height() != sh_u);
+    const uint32_t lw = scale.layout_width;
+    const uint32_t lh = scale.layout_height;
+    const auto     sw = static_cast<float>(lw);
+    const auto     sh = static_cast<float>(lh);
+
+    const bool size_changed = (figure.width() != lw || figure.height() != lh);
     if (size_changed)
     {
-        figure.set_size(sw_u, sh_u);
+        figure.set_size(lw, lh);
     }
 
     bool layout_applied = false;
@@ -650,12 +709,17 @@ void QtRuntime::render_figure(QWindow* window, Figure& figure)
         fi.display_w = sw;
         fi.display_h = sh;
         fi.dt        = dt;
-        fi.dpi_scale = static_cast<float>(window->devicePixelRatio());
+        fi.dpi_scale = scale.pixel_scale;
 
-        const QPoint local_pos = window->mapFromGlobal(QCursor::pos());
-        const float  dpr       = std::max(fi.dpi_scale, 1.0f);
-        fi.mouse_x             = static_cast<float>(local_pos.x()) * dpr;
-        fi.mouse_y             = static_cast<float>(local_pos.y()) * dpr;
+        // Qt reports the cursor in device-independent pixels, the layout's units.
+        const QPointF     local_pos = window->mapFromGlobal(QCursor::pos().toPointF());
+        const LayoutPoint mouse     = window_to_layout(scale,
+                                                   window->width(),
+                                                   window->height(),
+                                                   static_cast<float>(local_pos.x()),
+                                                   static_cast<float>(local_pos.y()));
+        fi.mouse_x                  = mouse.x;
+        fi.mouse_y                  = mouse.y;
 
         const Qt::MouseButtons buttons = QGuiApplication::mouseButtons();
         fi.mouse_down[0]               = (buttons & Qt::LeftButton) != 0;

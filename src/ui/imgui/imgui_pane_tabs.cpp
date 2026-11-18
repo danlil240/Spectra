@@ -868,7 +868,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
                             ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
         ImGui::PushStyleColor(
             ImGuiCol_PopupBg,
-            ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.98f));
+            ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 1.0f));
         ImGui::PushStyleColor(
             ImGuiCol_Border,
             ImVec4(theme.border_default.r, theme.border_default.g, theme.border_default.b, 0.5f));
@@ -1028,7 +1028,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
         ImGui::PushStyleColor(
             ImGuiCol_PopupBg,
-            ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.98f));
+            ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 1.0f));
 
         if (ImGui::BeginPopup("##pane_tab_rename"))
         {

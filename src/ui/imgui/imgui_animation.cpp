@@ -114,7 +114,7 @@ void ImGuiIntegration::draw_timeline_panel()
 
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.98f));
+        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(colors.border_default.r, colors.border_default.g, colors.border_default.b, 0.3f));
@@ -287,7 +287,7 @@ void ImGuiIntegration::draw_curve_editor_panel()
 
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.98f));
+        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_TitleBg,
         ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f));
@@ -456,7 +456,6 @@ void ImGuiIntegration::draw_knobs_panel()
 
     ImGui::SetNextWindowPos(ImVec2(pos_x, pos_y), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(panel_w, 0.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowBgAlpha(0.92f);
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize
                              | ImGuiWindowFlags_NoSavedSettings
@@ -470,7 +469,7 @@ void ImGuiIntegration::draw_knobs_panel()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowTitleAlign, ImVec2(0.0f, 0.5f));
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 0.92f));
+        ImVec4(theme.bg_elevated.r, theme.bg_elevated.g, theme.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(theme.border_subtle.r, theme.border_subtle.g, theme.border_subtle.b, 0.4f));

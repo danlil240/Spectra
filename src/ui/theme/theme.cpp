@@ -755,10 +755,14 @@ void ThemeManager::apply_to_imgui()
     const Color panel_resolved = glass_resolved_surface(colors.bg_secondary, GlassSurface::Panel);
     current_theme_->opacity_panel = std::max(panel_resolved.a, 0.5f);
 
-    // Window and background
-    imgui_colors[ImGuiCol_WindowBg]     = lin(panel_resolved);
+    // Window and background.  ImGui windows (Topics, Log Browser, ROS panels,
+    // dialogs, menus, popups) float over the plot canvas, so their backgrounds are
+    // always fully opaque: a glass alpha here let the curves show through the
+    // panel text.  The glass translucency applies only to the shell zones that
+    // draw_glass_rect() paints behind the layout (rail, toolbar, sidebars).
+    imgui_colors[ImGuiCol_WindowBg]     = lin(panel_resolved, 1.0f);
     imgui_colors[ImGuiCol_ChildBg]      = ImVec4(0, 0, 0, 0);   // Transparent — inherits parent
-    imgui_colors[ImGuiCol_PopupBg]      = lin(colors.tooltip_bg);
+    imgui_colors[ImGuiCol_PopupBg]      = lin(colors.tooltip_bg, 1.0f);
     imgui_colors[ImGuiCol_Border]       = lin(colors.border_default);
     imgui_colors[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0.15f);   // Subtle depth shadow
 

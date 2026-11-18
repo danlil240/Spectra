@@ -258,7 +258,7 @@ void AnnotationManager::draw(const AxisMapping& map,
             ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
             ImGui::PushStyleColor(
                 ImGuiCol_WindowBg,
-                ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.95f));
+                ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_Border,
                                   ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.6f));
 

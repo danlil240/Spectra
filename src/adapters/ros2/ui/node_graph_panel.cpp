@@ -1738,7 +1738,6 @@ void NodeGraphPanel::draw_edge(const GraphEdge& e, float ox, float oy, float sca
 
 void NodeGraphPanel::draw_detail_popup(const GraphNode& n)
 {
-    ImGui::SetNextWindowBgAlpha(0.88f);
     ImGui::SetNextWindowSize(ImVec2(260, 0), ImGuiCond_Always);
 
     std::string popup_id = "##detail_" + n.id;

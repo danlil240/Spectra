@@ -28,13 +28,13 @@ bool begin_panel(const char* title, bool* p_open, ImGuiWindowFlags extra_flags)
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 0.96f));
+        ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.55f));
     ImGui::PushStyleColor(
         ImGuiCol_TitleBgActive,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
 
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoCollapse | extra_flags;
     return ImGui::Begin(title, p_open, flags);

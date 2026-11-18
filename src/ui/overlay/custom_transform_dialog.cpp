@@ -119,7 +119,7 @@ void CustomTransformDialog::draw()
     // Refined floating card: elevated surface, large radius, accent hairline.
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.99f));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border,
                           ImVec4(colors.accent.r, colors.accent.g, colors.accent.b, 0.28f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::MODAL_RADIUS);

@@ -27,6 +27,9 @@ runs:
         set -euo pipefail
         sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list /etc/apt/sources.list.d/azure-cli.list
         if [ "$TOOLCHAIN_PPA" = "true" ]; then
+          # The PPA mirror also returns transient 503s on package downloads;
+          # let apt retry each fetch (with backoff) instead of failing the job.
+          echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
           # Launchpad's API sometimes drops the connection mid-reply
           # (IncompleteRead); retry before failing the job.
           for attempt in 1 2 3 4 5; do

@@ -92,6 +92,9 @@ jobs:
           # Spectra uses C++20 <format>, which requires GCC 13+. Ubuntu 22.04
           # ships GCC 11 by default, so pull GCC 13 from the toolchain PPA there.
           if [ "${{ matrix.os }}" = "ubuntu-22.04" ]; then
+            # The PPA mirror also returns transient 503s on package downloads;
+            # let apt retry each fetch (with backoff) instead of failing the job.
+            echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
             # Launchpad's API sometimes drops the connection mid-reply
             # (IncompleteRead); retry before failing the job.
             for attempt in 1 2 3 4 5; do
@@ -516,6 +519,9 @@ jobs:
           # Spectra uses C++20 <format>, which requires GCC 13+. Ubuntu 22.04
           # ships GCC 11 by default, so pull GCC 13 from the toolchain PPA there.
           if [ "${{ matrix.os }}" = "ubuntu-22.04" ]; then
+            # The PPA mirror also returns transient 503s on package downloads;
+            # let apt retry each fetch (with backoff) instead of failing the job.
+            echo 'Acquire::Retries "5";' | sudo tee /etc/apt/apt.conf.d/80-retries >/dev/null
             # Launchpad's API sometimes drops the connection mid-reply
             # (IncompleteRead); retry before failing the job.
             for attempt in 1 2 3 4 5; do

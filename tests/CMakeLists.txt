@@ -872,6 +872,29 @@ if(TARGET spectra_qt_adapter)
         ENVIRONMENT "QT_QPA_PLATFORM=xcb")
 endif()
 
+# QtRuntime HiDPI (QT_SCALE_FACTOR=2): logical layout vs framebuffer size.  Same needs as above.
+if(TARGET spectra_qt_adapter)
+    add_executable(unit_test_qt_runtime_hidpi unit/test_qt_runtime_hidpi.cpp)
+    target_link_libraries(unit_test_qt_runtime_hidpi PRIVATE spectra_qt_adapter GTest::gtest)
+    target_compile_features(unit_test_qt_runtime_hidpi PRIVATE cxx_std_20)
+    target_include_directories(unit_test_qt_runtime_hidpi PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN)
+        add_test(NAME unit_test_qt_runtime_hidpi
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_qt_runtime_hidpi>)
+    else()
+        add_test(NAME unit_test_qt_runtime_hidpi COMMAND unit_test_qt_runtime_hidpi)
+    endif()
+    set_tests_properties(unit_test_qt_runtime_hidpi PROPERTIES
+        LABELS "gpu;qt"
+        RESOURCE_LOCK gpu
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "QT_QPA_PLATFORM=xcb")
+endif()
+
 # Golden image tests (require Vulkan — headless via lavapipe in CI)
 option(SPECTRA_BUILD_GOLDEN_TESTS "Build golden image regression tests" ON)
 if(SPECTRA_BUILD_GOLDEN_TESTS)

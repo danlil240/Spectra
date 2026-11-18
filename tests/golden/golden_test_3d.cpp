@@ -117,11 +117,9 @@ static void expect_3d_data_in_view(Figure& fig, const std::string& scene_name)
 
 static void run_golden_test_3d(const std::string&                 scene_name,
                                std::function<void(App&, Figure&)> setup_scene,
-                               uint32_t                           width             = 640,
-                               uint32_t                           height            = 480,
-                               double                             tolerance_percent = 0.5,
-                               double                             max_mae           = 1.0,
-                               size_t max_differing_pixels = std::numeric_limits<size_t>::max())
+                               uint32_t                           width  = 640,
+                               uint32_t                           height = 480,
+                               const GoldenTolerance&             tol    = GoldenTolerance{})
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
     fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
@@ -195,9 +193,6 @@ static void run_golden_test_3d(const std::string&                 scene_name,
     ASSERT_EQ(baseline_w, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(baseline_h, height) << "Baseline height mismatch for: " << scene_name;
 
-    GoldenTolerance tol;
-    tol.max_percent = tolerance_percent;
-    tol.max_mae     = max_mae;
     DiffResult diff = compare_images(actual_pixels.data(),
                                      baseline_pixels.data(),
                                      width,
@@ -211,16 +206,9 @@ static void run_golden_test_3d(const std::string&                 scene_name,
                                            tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_pixels.data(), width, height);
 
+    std::cout << diff.stats_line(scene_name) << "\n";
     EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << scene_name << "\n"
                                   << diff.describe(tol) << "  Diff image: " << diff_path;
-
-    if (max_differing_pixels != std::numeric_limits<size_t>::max())
-    {
-        EXPECT_LE(diff.differing_pixels, max_differing_pixels)
-            << "Scene: " << scene_name << " exceeded differing-pixel budget"
-            << "\n  Differing pixels: " << diff.differing_pixels
-            << "\n  Allowed: " << max_differing_pixels << "\n  Diff image: " << diff_path;
-    }
 }
 
 TEST(Golden3D, Scatter3D_Basic)
@@ -688,11 +676,10 @@ TEST(Golden3D, CameraAngle_Orthographic)
         },
         640,
         480,
-        0.5,
-        1.0,
         // Orthographic edge rasterization differs slightly across Mesa/LLVM
-        // versions on CI (single-digit/low-teens pixels).
-        16);
+        // versions on CI (single-digit/low-teens pixels along polygon edges, which
+        // may share a tile): cap the total instead of the per-tile share.
+        GoldenTolerance{.max_tile_fraction = 0.05, .max_differing_pixels = 16});
 }
 
 TEST(Golden3D, MultiSubplot3D)

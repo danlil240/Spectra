@@ -56,7 +56,8 @@ static bool update_baselines()
 static void run_golden_test(const std::string&                 scene,
                             std::function<void(App&, Figure&)> setup_scene,
                             uint32_t                           width  = 480,
-                            uint32_t                           height = 360)
+                            uint32_t                           height = 360,
+                            const GoldenTolerance&             tol    = GoldenTolerance{})
 {
     const std::string name          = std::string("img_") + SPECTRA_GOLDEN_THEME + "_" + scene;
     const fs::path    baseline_path = baseline_dir() / (name + ".raw");
@@ -113,12 +114,12 @@ static void run_golden_test(const std::string&                 scene,
     ASSERT_EQ(bw, width);
     ASSERT_EQ(bh, height);
 
-    GoldenTolerance tol;
-    DiffResult      diff =
+    DiffResult diff =
         compare_images(pixels.data(), baseline.data(), width, height, tol.pixel_threshold);
     auto diff_img =
         generate_diff_image(pixels.data(), baseline.data(), width, height, tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_img.data(), width, height);
+    std::cout << diff.stats_line(name) << "\n";
     EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << name << "\n"
                                   << diff.describe(tol) << "  Diff image saved to: " << diff_path;
 }

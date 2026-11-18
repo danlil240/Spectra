@@ -511,7 +511,9 @@ jobs:
           rm -rf tests/golden/output
           mkdir -p tests/golden/output
           cd build
-          xvfb-run -a ctest --output-on-failure -L golden -j1 --repeat until-pass:2
+          # -V keeps each scene's "[GOLDEN] <scene>: max_channel_diff=..." line in the
+          # log even when it passes, so the tolerance can be re-checked against CI noise.
+          xvfb-run -a ctest -V --output-on-failure -L golden -j1 --repeat until-pass:2
 
       - name: Upload test artifacts on failure
         if: failure()

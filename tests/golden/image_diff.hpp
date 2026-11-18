@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -26,19 +27,34 @@ namespace spectra::test
 
 // Golden-image comparison budget.
 //
-// A pixel "differs" when any channel differs by more than pixel_threshold, which
-// absorbs anti-aliasing / rounding noise.  Two budgets then apply:
-//   * global:  at most max_percent of all pixels may differ, and
+// A pixel "differs" when any channel differs by more than pixel_threshold. Three
+// budgets then apply:
+//   * global:  at most max_percent of all pixels (and at most max_differing_pixels)
+//              may differ,
 //   * local:   no tile_size x tile_size tile may have more than
-//              max_tile_fraction of its pixels differing.
+//              max_tile_fraction of its pixels differing, and
+//   * mean:    the mean absolute channel error stays below max_mae.
 // The local budget is what catches small but real regressions -- a missing or
-// flipped marker, a dropped glyph -- that are far below any global percentage.
+// flipped marker, a dropped glyph, a line end moved by a pixel -- that are far
+// below any global percentage.
+//
+// The defaults are calibrated against lavapipe (Mesa 25.2 / LLVM 20, the CI
+// driver), which renders every scene bit-identically from run to run. They leave
+// room for the noise another llvmpipe build or CPU could plausibly add -- a
+// uniform +-1/2 LSB drift (absorbed by pixel_threshold and max_mae) and a handful
+// of scattered edge-coverage flips (at most 5 per 16 px tile, ~150 per 640x480
+// frame) -- but fail on real changes: a colormap swap whose channels move by 3-6
+// levels, a legend swatch or line cap one pixel shorter, a shifted line. The
+// previous defaults (threshold 24, 0.5%, 10% per tile) let all of those through.
+// Scenes that turn out to be noisier on CI get a per-test GoldenTolerance rather
+// than a looser global one.
 struct GoldenTolerance
 {
-    uint8_t pixel_threshold   = 24;
-    double  max_percent       = 0.5;
-    double  max_mae           = 1.0;
-    double  max_tile_fraction = 0.10;
+    uint8_t pixel_threshold      = 2;
+    double  max_percent          = 0.05;
+    double  max_mae              = 1.0;
+    double  max_tile_fraction    = 0.02;
+    size_t  max_differing_pixels = std::numeric_limits<size_t>::max();
 };
 
 constexpr uint32_t kDiffTileSize = 16;
@@ -68,7 +84,8 @@ struct DiffResult
     bool passed(const GoldenTolerance& tol) const
     {
         return percent_different <= tol.max_percent && mean_absolute_error <= tol.max_mae
-               && worst_tile_fraction() <= tol.max_tile_fraction;
+               && worst_tile_fraction() <= tol.max_tile_fraction
+               && differing_pixels <= tol.max_differing_pixels;
     }
 
     std::string describe(const GoldenTolerance& tol) const
@@ -83,6 +100,20 @@ struct DiffResult
            << ") (max allowed fraction: " << tol.max_tile_fraction << ")\n"
            << "  Max channel diff:    " << max_absolute_error
            << " (per-pixel threshold: " << static_cast<int>(tol.pixel_threshold) << ")\n";
+        if (tol.max_differing_pixels != std::numeric_limits<size_t>::max())
+            os << "  Differing-pixel cap: " << tol.max_differing_pixels << "\n";
+        return os.str();
+    }
+
+    // One-line summary printed for every compared scene (passing or not), so CI logs
+    // record how far each render is from its baseline and tolerances can be
+    // re-calibrated from data.
+    std::string stats_line(const std::string& scene) const
+    {
+        std::ostringstream os;
+        os << "[GOLDEN] " << scene << ": max_channel_diff=" << max_absolute_error
+           << " mae=" << mean_absolute_error << " differing=" << differing_pixels << "/"
+           << total_pixels << " worst_tile=" << worst_tile_differing << "/" << worst_tile_area;
         return os.str();
     }
 };

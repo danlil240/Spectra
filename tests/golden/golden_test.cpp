@@ -73,10 +73,9 @@ static bool render_headless(Figure& fig, App& app, std::vector<uint8_t>& pixels)
 // Core golden test: render scene, compare against baseline
 static void run_golden_test(const std::string&                 scene_name,
                             std::function<void(App&, Figure&)> setup_scene,
-                            uint32_t                           width             = 640,
-                            uint32_t                           height            = 480,
-                            double                             tolerance_percent = 0.5,
-                            double                             max_mae           = 1.0)
+                            uint32_t                           width  = 640,
+                            uint32_t                           height = 480,
+                            const GoldenTolerance&             tol    = GoldenTolerance{})
 {
     fs::path baseline_path = baseline_dir() / (scene_name + ".raw");
     fs::path actual_path   = output_dir() / (scene_name + "_actual.raw");
@@ -151,9 +150,6 @@ static void run_golden_test(const std::string&                 scene_name,
     ASSERT_EQ(bw, width) << "Baseline width mismatch for: " << scene_name;
     ASSERT_EQ(bh, height) << "Baseline height mismatch for: " << scene_name;
 
-    GoldenTolerance tol;
-    tol.max_percent = tolerance_percent;
-    tol.max_mae     = max_mae;
     DiffResult diff = compare_images(actual_pixels.data(),
                                      baseline_pixels.data(),
                                      width,
@@ -168,6 +164,7 @@ static void run_golden_test(const std::string&                 scene_name,
                                         tol.pixel_threshold);
     save_raw_rgba(diff_path.string(), diff_img.data(), width, height);
 
+    std::cout << diff.stats_line(scene_name) << "\n";
     EXPECT_TRUE(diff.passed(tol)) << "Golden image test FAILED for: " << scene_name << "\n"
                                   << diff.describe(tol) << "  Diff image saved to: " << diff_path;
 }
@@ -488,6 +485,93 @@ TEST(GoldenImageFramework, SmallDiffWithinTolerance)
     auto result = compare_images(a.data(), b.data(), W, H, 2);
     EXPECT_EQ(result.differing_pixels, 0u);   // Within threshold of 2
     EXPECT_TRUE(result.passed());
+}
+
+// ─── Meta-tests: the default golden budget vs. noise and real changes ───────
+//
+// kLooseTolerance is the budget the golden tests used before it was tightened; the
+// "Rejects" tests document regressions it let through.
+
+static const GoldenTolerance kLooseTolerance{.pixel_threshold   = 24,
+                                             .max_percent       = 0.5,
+                                             .max_mae           = 1.0,
+                                             .max_tile_fraction = 0.10};
+
+static std::vector<uint8_t> flat_image(uint32_t w, uint32_t h, uint8_t r, uint8_t g, uint8_t b)
+{
+    std::vector<uint8_t> img(static_cast<size_t>(w) * h * 4);
+    for (size_t i = 0; i < img.size(); i += 4)
+    {
+        img[i + 0] = r;
+        img[i + 1] = g;
+        img[i + 2] = b;
+        img[i + 3] = 255;
+    }
+    return img;
+}
+
+static void set_px(std::vector<uint8_t>& img, uint32_t w, uint32_t x, uint32_t y, uint8_t v)
+{
+    const size_t i = (static_cast<size_t>(y) * w + x) * 4;
+    img[i + 0]     = v;
+    img[i + 1]     = v;
+    img[i + 2]     = v;
+}
+
+TEST(GoldenImageFramework, DefaultToleranceAcceptsDriverNoise)
+{
+    constexpr uint32_t W = 640, H = 480;
+    auto               expected = flat_image(W, H, 20, 30, 40);
+    auto               actual   = expected;
+    // +-1 LSB rounding drift on every pixel...
+    for (size_t i = 0; i < actual.size(); i += 4)
+        actual[i + (i / 4) % 3] += ((i / 4) % 2 == 0) ? 1 : 0;
+    // ...plus 100 scattered edge-coverage flips, at most two per 16 px tile.
+    for (uint32_t k = 0; k < 100; ++k)
+        set_px(actual, W, (k * 37) % W, ((k * 53) % H) | 1u, 200);
+
+    const auto diff = compare_images(actual.data(), expected.data(), W, H, 2);
+    EXPECT_TRUE(diff.passed(GoldenTolerance{})) << diff.describe(GoldenTolerance{});
+}
+
+TEST(GoldenImageFramework, DefaultToleranceRejectsSubtleColourChange)
+{
+    // A colormap swap moved surface colours by 3-6 levels; old budget missed it.
+    constexpr uint32_t W = 640, H = 480;
+    auto               expected = flat_image(W, H, 60, 120, 140);
+    auto               actual   = expected;
+    for (uint32_t y = 200; y < 260; ++y)
+        for (uint32_t x = 300; x < 360; ++x)
+            actual[(static_cast<size_t>(y) * W + x) * 4 + 1] += 5;
+
+    const auto tight = compare_images(actual.data(), expected.data(), W, H, 2);
+    EXPECT_FALSE(tight.passed(GoldenTolerance{}));
+    const auto loose =
+        compare_images(actual.data(), expected.data(), W, H, kLooseTolerance.pixel_threshold);
+    EXPECT_TRUE(loose.passed(kLooseTolerance));
+}
+
+TEST(GoldenImageFramework, DefaultToleranceRejectsShortenedLineEnd)
+{
+    // A legend swatch / line cap two pixels shorter (3 px thick line).
+    constexpr uint32_t W = 640, H = 480;
+    auto               expected = flat_image(W, H, 10, 12, 20);
+    auto               actual   = expected;
+    for (uint32_t y = 100; y < 103; ++y)
+    {
+        for (uint32_t x = 100; x < 140; ++x)
+        {
+            set_px(expected, W, x, y, 220);
+            if (x < 138)
+                set_px(actual, W, x, y, 220);
+        }
+    }
+
+    const auto tight = compare_images(actual.data(), expected.data(), W, H, 2);
+    EXPECT_FALSE(tight.passed(GoldenTolerance{}));
+    const auto loose =
+        compare_images(actual.data(), expected.data(), W, H, kLooseTolerance.pixel_threshold);
+    EXPECT_TRUE(loose.passed(kLooseTolerance));
 }
 
 }   // namespace spectra::test

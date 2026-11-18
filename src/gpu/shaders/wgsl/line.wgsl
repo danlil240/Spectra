@@ -37,7 +37,10 @@ struct SeriesPC {
     marker_type   : u32,
     marker_size   : f32,
     opacity       : f32,
-    dash_pattern  : array<f32, 8>,
+    // 8 dash floats packed as two vec4s: uniform-space arrays need a 16-byte
+    // element stride, so array<f32, 8> is invalid here.  Same bytes as
+    // SeriesPushConstants::dash_pattern[8] (offset 48, 32 bytes).
+    dash_pattern  : array<vec4<f32>, 2>,
     dash_total    : f32,
     dash_count    : i32,
     poly_first    : u32,
@@ -184,7 +187,7 @@ fn dash_core_dist(t: f32, half_w: f32) -> f32 {
     var best = 1e30;
     var acc  = 0.0;
     for (var i = 0; i < series_pc.dash_count && i < 8; i++) {
-        let len = series_pc.dash_pattern[i];
+        let len = series_pc.dash_pattern[i / 4][i % 4];
         if (i & 1) == 0 {
             let c = acc + len * 0.5;
             let h = max(len * 0.5 - half_w, 0.0);

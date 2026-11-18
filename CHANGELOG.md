@@ -45,6 +45,8 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- WebGPU: every WGSL shader declared the per-series uniform with an `array<f32, 8>` dash pattern, which the WGSL uniform address space forbids (16-byte element stride), so naga and strict WebGPU implementations rejected the shaders. It is now `array<vec4<f32>, 2>` with the same bytes, and a unit test checks that no uniform array in an embedded WGSL shader has a stride below 16.
+
 - Timeline: the playhead is now the animated figure's clock. Scrubbing or stepping backward while playing, scrubbing while stopped, loop mode / loop region and keyframe tracks while paused all reach the plot; pressing Play on a static plot no longer fades and thickens its lines (start-up figures no longer get demo "Opacity"/"Width"/"Size" keyframe tracks). In the multiproc runtime the window's timeline now drives the app's `on_frame` animation (new `SET_ANIM_PLAYBACK` IPC op).
 
 - Golden image tests resolve their baselines through an absolute path set by CMake, so `ctest` compares images instead of silently skipping every scene (ccache made `__FILE__` relative and ctest runs from `build/tests`); a missing baseline now fails unless `SPECTRA_GOLDEN_STRICT=0`. 22 stale 3D baselines were regenerated for the Back box style.

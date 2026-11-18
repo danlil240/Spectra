@@ -35,7 +35,10 @@ struct SeriesPC {
     marker_type   : u32,
     marker_size   : f32,
     opacity       : f32,
-    dash_pattern  : array<f32, 8>,
+    // 8 dash floats packed as two vec4s: uniform-space arrays need a 16-byte
+    // element stride, so array<f32, 8> is invalid here.  Same bytes as
+    // SeriesPushConstants::dash_pattern[8] (offset 48, 32 bytes).
+    dash_pattern  : array<vec4<f32>, 2>,
     dash_total    : f32,
     dash_count    : i32,
     _pad2         : vec2<f32>,
@@ -225,8 +228,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 fn fs_colormap(in: VertexOutput) -> @location(0) vec4<f32> {
     var base_color = series_pc.color;
     if series_pc._pad2.x > 0.5 && series_pc.dash_count > 0 && is_finite(in.v_color_value) {
-        let value_min = series_pc.dash_pattern[0];
-        let value_max = series_pc.dash_pattern[1];
+        let value_min = series_pc.dash_pattern[0].x;
+        let value_max = series_pc.dash_pattern[0].y;
         let range     = value_max - value_min;
         var t         = 0.5;
         if abs(range) > 1e-20 {

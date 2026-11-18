@@ -28,7 +28,10 @@ struct SeriesPC {
     marker_type   : u32,
     marker_size   : f32,
     opacity       : f32,
-    dash_pattern  : array<f32, 8>,
+    // 8 dash floats packed as two vec4s: uniform-space arrays need a 16-byte
+    // element stride, so array<f32, 8> is invalid here.  Same bytes as
+    // SeriesPushConstants::dash_pattern[8] (offset 48, 32 bytes).
+    dash_pattern  : array<vec4<f32>, 2>,
     dash_total    : f32,
     dash_count    : i32,
     _pad2         : vec2<f32>,

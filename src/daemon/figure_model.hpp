@@ -179,6 +179,15 @@ class FigureModel
                                        uint32_t series_index,
                                        const std::function<void(ipc::SnapshotSeriesState&)>& edit);
 
+    // Colormap of a surface / colormapped scatter (type, direction, user
+    // colours, value range): `edit` changes the stored fields; returns a
+    // SET_SERIES_COLORMAP op carrying all of them in `op_out`.  false (and no
+    // op) when the series does not exist.
+    bool update_series_colormap(uint64_t                                              figure_id,
+                                uint32_t                                              series_index,
+                                const std::function<void(ipc::SnapshotSeriesState&)>& edit,
+                                ipc::DiffOp*                                          op_out);
+
     // 3D light of an axes (light mode, fog, light angles), likewise; returns
     // a SET_AXES_LIGHT_3D op.
     ipc::DiffOp update_axes_light_3d(uint64_t                                            figure_id,

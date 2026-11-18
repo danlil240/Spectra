@@ -13,9 +13,11 @@
 #include <spectra/series.hpp>
 #include <vector>
 
+#include "agent/figure_cache.hpp"
 #include "agent/snapshot_figure_builder.hpp"
 #include "daemon/figure_model.hpp"
 #include "ipc/codec.hpp"
+#include "ipc/colormap_state.hpp"
 #include "ipc/series_style_state.hpp"
 #include "ipc/style3d_state.hpp"
 #include "ui/app/figure_snapshot.hpp"
@@ -362,4 +364,221 @@ TEST(Style3DTransport, AppSnapshotCapturesAndWindowRebuilds3DStyle)
     EXPECT_FLOAT_EQ(sf->edge_color().g, 0.2f);
     EXPECT_FLOAT_EQ(sf->edge_color().b, 0.1f);
     EXPECT_FLOAT_EQ(sf->edge_color().a, 0.7f);
+}
+
+// ─── Colormaps: surfaces and colormapped scatters ───────────────────────────
+
+TEST(ColormapTransport, SnapshotFieldsRoundTrip)
+{
+    ipc::SnapshotFigureState snap;
+    snap.axes.emplace_back();
+    auto ss               = line_state("surface");
+    ss.colormap           = static_cast<uint8_t>(ColormapType::Custom);
+    ss.colormap_reversed  = true;
+    ss.colormap_range_set = true;
+    ss.colormap_min       = -2.5f;
+    ss.colormap_max       = 4.0f;
+    ss.colormap_colors    = {1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.5f};
+    ss.color_values       = {0.1f, 0.2f, 0.3f};
+    snap.series.push_back(ss);
+
+    const auto back = round_trip(snap);
+    ASSERT_EQ(back.series.size(), 1u);
+    const auto& b = back.series[0];
+    EXPECT_EQ(b.colormap, static_cast<uint8_t>(ColormapType::Custom));
+    EXPECT_TRUE(b.colormap_reversed);
+    EXPECT_TRUE(b.colormap_range_set);
+    EXPECT_FLOAT_EQ(b.colormap_min, -2.5f);
+    EXPECT_FLOAT_EQ(b.colormap_max, 4.0f);
+    EXPECT_EQ(b.colormap_colors, ss.colormap_colors);
+    EXPECT_EQ(b.color_values, ss.color_values);
+
+    // A sender without colormap fields reads as "keep the type's default".
+    ipc::SnapshotFigureState plain;
+    plain.axes.emplace_back();
+    plain.series.push_back(line_state());
+    const auto pb = round_trip(plain);
+    EXPECT_EQ(pb.series[0].colormap, ipc::SERIES_STYLE_UNSET);
+    EXPECT_FALSE(pb.series[0].colormap_range_set);
+    EXPECT_TRUE(pb.series[0].colormap_colors.empty());
+    EXPECT_TRUE(pb.series[0].color_values.empty());
+}
+
+TEST(ColormapTransport, FigureSnapshotRebuildKeepsColormaps)
+{
+    std::vector<float> g = {0.0f, 1.0f, 2.0f};
+    std::vector<float> z = {0.0f, 1.0f, 2.0f, 1.0f, 2.0f, 3.0f, 2.0f, 3.0f, 4.0f};
+
+    Figure fig;
+    auto&  ax3 = fig.subplot3d(1, 2, 1);
+    ax3.surface(g, g, z).colormap(Colormap(ColormapType::Plasma, true)).colormap_range(-1.0f, 5.0f);
+    const std::vector<Color> stops = {{1.0f, 0.0f, 0.0f, 1.0f}, {0.0f, 0.5f, 1.0f, 1.0f}};
+    const Colormap           user  = Colormap::from_colors(stops).reversed(true);
+    ax3.surface(g, g, z).colormap(user);
+    auto&                    ax2  = fig.subplot(1, 2, 2);
+    std::vector<float>       xs   = {0.0f, 1.0f, 2.0f};
+    const std::vector<float> vals = {3.0f, 1.0f, 2.0f};
+    ax2.scatter(xs, xs).color_values(vals).colormap(ColormapType::Turbo);
+
+    const auto snap = round_trip(figure_to_snapshot(fig, 1));
+    ASSERT_EQ(snap.series.size(), 3u);
+    EXPECT_EQ(snap.series[0].colormap, static_cast<uint8_t>(ColormapType::Plasma));
+    EXPECT_EQ(snap.series[1].colormap_colors.size(), Colormap::LUT_SIZE * 4);
+    EXPECT_EQ(snap.series[2].color_values, vals);
+
+    auto  rebuilt = agent::build_figure_from_snapshot(snap);
+    auto* r3      = dynamic_cast<Axes3D*>(rebuilt->all_axes()[0].get());
+    ASSERT_NE(r3, nullptr);
+    ASSERT_EQ(r3->series().size(), 2u);
+    auto* s0 = dynamic_cast<SurfaceSeries*>(r3->series()[0].get());
+    auto* s1 = dynamic_cast<SurfaceSeries*>(r3->series()[1].get());
+    ASSERT_TRUE(s0 && s1);
+    EXPECT_EQ(s0->colormap_type(), ColormapType::Plasma);
+    EXPECT_TRUE(s0->colormap_reversed());
+    EXPECT_TRUE(s0->colormap_range_set());
+    EXPECT_FLOAT_EQ(s0->colormap_min(), -1.0f);
+    EXPECT_FLOAT_EQ(s0->colormap_max(), 5.0f);
+    EXPECT_TRUE(s1->cmap().is_custom());
+    EXPECT_TRUE(s1->colormap_reversed());
+    EXPECT_FALSE(s1->colormap_range_set());
+    for (float t : {0.0f, 0.3f, 0.5f, 0.99f})
+    {
+        const Color want = user.sample(t);
+        const Color got  = s1->cmap().sample(t);
+        EXPECT_NEAR(got.r, want.r, 1e-5f);
+        EXPECT_NEAR(got.g, want.g, 1e-5f);
+        EXPECT_NEAR(got.b, want.b, 1e-5f);
+    }
+
+    auto* sc = dynamic_cast<ScatterSeries*>(rebuilt->axes()[1]->series()[0].get());
+    ASSERT_NE(sc, nullptr);
+    EXPECT_EQ(sc->colormap(), ColormapType::Turbo);
+    EXPECT_TRUE(sc->has_colormap());
+}
+
+TEST(ColormapTransport, PropertyOpUpdatesModelCacheAndLiveSeries)
+{
+    ipc::SnapshotSeriesState parsed;
+    EXPECT_FALSE(ipc::parse_colormap_property("no-such-map", {}, parsed));
+    EXPECT_FALSE(ipc::parse_colormap_property("custom", {1.0f, 0.0f, 0.0f}, parsed));
+    ASSERT_TRUE(ipc::parse_colormap_property("inferno_r", {}, parsed));
+    EXPECT_EQ(parsed.colormap, static_cast<uint8_t>(ColormapType::Inferno));
+    EXPECT_TRUE(parsed.colormap_reversed);
+
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    model.add_axes(fid, 0.0, 1.0, 0.0, 1.0, true);
+    uint32_t sidx = 0;
+    model.add_series_with_diff(fid, "surf", "surface", 0, sidx);
+    ipc::SnapshotFigureState cache = model.snapshot().figures.at(0);
+
+    ipc::DiffOp op;
+    EXPECT_FALSE(model.update_series_colormap(fid, 99, [](ipc::SnapshotSeriesState&) {}, &op));
+    ASSERT_TRUE(model.update_series_colormap(
+        fid,
+        sidx,
+        [&](ipc::SnapshotSeriesState& ss)
+        {
+            ss.colormap          = parsed.colormap;
+            ss.colormap_reversed = parsed.colormap_reversed;
+        },
+        &op));
+    ipc::DiffOp rop;
+    ASSERT_TRUE(model.update_series_colormap(
+        fid,
+        sidx,
+        [](ipc::SnapshotSeriesState& ss)
+        {
+            ss.colormap_range_set = true;
+            ss.colormap_min       = -3.0f;
+            ss.colormap_max       = 3.0f;
+        },
+        &rop));
+    rop = round_trip(rop);
+    EXPECT_EQ(rop.type, ipc::DiffOp::Type::SET_SERIES_COLORMAP);
+    // The range op still carries the colormap set before.
+    EXPECT_EQ(static_cast<int>(rop.f1), static_cast<int>(ColormapType::Inferno));
+
+    const auto  model_snap = model.snapshot();
+    const auto& ms         = model_snap.figures[0].series[sidx];
+    EXPECT_EQ(ms.colormap, static_cast<uint8_t>(ColormapType::Inferno));
+    EXPECT_TRUE(ms.colormap_range_set);
+
+    // Window cache: a rebuild from it keeps the colormap.
+    agent::apply_diff_op_to_cache(cache, round_trip(op));
+    agent::apply_diff_op_to_cache(cache, rop);
+    EXPECT_EQ(cache.series[sidx].colormap, static_cast<uint8_t>(ColormapType::Inferno));
+    EXPECT_TRUE(cache.series[sidx].colormap_reversed);
+    EXPECT_FLOAT_EQ(cache.series[sidx].colormap_min, -3.0f);
+
+    // Applied to a live surface in a window.
+    Axes3D                   ax;
+    std::vector<float>       g    = {0.0f, 1.0f};
+    std::vector<float>       z    = {0.0f, 1.0f, 1.0f, 2.0f};
+    auto&                    surf = ax.surface(g, g, z);
+    ipc::SnapshotSeriesState ss;
+    ipc::series_colormap_from_op(rop, ss);
+    ipc::apply_series_colormap(surf, ss);
+    EXPECT_EQ(surf.colormap_type(), ColormapType::Inferno);
+    EXPECT_TRUE(surf.colormap_reversed());
+    EXPECT_FLOAT_EQ(surf.colormap_min(), -3.0f);
+    EXPECT_FLOAT_EQ(surf.colormap_max(), 3.0f);
+
+    // A user table through the op ("custom" + RGBA colours).
+    ipc::SnapshotSeriesState custom;
+    ASSERT_TRUE(ipc::parse_colormap_property("custom",
+                                             {0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f},
+                                             custom));
+    ipc::DiffOp cop;
+    ipc::series_colormap_to_op(custom, cop);
+    ipc::SnapshotSeriesState cs;
+    ipc::series_colormap_from_op(round_trip(cop), cs);
+    ipc::apply_series_colormap(surf, cs);
+    EXPECT_TRUE(surf.cmap().is_custom());
+    EXPECT_FALSE(surf.colormap_range_set());
+    EXPECT_NEAR(surf.cmap().sample(1.0f).r, 1.0f, 1e-5f);
+    EXPECT_NEAR(surf.cmap().sample(0.0f).r, 0.0f, 1e-5f);
+}
+
+// ─── Window agent cache: ops a rebuild must not lose ────────────────────────
+
+TEST(AgentFigureCache, KeepsGridVisibilityAndLiveFps)
+{
+    ipc::SnapshotFigureState cache;
+    cache.figure_id = 5;
+    cache.axes.resize(2);
+    cache.axes[1].is_3d = true;
+
+    ipc::DiffOp grid;
+    grid.type       = ipc::DiffOp::Type::SET_GRID_VISIBLE;
+    grid.figure_id  = 5;
+    grid.axes_index = 1;
+    grid.bool_val   = false;
+    agent::apply_diff_op_to_cache(cache, round_trip(grid));
+    EXPECT_TRUE(cache.axes[0].grid_visible);
+    EXPECT_FALSE(cache.axes[1].grid_visible);
+
+    ipc::DiffOp fps;
+    fps.type     = ipc::DiffOp::Type::SET_LIVE_FPS;
+    fps.f1       = 30.0;
+    fps.bool_val = true;
+    agent::apply_diff_op_to_cache(cache, round_trip(fps));
+    EXPECT_FLOAT_EQ(cache.live_fps, 30.0f);
+
+    // A rebuild from the cache keeps both.
+    auto rebuilt = agent::build_figure_from_snapshot(cache);
+    ASSERT_NE(agent::live_axes_at(*rebuilt, 0), nullptr);
+    ASSERT_NE(agent::live_axes_at(*rebuilt, 1), nullptr);
+    EXPECT_TRUE(agent::live_axes_at(*rebuilt, 0)->grid_enabled());
+    EXPECT_FALSE(agent::live_axes_at(*rebuilt, 1)->grid_enabled());
+    EXPECT_TRUE(rebuilt->anim_.live_streaming);
+    EXPECT_FLOAT_EQ(rebuilt->anim_.fps, 30.0f);
+
+    grid.axes_index = 0;
+    agent::apply_diff_op_to_cache(cache, grid);
+    EXPECT_FALSE(cache.axes[0].grid_visible);
+
+    fps.bool_val = false;
+    agent::apply_diff_op_to_cache(cache, fps);
+    EXPECT_FLOAT_EQ(cache.live_fps, 0.0f);
 }

@@ -259,8 +259,97 @@ class SnapshotSeriesState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
         return o == 0
 
+    # SnapshotSeriesState
+    def Colormap(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(56))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Uint8Flags, o + self._tab.Pos)
+        return 255
+
+    # SnapshotSeriesState
+    def ColormapReversed(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(58))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotSeriesState
+    def ColormapRangeSet(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(60))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotSeriesState
+    def ColormapMin(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(62))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
+        return 0.0
+
+    # SnapshotSeriesState
+    def ColormapMax(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(64))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
+        return 1.0
+
+    # SnapshotSeriesState
+    def ColormapColors(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(66))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return 0
+
+    # SnapshotSeriesState
+    def ColormapColorsAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(66))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float32Flags, o)
+        return 0
+
+    # SnapshotSeriesState
+    def ColormapColorsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(66))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotSeriesState
+    def ColormapColorsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(66))
+        return o == 0
+
+    # SnapshotSeriesState
+    def ColorValues(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(68))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float32Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return 0
+
+    # SnapshotSeriesState
+    def ColorValuesAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(68))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float32Flags, o)
+        return 0
+
+    # SnapshotSeriesState
+    def ColorValuesLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(68))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotSeriesState
+    def ColorValuesIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(68))
+        return o == 0
+
 def SnapshotSeriesStateStart(builder):
-    builder.StartObject(26)
+    builder.StartObject(33)
 
 def Start(builder):
     SnapshotSeriesStateStart(builder)
@@ -438,6 +527,60 @@ def SnapshotSeriesStateStartEdgeColorVector(builder, numElems):
 
 def StartEdgeColorVector(builder, numElems):
     return SnapshotSeriesStateStartEdgeColorVector(builder, numElems)
+
+def SnapshotSeriesStateAddColormap(builder, colormap):
+    builder.PrependUint8Slot(26, colormap, 255)
+
+def AddColormap(builder, colormap):
+    SnapshotSeriesStateAddColormap(builder, colormap)
+
+def SnapshotSeriesStateAddColormapReversed(builder, colormapReversed):
+    builder.PrependBoolSlot(27, colormapReversed, 0)
+
+def AddColormapReversed(builder, colormapReversed):
+    SnapshotSeriesStateAddColormapReversed(builder, colormapReversed)
+
+def SnapshotSeriesStateAddColormapRangeSet(builder, colormapRangeSet):
+    builder.PrependBoolSlot(28, colormapRangeSet, 0)
+
+def AddColormapRangeSet(builder, colormapRangeSet):
+    SnapshotSeriesStateAddColormapRangeSet(builder, colormapRangeSet)
+
+def SnapshotSeriesStateAddColormapMin(builder, colormapMin):
+    builder.PrependFloat32Slot(29, colormapMin, 0.0)
+
+def AddColormapMin(builder, colormapMin):
+    SnapshotSeriesStateAddColormapMin(builder, colormapMin)
+
+def SnapshotSeriesStateAddColormapMax(builder, colormapMax):
+    builder.PrependFloat32Slot(30, colormapMax, 1.0)
+
+def AddColormapMax(builder, colormapMax):
+    SnapshotSeriesStateAddColormapMax(builder, colormapMax)
+
+def SnapshotSeriesStateAddColormapColors(builder, colormapColors):
+    builder.PrependUOffsetTRelativeSlot(31, flatbuffers.number_types.UOffsetTFlags.py_type(colormapColors), 0)
+
+def AddColormapColors(builder, colormapColors):
+    SnapshotSeriesStateAddColormapColors(builder, colormapColors)
+
+def SnapshotSeriesStateStartColormapColorsVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartColormapColorsVector(builder, numElems):
+    return SnapshotSeriesStateStartColormapColorsVector(builder, numElems)
+
+def SnapshotSeriesStateAddColorValues(builder, colorValues):
+    builder.PrependUOffsetTRelativeSlot(32, flatbuffers.number_types.UOffsetTFlags.py_type(colorValues), 0)
+
+def AddColorValues(builder, colorValues):
+    SnapshotSeriesStateAddColorValues(builder, colorValues)
+
+def SnapshotSeriesStateStartColorValuesVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartColorValuesVector(builder, numElems):
+    return SnapshotSeriesStateStartColorValuesVector(builder, numElems)
 
 def SnapshotSeriesStateEnd(builder):
     return builder.EndObject()

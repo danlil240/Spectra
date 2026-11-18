@@ -630,6 +630,63 @@ class Series:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_colormap(self, cmap) -> None:
+        """Surface / colormapped scatter: colour by value through ``cmap``.
+
+        ``cmap`` is a matplotlib name ("viridis", "plasma", "turbo", "RdBu",
+        ... ; a ``"_r"`` suffix reverses it; "none" turns colormapping off), an
+        object with a ``name`` attribute (e.g. a matplotlib Colormap), or a
+        sequence of 1 to 256 colours (names, hex strings or RGB(A) tuples)
+        spread evenly over the value range, like matplotlib's
+        ``LinearSegmentedColormap.from_list``."""
+        data = None
+        if isinstance(cmap, str):
+            name = cmap
+        elif hasattr(cmap, "name") and isinstance(getattr(cmap, "name"), str):
+            name = cmap.name
+        else:
+            from ._colors import to_rgba
+
+            colors = list(cmap)
+            if not 1 <= len(colors) <= 256:
+                raise ValueError("a colour list colormap needs 1 to 256 colours")
+            data = []
+            for c in colors:
+                rgba = to_rgba(c)
+                if rgba is None:
+                    raise ValueError("colormap colours cannot be None")
+                data.extend(float(v) for v in rgba)
+            name = "custom"
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="colormap",
+            str_val=name,
+            data=data,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
+    def set_colormap_range(self, vmin=None, vmax=None) -> None:
+        """Values mapped onto the ends of the colormap (clamped outside).
+        Without arguments the data range is used again."""
+        if vmin is None and vmax is None:
+            enabled, lo, hi = False, 0.0, 0.0
+        elif vmin is None or vmax is None:
+            raise ValueError("give both vmin and vmax, or neither")
+        else:
+            enabled, lo, hi = True, float(vmin), float(vmax)
+            if not (math.isfinite(lo) and math.isfinite(hi) and lo < hi):
+                raise ValueError("vmin must be less than vmax (both finite)")
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="colormap_range",
+            f1=lo,
+            f2=hi,
+            bool_val=enabled,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def set_format(self, fmt: str) -> None:
         """Apply a MATLAB / matplotlib format string such as "r--o" or "g^"."""
         from ._style import resolve_style

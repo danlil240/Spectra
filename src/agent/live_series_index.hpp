@@ -84,6 +84,7 @@ inline bool is_series_property_op(ipc::DiffOp::Type t)
         case ipc::DiffOp::Type::SET_SERIES_LINE_STYLE:
         case ipc::DiffOp::Type::SET_SERIES_MARKER_STYLE:
         case ipc::DiffOp::Type::SET_SERIES_STYLE_3D:
+        case ipc::DiffOp::Type::SET_SERIES_COLORMAP:
         case ipc::DiffOp::Type::SET_OPACITY:
         case ipc::DiffOp::Type::SET_SERIES_DATA:
         case ipc::DiffOp::Type::SET_SERIES_LABEL:

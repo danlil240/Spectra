@@ -2034,12 +2034,17 @@ def surf(
     label: str = "",
     edges: bool = False,
     contours: Union[bool, int] = False,
+    cmap: Any = None,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
 ):
     """Surface plot — rendered with GPU-accelerated Axes3D.
 
     ``edges=True`` draws the grid lines over the faces; ``contours=True`` (or
     a level count) projects contour lines onto the floor of the box, like
-    MATLAB's ``surfc``.
+    MATLAB's ``surfc``.  ``cmap`` colours the faces by height through a
+    colormap (a name such as "viridis" or "RdBu_r", or a list of colours);
+    ``vmin`` / ``vmax`` fix the heights mapped onto its ends.
 
     Usage::
 
@@ -2047,8 +2052,11 @@ def surf(
         Z = np.sin(X) * np.cos(Y)
         sp.surf(X, Y, Z)
         sp.surf(X, Y, Z, edges=True, contours=12)
+        sp.surf(X, Y, Z, cmap="plasma", vmin=-1, vmax=1)
     """
     _check_color(color)
+    if (vmin is None) != (vmax is None):
+        raise ValueError("give both vmin and vmax, or neither")
     xv = _to_list(x)
     yv = _to_list(y)
     zv = _to_list(z)
@@ -2059,6 +2067,10 @@ def surf(
         series.set_show_edges(True)
     if contours is not False and contours is not None:
         series.set_contour_projection(True, 10 if contours is True else int(contours))
+    if cmap is not None:
+        series.set_colormap(cmap)
+    if vmin is not None:
+        series.set_colormap_range(vmin, vmax)
     _auto_fit_axes3d(ax, xv, yv, zv)
     _state._show_if_pending()
     return series

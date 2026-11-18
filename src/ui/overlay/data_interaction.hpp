@@ -93,6 +93,15 @@ class DataInteraction
     // 2D axes under the cursor at the last update() (nullptr when none).
     const Axes* active_axes() const { return active_axes_; }
 
+    // 3D spike lines: while a point of a 3D series is hovered, dashed guides
+    // run from it to the three back panes of the box (Plotly-style).  On by
+    // default.
+    bool spikes3d_active() const { return spikes3d_enabled_; }
+    void set_spikes3d(bool e) { spikes3d_enabled_ = e; }
+    void toggle_spikes3d() { spikes3d_enabled_ = !spikes3d_enabled_; }
+    // True when the last draw_overlays() drew 3D spike lines.
+    bool spikes3d_drawn() const { return spikes3d_drawn_; }
+
     // Compare-at-X readout (shown with the crosshair): every visible series'
     // value at the cursor X in one tooltip, replacing the single-point tooltip.
     bool               compare_enabled() const { return compare_.enabled(); }
@@ -327,6 +336,8 @@ class DataInteraction
 
     // Delta readout between the two selected tips of each axes.
     void draw_marker_deltas(Figure& figure, ImDrawList* dl);
+    // Spike lines of the hovered 3D point (spikes3d_active()); true when drawn.
+    bool draw_spikes_3d(ImDrawList* dl);
 
     // Tip being dragged (-1: none) and the sample it started on.
     int    drag_marker_      = -1;
@@ -346,6 +357,8 @@ class DataInteraction
     CompareReadout     compare_;
     bool               compare_drawn_      = false;
     bool               compare_suppressed_ = false;
+    bool               spikes3d_enabled_   = true;
+    bool               spikes3d_drawn_     = false;
     DataMarkerManager  markers_;
     AnnotationManager  annotations_;
     RegionSelect       region_;

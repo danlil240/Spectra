@@ -20,6 +20,7 @@ void register_menu_commands(CommandRegistry& reg)
     add("view.toggle_grid", "Toggle Grid", "G");
     add("view.toggle_legend", "Toggle Legend", "L");
     add("view.toggle_crosshair", "Toggle Crosshair", "C");
+    add("view.toggle_spikes_3d", "Toggle 3D Spike Lines", "");
     add("file.copy_to_clipboard", "Copy Figure to Clipboard", "Ctrl+Shift+C");
     add("file.export_png", "Export PNG", "Ctrl+S");
     add("file.export_svg", "Export SVG", "Ctrl+Shift+S");
@@ -95,6 +96,7 @@ TEST(AxesContextMenu, SingleAxesNoSelectionHasUsefulActions)
     }
     EXPECT_NE(find_kind(items, AxesMenuItemKind::AxesProperties), nullptr);
     EXPECT_EQ(find_kind(items, AxesMenuItemKind::LinkX), nullptr);
+    EXPECT_EQ(find_command(items, "view.toggle_spikes_3d"), nullptr);   // 3D only
     EXPECT_EQ(find_kind(items, AxesMenuItemKind::CopySeries), nullptr);
     EXPECT_EQ(find_kind(items, AxesMenuItemKind::PasteSeries), nullptr);
 }
@@ -197,6 +199,7 @@ TEST(AxesContextMenu, Axes3DMenu)
     EXPECT_NE(find_command(items, "view.toggle_grid"), nullptr);
     EXPECT_NE(find_command(items, "file.export_png"), nullptr);
     EXPECT_NE(find_kind(items, AxesMenuItemKind::Link3D), nullptr);
+    EXPECT_NE(find_command(items, "view.toggle_spikes_3d"), nullptr);
     EXPECT_EQ(find_kind(items, AxesMenuItemKind::LinkX), nullptr);
     // 2D-only items
     EXPECT_EQ(find_command(items, "view.toggle_legend"), nullptr);

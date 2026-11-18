@@ -1433,3 +1433,53 @@ TEST(Axes3DLightAndFog, FogIsClamped)
     ax.fog(-1.0f);
     EXPECT_FLOAT_EQ(ax.fog(), 0.0f);
 }
+
+// ─── MeshSeries wireframe edges ──────────────────────────────────────────────
+
+TEST(MeshSeriesWireframe, UniqueEdgesOfAQuad)
+{
+    // Two triangles sharing the diagonal 0-2: five edges, the shared one once.
+    const std::vector<uint32_t> tris  = {0, 1, 2, 0, 2, 3};
+    const std::vector<uint32_t> edges = MeshSeries::unique_edges(tris, 4);
+    const std::vector<uint32_t> want  = {0, 1, 0, 2, 0, 3, 1, 2, 2, 3};
+    EXPECT_EQ(edges, want);
+}
+
+TEST(MeshSeriesWireframe, UniqueEdgesSkipBadAndDegenerateTriangles)
+{
+    // Out-of-range vertex (9), a degenerate triangle (1, 1, 2) and a trailing
+    // partial triangle: only the valid triangle's edges and the non-degenerate
+    // edge of the degenerate one remain.
+    const std::vector<uint32_t> tris  = {0, 1, 2, 0, 9, 1, 1, 1, 2, 2, 0};
+    const std::vector<uint32_t> edges = MeshSeries::unique_edges(tris, 3);
+    const std::vector<uint32_t> want  = {0, 1, 0, 2, 1, 2};
+    EXPECT_EQ(edges, want);
+    EXPECT_TRUE(MeshSeries::unique_edges({}, 3).empty());
+}
+
+TEST(MeshSeriesWireframe, EdgeIndicesFollowWireframeAndData)
+{
+    std::vector<float> verts(4 * 6, 0.0f);
+    for (int i = 0; i < 4; ++i)
+        verts[static_cast<size_t>(i * 6)] = static_cast<float>(i);
+    const std::vector<uint32_t> tri = {0, 1, 2};
+    MeshSeries                  mesh(verts, tri);
+    EXPECT_TRUE(mesh.edge_indices().empty());   // solid: nothing extracted
+
+    mesh.clear_dirty();
+    mesh.wireframe(true);
+    EXPECT_TRUE(mesh.is_dirty());
+    EXPECT_EQ(mesh.edge_indices().size(), 6u);   // three edges, two indices each
+
+    const std::vector<uint32_t> quad = {0, 1, 2, 0, 2, 3};
+    mesh.set_indices(quad);
+    EXPECT_EQ(mesh.edge_indices().size(), 10u);
+
+    // Dropping vertex 3 removes the triangle that uses it.
+    verts.resize(3 * 6);
+    mesh.set_vertices(verts);
+    EXPECT_EQ(mesh.edge_indices().size(), 6u);
+
+    mesh.wireframe(false);
+    EXPECT_TRUE(mesh.edge_indices().empty());
+}

@@ -91,4 +91,40 @@ inline SurfaceScale compute_surface_scale(int window_w, int window_h, uint32_t f
     return s;
 }
 
+// Framebuffer size of a window `logical` device-independent pixels wide at
+// `device_pixel_ratio` framebuffer pixels per logical pixel (Qt's
+// QWindow::devicePixelRatio(), a browser's window.devicePixelRatio).
+inline uint32_t framebuffer_extent(int logical, double device_pixel_ratio)
+{
+    if (logical <= 0)
+        return 0;
+    if (!(device_pixel_ratio > 0.0))
+        device_pixel_ratio = 1.0;
+    const long px = std::lround(static_cast<double>(logical) * device_pixel_ratio);
+    return px > 0 ? static_cast<uint32_t>(px) : 0u;
+}
+
+// Map a point in window coordinates (device-independent pixels, the space
+// mouse events arrive in) to the layout coordinates of a surface described by
+// `s`.  The identity whenever the layout is the window size; it only scales
+// when the layout fell back to framebuffer pixels (framebuffer not larger than
+// the window, or the backend refused a pixel scale).
+struct LayoutPoint
+{
+    float x = 0.0f;
+    float y = 0.0f;
+};
+
+inline LayoutPoint window_to_layout(const SurfaceScale& s,
+                                    int                 window_w,
+                                    int                 window_h,
+                                    float               x,
+                                    float               y)
+{
+    if (window_w <= 0 || window_h <= 0 || s.layout_width == 0 || s.layout_height == 0)
+        return LayoutPoint{x, y};
+    return LayoutPoint{x * static_cast<float>(s.layout_width) / static_cast<float>(window_w),
+                       y * static_cast<float>(s.layout_height) / static_cast<float>(window_h)};
+}
+
 }   // namespace spectra

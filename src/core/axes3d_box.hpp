@@ -200,6 +200,51 @@ inline double back_plane(const BoxFaces& f, int axis, const double lo[3], const 
     return f.back_hi[static_cast<size_t>(axis)] ? hi[axis] : lo[axis];
 }
 
+// ── Spike lines ────────────────────────────────────────────────────────────
+// Hover guides (Plotly's 3D spikes): from a data point straight to each of
+// the three back panes, parallel to one axis.
+
+struct SpikeSegment
+{
+    vec3 from;       // the point (clamped into the box)
+    vec3 to;         // its foot on the back pane perpendicular to `axis`
+    int  axis = 0;   // 0 = x, 1 = y, 2 = z
+};
+
+// Spikes from data point p inside the box [lo, hi] (data space, the axes
+// limits; either bound order).  A point outside the box is clamped into it
+// first, so the spikes stay on the drawn box.
+inline std::array<SpikeSegment, 3> spike_segments(const BoxFaces& f,
+                                                  const double    lo[3],
+                                                  const double    hi[3],
+                                                  const vec3&     p)
+{
+    double c[3] = {p.x, p.y, p.z};
+    for (int a = 0; a < 3; ++a)
+        c[a] = std::clamp(c[a], std::min(lo[a], hi[a]), std::max(lo[a], hi[a]));
+    const vec3                  from{c[0], c[1], c[2]};
+    std::array<SpikeSegment, 3> out;
+    for (int a = 0; a < 3; ++a)
+    {
+        double t[3] = {c[0], c[1], c[2]};
+        t[a]        = back_plane(f, a, lo, hi);
+        auto& s     = out[static_cast<size_t>(a)];
+        s.from      = from;
+        s.to        = vec3{t[0], t[1], t[2]};
+        s.axis      = a;
+    }
+    return out;
+}
+
+// Spikes for an axes as drawn (its camera, viewport and limits).
+inline std::array<SpikeSegment, 3> spike_segments(const Axes3D& axes, const vec3& p)
+{
+    const AxisLimits xl = axes.x_limits(), yl = axes.y_limits(), zl = axes.z_limits();
+    const double     lo[3] = {xl.min, yl.min, zl.min};
+    const double     hi[3] = {xl.max, yl.max, zl.max};
+    return spike_segments(compute_faces(axes), lo, hi, p);
+}
+
 // View-space distance range [near, far] of the eight corners of the normalized
 // 3D box under `view`: what the depth cue (series depth shade, Axes3D::fog)
 // fades over (the renderer's FrameUBO::depth_cue_near/far, SVG export).

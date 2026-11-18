@@ -16,6 +16,7 @@
     #include <spectra/series_image.hpp>
     #include <spectra/series_stats.hpp>
 
+    #include "core/axes3d_box.hpp"
     #include "core/axis_scale.hpp"
     #include "axes3d_pick.hpp"
     #include "crosshair_mapping.hpp"
@@ -378,6 +379,9 @@ void DataInteraction::draw_overlays(float       window_width,
         draw_marker_deltas(*overlay_figure, dl);
     }
 
+    // 3D spike lines under the tooltip and data tips' readouts.
+    spikes3d_drawn_ = draw_spikes_3d(dl);
+
     // Draw region selection overlay — use the axes where the ROI was started
     // so it stays in the correct subplot when the cursor moves.
     Axes* roi_axes = region_axes_ ? region_axes_ : active_axes_;
@@ -434,6 +438,61 @@ void DataInteraction::draw_overlays(float       window_width,
     // Draw tooltip last (on top); the compare readout already lists the series.
     if (!compare_drawn_)
         tooltip_.draw(nearest_, window_width, window_height, dl);
+}
+
+bool DataInteraction::draw_spikes_3d(ImDrawList* dl)
+{
+    // Only while a 3D point under the cursor is hovered (the tooltip's snap
+    // radius), and not under an open popup (like the tooltip).
+    if (!spikes3d_enabled_ || !nearest_.found || !nearest_.is_3d || !nearest_.axes3d
+        || nearest_.axes3d != active_axes3d_ || !theme_mgr_
+        || !(nearest_.distance_px <= tooltip_.snap_radius_3d())
+        || ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+        return false;
+
+    const Axes3D& axes = *nearest_.axes3d;
+    const Rect&   vp   = axes.viewport();
+    if (vp.w <= 0.0f || vp.h <= 0.0f)
+        return false;
+    const auto spikes =
+        axes3d_box::spike_segments(axes, vec3{nearest_.data_x, nearest_.data_y, nearest_.data_z});
+
+    const auto& colors   = theme_mgr_->colors();
+    const ImU32 line_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(colors.crosshair.r, colors.crosshair.g, colors.crosshair.b, colors.crosshair.a));
+    const ImU32 ring_col = ImGui::ColorConvertFloat4ToU32(
+        ImVec4(colors.bg_primary.r, colors.bg_primary.g, colors.bg_primary.b, 1.0f));
+    ImDrawList* fg = dl ? dl : ImGui::GetForegroundDrawList();
+    fg->PushClipRect(ImVec2(vp.x, vp.y), ImVec2(vp.x + vp.w, vp.y + vp.h), true);
+
+    constexpr float DASH = 5.0f, GAP = 3.0f, WIDTH = 1.25f, FOOT_R = 2.5f;
+    bool            drawn = false;
+    for (const auto& sp : spikes)
+    {
+        const Projected3DPoint a = project_axes3d_data_point(axes, sp.from);
+        const Projected3DPoint b = project_axes3d_data_point(axes, sp.to);
+        if (!a.visible || !b.visible)
+            continue;
+        const float dx = b.screen_x - a.screen_x, dy = b.screen_y - a.screen_y;
+        const float len = std::sqrt(dx * dx + dy * dy);
+        if (!(len >= 1.0f))
+            continue;   // the point lies on that pane
+        const float ux = dx / len, uy = dy / len;
+        for (float t = 0.0f; t < len; t += DASH + GAP)
+        {
+            const float e = std::min(t + DASH, len);
+            fg->AddLine(ImVec2(a.screen_x + ux * t, a.screen_y + uy * t),
+                        ImVec2(a.screen_x + ux * e, a.screen_y + uy * e),
+                        line_col,
+                        WIDTH);
+        }
+        // Foot on the pane: a small dot ringed in the background colour.
+        fg->AddCircleFilled(ImVec2(b.screen_x, b.screen_y), FOOT_R + 1.0f, ring_col);
+        fg->AddCircleFilled(ImVec2(b.screen_x, b.screen_y), FOOT_R, line_col);
+        drawn = true;
+    }
+    fg->PopClipRect();
+    return drawn;
 }
 
 bool DataInteraction::dispatch_series_selection_from_nearest()
@@ -1881,6 +1940,7 @@ OverlaySnapshot DataInteraction::capture_overlay_snapshot(const Figure& figure) 
     OverlaySnapshot snap;
     snap.crosshair_enabled = crosshair_.enabled();
     snap.tooltip_enabled   = tooltip_.enabled();
+    snap.spikes3d_enabled  = spikes3d_enabled_;
 
     // Helper: resolve an Axes pointer to its index in the figure
     auto resolve_axes_index = [&](const Axes* axes) -> size_t
@@ -1934,6 +1994,7 @@ void DataInteraction::restore_overlay_snapshot(const OverlaySnapshot& snapshot, 
 {
     set_crosshair(snapshot.crosshair_enabled);
     set_tooltip(snapshot.tooltip_enabled);
+    set_spikes3d(snapshot.spikes3d_enabled);
     clear_markers();
     annotations_.clear();
     append_overlay_snapshot(snapshot, figure);

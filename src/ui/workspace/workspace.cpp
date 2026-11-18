@@ -320,6 +320,8 @@ std::string Workspace::serialize_json(const WorkspaceData& data)
        << ",\n";
     os << "    \"tooltip_enabled\": " << (data.interaction.tooltip_enabled ? "true" : "false")
        << ",\n";
+    os << "    \"spikes3d_enabled\": " << (data.interaction.spikes3d_enabled ? "true" : "false")
+       << ",\n";
     os << "    \"markers\": [\n";
     for (size_t mi = 0; mi < data.interaction.markers.size(); ++mi)
     {
@@ -942,6 +944,7 @@ bool Workspace::deserialize_json(const std::string& json, WorkspaceData& data)
     {
         data.interaction.crosshair_enabled = read_bool_value(json, "crosshair_enabled", false);
         data.interaction.tooltip_enabled   = read_bool_value(json, "tooltip_enabled", true);
+        data.interaction.spikes3d_enabled  = read_bool_value(json, "spikes3d_enabled", true);
 
         // Parse markers array from interaction object
         auto interaction_pos = json_find_key(json, "interaction");

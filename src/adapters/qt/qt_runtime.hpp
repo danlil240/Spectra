@@ -8,9 +8,11 @@
 #include <memory>
 #include <unordered_map>
 
+#include <QtCore/QPointF>
 #include <QtGui/QPalette>
 #include <QtGui/QVulkanInstance>
 
+#include "render/pixel_scale.hpp"
 #include "ui/theme/theme.hpp"
 
 class QWindow;
@@ -35,6 +37,13 @@ class QtSurfaceHost;
 
 // Bootstrap runtime that owns Spectra's Vulkan backend + renderer and
 // drives a frame loop for one or more QWindow canvases.
+//
+// HiDPI: the swapchain is sized in framebuffer pixels (window size *
+// devicePixelRatio) while the figure and the ImGui UI are laid out in the
+// window's device-independent pixels and drawn devicePixelRatio times larger,
+// so text and UI keep their apparent size and stay sharp.  Feed InputHandler
+// positions mapped with map_to_layout().  A devicePixelRatio change (window
+// moved to a screen with another scale) is picked up by begin_frame().
 //
 // Typical usage:
 //   QtRuntime rt;
@@ -70,13 +79,14 @@ class QtRuntime
 
     // Bind a QWindow as a Vulkan canvas.
     // Creates VkSurfaceKHR + swapchain + command buffers + sync objects.
+    // width/height are the framebuffer size in pixels: window->size() * devicePixelRatio().
     // The QWindow must have surfaceType() == QSurface::VulkanSurface.
     // Returns true on success.
     bool attach_window(QWindow* window, uint32_t width, uint32_t height);
     void detach_window(QWindow* window);
     bool has_window(QWindow* window) const;
 
-    // Recreate swapchain after resize.
+    // Recreate swapchain after resize (width/height in framebuffer pixels).
     bool resize(QWindow* window, uint32_t width, uint32_t height);
     bool resize(uint32_t width, uint32_t height);
 
@@ -101,6 +111,15 @@ class QtRuntime
     // receive the same interaction state as the canvas.
     void set_input_handler(QWindow* window, InputHandler* input);
     void set_input_handler(InputHandler* input);
+
+    // Map a position in `window` coordinates (device-independent pixels, as in
+    // QMouseEvent::position() / QWheelEvent::position()) to the figure layout
+    // coordinates InputHandler works in.  Do not multiply by devicePixelRatio:
+    // the figure is laid out in the same units as the window.
+    QPointF map_to_layout(QWindow* window, const QPointF& window_pos) const;
+
+    // Layout size and pixel scale used for `window`'s last rendered frame.
+    SurfaceScale surface_scale(QWindow* window) const;
 
     // Accessors
     QVulkanInstance* vulkan_instance() const;
@@ -141,6 +160,10 @@ class QtRuntime
         bool                                  resize_pending           = false;
         uint32_t                              swapchain_recreate_count = 0;
         uint32_t                              frame_skip_count         = 0;
+        // devicePixelRatio the swapchain was sized for; a change means the
+        // window moved to a screen with another scale.
+        double       device_pixel_ratio = 0.0;
+        SurfaceScale surface_scale{};
     };
 
     WindowState*       find_window_state(QWindow* window);

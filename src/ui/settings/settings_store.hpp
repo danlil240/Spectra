@@ -2,15 +2,12 @@
 
 #include <cstddef>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "ui/settings/export_settings.hpp"
-
-namespace spectra::ui
-{
-class ThemeManager;
-}
+#include "ui/theme/theme.hpp"
 
 namespace spectra::ui::settings
 {
@@ -36,6 +33,13 @@ struct SettingsData
 
     // Last choices of the Export options dialog (file.export_dialog).
     ExportDialogSettings export_dialog;
+
+    // Glass / transparency set in Settings -> Appearance for theme
+    // `glass_theme`.  Unset: every theme starts with its own glass defaults.
+    // Saved only when it differs from that theme's defaults, so built-in
+    // default changes still reach users who never touched the sliders.
+    std::optional<ui::ThemeGlassSettings> glass;
+    std::string                           glass_theme;
 };
 
 // Longest SettingsData::recent_files list.
@@ -102,6 +106,24 @@ bool select_data_palette(ui::ThemeManager& tm, SettingsStore& store, const std::
 void make_active_theme_default(const ui::ThemeManager& tm, SettingsStore& store);
 void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore& store);
 
+// Startup appearance of an App or window process.  The theme and data palette
+// come from resolve_startup_theme(@p user, @p theme, @p data_palette).  With
+// @p user (the app reads settings.json) it also restores the toggle pair,
+// the UI scale and the glass settings: @p user's custom glass when it was
+// saved for the startup theme, else that theme's glass defaults.  Without
+// @p user only theme and palette change, so headless exports stay
+// reproducible.  settings.json is the only source: default_theme.json is not
+// read here (see migrate_legacy_glass()).
+void apply_startup_appearance(ui::ThemeManager&   tm,
+                              const SettingsData* user,
+                              const std::string&  theme        = {},
+                              const std::string&  data_palette = {});
+
+// Record the active glass settings in @p store for the active theme: kept as
+// custom glass when they differ from the theme's defaults, cleared otherwise.
+// Notifies (saves) only when the stored value changed; returns true then.
+bool remember_glass(const ui::ThemeManager& tm, SettingsStore& store);
+
 // Copy the theme manager's last dark / light theme into @p store; notifies
 // (saves) only when they changed.  Returns true when they changed.
 bool remember_toggle_themes(const ui::ThemeManager& tm, SettingsStore& store);
@@ -124,7 +146,19 @@ class SettingsStore
     const SettingsData& data() const { return data_; }
     SettingsData&       data_mut() { return data_; }
 
+    // apply_startup_appearance(tm, &data()).
     void apply_to(ui::ThemeManager& tm) const;
+
+    // One-time migration of glass customised by earlier versions, which saved
+    // it only to default_theme.json (ThemeManager::read_default_glass()): when
+    // the loaded file had no glass entry, copy that file's glass (when it
+    // differs from its theme's defaults) and notify.  Returns true when
+    // anything was migrated.
+    bool migrate_legacy_glass(const ui::ThemeManager& tm);
+
+    // Whether the loaded file had a glass entry (custom or not); false for a
+    // file written before glass moved into settings.json.
+    bool has_saved_glass() const { return has_saved_glass_; }
 
     // Recent data files (start page).  Each change notifies listeners, which
     // save the file in windowed apps.
@@ -142,6 +176,7 @@ class SettingsStore
     SettingsData   data_;
     ChangeCallback on_change_;
     std::string    loaded_path_;
+    bool           has_saved_glass_ = false;
 };
 
 }   // namespace spectra::ui::settings

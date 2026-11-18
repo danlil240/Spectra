@@ -686,8 +686,9 @@ int main(int argc, char* argv[])
     settings_store.load();
     theme_mgr.ensure_initialized();
     theme_mgr.load_user_files(spectra::user_config_dir());
-    settings_store.apply_to(theme_mgr);
     settings_store.set_on_change([&settings_store]() { settings_store.save(); });
+    settings_store.migrate_legacy_glass(theme_mgr);
+    settings_store.apply_to(theme_mgr);
 
     auto renderer_ptr = std::make_unique<spectra::Renderer>(*backend, theme_mgr);
     if (!renderer_ptr->init())

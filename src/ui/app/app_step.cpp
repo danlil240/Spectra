@@ -697,25 +697,28 @@ void App::init_runtime()
         theme_mgr_->load_user_files(user_config_dir());
     }
     {
+        // Theme, palette and (windowed) toggle pair, UI scale and glass, all
+        // from settings.json: the same path as the multiproc window process.
+        if (read_user)
+            rt.settings_store->migrate_legacy_glass(*theme_mgr_);
         const auto startup =
             ui::settings::resolve_startup_theme(read_user ? &rt.settings_store->data() : nullptr,
                                                 config_.theme,
                                                 config_.data_palette);
-        theme_mgr_->set_theme(startup.theme);
+        ui::settings::apply_startup_appearance(*theme_mgr_,
+                                               read_user ? &rt.settings_store->data() : nullptr,
+                                               config_.theme,
+                                               config_.data_palette);
         if (theme_mgr_->current_theme_name() != startup.theme)
             SPECTRA_LOG_WARN("app",
                              "Unknown theme '{}', using '{}'",
                              startup.theme,
                              theme_mgr_->current_theme_name());
-        theme_mgr_->set_data_palette(startup.data_palette);
         if (theme_mgr_->current_data_palette_name() != startup.data_palette)
             SPECTRA_LOG_WARN("app",
                              "Unknown data palette '{}', using '{}'",
                              startup.data_palette,
                              theme_mgr_->current_data_palette_name());
-        // UI scale is a per-user preference: never applied to headless exports.
-        if (read_user)
-            theme_mgr_->set_ui_scale(rt.settings_store->data().ui_scale);
     }
 
     rt.frame_state.active_figure_id = init_active_id;

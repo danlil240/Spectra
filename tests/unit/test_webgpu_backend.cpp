@@ -13,8 +13,13 @@
 
 #include <gtest/gtest.h>
 #include <cstdint>
+#include <cstddef>
 #include <cstring>
 #include <initializer_list>
+#include <iterator>
+#include <regex>
+#include <set>
+#include <string>
 #include <vector>
 
 // WGSL shader embedding: always available once the WGSL sources exist.
@@ -128,6 +133,93 @@ TEST(WGSLShaderEmbedding, HeatmapShaderEntryPointsAndBindings)
     EXPECT_NE(std::strstr(wgsl::heatmap_wgsl, "@group(1) @binding(0)"), nullptr);
 }
 
+// ─── WGSL uniform address-space layout (always run) ──────────────────────────
+
+namespace
+{
+
+// Returns "struct.member" for every member of a struct bound as var<uniform>
+// (directly or nested) that is an array of scalars or vec2s.  Those have an
+// element stride below 16 bytes, which the WGSL uniform address space forbids
+// (naga and Tint reject the shader).  Comments are stripped first.
+std::vector<std::string> uniform_small_stride_arrays(const std::string& src_in)
+{
+    const std::string src = std::regex_replace(src_in, std::regex(R"(//[^\n]*)"), "");
+
+    const std::string bad_elem = R"((f32|i32|u32|f16|bool|vec2\s*<[^>]*>|vec2[fhiu]))";
+    const std::regex  bad_array(R"(array\s*<\s*)" + bad_elem + R"(\s*[,>])");
+    const std::regex  bad_member(R"((\w+)\s*:\s*array\s*<\s*)" + bad_elem + R"(\s*[,>])");
+    const std::regex  ident(R"(\b[A-Za-z_]\w*\b)");
+    const std::regex  uniform_var(R"(var\s*<\s*uniform\s*>\s*\w+\s*:\s*([^;]+);)");
+
+    std::vector<std::string> bad;
+    std::set<std::string>    pending;   // identifiers that may name a uniform struct
+    auto                     queue_idents = [&](const std::string& text)
+    {
+        for (auto i = std::sregex_iterator(text.begin(), text.end(), ident);
+             i != std::sregex_iterator();
+             ++i)
+            pending.insert(i->str());
+    };
+    for (auto it = std::sregex_iterator(src.begin(), src.end(), uniform_var);
+         it != std::sregex_iterator();
+         ++it)
+    {
+        const std::string type = (*it)[1].str();
+        if (std::regex_search(type, bad_array))
+            bad.push_back("<var>:" + type);
+        queue_idents(type);
+    }
+
+    std::set<std::string> seen;
+    while (!pending.empty())
+    {
+        const std::string name = *pending.begin();
+        pending.erase(pending.begin());
+        if (!seen.insert(name).second)
+            continue;
+        std::smatch body;
+        if (!std::regex_search(src, body, std::regex(R"(struct\s+)" + name + R"(\s*\{([^}]*)\})")))
+            continue;   // builtin type or keyword (vec4, f32, array, ...)
+        const std::string members = body[1].str();
+        for (auto m = std::sregex_iterator(members.begin(), members.end(), bad_member);
+             m != std::sregex_iterator();
+             ++m)
+            bad.push_back(name + "." + (*m)[1].str());
+        queue_idents(members);
+    }
+    return bad;
+}
+
+}   // namespace
+
+TEST(WGSLUniformLayout, CheckerFlagsScalarArrays)
+{
+    const std::string bad  = "struct P {\n  a : vec4<f32>,\n  d : array<f32, 8>,\n};\n"
+                             "@group(0) @binding(1) var<uniform> p : P;\n";
+    const auto        hits = uniform_small_stride_arrays(bad);
+    ASSERT_EQ(hits.size(), 1u);
+    EXPECT_EQ(hits[0], "P.d");
+
+    const std::string ok = "struct P {\n  d : array<vec4<f32>, 2>,\n};\n"
+                           "struct S { v : array<f32> };\n"   // storage: any stride is fine
+                           "@group(0) @binding(1) var<uniform> p : P;\n"
+                           "@group(1) @binding(0) var<storage, read> s : S;\n";
+    EXPECT_TRUE(uniform_small_stride_arrays(ok).empty());
+}
+
+TEST(WGSLUniformLayout, NoUniformArrayHasStrideBelow16)
+{
+    ASSERT_GT(std::size(wgsl::all_shaders), 0u);
+    for (const auto& shader : wgsl::all_shaders)
+    {
+        const auto hits = uniform_small_stride_arrays(shader.source);
+        for (const auto& h : hits)
+            ADD_FAILURE() << shader.name << ".wgsl: uniform array '" << h
+                          << "' has an element stride below 16 bytes";
+    }
+}
+
 // ─── Struct layout constraints ────────────────────────────────────────────────
 
 TEST(WebGPULayout, SeriesPushConstantsAlignment)
@@ -137,6 +229,20 @@ TEST(WebGPULayout, SeriesPushConstantsAlignment)
     constexpr size_t sz = sizeof(SeriesPushConstants);
     EXPECT_LE(sz, 256u) << "SeriesPushConstants (" << sz
                         << " bytes) exceeds 256-byte UBO alignment budget";
+}
+
+TEST(WebGPULayout, SeriesPushConstantsMatchesWgslSeriesPC)
+{
+    // Byte offsets of SeriesPC as WGSL lays it out in the uniform address space
+    // (dash_pattern is array<vec4<f32>, 2>: 16-byte aligned, 32 bytes).
+    EXPECT_EQ(offsetof(SeriesPushConstants, color), 0u);
+    EXPECT_EQ(offsetof(SeriesPushConstants, line_width), 16u);
+    EXPECT_EQ(offsetof(SeriesPushConstants, opacity), 44u);
+    EXPECT_EQ(offsetof(SeriesPushConstants, dash_pattern), 48u);
+    EXPECT_EQ(offsetof(SeriesPushConstants, dash_total), 80u);
+    EXPECT_EQ(offsetof(SeriesPushConstants, dash_count), 84u);
+    EXPECT_EQ(offsetof(SeriesPushConstants, _pad2), 88u);
+    EXPECT_EQ(sizeof(SeriesPushConstants), 96u);
 }
 
 TEST(WebGPULayout, FrameUBOAlignment)

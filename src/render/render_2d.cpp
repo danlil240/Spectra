@@ -506,9 +506,11 @@ void Renderer::render_series(Series&             series,
             if (mesh->wireframe())
             {
                 // Unique triangle edges as depth-tested lines in the series
-                // colour: the surface edge-line mode of surface3d.vert/.frag
-                // (flat, unlit), whose pipeline layout needs a lookup table
-                // bound even though no colormap is applied.
+                // colour: the flat, unlit line mode 3 of surface3d.vert/.frag.
+                // Unlike surface edges over faces (mode 1) the lines are not
+                // pulled towards the camera, so edges lying on a box face are
+                // not clipped by the box discard.  The pipeline layout needs a
+                // lookup table bound even though no colormap is applied.
                 if (!require_pipeline(surface_wireframe3d_pipeline_, "3D mesh wireframe")
                     || !gpu.aux_index_buffer || gpu.aux_index_count == 0)
                     break;
@@ -518,7 +520,7 @@ void Renderer::render_series(Series&             series,
                 SeriesPushConstants wpc = pc;
                 wpc.dash_count          = 0;
                 wpc.dash_pattern[2]     = 0.0f;
-                wpc.dash_pattern[5]     = 1.0f;
+                wpc.dash_pattern[5]     = 3.0f;
                 const bool blend        = (wpc.color[3] * wpc.opacity) < 0.99f;
                 backend_.bind_pipeline(blend ? surface_wireframe3d_transparent_pipeline_
                                              : surface_wireframe3d_pipeline_);

@@ -23,6 +23,7 @@
 
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
+#include "../ipc/colormap_state.hpp"
 #include "../ipc/message.hpp"
 #include "../ipc/series_style_state.hpp"
 #include "../ipc/style3d_state.hpp"
@@ -101,6 +102,7 @@ inline void add_3d_series(Axes3D& ax3d, const ipc::SnapshotSeriesState& ss)
         apply_snapshot_common(s, ss);
         s.size(ss.marker_size);
         ipc::apply_series_style_3d(s, ss);
+        ipc::apply_series_colormap(s, ss);
     }
     else if (ss.type == "surface")
     {
@@ -136,6 +138,7 @@ inline void add_3d_series(Axes3D& ax3d, const ipc::SnapshotSeriesState& ss)
         auto& s = ax3d.surface(ux, uy, z_grid);
         apply_snapshot_common(s, ss);
         ipc::apply_series_style_3d(s, ss);
+        ipc::apply_series_colormap(s, ss);
     }
     else   // "line3d", and "mesh" (vertices + indices are not sent; drawn as a line)
     {
@@ -176,6 +179,7 @@ inline void add_2d_series(Axes& ax, const ipc::SnapshotSeriesState& ss)
         s.x_offset(ss.x_origin).y_offset(ss.y_origin);
         apply_snapshot_common(s, ss);
         s.size(ss.marker_size);
+        ipc::apply_series_colormap(s, ss);
     }
     else
     {

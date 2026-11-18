@@ -28,6 +28,7 @@
 
 #include "ipc/annotation_state.hpp"
 #include "ipc/axes_format_state.hpp"
+#include "ipc/colormap_state.hpp"
 #include "ipc/message.hpp"
 
 namespace spectra
@@ -671,6 +672,9 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
                 const Color& ec   = surf->edge_color();
                 ss.edge_color     = {ec.r, ec.g, ec.b, ec.a};
             }
+
+            // Surface / colormapped scatter: colormap, range, per-point values.
+            ipc::series_colormap_to_state(s, ss);
 
             encode_snapshot_series_data(s, ss);
             if (auto* bar = dynamic_cast<const BarSeries*>(&s))

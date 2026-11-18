@@ -2,6 +2,7 @@
 
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
+#include "../ipc/colormap_state.hpp"
 #include "../ipc/style_state.hpp"
 #include "../ipc/series_style_state.hpp"
 #include "../ipc/style3d_state.hpp"
@@ -661,6 +662,29 @@ ipc::DiffOp FigureModel::update_series_style_3d(
     return op;
 }
 
+bool FigureModel::update_series_colormap(uint64_t figure_id,
+                                         uint32_t series_index,
+                                         const std::function<void(ipc::SnapshotSeriesState&)>& edit,
+                                         ipc::DiffOp* op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || series_index >= it->second.series.size())
+        return false;
+    auto& ss = it->second.series[series_index];
+    edit(ss);
+    bump_revision();
+
+    if (op_out)
+    {
+        *op_out = ipc::DiffOp{};
+        ipc::series_colormap_to_op(ss, *op_out);
+        op_out->figure_id    = figure_id;
+        op_out->series_index = series_index;
+    }
+    return true;
+}
+
 ipc::DiffOp FigureModel::update_axes_light_3d(
     uint64_t                                            figure_id,
     uint32_t                                            axes_index,
@@ -1231,6 +1255,12 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
             ipc::series_style_3d_from_op(op, it->second.series[op.series_index]);
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_COLORMAP:
+            if (it == figures_.end() || op.series_index >= it->second.series.size())
+                return false;
+            ipc::series_colormap_from_op(op, it->second.series[op.series_index]);
             break;
 
         case ipc::DiffOp::Type::SET_AXES_LIGHT_3D:

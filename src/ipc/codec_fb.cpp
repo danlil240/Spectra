@@ -428,6 +428,12 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     if (!s.categories.empty())
         cat_off = fbb.CreateVectorOfStrings(s.categories);
     const auto edge_off = fbb.CreateVector(s.edge_color.data(), s.edge_color.size());
+    flatbuffers::Offset<flatbuffers::Vector<float>> cmap_colors_off;
+    if (!s.colormap_colors.empty())
+        cmap_colors_off = fbb.CreateVector(s.colormap_colors);
+    flatbuffers::Offset<flatbuffers::Vector<float>> color_values_off;
+    if (!s.color_values.empty())
+        color_values_off = fbb.CreateVector(s.color_values);
 
     fb::SnapshotSeriesStateBuilder b(fbb);
     b.add_name(name_off);
@@ -454,6 +460,15 @@ static flatbuffers::Offset<fb::SnapshotSeriesState> build_fb_series(
     b.add_show_edges(s.show_edges);
     b.add_contour_levels(s.contour_levels);
     b.add_edge_color(edge_off);
+    b.add_colormap(s.colormap);
+    b.add_colormap_reversed(s.colormap_reversed);
+    b.add_colormap_range_set(s.colormap_range_set);
+    b.add_colormap_min(s.colormap_min);
+    b.add_colormap_max(s.colormap_max);
+    if (!s.colormap_colors.empty())
+        b.add_colormap_colors(cmap_colors_off);
+    if (!s.color_values.empty())
+        b.add_color_values(color_values_off);
     if (!s.data.empty())
         b.add_data(data_off);
     if (!s.categories.empty())
@@ -494,6 +509,15 @@ static SnapshotSeriesState read_fb_series(const fb::SnapshotSeriesState* fb)
         for (flatbuffers::uoffset_t i = 0; i < 4; ++i)
             s.edge_color[i] = fb->edge_color()->Get(i);
     }
+    s.colormap           = fb->colormap();
+    s.colormap_reversed  = fb->colormap_reversed();
+    s.colormap_range_set = fb->colormap_range_set();
+    s.colormap_min       = fb->colormap_min();
+    s.colormap_max       = fb->colormap_max();
+    if (fb->colormap_colors())
+        s.colormap_colors.assign(fb->colormap_colors()->begin(), fb->colormap_colors()->end());
+    if (fb->color_values())
+        s.color_values.assign(fb->color_values()->begin(), fb->color_values()->end());
     if (fb->data())
     {
         s.data.reserve(fb->data()->size());

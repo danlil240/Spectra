@@ -175,6 +175,23 @@ std::string serialize(const SettingsData& d)
     os << "    \"export_scale\": " << e.scale << ",\n";
     os << "    \"export_transparent\": " << (e.transparent ? "true" : "false") << "\n";
     os << "  },\n";
+    // Glass / transparency (Settings -> Appearance).  "glass_custom" is always
+    // written so a reader can tell "defaults" from "file predates glass".
+    os << "  \"glass\": {\n";
+    os << "    \"glass_custom\": " << (d.glass ? "true" : "false");
+    if (d.glass)
+    {
+        const ui::ThemeGlassSettings& g = *d.glass;
+        os << ",\n";
+        os << R"(    "glass_theme": ")" << escape_json(d.glass_theme) << "\",\n";
+        os << "    \"glass_master_intensity\": " << g.master_intensity << ",\n";
+        os << "    \"glass_panel_alpha\": " << g.panel_alpha << ",\n";
+        os << "    \"glass_plot_alpha\": " << g.plot_alpha << ",\n";
+        os << "    \"glass_toolbar_alpha\": " << g.toolbar_alpha << ",\n";
+        os << "    \"glass_glow_strength\": " << g.glow_strength << ",\n";
+        os << "    \"glass_blur_enabled\": " << (g.blur_enabled ? "true" : "false");
+    }
+    os << "\n  },\n";
     os << "  \"recent_files\": [";
     for (size_t i = 0; i < d.recent_files.size(); ++i)
         os << (i ? ", " : "") << '"' << escape_json(d.recent_files[i]) << '"';
@@ -272,6 +289,29 @@ bool SettingsStore::load(const std::string& path)
         e.transparent = read_json_bool(json, "export_transparent", e.transparent);
         e             = sanitized(e);
     }
+    has_saved_glass_ = json_has_key_token(json, "glass_custom");
+    data_.glass.reset();
+    data_.glass_theme.clear();
+    if (read_json_bool(json, "glass_custom", false))
+    {
+        const std::string glass_theme = read_json_string(json, "glass_theme");
+        if (!glass_theme.empty())
+        {
+            ui::ThemeGlassSettings g;
+            auto                   read_f = [&](const char* key, float def)
+            { return static_cast<float>(read_json_number(json, key, def)); };
+            g.master_intensity = read_f("glass_master_intensity", g.master_intensity);
+            g.panel_alpha      = read_f("glass_panel_alpha", g.panel_alpha);
+            g.plot_alpha       = read_f("glass_plot_alpha", g.plot_alpha);
+            g.toolbar_alpha    = read_f("glass_toolbar_alpha", g.toolbar_alpha);
+            g.glow_strength    = read_f("glass_glow_strength", g.glow_strength);
+            g.blur_enabled     = read_json_bool(json, "glass_blur_enabled", g.blur_enabled);
+            g.clamp();
+            data_.glass       = g;
+            data_.glass_theme = glass_theme;
+        }
+    }
+
     data_.recent_files.clear();
     for (const std::string& f : read_json_string_array(json, "recent_files"))
     {
@@ -309,17 +349,57 @@ bool SettingsStore::save(const std::string& path) const
 
 void SettingsStore::apply_to(ui::ThemeManager& tm) const
 {
+    apply_startup_appearance(tm, &data_);
+}
+
+bool SettingsStore::migrate_legacy_glass(const ui::ThemeManager& tm)
+{
+    if (has_saved_glass_)
+        return false;
+    std::string            theme;
+    ui::ThemeGlassSettings g;
+    if (!tm.read_default_glass(theme, g))
+        return false;
+    // Mark the file as migrated even when nothing differs, so a later
+    // "Reset Theme Defaults" is not undone by the old file at the next start.
+    has_saved_glass_       = true;
+    const ui::Theme* found = tm.find_theme(theme);
+    if (!found || found->glass_defaults == g)
+    {
+        notify_change();
+        return false;
+    }
+    data_.glass       = g;
+    data_.glass_theme = theme;
+    notify_change();
+    return true;
+}
+
+void apply_startup_appearance(ui::ThemeManager&   tm,
+                              const SettingsData* user,
+                              const std::string&  theme,
+                              const std::string&  data_palette)
+{
     // A freshly constructed ThemeManager has no themes registered yet, so
     // set_theme()/set_data_palette() would silently no-op and the first
     // ThemeManager::instance() call would then fall back to "night".
     tm.ensure_initialized();
     // Before set_theme(), which records the startup theme as the last of its kind.
-    tm.set_last_themes(data_.last_dark_theme, data_.last_light_theme);
-    if (!data_.default_theme.empty())
-        tm.set_theme(data_.default_theme);
-    if (!data_.default_data_palette.empty())
-        tm.set_data_palette(data_.default_data_palette);
-    tm.set_ui_scale(data_.ui_scale);
+    if (user)
+        tm.set_last_themes(user->last_dark_theme, user->last_light_theme);
+    const StartupTheme startup = resolve_startup_theme(user, theme, data_palette);
+    tm.set_theme(startup.theme);
+    tm.set_data_palette(startup.data_palette);
+    if (!user)
+        return;
+    tm.set_ui_scale(user->ui_scale);
+    // Glass belongs to the theme it was set for: another startup theme (an
+    // explicit override, or a theme made default later) gets its own defaults,
+    // exactly as picking that theme in Settings does.
+    if (user->glass && user->glass_theme == tm.current_theme_name())
+        tm.set_glass_settings(*user->glass, true);
+    else
+        tm.reset_glass_defaults();
 }
 
 AppearanceState appearance_state(const ui::ThemeManager& tm, const SettingsData& d)
@@ -355,7 +435,28 @@ bool select_data_palette(ui::ThemeManager& tm, SettingsStore& store, const std::
 void make_active_theme_default(const ui::ThemeManager& tm, SettingsStore& store)
 {
     store.data_mut().default_theme = tm.current_theme_name();
+    // Start with the glass the user sees now, not glass saved for another theme.
+    if (!remember_glass(tm, store))
+        store.notify_change();
+}
+
+bool remember_glass(const ui::ThemeManager& tm, SettingsStore& store)
+{
+    SettingsData&                         d       = store.data_mut();
+    const ui::Theme*                      current = tm.find_theme(tm.current_theme_name());
+    std::optional<ui::ThemeGlassSettings> glass;
+    std::string                           glass_theme;
+    if (!current || !(current->glass_defaults == tm.glass()))
+    {
+        glass       = tm.glass();
+        glass_theme = tm.current_theme_name();
+    }
+    if (d.glass == glass && d.glass_theme == glass_theme)
+        return false;
+    d.glass       = glass;
+    d.glass_theme = glass_theme;
     store.notify_change();
+    return true;
 }
 
 void make_active_data_palette_default(const ui::ThemeManager& tm, SettingsStore& store)

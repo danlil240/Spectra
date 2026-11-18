@@ -6,6 +6,7 @@
 #include "../ipc/annotation_state.hpp"
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/codec.hpp"
+#include "../ipc/colormap_state.hpp"
 #include "../ipc/series_style_state.hpp"
 #include "../ipc/style3d_state.hpp"
 #include "figure_export.hpp"
@@ -111,6 +112,47 @@ static bool apply_property_update(FigureModel&              fig_model,
                                                             series_index,
                                                             [&](ipc::SnapshotSeriesState& ss)
                                                             { ss.contour_levels = levels; }));
+    }
+    else if (property == "colormap")
+    {
+        // Surface / colormapped scatter colormap: str_val a matplotlib name
+        // ("viridis", "RdBu_r", "none"), or "custom" with data = RGBA colours.
+        ipc::SnapshotSeriesState parsed;
+        if (!ipc::parse_colormap_property(str_val, data, parsed))
+            return false;
+        ipc::DiffOp op;
+        if (!fig_model.update_series_colormap(
+                figure_id,
+                series_index,
+                [&](ipc::SnapshotSeriesState& ss)
+                {
+                    ss.colormap          = parsed.colormap;
+                    ss.colormap_reversed = parsed.colormap_reversed;
+                    ss.colormap_colors   = parsed.colormap_colors;
+                },
+                &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
+    else if (property == "colormap_range")
+    {
+        // Values mapped onto the colormap ends: bool_val set (f1 = min,
+        // f2 = max) or clear (back to the data range).
+        if (bool_val && !(std::isfinite(f1) && std::isfinite(f2) && f1 < f2))
+            return false;
+        ipc::DiffOp op;
+        if (!fig_model.update_series_colormap(
+                figure_id,
+                series_index,
+                [&](ipc::SnapshotSeriesState& ss)
+                {
+                    ss.colormap_range_set = bool_val;
+                    ss.colormap_min       = bool_val ? static_cast<float>(f1) : 0.0f;
+                    ss.colormap_max       = bool_val ? static_cast<float>(f2) : 1.0f;
+                },
+                &op))
+            return false;
+        diff.ops.push_back(std::move(op));
     }
     else if (property == "light_mode")
     {
@@ -637,7 +679,9 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                                         "contour_projection",
                                         "light_mode",
                                         "light_angles",
-                                        "fog"};
+                                        "fog",
+                                        "colormap",
+                                        "colormap_range"};
     bool               known         = false;
     for (const auto* p : known_props)
     {

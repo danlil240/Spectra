@@ -341,6 +341,20 @@ struct SnapshotSeriesState
     bool                 show_edges     = false;
     int32_t              contour_levels = 0;
     std::array<float, 4> edge_color     = {0.0f, 0.0f, 0.0f, 0.35f};
+    // Colormap of a surface / colormapped scatter (2D or 3D), see
+    // colormap_state.hpp: spectra::ColormapType, or SERIES_STYLE_UNSET to keep
+    // the series type's default; reversed ("_r"); an explicit value range
+    // (otherwise the data range); for ColormapType::Custom the user colours as
+    // RGBA floats, spread evenly over [0, 1] (Colormap::from_colors).
+    uint8_t            colormap           = SERIES_STYLE_UNSET;
+    bool               colormap_reversed  = false;
+    bool               colormap_range_set = false;
+    float              colormap_min       = 0.0f;
+    float              colormap_max       = 1.0f;
+    std::vector<float> colormap_colors;
+    // Per-point values mapped through the colormap (ScatterSeries /
+    // ScatterSeries3D::color_values()), empty when the series has none.
+    std::vector<float> color_values;
 };
 
 // A single figure's full state.
@@ -466,6 +480,11 @@ struct DiffOp
         // figure.  series_index=spectra::RemotePlaybackState, f1=playhead
         // seconds.  Not stored in the backend model; only forwarded.
         SET_ANIM_PLAYBACK = 46,
+        // Series colormap (colormap_state.hpp): f1=spectra::ColormapType
+        // (SERIES_STYLE_UNSET keeps the current one), bool_val=reversed,
+        // f2=explicit range (0/1), f3/f4=range min/max, data=Custom colours
+        // (RGBA floats).
+        SET_SERIES_COLORMAP = 47,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

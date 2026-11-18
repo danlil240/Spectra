@@ -158,6 +158,13 @@ table SnapshotSeriesState {
     show_edges: bool = false;  // surface edge lines over the faces
     contour_levels: int32 = 0; // surface floor contour levels, 0 = off
     edge_color: [float];       // surface edge RGBA (4 floats), absent = default
+    colormap: ubyte = 255;     // spectra::ColormapType, 255 = series type default
+    colormap_reversed: bool = false;
+    colormap_range_set: bool = false;  // explicit value range, else the data range
+    colormap_min: float = 0.0;
+    colormap_max: float = 1.0;
+    colormap_colors: [float];  // Custom colormap colours (RGBA), Colormap::from_colors
+    color_values: [float];     // per-point colormap values (colormapped scatter)
 }
 
 table SnapshotFigureState {
@@ -233,6 +240,7 @@ enum DiffOpType : uint8 {
     SET_SERIES_STYLE_3D = 44,
     SET_AXES_LIGHT_3D = 45,
     SET_ANIM_PLAYBACK = 46,
+    SET_SERIES_COLORMAP = 47,
 }
 
 table DiffOp {

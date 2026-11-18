@@ -20,6 +20,7 @@
 #include "../ipc/axes_format_state.hpp"
 #include "../ipc/codec.hpp"
 #include "../ipc/style_state.hpp"
+#include "figure_cache.hpp"
 #include "live_series_index.hpp"
 #include "snapshot_figure_builder.hpp"
 #include "../ipc/message.hpp"
@@ -109,209 +110,7 @@ using spectra::agent::build_figure_from_snapshot;
 using spectra::agent::is_3d_series_type;
 using spectra::agent::live_axes_at;
 
-// Upper bounds on indices accepted from IPC diffs. Structural ops grow the
-// cache up to the given index, so an unchecked value from a buggy or hostile
-// peer could allocate gigabytes.
-constexpr size_t  MAX_CACHE_AXES   = spectra::agent::MAX_SNAPSHOT_AXES;
-constexpr size_t  MAX_CACHE_SERIES = size_t(1) << 16;
-constexpr int32_t MAX_GRID_DIM     = spectra::agent::MAX_GRID_DIM;
-
-// ─── Apply a DiffOp to a cached SnapshotFigureState ─────────────────────────
-void apply_diff_op_to_cache(spectra::ipc::SnapshotFigureState& fig, const spectra::ipc::DiffOp& op)
-{
-    switch (op.type)
-    {
-        case spectra::ipc::DiffOp::Type::SET_AXIS_LIMITS:
-            if (op.axes_index < fig.axes.size())
-            {
-                fig.axes[op.axes_index].x_min = op.f1;
-                fig.axes[op.axes_index].x_max = op.f2;
-                fig.axes[op.axes_index].y_min = op.f3;
-                fig.axes[op.axes_index].y_max = op.f4;
-            }
-            break;
-        case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR:
-            if (op.series_index < fig.series.size())
-            {
-                fig.series[op.series_index].color_r = op.f1;
-                fig.series[op.series_index].color_g = op.f2;
-                fig.series[op.series_index].color_b = op.f3;
-                fig.series[op.series_index].color_a = op.f4;
-                // Explicit colour, unless the op carries a palette slot tag
-                // ("C3") or a format letter (theme-aware).
-                fig.series[op.series_index].color_index =
-                    spectra::ipc::parse_palette_slot_tag(op.str_val);
-                fig.series[op.series_index].color_letter =
-                    (op.str_val.size() == 1 && spectra::format_colors::is_letter(op.str_val[0]))
-                        ? static_cast<uint8_t>(op.str_val[0])
-                        : 0;
-            }
-            break;
-        case spectra::ipc::DiffOp::Type::SET_SERIES_VISIBLE:
-            if (op.series_index < fig.series.size())
-                fig.series[op.series_index].visible = op.bool_val;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_FIGURE_TITLE:
-            fig.title = op.str_val;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_GRID_VISIBLE:
-            if (op.axes_index < fig.axes.size())
-                fig.axes[op.axes_index].grid_visible = op.bool_val;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_LINE_WIDTH:
-            if (op.series_index < fig.series.size())
-                fig.series[op.series_index].line_width = op.f1;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_MARKER_SIZE:
-            if (op.series_index < fig.series.size())
-                fig.series[op.series_index].marker_size = op.f1;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_SERIES_LINE_STYLE:
-        {
-            const uint8_t v =
-                spectra::ipc::style_wire_from_double(op.f1, spectra::ipc::LINE_STYLE_WIRE_MAX);
-            if (op.series_index < fig.series.size() && v != spectra::ipc::SERIES_STYLE_UNSET)
-                fig.series[op.series_index].line_style = v;
-            break;
-        }
-        case spectra::ipc::DiffOp::Type::SET_SERIES_MARKER_STYLE:
-        {
-            const uint8_t v =
-                spectra::ipc::style_wire_from_double(op.f1, spectra::ipc::MARKER_STYLE_WIRE_MAX);
-            if (op.series_index < fig.series.size() && v != spectra::ipc::SERIES_STYLE_UNSET)
-                fig.series[op.series_index].marker_style = v;
-            break;
-        }
-        case spectra::ipc::DiffOp::Type::SET_OPACITY:
-            if (op.series_index < fig.series.size())
-                fig.series[op.series_index].opacity = op.f1;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_SERIES_DATA:
-            if (op.series_index < fig.series.size())
-            {
-                auto&        series = fig.series[op.series_index];
-                const size_t stride = is_3d_series_type(series.type) ? 3u : 2u;
-                series.data         = op.data;
-                series.point_count  = static_cast<uint32_t>(op.data.size() / stride);
-                series.x_origin     = op.f1;   // 2D data origins (0 for 3D senders)
-                series.y_origin     = op.f2;
-            }
-            break;
-        case spectra::ipc::DiffOp::Type::SET_AXIS_ZLIMITS:
-            if (op.axes_index < fig.axes.size())
-            {
-                fig.axes[op.axes_index].z_min = op.f1;
-                fig.axes[op.axes_index].z_max = op.f2;
-            }
-            break;
-        case spectra::ipc::DiffOp::Type::ADD_SERIES:
-        {
-            if (op.series_index >= MAX_CACHE_SERIES)
-                break;
-            spectra::ipc::SnapshotSeriesState s;
-            s.type       = op.str_val;
-            s.axes_index = op.axes_index;
-            spectra::ipc::style_new_series(fig.style, s);
-            // Auto colour by position in its axes (mirrors FigureModel::add_series).
-            s.color_index = static_cast<int32_t>(std::count_if(
-                fig.series.begin(),
-                fig.series.begin() + std::min<size_t>(op.series_index, fig.series.size()),
-                [&](const spectra::ipc::SnapshotSeriesState& o)
-                { return o.axes_index == op.axes_index; }));
-            // Grow series list to accommodate the new index
-            if (fig.series.size() <= op.series_index)
-                fig.series.resize(static_cast<size_t>(op.series_index) + 1);
-            fig.series[op.series_index] = std::move(s);
-            break;
-        }
-        case spectra::ipc::DiffOp::Type::REMOVE_SERIES:
-            // Mirrors FigureModel::remove_series: later series shift down by one.
-            if (op.series_index < fig.series.size())
-                fig.series.erase(fig.series.begin() + op.series_index);
-            break;
-        case spectra::ipc::DiffOp::Type::ADD_AXES:
-        {
-            if (op.axes_index >= MAX_CACHE_AXES)
-                break;
-            spectra::ipc::SnapshotAxisState ax;
-            ax.is_3d = op.bool_val;
-            spectra::ipc::style_new_axes(fig.style, ax);
-            // Grow axes list to accommodate the new index
-            if (fig.axes.size() <= op.axes_index)
-                fig.axes.resize(static_cast<size_t>(op.axes_index) + 1);
-            fig.axes[op.axes_index] = std::move(ax);
-            // f1/f2 carry the daemon's (grown) subplot grid; 0 from older daemons.
-            const auto grid_dim = [](double v) -> int32_t
-            {
-                if (!(v >= 1.0))
-                    return 0;
-                return static_cast<int32_t>(std::min(v, static_cast<double>(MAX_GRID_DIM)));
-            };
-            fig.grid_rows = std::max(fig.grid_rows, grid_dim(op.f1));
-            fig.grid_cols = std::max(fig.grid_cols, grid_dim(op.f2));
-            break;
-        }
-        case spectra::ipc::DiffOp::Type::SET_SERIES_LABEL:
-            if (op.series_index < fig.series.size())
-                fig.series[op.series_index].name = op.str_val;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_AXIS_XLABEL:
-            if (op.axes_index < fig.axes.size())
-                fig.axes[op.axes_index].x_label = op.str_val;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_AXIS_YLABEL:
-            if (op.axes_index < fig.axes.size())
-                fig.axes[op.axes_index].y_label = op.str_val;
-            break;
-        case spectra::ipc::DiffOp::Type::SET_AXIS_TITLE:
-            if (op.axes_index < fig.axes.size())
-                fig.axes[op.axes_index].title = op.str_val;
-            break;
-        case spectra::ipc::DiffOp::Type::ADD_ANNOTATION:
-        case spectra::ipc::DiffOp::Type::SET_ANNOTATION:
-        case spectra::ipc::DiffOp::Type::CLEAR_ANNOTATIONS:
-            if (op.axes_index < fig.axes.size())
-                spectra::ipc::apply_annotation_op(fig.axes[op.axes_index].annotations, op);
-            break;
-        case spectra::ipc::DiffOp::Type::SET_AXIS_SCALE:
-            if (op.axes_index < fig.axes.size())
-                spectra::ipc::apply_axis_scale_op(fig.axes[op.axes_index], op);
-            break;
-        case spectra::ipc::DiffOp::Type::SET_LEGEND_POSITION:
-            fig.legend_position = spectra::ipc::legend_position_to_wire(
-                spectra::ipc::legend_position_from_wire(op.f1));
-            break;
-        case spectra::ipc::DiffOp::Type::SET_SERIES_DRAW_STYLE:
-            if (op.series_index < fig.series.size())
-                spectra::ipc::apply_series_draw_style_op(fig.series[op.series_index], op);
-            break;
-        case spectra::ipc::DiffOp::Type::SET_FIGURE_STYLE:
-            spectra::ipc::restyle_snapshot(fig.style, fig.axes, fig.series, op.str_val);
-            break;
-        case spectra::ipc::DiffOp::Type::SET_FIGURE_SUPTITLE:
-        case spectra::ipc::DiffOp::Type::SET_FIGURE_LAYOUT:
-            spectra::ipc::apply_figure_layout_op(fig, op);
-            break;
-        case spectra::ipc::DiffOp::Type::SET_SERIES_CATEGORIES:
-        {
-            std::vector<std::string> names;
-            if (op.series_index < fig.series.size() && spectra::ipc::categories_from_op(op, names))
-                fig.series[op.series_index].categories = std::move(names);
-            break;
-        }
-        case spectra::ipc::DiffOp::Type::SET_SERIES_STYLE_3D:
-            if (op.series_index < fig.series.size())
-                spectra::ipc::series_style_3d_from_op(op, fig.series[op.series_index]);
-            break;
-        case spectra::ipc::DiffOp::Type::SET_AXES_LIGHT_3D:
-            if (op.axes_index < fig.axes.size())
-                spectra::ipc::axes_light_3d_from_op(op, fig.axes[op.axes_index]);
-            break;
-        default:
-            // Includes SET_LIVE_FPS (handled on live Figure, not cache).
-            break;
-    }
-}
+using spectra::agent::apply_diff_op_to_cache;
 
 // ─── Apply a DiffOp directly to a live Figure object ─────────────────────────
 // `where` locates a series op's target in the live Figure (op.series_index is
@@ -531,6 +330,14 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 spectra::ipc::SnapshotSeriesState ss;
                 spectra::ipc::series_style_3d_from_op(op, ss);
                 spectra::ipc::apply_series_style_3d(*s, ss);
+            }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_COLORMAP:
+            if (auto* s = find_live_series())
+            {
+                spectra::ipc::SnapshotSeriesState ss;
+                spectra::ipc::series_colormap_from_op(op, ss);
+                spectra::ipc::apply_series_colormap(*s, ss);
             }
             break;
         case spectra::ipc::DiffOp::Type::SET_AXES_LIGHT_3D:

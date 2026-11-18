@@ -45,6 +45,7 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- Multiproc windows now show series colormaps: surfaces and colormapped scatters (2D/3D) carry their colormap (built-in, reversed or user `from_colors` table), value range and per-point values in the IPC snapshot, and Python can change them at runtime (`Series.set_colormap()`, `set_colormap_range()`, `surf(cmap=..., vmin=..., vmax=...)`; new `SET_SERIES_COLORMAP` diff). The window agent's state cache also keeps live-streaming FPS, so a rebuild no longer stops a live figure.
 - Timeline: the playhead is now the animated figure's clock. Scrubbing or stepping backward while playing, scrubbing while stopped, loop mode / loop region and keyframe tracks while paused all reach the plot; pressing Play on a static plot no longer fades and thickens its lines (start-up figures no longer get demo "Opacity"/"Width"/"Size" keyframe tracks). In the multiproc runtime the window's timeline now drives the app's `on_frame` animation (new `SET_ANIM_PLAYBACK` IPC op).
 
 - Golden image tests resolve their baselines through an absolute path set by CMake, so `ctest` compares images instead of silently skipping every scene (ccache made `__FILE__` relative and ctest runs from `build/tests`); a missing baseline now fails unless `SPECTRA_GOLDEN_STRICT=0`. 22 stale 3D baselines were regenerated for the Back box style.

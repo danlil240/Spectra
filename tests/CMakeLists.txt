@@ -177,6 +177,7 @@ set(SPECTRA_UNIT_TESTS
     test_undo_property
     test_workspace_v2
     test_timeline_editor
+    test_remote_playback_clock
     test_qa_stats
     test_qa_settle
     test_recording_export

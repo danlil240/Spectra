@@ -462,6 +462,10 @@ struct DiffOp
         // 3D axes light: f1=spectra::LightMode, f2=fog (0..1), f3/f4=light
         // azimuth/elevation in degrees (applied when bool_val).
         SET_AXES_LIGHT_3D = 45,
+        // Agent → app: timeline transport of the window's active animated
+        // figure.  series_index=spectra::RemotePlaybackState, f1=playhead
+        // seconds.  Not stored in the backend model; only forwarded.
+        SET_ANIM_PLAYBACK = 46,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

@@ -28,6 +28,7 @@
 #include "render/renderer.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/app/figure_snapshot.hpp"
+#include "ui/app/remote_playback_clock.hpp"
 #include "ui/app/window_png_export.hpp"
 #include "ui/overlay/knob_manager.hpp"
 #include "ui/theme/svg_style.hpp"
@@ -391,6 +392,11 @@ void App::run_multiproc()
                                  { const_cast<Series&>(s).clear_dirty(); });
         if (fig_snap.title.empty())   // tab_title() wins over "Figure N"
             fig_snap.title = default_figure_title(reg_to_ipc[id] - 99);
+        // Mark animated figures so the window's timeline treats them as
+        // animated (auto-play, open-ended duration) and sends its transport
+        // back as SET_ANIM_PLAYBACK.
+        if (fig->anim_.on_frame && fig_snap.live_fps <= 0.0f)
+            fig_snap.live_fps = fig->anim_fps() > 0.0f ? fig->anim_fps() : 60.0f;
         snap.figures.push_back(std::move(fig_snap));
     }
 
@@ -450,6 +456,43 @@ void App::run_multiproc()
                 max_fps = fig->anim_fps();
         }
     }
+
+    // Per-figure animation clocks driven by the window's timeline
+    // (SET_ANIM_PLAYBACK); figures without one keep the scheduler clock.
+    std::unordered_map<uint64_t, FigureId> ipc_to_reg;
+    for (const auto& [reg_id, ipc_id] : reg_to_ipc)
+        ipc_to_reg[ipc_id] = reg_id;
+    std::unordered_map<FigureId, RemotePlaybackClock> playback_clocks;
+    auto                                              mono_seconds = []()
+    {
+        return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    };
+    auto apply_app_diff = [&](const ipc::StateDiffPayload& diff)
+    {
+        for (const auto& op : diff.ops)
+        {
+            if (op.type == ipc::DiffOp::Type::SET_KNOB_VALUE && knob_manager_)
+            {
+                knob_manager_->set_value(op.str_val, op.f1);
+            }
+            else if (op.type == ipc::DiffOp::Type::SET_ANIM_PLAYBACK)
+            {
+                auto it = ipc_to_reg.find(op.figure_id);
+                if (it != ipc_to_reg.end() && op.series_index <= 2)
+                {
+                    playback_clocks[it->second].apply(
+                        static_cast<RemotePlaybackState>(op.series_index),
+                        op.f1,
+                        mono_seconds());
+                    SPECTRA_LOG_DEBUG("app",
+                                      "Timeline sync: figure " + std::to_string(op.figure_id)
+                                          + " state " + std::to_string(op.series_index)
+                                          + " playhead " + std::to_string(op.f1));
+                }
+            }
+        }
+    };
 
     std::unique_ptr<FrameScheduler> scheduler;
     if (has_any_animation)
@@ -589,18 +632,12 @@ void App::run_multiproc()
                     exit_requested = true;
                     break;
                 }
-                // Apply knob value changes from agent UI back to the app's KnobManager
-                if (msg->header.type == ipc::MessageType::STATE_DIFF && knob_manager_)
+                // Knob values and timeline transport from the agent UI
+                if (msg->header.type == ipc::MessageType::STATE_DIFF)
                 {
                     auto diff = ipc::decode_state_diff(msg->payload);
                     if (diff)
-                    {
-                        for (const auto& op : diff->ops)
-                        {
-                            if (op.type == ipc::DiffOp::Type::SET_KNOB_VALUE)
-                                knob_manager_->set_value(op.str_val, op.f1);
-                        }
-                    }
+                        apply_app_diff(*diff);
                 }
             }
             else
@@ -642,7 +679,20 @@ void App::run_multiproc()
                 {
                     if (fig->anim_.on_frame)
                     {
-                        fig->anim_.on_frame(frame);
+                        // Render at the window timeline's time once it has
+                        // reported one (Play/Pause/Stop/scrub/loop).
+                        Frame fig_frame = frame;
+                        auto  clock     = playback_clocks.find(id);
+                        if (clock != playback_clocks.end() && clock->second.synced())
+                        {
+                            fig_frame.elapsed_sec =
+                                static_cast<float>(clock->second.time(mono_seconds()));
+                            fig_frame.paused = !clock->second.playing();
+                            if (fig_frame.paused)
+                                fig_frame.dt = 0.0f;
+                        }
+                        fig->anim_.time = fig_frame.elapsed_sec;
+                        fig->anim_.on_frame(fig_frame);
                     }
                 }
 

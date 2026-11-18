@@ -503,6 +503,32 @@ void Renderer::render_series(Series&             series,
             if (!require_pipeline(mesh3d_pipeline_, "3D mesh"))
                 break;
             auto* mesh = static_cast<MeshSeries*>(&series);
+            if (mesh->wireframe())
+            {
+                // Unique triangle edges as depth-tested lines in the series
+                // colour: the surface edge-line mode of surface3d.vert/.frag
+                // (flat, unlit), whose pipeline layout needs a lookup table
+                // bound even though no colormap is applied.
+                if (!require_pipeline(surface_wireframe3d_pipeline_, "3D mesh wireframe")
+                    || !gpu.aux_index_buffer || gpu.aux_index_count == 0)
+                    break;
+                const TextureHandle lut = colormap_lut(gpu, Colormap{});
+                if (!lut)
+                    break;
+                SeriesPushConstants wpc = pc;
+                wpc.dash_count          = 0;
+                wpc.dash_pattern[2]     = 0.0f;
+                wpc.dash_pattern[5]     = 1.0f;
+                const bool blend        = (wpc.color[3] * wpc.opacity) < 0.99f;
+                backend_.bind_pipeline(blend ? surface_wireframe3d_transparent_pipeline_
+                                             : surface_wireframe3d_pipeline_);
+                backend_.bind_texture(lut, 1);
+                backend_.push_constants(wpc);
+                backend_.bind_buffer(gpu.ssbo, 0);
+                backend_.bind_index_buffer(gpu.aux_index_buffer);
+                backend_.draw_indexed(static_cast<uint32_t>(gpu.aux_index_count));
+                break;
+            }
             if (gpu.index_buffer)
             {
                 bool is_transparent = (pc.color[3] * pc.opacity) < 0.99f;

@@ -1040,6 +1040,16 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
         },
         Icon::Crosshair));
     view.add(make_toggle_action(
+        "3D Spike Lines",
+        [imgui]()
+        { return imgui->data_interaction_ && imgui->data_interaction_->spikes3d_active(); },
+        [imgui]()
+        {
+            if (imgui->command_registry_)
+                imgui->command_registry_->execute("view.toggle_spikes_3d");
+        },
+        Icon::Crosshair));
+    view.add(make_toggle_action(
         "Compare at X",
         [imgui]()
         {

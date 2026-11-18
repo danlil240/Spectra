@@ -97,6 +97,8 @@ SwatchKind swatch_kind(const Series& s)
         return SwatchKind::Line;
     if (const auto* surf = dynamic_cast<const SurfaceSeries*>(&s); surf && surf->wireframe())
         return SwatchKind::Line;
+    if (const auto* mesh = dynamic_cast<const MeshSeries*>(&s); mesh && mesh->wireframe())
+        return SwatchKind::Line;
     if (dynamic_cast<const LineSeries*>(&s) || dynamic_cast<const ChunkedLineSeries*>(&s)
         || dynamic_cast<const StemSeries*>(&s))
     {
@@ -114,7 +116,7 @@ float series_line_width(const Series& s)
         return c->width();
     if (const auto* l3 = dynamic_cast<const LineSeries3D*>(&s))
         return l3->width();
-    if (dynamic_cast<const SurfaceSeries*>(&s))
+    if (dynamic_cast<const SurfaceSeries*>(&s) || dynamic_cast<const MeshSeries*>(&s))
         return 1.5f;   // wireframe
     return 2.0f;
 }

@@ -110,6 +110,10 @@ std::vector<AxesMenuItem> build_axes_context_menu(const AxesContextMenuState& st
         m.command("view.toggle_crosshair");
         m.command("view.toggle_compare_at_x", "Compare at X");
     }
+    else
+    {
+        m.command("view.toggle_spikes_3d", "Spike Lines");
+    }
     m.separator();
 
     // ── Axis linking (only meaningful with several axes) ─────────────────

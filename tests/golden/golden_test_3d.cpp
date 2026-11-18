@@ -548,6 +548,43 @@ TEST(Golden3D, Mesh3D_Quad)
         480);
 }
 
+TEST(Golden3D, Mesh3D_Wireframe)
+{
+    run_golden_test_3d(
+        "3d_mesh_wireframe",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
+
+            // A UV sphere drawn as its unique triangle edges.
+            constexpr int         NU = 12, NV = 8;
+            std::vector<float>    vertices;
+            std::vector<uint32_t> indices;
+            for (int i = 0; i <= NV; ++i)
+                for (int j = 0; j <= NU; ++j)
+                {
+                    const float th = 3.14159265f * static_cast<float>(i) / NV;
+                    const float ph = 6.28318531f * static_cast<float>(j) / NU;
+                    const float x  = std::sin(th) * std::cos(ph);
+                    const float y  = std::sin(th) * std::sin(ph);
+                    const float z  = std::cos(th);
+                    vertices.insert(vertices.end(), {x, y, z, x, y, z});
+                }
+            for (int i = 0; i < NV; ++i)
+                for (int j = 0; j < NU; ++j)
+                {
+                    const auto a = static_cast<uint32_t>(i * (NU + 1) + j);
+                    const auto c = a + static_cast<uint32_t>(NU + 1);
+                    indices.insert(indices.end(), {a, c, a + 1, a + 1, c, c + 1});
+                }
+
+            ax.mesh(vertices, indices).color(colors::blue).wireframe(true);
+            ax.title("Mesh: Wireframe Sphere");
+        },
+        640,
+        480);
+}
+
 TEST(Golden3D, Surface_Colormap)
 {
     run_golden_test_3d("3d_surface_colormap",

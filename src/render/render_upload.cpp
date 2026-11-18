@@ -903,6 +903,23 @@ void Renderer::upload_series_data(Series&   series,
         gpu.index_count = mesh->indices().size();
         ++gpu.geometry_serial;   // invalidates the translucent triangle sort
 
+        // Wireframe: the unique triangle edges as a line list over the same
+        // vertex buffer (drawn instead of the faces).
+        gpu.aux_index_count = 0;
+        const auto edges    = mesh->edge_indices();
+        if (mesh->wireframe() && !edges.empty())
+        {
+            const size_t bytes = edges.size() * sizeof(uint32_t);
+            if (gpu.aux_index_buffer)
+                backend_.destroy_buffer(gpu.aux_index_buffer);
+            gpu.aux_index_buffer = backend_.create_buffer(BufferUsage::Index, bytes);
+            if (gpu.aux_index_buffer)
+            {
+                backend_.upload_buffer(gpu.aux_index_buffer, edges.data(), bytes);
+                gpu.aux_index_count = edges.size();
+            }
+        }
+
         series.clear_dirty();
     }
     // Handle 3D shapes (vertex buffer + index buffer, same as MeshSeries)

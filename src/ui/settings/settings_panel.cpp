@@ -640,7 +640,7 @@ void SettingsPanel::draw_theme_section()
         if (clicked && select_theme(*theme_mgr_, *store_, id))
         {
             theme_mgr_->reset_glass_defaults();
-            theme_mgr_->save_current_as_default();
+            remember_glass(*theme_mgr_, *store_);
         }
         if (hovered)
         {
@@ -1016,18 +1016,17 @@ void SettingsPanel::draw_glass_section()
                           "Glass styling uses layered translucency and glow instead.");
     }
 
+    // Saved to settings.json for the active theme (restored at startup).
     if (glass_changed)
     {
         theme_mgr_->set_glass_settings(glass, true);
-        theme_mgr_->save_current_as_default();
-        store_->notify_change();
+        remember_glass(*theme_mgr_, *store_);
     }
 
     if (ImGui::Button("Reset Theme Defaults"))
     {
         theme_mgr_->reset_glass_defaults();
-        theme_mgr_->save_current_as_default();
-        store_->notify_change();
+        remember_glass(*theme_mgr_, *store_);
     }
 }
 
@@ -1046,7 +1045,8 @@ void SettingsPanel::draw_appearance_footer()
         d.ui_scale = 1.0f;
         theme_mgr_->set_ui_scale(1.0f);
         theme_mgr_->reset_glass_defaults();
-        theme_mgr_->save_current_as_default();
+        d.glass.reset();
+        d.glass_theme.clear();
         store_->notify_change();
     }
 }

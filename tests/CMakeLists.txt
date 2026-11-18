@@ -196,6 +196,7 @@ set(SPECTRA_UNIT_TESTS
     test_r2b_followups
     test_settings_appearance
     test_theme_toggle_commands
+    test_glass_persistence
     test_theme_registry
     test_sequential_palette
     test_marker_actions
@@ -865,6 +866,29 @@ if(TARGET spectra_qt_adapter)
         add_test(NAME unit_test_qt_runtime_theme COMMAND unit_test_qt_runtime_theme)
     endif()
     set_tests_properties(unit_test_qt_runtime_theme PROPERTIES
+        LABELS "gpu;qt"
+        RESOURCE_LOCK gpu
+        SKIP_RETURN_CODE 77
+        ENVIRONMENT "QT_QPA_PLATFORM=xcb")
+endif()
+
+# QtRuntime HiDPI (QT_SCALE_FACTOR=2): logical layout vs framebuffer size.  Same needs as above.
+if(TARGET spectra_qt_adapter)
+    add_executable(unit_test_qt_runtime_hidpi unit/test_qt_runtime_hidpi.cpp)
+    target_link_libraries(unit_test_qt_runtime_hidpi PRIVATE spectra_qt_adapter GTest::gtest)
+    target_compile_features(unit_test_qt_runtime_hidpi PRIVATE cxx_std_20)
+    target_include_directories(unit_test_qt_runtime_hidpi PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_BINARY_DIR}/generated
+    )
+    find_program(SPECTRA_XVFB_RUN xvfb-run)
+    if(SPECTRA_XVFB_RUN)
+        add_test(NAME unit_test_qt_runtime_hidpi
+            COMMAND ${SPECTRA_XVFB_RUN} -a $<TARGET_FILE:unit_test_qt_runtime_hidpi>)
+    else()
+        add_test(NAME unit_test_qt_runtime_hidpi COMMAND unit_test_qt_runtime_hidpi)
+    endif()
+    set_tests_properties(unit_test_qt_runtime_hidpi PROPERTIES
         LABELS "gpu;qt"
         RESOURCE_LOCK gpu
         SKIP_RETURN_CODE 77

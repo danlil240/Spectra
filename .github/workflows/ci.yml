@@ -630,25 +630,32 @@ jobs:
             sleep $((attempt * 10))
           done
           apt-get update
-          apt-get install -y \
-            gcc-13 \
-            g++-13 \
-            libvulkan-dev \
-            libglfw3-dev \
-            libwayland-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libxkbcommon-dev \
-            libgl1-mesa-dev \
-            glslang-tools \
-            nlohmann-json3-dev \
-            libtinyxml2-dev \
-            python3-pillow \
-            xvfb \
-            mesa-vulkan-drivers \
-            vulkan-tools
+          # Launchpad can serve 503s for minutes at a time; packages already
+          # fetched stay in the apt cache, so each retry only fetches the rest.
+          for attempt in 1 2 3 4; do
+            apt-get install -y \
+              gcc-13 \
+              g++-13 \
+              libvulkan-dev \
+              libglfw3-dev \
+              libwayland-dev \
+              libxrandr-dev \
+              libxinerama-dev \
+              libxcursor-dev \
+              libxi-dev \
+              libxkbcommon-dev \
+              libgl1-mesa-dev \
+              glslang-tools \
+              nlohmann-json3-dev \
+              libtinyxml2-dev \
+              python3-pillow \
+              xvfb \
+              mesa-vulkan-drivers \
+              vulkan-tools && break
+            if [ "$attempt" = 4 ]; then exit 1; fi
+            echo "apt-get install failed (attempt $attempt), retrying in $((attempt * 60))s"
+            sleep $((attempt * 60))
+          done
 
       - name: Pin Vulkan ICD to lavapipe
         uses: ./.github/actions/pin-lavapipe

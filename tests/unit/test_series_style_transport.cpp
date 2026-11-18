@@ -499,7 +499,8 @@ TEST(ColormapTransport, PropertyOpUpdatesModelCacheAndLiveSeries)
     // The range op still carries the colormap set before.
     EXPECT_EQ(static_cast<int>(rop.f1), static_cast<int>(ColormapType::Inferno));
 
-    const auto& ms = model.snapshot().figures[0].series[sidx];
+    const auto  model_snap = model.snapshot();
+    const auto& ms         = model_snap.figures[0].series[sidx];
     EXPECT_EQ(ms.colormap, static_cast<uint8_t>(ColormapType::Inferno));
     EXPECT_TRUE(ms.colormap_range_set);
 

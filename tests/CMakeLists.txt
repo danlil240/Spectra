@@ -196,6 +196,7 @@ set(SPECTRA_UNIT_TESTS
     test_r2b_followups
     test_settings_appearance
     test_theme_toggle_commands
+    test_glass_persistence
     test_theme_registry
     test_sequential_palette
     test_marker_actions

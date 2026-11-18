@@ -367,6 +367,8 @@ struct ThemeGlassSettings
     static ThemeGlassSettings light_defaults();
 
     void clamp();
+
+    bool operator==(const ThemeGlassSettings&) const = default;
 };
 
 enum class GlassSurface
@@ -515,8 +517,16 @@ class ThemeManager
     // palette, and applies its glass settings.
     bool export_theme(const std::string& path) const;
     bool import_theme(const std::string& path);
+    // <config dir>/default_theme.json: a snapshot of the active theme (colours
+    // and glass).  Legacy: the app no longer writes or reads it at startup;
+    // settings.json (ui::settings::SettingsStore) holds the startup theme and
+    // the user's glass settings.  read_default_glass() returns the glass block
+    // of that file (falling back to ~/.spectra/default_theme.json) and the theme
+    // it was saved with, so startup can migrate it once; false when there is
+    // no such file or it has no glass block.
     void save_current_as_default();
     void load_default();
+    bool read_default_glass(std::string& theme_name, ThemeGlassSettings& out) const;
 
     // ── Theme / palette registry ──────────────────────────────────────────
     // Built-in ids in picker order.  User themes and palettes (files in the

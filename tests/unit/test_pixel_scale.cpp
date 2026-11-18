@@ -114,3 +114,66 @@ TEST(LogicalExtent, InverseOfPixelScale)
     EXPECT_EQ(spectra::logical_extent(800, 0.0f), 800u);
     EXPECT_EQ(spectra::logical_extent(1, 4.0f), 1u);
 }
+
+// ── Qt adapter / HiDPI windows: logical size -> framebuffer -> layout ──────
+
+TEST(FramebufferExtent, ScalesLogicalSizeByDevicePixelRatio)
+{
+    EXPECT_EQ(spectra::framebuffer_extent(800, 1.0), 800u);
+    EXPECT_EQ(spectra::framebuffer_extent(800, 2.0), 1600u);
+    EXPECT_EQ(spectra::framebuffer_extent(801, 1.25), 1001u);   // 1001.25 rounds
+    EXPECT_EQ(spectra::framebuffer_extent(3, 1.5), 5u);         // 4.5 rounds up
+}
+
+TEST(FramebufferExtent, DegenerateInputs)
+{
+    EXPECT_EQ(spectra::framebuffer_extent(0, 2.0), 0u);
+    EXPECT_EQ(spectra::framebuffer_extent(-5, 2.0), 0u);
+    EXPECT_EQ(spectra::framebuffer_extent(640, 0.0), 640u);   // invalid ratio -> 1
+    EXPECT_EQ(spectra::framebuffer_extent(640, -2.0), 640u);
+}
+
+TEST(FramebufferExtent, RoundTripsThroughSurfaceScale)
+{
+    // A Qt window 640x480 (device-independent) on screens of several scales:
+    // the layout is always the window size and the pixel scale the ratio.
+    for (double dpr : {1.0, 1.25, 1.5, 2.0, 3.0})
+    {
+        const uint32_t fw = spectra::framebuffer_extent(640, dpr);
+        const uint32_t fh = spectra::framebuffer_extent(480, dpr);
+        const auto     s  = compute_surface_scale(640, 480, fw, fh);
+        EXPECT_EQ(s.layout_width, 640u) << "dpr " << dpr;
+        EXPECT_EQ(s.layout_height, 480u) << "dpr " << dpr;
+        EXPECT_NEAR(s.pixel_scale, dpr, 1e-5) << "dpr " << dpr;
+    }
+}
+
+TEST(WindowToLayout, IdentityWhenLayoutIsWindowSize)
+{
+    // HiDPI 2x: mouse positions in window units are already layout units —
+    // they must NOT be multiplied by the device pixel ratio.
+    const auto s = compute_surface_scale(800, 600, 1600, 1200);
+    const auto p = spectra::window_to_layout(s, 800, 600, 400.0f, 300.0f);
+    EXPECT_FLOAT_EQ(p.x, 400.0f);
+    EXPECT_FLOAT_EQ(p.y, 300.0f);
+}
+
+TEST(WindowToLayout, ScalesWhenLayoutFellBackToFramebuffer)
+{
+    // The backend refused a pixel scale: layout is the 1600x1200 framebuffer.
+    const spectra::SurfaceScale s{1600, 1200, 1.0f};
+    const auto                  p = spectra::window_to_layout(s, 800, 600, 100.0f, 50.0f);
+    EXPECT_FLOAT_EQ(p.x, 200.0f);
+    EXPECT_FLOAT_EQ(p.y, 100.0f);
+}
+
+TEST(WindowToLayout, DegenerateWindowPassesThrough)
+{
+    const auto s = compute_surface_scale(800, 600, 1600, 1200);
+    const auto p = spectra::window_to_layout(s, 0, 0, 12.0f, 34.0f);
+    EXPECT_FLOAT_EQ(p.x, 12.0f);
+    EXPECT_FLOAT_EQ(p.y, 34.0f);
+    const auto q = spectra::window_to_layout(spectra::SurfaceScale{}, 800, 600, 12.0f, 34.0f);
+    EXPECT_FLOAT_EQ(q.x, 12.0f);
+    EXPECT_FLOAT_EQ(q.y, 34.0f);
+}

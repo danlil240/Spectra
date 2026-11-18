@@ -2041,6 +2041,19 @@ std::string legacy_default_theme_file()
     return (std::filesystem::path(home) / ".spectra" / "default_theme.json").string();
 }
 
+// The file load_default() reads: `primary` (default_theme.json in the config
+// dir), else the legacy one when only that exists; "" when neither exists.
+std::string existing_default_theme_file(const std::string& primary)
+{
+    std::error_code ec;
+    if (!primary.empty() && std::filesystem::exists(primary, ec))
+        return primary;
+    const std::string legacy = legacy_default_theme_file();
+    if (!legacy.empty() && std::filesystem::exists(legacy, ec))
+        return legacy;
+    return {};
+}
+
 }   // namespace
 
 void ThemeManager::save_current_as_default()
@@ -2064,30 +2077,37 @@ void ThemeManager::load_default()
 
     // Read the config-dir file, or the legacy one when only that exists.  Saves
     // always go to default_theme_path_, which migrates the legacy file.
-    std::string     source = default_theme_path_;
-    std::error_code ec;
-    if (source.empty() || !std::filesystem::exists(source, ec))
+    const std::string source = existing_default_theme_file(default_theme_path_);
+    if (!source.empty() && import_theme(source))
     {
-        const std::string legacy = legacy_default_theme_file();
-        if (!legacy.empty() && std::filesystem::exists(legacy, ec))
-            source = legacy;
-    }
-    if (!source.empty() && std::filesystem::exists(source, ec))
-    {
-        if (import_theme(source))
+        std::ifstream lf(source);
+        std::string   json((std::istreambuf_iterator<char>(lf)), std::istreambuf_iterator<char>());
+        size_t        np = json_find_key(json, "name");
+        if (np != std::string::npos)
         {
-            std::ifstream lf(source);
-            std::string   json((std::istreambuf_iterator<char>(lf)),
-                             std::istreambuf_iterator<char>());
-            size_t        np = json_find_key(json, "name");
-            if (np != std::string::npos)
-            {
-                std::string n = extract_string_value(json, np + 6);
-                if (!n.empty())
-                    set_theme(n);
-            }
+            std::string n = extract_string_value(json, np + 6);
+            if (!n.empty())
+                set_theme(n);
         }
     }
+}
+
+bool ThemeManager::read_default_glass(std::string& theme_name, ThemeGlassSettings& out) const
+{
+    const std::string source = existing_default_theme_file(
+        default_theme_path_.empty() ? default_theme_file() : default_theme_path_);
+    std::string json;
+    if (source.empty() || !read_text_file(source, json) || json.empty())
+        return false;
+    Theme              theme;
+    ThemeGlassSettings g;
+    bool               has_glass = false;
+    if (!parse_theme_json(json, theme, g, has_glass, nullptr) || !has_glass)
+        return false;
+    g.clamp();
+    theme_name = theme.name;
+    out        = g;
+    return true;
 }
 
 void ThemeManager::initialize_default_themes()

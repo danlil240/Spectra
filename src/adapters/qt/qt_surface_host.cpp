@@ -1,8 +1,9 @@
 #include "qt_surface_host.hpp"
 
+#include "render/pixel_scale.hpp"
+
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -131,21 +132,17 @@ bool QtSurfaceHost::framebuffer_size(void* native_window, platform::SurfaceSize&
         return false;
     }
 
-    const QSize logical_size = window->size();
-    const qreal dpr          = window->devicePixelRatio();
-
-    const int pixel_width  = static_cast<int>(std::lround(logical_size.width() * dpr));
-    const int pixel_height = static_cast<int>(std::lround(logical_size.height() * dpr));
-
-    if (pixel_width <= 0 || pixel_height <= 0)
+    // Framebuffer pixels = device-independent window size * devicePixelRatio.
+    const QSize  logical_size = window->size();
+    const double dpr          = window->devicePixelRatio();
+    out_size.width            = framebuffer_extent(logical_size.width(), dpr);
+    out_size.height           = framebuffer_extent(logical_size.height(), dpr);
+    if (out_size.width == 0 || out_size.height == 0)
     {
         out_size.width  = 0;
         out_size.height = 0;
         return false;
     }
-
-    out_size.width  = static_cast<uint32_t>(pixel_width);
-    out_size.height = static_cast<uint32_t>(pixel_height);
     return true;
 }
 

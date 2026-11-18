@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 #include <spectra/axes3d.hpp>
 #include <spectra/math3d.hpp>
 #include <spectra/series3d.hpp>
@@ -141,16 +142,17 @@ inline bool ray_triangle_hit(const vec3& o,
     return std::isfinite(t);
 }
 
-// Screen-space distance (px) within which a wireframe surface's grid line is
-// picked.  Wireframe cells are see-through, so their interiors never pick.
+// Screen-space distance (px) within which a wireframe surface's grid line or a
+// wireframe mesh's edge is picked.  Wireframe cells and faces are see-through,
+// so their interiors never pick.
 inline constexpr float WIREFRAME_PICK_PX = 5.0f;
 
 // Nearest surface or mesh under the cursor (ray cast against its triangles,
 // clipped to the axes box).  The candidate snaps to the triangle vertex
 // nearest the hit, so the data tip shows a real data value; distance_px is 0
-// since the cursor is on the surface.  Wireframe surfaces pick only their grid
-// lines within WIREFRAME_PICK_PX of the cursor (frontmost line wins), so points
-// seen through an open cell stay hoverable.
+// since the cursor is on the surface.  Wireframe surfaces and meshes pick only
+// their grid lines / triangle edges within WIREFRAME_PICK_PX of the cursor
+// (frontmost line wins), so points seen through an open cell stay hoverable.
 inline Nearest3DPickCandidate pick_surface_3d_in_axes(const Axes3D& axes,
                                                       float         cursor_x,
                                                       float         cursor_y)
@@ -458,6 +460,41 @@ inline Nearest3DPickCandidate pick_surface_3d_in_axes(const Axes3D& axes,
                 continue;
             vec3 bmin, bmax;
             mesh->get_bounds(bmin, bmax);
+            if (mesh->wireframe())
+            {
+                // The drawn edges only: faces are open, like a wireframe surface.
+                const auto edges = mesh->edge_indices();
+                if (edges.empty() || !cursor_near_box(bmin, bmax))
+                    continue;
+                std::vector<Projected3DPoint> proj(nv);
+                std::vector<bool>             done(nv, false);
+                auto vtx = [&](size_t i) { return vec3{v[i * 6], v[i * 6 + 1], v[i * 6 + 2]}; };
+                auto projected = [&](size_t i) -> const Projected3DPoint&
+                {
+                    if (!done[i])
+                    {
+                        proj[i] = project(vtx(i));
+                        done[i] = true;
+                    }
+                    return proj[i];
+                };
+                for (size_t k = 0; k + 1 < edges.size(); k += 2)
+                {
+                    const size_t ia = edges[k], ib = edges[k + 1];
+                    if (ia >= nv || ib >= nv)
+                        continue;
+                    const vec3 p = vtx(ia), q = vtx(ib);
+                    if (finite3(p) && finite3(q))
+                        try_wire_segment(series_ptr.get(),
+                                         p,
+                                         q,
+                                         projected(ia),
+                                         projected(ib),
+                                         ia,
+                                         ib);
+                }
+                continue;
+            }
             if (!ray_hits_aabb(bmin, bmax))
                 continue;
             for (size_t t = 0; t + 2 < ix.size(); t += 3)

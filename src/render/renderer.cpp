@@ -1422,7 +1422,8 @@ void Renderer::render_axes(AxesBase&   axes,
                                                     effective_alpha,
                                                     style_opacity);
                 }
-                else if (blends && gd.type == SeriesType::Mesh3D)
+                else if (blends && gd.type == SeriesType::Mesh3D
+                         && !static_cast<MeshSeries*>(series_ptr.get())->wireframe())
                 {
                     auto* mesh = static_cast<MeshSeries*>(series_ptr.get());
                     prepare_mesh_sorted_indices(gd,

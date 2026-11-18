@@ -277,6 +277,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
         {
             data.interaction.crosshair_enabled = data_interaction->crosshair_active();
             data.interaction.tooltip_enabled   = data_interaction->tooltip_active();
+            data.interaction.spikes3d_enabled  = data_interaction->spikes3d_active();
             for (const auto& m : data_interaction->markers())
             {
                 if (m.is_3d)
@@ -580,6 +581,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
             {
                 data_interaction->set_crosshair(data.interaction.crosshair_enabled);
                 data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+                data_interaction->set_spikes3d(data.interaction.spikes3d_enabled);
             }
         }
         if (!result.figure_ids.empty())
@@ -670,6 +672,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
             {
                 data_interaction->set_crosshair(data.interaction.crosshair_enabled);
                 data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+                data_interaction->set_spikes3d(data.interaction.spikes3d_enabled);
             }
         }
         const size_t active =
@@ -835,6 +838,7 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                  {
                      data_interaction->set_crosshair(data.interaction.crosshair_enabled);
                      data_interaction->set_tooltip(data.interaction.tooltip_enabled);
+                     data_interaction->set_spikes3d(data.interaction.spikes3d_enabled);
 
                      // Markers: find the series by label in the saved axes
                      // (first figure that has it), keeping absolute x/y.

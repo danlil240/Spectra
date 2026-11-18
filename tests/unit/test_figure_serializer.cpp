@@ -208,3 +208,29 @@ TEST_F(FigureSerializerTest, RoundTrips3DDepthCueLightAndSurfaceStyle)
     EXPECT_FALSE(sd->show_edges());
     EXPECT_FALSE(sd->contour_projection());
 }
+
+// 3D spike lines toggle travels with the overlay state (defaults to on).
+TEST_F(FigureSerializerTest, OverlaySpikes3DRoundTrip)
+{
+    Figure             src({.width = 400, .height = 300});
+    auto&              ax = src.subplot3d(1, 1, 1);
+    std::vector<float> xs = {0.0f, 1.0f}, ys = {0.0f, 1.0f}, zs = {0.0f, 1.0f};
+    ax.scatter3d(xs, ys, zs);
+
+    OverlaySnapshot snap;
+    EXPECT_TRUE(snap.spikes3d_enabled);
+    snap.spikes3d_enabled = false;
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, src, &snap));
+
+    Figure          dst({.width = 400, .height = 300});
+    OverlaySnapshot loaded;
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst, &loaded));
+    EXPECT_FALSE(loaded.spikes3d_enabled);
+
+    snap.spikes3d_enabled = true;
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, src, &snap));
+    OverlaySnapshot loaded_on;
+    loaded_on.spikes3d_enabled = false;
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst, &loaded_on));
+    EXPECT_TRUE(loaded_on.spikes3d_enabled);
+}

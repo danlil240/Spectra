@@ -187,6 +187,33 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                         }
                     }});
 
+    // ─── 3D spike lines (hover guides to the back panes) ─────────────────
+    cmds.push_back({"view.toggle_spikes_3d",
+                    "Toggle 3D Spike Lines",
+                    "",
+                    "View",
+                    static_cast<uint16_t>(ui::Icon::Crosshair),
+                    [&]()
+                    {
+                        if (!data_interaction)
+                            return;
+                        const bool old_val = data_interaction->spikes3d_active();
+                        const bool new_val = !old_val;
+                        data_interaction->set_spikes3d(new_val);
+                        undo_mgr.push(
+                            UndoAction{new_val ? "Show 3D spike lines" : "Hide 3D spike lines",
+                                       [&data_interaction, old_val]()
+                                       {
+                                           if (data_interaction)
+                                               data_interaction->set_spikes3d(old_val);
+                                       },
+                                       [&data_interaction, new_val]()
+                                       {
+                                           if (data_interaction)
+                                               data_interaction->set_spikes3d(new_val);
+                                       }});
+                    }});
+
     // ─── Compare at X (crosshair readout of every series) ────────────────
     cmds.push_back({"view.toggle_compare_at_x",
                     "Toggle Compare-at-X Readout",

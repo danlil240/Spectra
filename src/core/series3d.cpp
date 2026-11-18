@@ -516,13 +516,67 @@ void MeshSeries::set_vertices(std::span<const float> vertices)
     // only complete vertices stay valid because no complete vertex is removed.
     const size_t usable = vertices.size() - vertices.size() % 6;
     vertices_.assign(vertices.begin(), vertices.begin() + static_cast<ptrdiff_t>(usable));
+    rebuild_edges();
     dirty_ = true;
 }
 
 void MeshSeries::set_indices(std::span<const uint32_t> indices)
 {
     indices_.assign(indices.begin(), indices.end());
+    rebuild_edges();
     dirty_ = true;
+}
+
+MeshSeries& MeshSeries::wireframe(bool w)
+{
+    wireframe_ = w;
+    rebuild_edges();
+    dirty_ = true;
+    return *this;
+}
+
+void MeshSeries::rebuild_edges()
+{
+    if (wireframe_)
+        edge_indices_ = unique_edges(indices_, vertex_count());
+    else
+        edge_indices_.clear();
+}
+
+std::vector<uint32_t> MeshSeries::unique_edges(std::span<const uint32_t> tri_indices,
+                                               size_t                    vertex_count)
+{
+    // Each edge as one 64-bit key (lower index in the high half), then sort +
+    // unique: shared edges between neighbouring triangles collapse to one.
+    std::vector<uint64_t> keys;
+    keys.reserve(tri_indices.size());
+    for (size_t t = 0; t + 2 < tri_indices.size(); t += 3)
+    {
+        const uint32_t v[3] = {tri_indices[t], tri_indices[t + 1], tri_indices[t + 2]};
+        if (v[0] >= vertex_count || v[1] >= vertex_count || v[2] >= vertex_count)
+            continue;
+        for (int k = 0; k < 3; ++k)
+        {
+            const uint32_t a = v[k];
+            const uint32_t b = v[(k + 1) % 3];
+            if (a == b)
+                continue;
+            const uint64_t lo = std::min(a, b);
+            const uint64_t hi = std::max(a, b);
+            keys.push_back((lo << 32) | hi);
+        }
+    }
+    std::sort(keys.begin(), keys.end());
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+
+    std::vector<uint32_t> out;
+    out.reserve(keys.size() * 2);
+    for (const uint64_t k : keys)
+    {
+        out.push_back(static_cast<uint32_t>(k >> 32));
+        out.push_back(static_cast<uint32_t>(k & 0xFFFFFFFFu));
+    }
+    return out;
 }
 
 vec3 MeshSeries::compute_centroid() const

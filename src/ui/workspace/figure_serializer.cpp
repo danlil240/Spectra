@@ -120,6 +120,9 @@ enum ChunkTag : uint16_t
     // projection + level count (surface).  Written only when not the
     // defaults.  Version-free.
     TAG_SERIES3D_STYLE = 0x005B,
+    // 3D hover spike lines on/off (u8), written with the overlay config.
+    // Version-free: older readers skip it and keep spike lines on.
+    TAG_OVERLAY_SPIKES3D = 0x0066,
 
     TAG_END = 0xFFFF,
 };
@@ -1054,6 +1057,11 @@ bool FigureSerializer::save(std::ostream& f, const Figure& figure, const Overlay
             w.write_u8(overlay->crosshair_enabled ? 1 : 0);
             w.write_u8(overlay->tooltip_enabled ? 1 : 0);
             w.end_chunk(opos);
+        }
+        {
+            auto spos = w.begin_chunk(TAG_OVERLAY_SPIKES3D);
+            w.write_u8(overlay->spikes3d_enabled ? 1 : 0);
+            w.end_chunk(spos);
         }
 
         // Markers
@@ -2180,6 +2188,15 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 {
                     r.skip(len);
                 }
+                break;
+            }
+
+            case TAG_OVERLAY_SPIKES3D:
+            {
+                if (overlay)
+                    overlay->spikes3d_enabled = r.read_u8() != 0;
+                else
+                    r.skip(len);
                 break;
             }
 

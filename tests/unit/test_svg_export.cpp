@@ -1248,6 +1248,29 @@ TEST(SvgExport, MeshShadingUsesVertexNormals)
     EXPECT_GT(max_channel_diff(faceted[0], faceted[1]), 8.0f / 255.0f);
 }
 
+TEST(SvgExport, WireframeMeshExportsItsEdgesNotItsFaces)
+{
+    auto svg_for = [](bool wire)
+    {
+        Figure                fig({.width = 600, .height = 500});
+        auto&                 ax  = fig.subplot3d(1, 1, 1);
+        std::vector<float>    v   = {0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1,
+                                     1, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1};
+        std::vector<uint32_t> idx = {0, 1, 2, 0, 2, 3};
+        ax.mesh(v, idx).color(rgb(0.2f, 0.5f, 0.8f)).wireframe(wire);
+        ax.zlim(-1.0f, 1.0f);
+        fig.compute_layout();
+        return SvgExporter::to_string(fig);
+    };
+    const std::string solid = svg_for(false);
+    EXPECT_EQ(triangle_fills(solid).size(), 2u);
+    EXPECT_EQ(solid.find("mesh-wire"), std::string::npos);
+
+    const std::string wire = svg_for(true);
+    EXPECT_TRUE(triangle_fills(wire).empty());
+    EXPECT_NE(wire.find("mesh-wire"), std::string::npos);
+}
+
 TEST(SvgExport, SurfaceShadingFollowsTheRendererMaterial)
 {
     // A flat surface facing +Z is lit uniformly: shade = min(0.40 + diffuse + fill, 1)

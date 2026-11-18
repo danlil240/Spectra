@@ -636,19 +636,31 @@ class MeshSeries : public Series
     }
     bool double_sided() const { return double_sided_; }
 
-    MeshSeries& wireframe(bool w)
-    {
-        wireframe_ = w;
-        dirty_     = true;
-        return *this;
-    }
-    bool wireframe() const { return wireframe_; }
+    // Wireframe: draw the mesh as its unique triangle edges (lines in the
+    // series colour, depth tested) instead of filled faces.  Hover picking
+    // then follows the edges, so points seen through a face stay hoverable.
+    MeshSeries& wireframe(bool w);
+    bool        wireframe() const { return wireframe_; }
+
+    // Line-list indices (two per edge) of the unique triangle edges, extracted
+    // while wireframe() is on; empty otherwise.
+    std::span<const uint32_t> edge_indices() const { return edge_indices_; }
+
+    // Unique undirected edges of a triangle list as line-list index pairs
+    // (lower index first, sorted).  Triangles referencing a vertex >=
+    // vertex_count and a trailing partial triangle are skipped, as are
+    // zero-length edges (a == b).
+    static std::vector<uint32_t> unique_edges(std::span<const uint32_t> tri_indices,
+                                              size_t                    vertex_count);
 
     bool is_transparent() const { return (color_.a * style_.opacity) < 0.99f; }
 
    private:
-    std::vector<float>    vertices_;   // Flat: {x,y,z, nx,ny,nz, ...} per vertex
-    std::vector<uint32_t> indices_;    // Triangle indices
+    std::vector<float>    vertices_;       // Flat: {x,y,z, nx,ny,nz, ...} per vertex
+    std::vector<uint32_t> indices_;        // Triangle indices
+    std::vector<uint32_t> edge_indices_;   // Wireframe edges (line list)
+
+    void rebuild_edges();
 
     float ambient_   = 0.0f;   // 0 = shader default (0.15)
     float specular_  = 0.0f;   // 0 = shader default (0.3)

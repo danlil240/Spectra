@@ -28,7 +28,7 @@ void ImGuiIntegration::draw_csv_dialog()
 
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.98f));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_TitleBg,
         ImVec4(colors.bg_secondary.r, colors.bg_secondary.g, colors.bg_secondary.b, 1.0f));
@@ -297,7 +297,7 @@ void ImGuiIntegration::draw_cvd_preview_badge()
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ui::tokens::SPACE_2, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.96f));
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(c.warning.r, c.warning.g, c.warning.b, 0.8f));
     const ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
@@ -419,7 +419,7 @@ void ImGuiIntegration::draw_axes_context_menu(Figure& figure)
                         ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_PopupBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f));

@@ -1042,7 +1042,6 @@ void RosAppShell::draw()
             ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12.0f, vp->WorkPos.y + vp->WorkSize.y - 52.0f),
             ImGuiCond_Always,
             ImVec2(1.0f, 1.0f));
-        ImGui::SetNextWindowBgAlpha(0.82f);
         const ImGuiWindowFlags flags =
             ImGuiWindowFlags_NoDecoration |
     #ifdef IMGUI_HAS_DOCK
@@ -1065,7 +1064,6 @@ void RosAppShell::draw()
             ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12.0f, vp->WorkPos.y + vp->WorkSize.y - 12.0f),
             ImGuiCond_Always,
             ImVec2(1.0f, 1.0f));
-        ImGui::SetNextWindowBgAlpha(0.78f);
         const ImGuiWindowFlags flags =
             ImGuiWindowFlags_NoDecoration |
     #ifdef IMGUI_HAS_DOCK

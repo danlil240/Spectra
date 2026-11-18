@@ -136,7 +136,7 @@ void DataSidebar::draw(ImFont* heading_font, ImFont* /*icon_font*/)
         // a hairline on the canvas side.
         dl->AddRectFilled(ImVec2(bounds.x, bounds.y),
                           ImVec2(bounds.x + bounds.w, bounds.y + bounds.h),
-                          ui::to_imu32(th.bg_secondary, 0.96f));
+                          ui::to_imu32(th.bg_secondary, 1.0f));
         dl->AddLine(ImVec2(bounds.x + bounds.w - 1.0f, bounds.y),
                     ImVec2(bounds.x + bounds.w - 1.0f, bounds.y + bounds.h),
                     ui::to_imu32(th.border_subtle, 0.6f),

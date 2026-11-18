@@ -344,7 +344,7 @@ void ImGuiIntegration::draw_menubar_menu(const char* label, const std::vector<Me
                         ImVec2(ui::tokens::SPACE_2, ui::tokens::SPACE_1));
     ImGui::PushStyleColor(
         ImGuiCol_PopupBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.97f));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(
         ImGuiCol_Border,
         ImVec4(colors.border_subtle.r, colors.border_subtle.g, colors.border_subtle.b, 0.4f));

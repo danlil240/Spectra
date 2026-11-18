@@ -660,6 +660,33 @@ TEST_F(ThemeManagerTest, ApplyToImguiFollowsTransitionColors)
     tm.update(10.0f);
     ImGui::DestroyContext(ctx);
 }
+
+// Floating ImGui windows (Topics, Log Browser, ROS panels, dialogs, menus) sit over
+// the plot canvas.  Their background must stay opaque in every theme, even with the
+// glass slider at full strength, or the curves show through the panel text.
+TEST_F(ThemeManagerTest, ImguiWindowAndPopupBackgroundsAreOpaque)
+{
+    ImGuiContext* ctx = ImGui::CreateContext();
+    auto&         tm  = ThemeManager::instance();
+    for (const std::string& name : tm.available_themes())
+    {
+        tm.set_theme(name);
+        for (float master : {0.0f, 0.65f, 1.0f})
+        {
+            ThemeGlassSettings glass = tm.glass();
+            glass.master_intensity   = master;
+            glass.panel_alpha        = 0.30f;
+            tm.set_glass_settings(glass, true);
+            tm.apply_to_imgui();
+
+            const ImVec4* cols = ImGui::GetStyle().Colors;
+            EXPECT_FLOAT_EQ(cols[ImGuiCol_WindowBg].w, 1.0f) << name << " master=" << master;
+            EXPECT_FLOAT_EQ(cols[ImGuiCol_PopupBg].w, 1.0f) << name << " master=" << master;
+        }
+        tm.reset_glass_defaults();
+    }
+    ImGui::DestroyContext(ctx);
+}
 #endif
 
 TEST_F(ThemeManagerTest, TransitionToInvalidNameIsNoOp)

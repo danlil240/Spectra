@@ -360,7 +360,7 @@ void RegionSelect::draw_mini_toolbar(float rx0,
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
     ImGui::PushStyleColor(
         ImGuiCol_WindowBg,
-        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 0.95f));
+        ImVec4(colors.bg_elevated.r, colors.bg_elevated.g, colors.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border,
                           ImVec4(colors.border_default.r,
                                  colors.border_default.g,

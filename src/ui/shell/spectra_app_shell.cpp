@@ -427,7 +427,7 @@ void SpectraNavRail::draw_markers_popover()
                         ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_3));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ui::tokens::RADIUS_MD);
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.98f));
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 1.0f));
     const ImGuiWindowFlags flags =
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize
         | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize

@@ -472,9 +472,8 @@ bool color_field(const char* label, spectra::Color& color)
     // Popover
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_LG);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(tokens::SPACE_3, tokens::SPACE_3));
-    ImGui::PushStyleColor(
-        ImGuiCol_PopupBg,
-        ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, c.bg_elevated.a));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg,
+                          ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Border,
                           ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.5f));
 
@@ -613,7 +612,7 @@ bool slider_field(const char* label, float& value, float min, float max, const c
             lbl_x = std::clamp(lbl_x, frame_min.x, frame_max.x - lbl_w);
 
             ImU32 lbl_bg = ImGui::ColorConvertFloat4ToU32(
-                ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+                ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 1.0f));
             ImU32 lbl_fg = ImGui::ColorConvertFloat4ToU32(
                 ImVec4(c.text_primary.r, c.text_primary.g, c.text_primary.b, 1.0f));
             ImU32 lbl_border = ImGui::ColorConvertFloat4ToU32(
@@ -953,7 +952,7 @@ bool icon_button_small(const char* icon, const char* tooltip, bool active)
                             ImVec2(ui::tokens::SPACE_3, ui::tokens::SPACE_2));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_MD);
         ImGui::PushStyleColor(ImGuiCol_PopupBg,
-                              ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+                              ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 1.0f));
         ImGui::PushStyleColor(
             ImGuiCol_Border,
             ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));
@@ -1028,7 +1027,7 @@ bool icon_button(const char* cmdId, ui::Icon icon, const char* tooltip, bool act
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(tokens::SPACE_3, tokens::SPACE_2));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, tokens::RADIUS_MD);
         ImGui::PushStyleColor(ImGuiCol_PopupBg,
-                              ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 0.95f));
+                              ImVec4(c.bg_elevated.r, c.bg_elevated.g, c.bg_elevated.b, 1.0f));
         ImGui::PushStyleColor(
             ImGuiCol_Border,
             ImVec4(c.border_subtle.r, c.border_subtle.g, c.border_subtle.b, 0.3f));

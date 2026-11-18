@@ -843,7 +843,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                                             tp1,
                                             ui::tokens::RADIUS_MD,
                                             theme_colors(),
-                                            0.78f,
+                                            1.0f,   // opaque: tooltips sit over plot curves
                                             theme_colors().glow_intensity);
             tdl->PopClipRect();
         }

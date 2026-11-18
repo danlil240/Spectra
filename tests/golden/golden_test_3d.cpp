@@ -548,6 +548,81 @@ TEST(Golden3D, Mesh3D_Quad)
         480);
 }
 
+TEST(Golden3D, Mesh3D_Wireframe)
+{
+    run_golden_test_3d(
+        "3d_mesh_wireframe",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
+
+            // A UV sphere drawn as its unique triangle edges.
+            constexpr int         NU = 12, NV = 8;
+            std::vector<float>    vertices;
+            std::vector<uint32_t> indices;
+            for (int i = 0; i <= NV; ++i)
+                for (int j = 0; j <= NU; ++j)
+                {
+                    const float th = 3.14159265f * static_cast<float>(i) / NV;
+                    const float ph = 6.28318531f * static_cast<float>(j) / NU;
+                    const float x  = std::sin(th) * std::cos(ph);
+                    const float y  = std::sin(th) * std::sin(ph);
+                    const float z  = std::cos(th);
+                    vertices.insert(vertices.end(), {x, y, z, x, y, z});
+                }
+            for (int i = 0; i < NV; ++i)
+                for (int j = 0; j < NU; ++j)
+                {
+                    const auto a = static_cast<uint32_t>(i * (NU + 1) + j);
+                    const auto c = a + static_cast<uint32_t>(NU + 1);
+                    indices.insert(indices.end(), {a, c, a + 1, a + 1, c, c + 1});
+                }
+
+            ax.mesh(vertices, indices).color(colors::blue).wireframe(true);
+            ax.title("Mesh: Wireframe Sphere");
+        },
+        640,
+        480);
+}
+
+// Regression: a wireframe mesh lying on the zlim.max plane, seen from above,
+// keeps its edges (they used to be pulled towards the camera and then
+// discarded as outside the box).
+TEST(Golden3D, Mesh3D_WireframeOnLimitPlane)
+{
+    run_golden_test_3d(
+        "3d_mesh_wireframe_limit_plane",
+        [](App& /*app*/, Figure& fig)
+        {
+            auto& ax = fig.subplot3d(1, 1, 1);
+            // 4 x 4 quad grid at z = 1 (the top of the z range).
+            constexpr int         N = 5;
+            std::vector<float>    vertices;
+            std::vector<uint32_t> indices;
+            for (int i = 0; i < N; ++i)
+                for (int j = 0; j < N; ++j)
+                {
+                    const float x = -1.0f + 2.0f * static_cast<float>(j) / (N - 1);
+                    const float y = -1.0f + 2.0f * static_cast<float>(i) / (N - 1);
+                    vertices.insert(vertices.end(), {x, y, 1.0f, 0.0f, 0.0f, 1.0f});
+                }
+            for (int i = 0; i + 1 < N; ++i)
+                for (int j = 0; j + 1 < N; ++j)
+                {
+                    const auto a = static_cast<uint32_t>(i * N + j);
+                    const auto c = a + static_cast<uint32_t>(N);
+                    indices.insert(indices.end(), {a, a + 1, c, a + 1, c + 1, c});
+                }
+            ax.mesh(vertices, indices).color(colors::red).wireframe(true);
+            ax.xlim(-1.0f, 1.0f);
+            ax.ylim(-1.0f, 1.0f);
+            ax.zlim(-1.0f, 1.0f);
+            ax.title("Mesh: Wireframe on zlim.max");
+        },
+        640,
+        480);
+}
+
 TEST(Golden3D, Surface_Colormap)
 {
     run_golden_test_3d("3d_surface_colormap",

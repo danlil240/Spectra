@@ -80,7 +80,10 @@ void main() {
 
     // Discard fragments outside the bounding box
     const float BOX_HS = 3.0; // must match Axes3D::box_half_size()
-    if (any(greaterThan(abs(v_world_pos), vec3(BOX_HS)))) discard;
+    // Wireframe mesh edges (mode 3) often lie exactly on a box face: allow a
+    // hair of rounding so they are not dotted by the clip.
+    float box_tol = dash_pattern[5] > 2.5 ? 1e-3 : 0.0;
+    if (any(greaterThan(abs(v_world_pos), vec3(BOX_HS + box_tol)))) discard;
 
     // Normalize interpolated vectors. Meshes supplied without normals (all
     // zero) fall back to the flat face normal from screen-space derivatives.
@@ -117,8 +120,9 @@ void main() {
         alpha *= mix(dash_pattern[3], dash_pattern[4], t);
     }
 
-    // Edge lines over the faces / floor contour projection (dash_pattern[5],
-    // see surface3d.vert): flat, unlit colour (the colormap for contours).
+    // Edge lines over the faces / floor contour projection / wireframe mesh
+    // edges (dash_pattern[5], see surface3d.vert): flat, unlit colour (the
+    // colormap for contours).
     if (dash_pattern[5] > 0.5) {
         out_color = vec4(apply_depth_cue(base_color, v_world_pos, 0.0), alpha);
         return;

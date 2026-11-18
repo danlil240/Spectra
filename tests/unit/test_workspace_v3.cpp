@@ -558,3 +558,32 @@ TEST(WorkspaceV3, MultipleFigures)
 
     std::filesystem::remove(path);
 }
+
+// ─── 3D spike lines toggle ───────────────────────────────────────────────────
+
+TEST(WorkspaceV3, Spikes3DToggleRoundTripsAndDefaultsOn)
+{
+    auto path     = std::filesystem::temp_directory_path() / "spectra_test_spikes3d.spectra";
+    auto path_str = path.string();
+    std::filesystem::remove(path);
+
+    WorkspaceData data = make_v3_workspace();
+    EXPECT_TRUE(data.interaction.spikes3d_enabled);
+    data.interaction.spikes3d_enabled = false;
+    ASSERT_TRUE(Workspace::save(path_str, data));
+    WorkspaceData loaded;
+    ASSERT_TRUE(Workspace::load(path_str, loaded));
+    EXPECT_FALSE(loaded.interaction.spikes3d_enabled);
+
+    // Files written before the toggle existed load with spike lines on.
+    const std::string json = Workspace::serialize_json(data);
+    const auto        key  = json.find("\"spikes3d_enabled\"");
+    ASSERT_NE(key, std::string::npos);
+    std::string old_json = json;
+    old_json.erase(key, json.find('\n', key) - key + 1);
+    WorkspaceData old_loaded;
+    ASSERT_TRUE(Workspace::deserialize_json(old_json, old_loaded));
+    EXPECT_TRUE(old_loaded.interaction.spikes3d_enabled);
+
+    std::filesystem::remove(path);
+}

@@ -337,3 +337,55 @@ TEST(Axes3DBoxDepthCue, RangeSpansTheBoxAndOrdersNearToFar)
     EXPECT_GT(t_far, 0.5f);
     EXPECT_NEAR(axes3d_box::depth_cue_t(view, nd, fd, {0.0, 0.0, 0.0}), 0.5f, 0.05f);
 }
+
+// ─── Spike lines (hover guides to the back panes) ────────────────────────────
+
+TEST(Axes3DBoxSpikes, EachSpikeRunsAlongOneAxisToItsBackPane)
+{
+    const BoxFaces f     = faces_for(30.0f, 25.0f);
+    const double   lo[3] = {-2.0, 0.0, 10.0};
+    const double   hi[3] = {2.0, 5.0, 20.0};
+    const vec3     p{0.5, 1.0, 12.0};
+    const auto     s = spike_segments(f, lo, hi, p);
+    for (int a = 0; a < 3; ++a)
+    {
+        const auto& seg = s[static_cast<size_t>(a)];
+        EXPECT_EQ(seg.axis, a);
+        EXPECT_DOUBLE_EQ(seg.from.x, p.x);
+        EXPECT_DOUBLE_EQ(seg.from.y, p.y);
+        EXPECT_DOUBLE_EQ(seg.from.z, p.z);
+        const double from[3] = {seg.from.x, seg.from.y, seg.from.z};
+        const double to[3]   = {seg.to.x, seg.to.y, seg.to.z};
+        for (int b = 0; b < 3; ++b)
+        {
+            if (b == a)
+                EXPECT_DOUBLE_EQ(to[b], back_plane(f, a, lo, hi));
+            else
+                EXPECT_DOUBLE_EQ(to[b], from[b]);
+        }
+    }
+}
+
+TEST(Axes3DBoxSpikes, FollowTheBackPanesWhenTheCameraOrbits)
+{
+    const double lo[3] = {0.0, 0.0, 0.0};
+    const double hi[3] = {1.0, 1.0, 1.0};
+    const vec3   p{0.5, 0.5, 0.5};
+    const auto   a = spike_segments(faces_for(45.0f, 30.0f), lo, hi, p);
+    const auto   b = spike_segments(faces_for(225.0f, 30.0f), lo, hi, p);
+    // Orbiting half way round moves the x and y back panes to the other side.
+    EXPECT_NE(a[0].to.x, b[0].to.x);
+    EXPECT_NE(a[1].to.y, b[1].to.y);
+    EXPECT_DOUBLE_EQ(a[2].to.z, b[2].to.z);
+}
+
+TEST(Axes3DBoxSpikes, PointOutsideTheBoxIsClampedIntoIt)
+{
+    const BoxFaces f     = faces_for(30.0f, 25.0f);
+    const double   lo[3] = {0.0, 0.0, 0.0};
+    const double   hi[3] = {1.0, 1.0, 1.0};
+    const auto     s     = spike_segments(f, lo, hi, vec3{3.0, -1.0, 0.5});
+    EXPECT_DOUBLE_EQ(s[2].from.x, 1.0);
+    EXPECT_DOUBLE_EQ(s[2].from.y, 0.0);
+    EXPECT_DOUBLE_EQ(s[2].from.z, 0.5);
+}

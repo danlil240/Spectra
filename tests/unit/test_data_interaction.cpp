@@ -571,6 +571,78 @@ TEST(Axes3DPickTest, PointSeenThroughWireframeCellWins)
     EXPECT_EQ(pick.series, &sc);
 }
 
+namespace
+{
+
+// One triangle in the z = 0.5 plane over [-1, 1]^3, seen from above.
+MeshSeries& triangle_mesh_axes(Axes3D& axes)
+{
+    axes.xlim(-1.0, 1.0);
+    axes.ylim(-1.0, 1.0);
+    axes.zlim(-1.0, 1.0);
+    axes.set_viewport(Rect{0.0f, 0.0f, 600.0f, 600.0f});
+    axes.camera().set_azimuth(20.0f).set_elevation(60.0f).set_distance(10.0f);
+    std::vector<float> verts =
+        {-0.8f, -0.8f, 0.5f, 0, 0, 1, 0.8f, -0.8f, 0.5f, 0, 0, 1, 0.0f, 0.8f, 0.5f, 0, 0, 1};
+    std::vector<uint32_t> idx = {0, 1, 2};
+    return axes.mesh(verts, idx);
+}
+
+}   // namespace
+
+TEST(Axes3DPickTest, WireframeMeshPicksEdgesNotFaces)
+{
+    Axes3D axes;
+    auto&  mesh = triangle_mesh_axes(axes);
+    mesh.wireframe(true);
+
+    // Inside the triangle, away from its edges: the face is open.
+    const Projected3DPoint inside = project_axes3d_data_point(axes, {0.0f, -0.2f, 0.5f});
+    ASSERT_TRUE(inside.visible);
+    EXPECT_FALSE(pick_surface_3d_in_axes(axes, inside.screen_x, inside.screen_y).found);
+
+    // On the bottom edge (y = -0.8), nearer its x = 0.8 end: the edge is
+    // picked and snaps to that vertex.
+    const Projected3DPoint edge = project_axes3d_data_point(axes, {0.5f, -0.8f, 0.5f});
+    ASSERT_TRUE(edge.visible);
+    const auto pick = pick_surface_3d_in_axes(axes, edge.screen_x, edge.screen_y + 1.0f);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.series, &mesh);
+    EXPECT_EQ(pick.point_index, 1u);
+    EXPECT_FLOAT_EQ(pick.data_x, 0.8f);
+    EXPECT_FLOAT_EQ(pick.data_y, -0.8f);
+    EXPECT_FLOAT_EQ(pick.data_z, 0.5f);
+    EXPECT_LE(pick.distance_px, WIREFRAME_PICK_PX);
+}
+
+TEST(Axes3DPickTest, PointSeenThroughWireframeMeshWins)
+{
+    Axes3D axes;
+    auto&  mesh = triangle_mesh_axes(axes);
+
+    // A scatter point behind the middle of the triangle, on the cursor ray.
+    const Projected3DPoint c = project_axes3d_data_point(axes, {0.0f, -0.2f, 0.5f});
+    ASSERT_TRUE(c.visible);
+    vec3 o, d;
+    ASSERT_TRUE(axes3d_cursor_ray(axes, c.screen_x, c.screen_y, o, d));
+    const vec3         behind = vec3{0.0, -0.2, 0.5} + vec3_normalize(d) * 0.8;
+    std::vector<float> xs     = {static_cast<float>(behind.x)};
+    std::vector<float> ys     = {static_cast<float>(behind.y)};
+    std::vector<float> zs     = {static_cast<float>(behind.z)};
+    auto&              sc     = axes.scatter3d(xs, ys, zs);
+
+    // Solid: the face hides the point.
+    auto pick = find_nearest_3d_in_axes(axes, c.screen_x, c.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.series, &mesh);
+
+    // Wireframe: the face is open, so the point is hovered.
+    mesh.wireframe(true);
+    pick = find_nearest_3d_in_axes(axes, c.screen_x, c.screen_y);
+    ASSERT_TRUE(pick.found);
+    EXPECT_EQ(pick.series, &sc);
+}
+
 TEST(Axes3DPickTest, PointInFrontOfSurfaceWins)
 {
     Axes3D axes;

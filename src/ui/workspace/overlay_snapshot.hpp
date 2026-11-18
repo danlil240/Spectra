@@ -16,6 +16,7 @@ struct OverlaySnapshot
 {
     bool crosshair_enabled = false;
     bool tooltip_enabled   = true;
+    bool spikes3d_enabled  = true;   // 3D hover spike lines
 
     struct MarkerEntry
     {

@@ -1762,6 +1762,11 @@ LegendEntry legend_entry_for(const Series& s, const SvgStyle& st)
             e.line_width = 1.5f;
         }
     }
+    else if (auto* mesh = dynamic_cast<const MeshSeries*>(&s); mesh && mesh->wireframe())
+    {
+        e.kind       = SwatchKind::Line;
+        e.line_width = 1.5f;
+    }
     else if (auto* bar = dynamic_cast<const BarSeries*>(&s))
         e.fill_alpha = bar->fill_alpha();
     else if (auto* hist = dynamic_cast<const HistogramSeries*>(&s))
@@ -3172,6 +3177,28 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
                     lc       = cue(lc, (a + b) * 0.5, 0.0f);
                     add_segment(cg, a, b, &lc);
                 }
+            }
+        }
+        else if (auto* mesh = dynamic_cast<const MeshSeries*>(&s); mesh && mesh->wireframe())
+        {
+            // Unique triangle edges in the series colour, like the renderer's
+            // wireframe lines (box-clipped, flat, faded by the axes fog).
+            groups.push_back({stroke_group_style("mesh-wire", col, 1.0f, alpha), -1, false});
+            const auto   v     = mesh->vertices();
+            const auto   edges = mesh->edge_indices();
+            const size_t nv    = v.size() / 6;
+            for (size_t k = 0; k + 1 < edges.size(); k += 2)
+            {
+                const size_t ia = edges[k], ib = edges[k + 1];
+                if (ia >= nv || ib >= nv)
+                    continue;
+                const vec3 a{v[ia * 6], v[ia * 6 + 1], v[ia * 6 + 2]};
+                const vec3 b{v[ib * 6], v[ib * 6 + 1], v[ib * 6 + 2]};
+                if (!finite3(a) || !finite3(b) || !inside_box(pj.to_world(a))
+                    || !inside_box(pj.to_world(b)))
+                    continue;
+                const Color cc = cue(col, (a + b) * 0.5, 0.0f);
+                add_segment(gi, a, b, axes.fog() > 0.0f ? &cc : nullptr);
             }
         }
         else if (auto* mesh = dynamic_cast<const MeshSeries*>(&s))

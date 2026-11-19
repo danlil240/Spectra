@@ -74,6 +74,11 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
     return r;
 }
 
+size_t line_draw_point_limit(size_t point_count, size_t uploaded_count, bool decimated)
+{
+    return decimated ? point_count : std::min(point_count, uploaded_count);
+}
+
 // Segment range of a Line2D's ssbo to draw for the visible point range:
 // the plain points, the step vertices between the visible data points, or
 // every vertex of an M4-decimated line (built for the visible range only).
@@ -235,13 +240,13 @@ void Renderer::render_series(Series&             series,
             const double xoff        = line->x_offset();
             const float  local_x_min = visible ? static_cast<float>(visible->x_min - xoff) : 0.0f;
             const float  local_x_max = visible ? static_cast<float>(visible->x_max - xoff) : 0.0f;
-            const auto   range =
-                compute_line_draw_range(line->x_data(),
-                                        std::min(line->point_count(), gpu.uploaded_count),
-                                        line->x_is_sorted(),
-                                        visible != nullptr,
-                                        local_x_min,
-                                        local_x_max);
+            const auto   range       = compute_line_draw_range(
+                line->x_data(),
+                line_draw_point_limit(line->point_count(), gpu.uploaded_count, gpu.line_decimated),
+                line->x_is_sorted(),
+                visible != nullptr,
+                local_x_min,
+                local_x_max);
             const auto     segs      = line_segments_to_draw(gpu, range);
             const uint32_t first_seg = segs.first_seg;
             const uint32_t seg_count = segs.seg_count;
@@ -969,7 +974,9 @@ void Renderer::render_selection_highlight(AxesBase& axes, const Rect& /*viewport
                 }
                 const auto range =
                     compute_line_draw_range(line->x_data(),
-                                            std::min(line->point_count(), gpu.uploaded_count),
+                                            line_draw_point_limit(line->point_count(),
+                                                                  gpu.uploaded_count,
+                                                                  gpu.line_decimated),
                                             line->x_is_sorted(),
                                             cull,
                                             local_x_min,

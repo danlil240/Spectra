@@ -1092,9 +1092,16 @@ HandleResult handle_req_get_snapshot(DaemonContext& ctx, ClientSlot& slot, const
     return HandleResult::Continue;
 }
 
-HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
+namespace
 {
-    auto req = ipc::decode_req_anim_start(msg.payload);
+// Switch a figure's continuous redraw on (fps > 0) or off, persist it in the
+// model so newly-connecting agents get it, and tell the agents now.
+HandleResult set_live_redraw(DaemonContext&                          ctx,
+                             ClientSlot&                             slot,
+                             const ipc::Message&                     msg,
+                             std::optional<ipc::ReqAnimStartPayload> req,
+                             bool                                    enable)
+{
     if (!req || !ctx.fig_model.has_figure(req->figure_id))
     {
         send_resp_err(*slot.conn,
@@ -1105,10 +1112,7 @@ HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const i
         return HandleResult::Continue;
     }
 
-    // Build a SET_LIVE_FPS diff op and broadcast to agents so
-    // the rendering loop switches to continuous mode at the target FPS.
-    // Also persist in the figure model so newly-connecting agents get it.
-    ctx.fig_model.set_live_fps(req->figure_id, req->fps);
+    ctx.fig_model.set_live_fps(req->figure_id, enable ? req->fps : 0.0f);
 
     ipc::StateDiffPayload diff;
     auto                  base_rev = ctx.fig_model.revision();
@@ -1116,8 +1120,8 @@ HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const i
     ipc::DiffOp op;
     op.type      = ipc::DiffOp::Type::SET_LIVE_FPS;
     op.figure_id = req->figure_id;
-    op.f1        = req->fps;
-    op.bool_val  = true;   // enable live streaming
+    op.f1        = enable ? req->fps : 0.0;
+    op.bool_val  = enable;
     diff.ops.push_back(std::move(op));
 
     diff.base_revision = base_rev;
@@ -1126,6 +1130,19 @@ HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const i
 
     send_resp_ok(*slot.conn, ctx.graph.session_id(), msg.header.request_id);
     return HandleResult::Continue;
+}
+}   // namespace
+
+HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
+{
+    // The window redraws continuously at the target FPS while clients stream.
+    return set_live_redraw(ctx, slot, msg, ipc::decode_req_anim_start(msg.payload), true);
+}
+
+HandleResult handle_req_anim_stop(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)
+{
+    // Same TLV layout as REQ_ANIM_START (only the figure id is read).
+    return set_live_redraw(ctx, slot, msg, ipc::decode_req_anim_start(msg.payload), false);
 }
 
 HandleResult handle_req_export_figure(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg)

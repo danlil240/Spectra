@@ -97,6 +97,7 @@ Spectra/
 │   └── util/                         # Shared test utilities
 ├── examples/
 │   └── plugins/                      # Plugin example implementations + manifests
+├── rust/                             # spectra-plot crate (Rust IPC client)
 ├── python/
 │   ├── spectra/                      # Python package
 │   │   ├── _fb_generated/            # FlatBuffers-generated Python package placeholder
@@ -425,6 +426,13 @@ Typical Python flow:
 Python API -> _codec / _codec_fb -> _transport -> daemon/backend launcher
           -> figure/session/topic proxies -> window agents / embed surface
 ```
+
+### Rust client (`rust/`)
+
+- `rust/` is the `spectra-plot` crate: a pure-Rust IPC client with the same API surface as the Python `Session` (no FFI).
+- `rust/src/`: `session.rs` (connection, events, client-timed animation), `figure.rs`, `axes.rs` (plot types, client-side autofit), `series.rs`, `annotation.rs`, `topic.rs` (`Publisher`), `codec.rs` + `transport.rs` + `launcher.rs` (wire format, socket, backend discovery).
+- `rust/src/generated/` is `flatc --rust` output for `src/ipc/schemas/spectra_ipc.fbs`; regenerate with `rust/generate_flatbuffers.sh` (CI checks drift).
+- `rust/tests/backend.rs` runs end-to-end against a real backend when `SPECTRA_BACKEND_PATH` is set; `rust/examples/` holds 6 demos.
 
 ---
 

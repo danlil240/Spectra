@@ -135,6 +135,7 @@ def _snapshot(session):
             "grid": (f.GridRows(), f.GridCols()),
             "axes": axes,
             "series": series,
+            "live_fps": f.LiveFps(),
         }
     return figures
 
@@ -475,3 +476,18 @@ def test_large_numpy_series_round_trips_quickly(session):
     assert series[0]["points"] == n
     # 1M points used to take ~1.5 s in Python alone; vectorised it is ~0.1 s.
     assert elapsed < 5.0
+
+
+def test_anim_stop_turns_live_redraw_off(session):
+    from spectra._animation import BackendAnimator
+
+    fig = session.figure()
+    fig.subplot(1, 1, 1).line([0.0, 1.0], [0.0, 1.0])
+    anim = BackendAnimator(session, fig.id, fps=30)
+    anim.start()
+    assert _snapshot(session)[fig.id]["live_fps"] == pytest.approx(30.0)
+    # REQ_ANIM_STOP used to get no reply, so stop() hung until the IPC timeout.
+    t0 = time.perf_counter()
+    anim.stop()
+    assert time.perf_counter() - t0 < 2.0
+    assert _snapshot(session)[fig.id]["live_fps"] == 0.0

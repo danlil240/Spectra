@@ -362,6 +362,82 @@ jobs:
           PYTHONFAULTHANDLER: "1"
         run: xvfb-run -a python -m pytest python/tests -v -rs --durations=20
 
+  # ─── Rust client crate (rust/) ──────────────────────────────────────────
+  # fmt + clippy + unit tests, a check that the generated FlatBuffers code
+  # matches the schema, and end-to-end tests against a freshly built backend.
+  rust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install dependencies
+        uses: ./.github/actions/setup-linux
+
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
+          rustc --version
+
+      - name: Crate version matches version.txt
+        run: |
+          want="$(tr -d '[:space:]' < version.txt)"
+          have="$(sed -n 's/^version = "\(.*\)"/\1/p' rust/Cargo.toml | head -1)"
+          test "$want" = "$have" || { echo "rust/Cargo.toml is $have, version.txt is $want"; exit 1; }
+
+      - name: cargo fmt
+        working-directory: rust
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: rust
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: ccache
+        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: rust-ubuntu-24.04
+          max-size: 500M
+          save: ${{ github.event_name != 'pull_request' }}
+
+      - name: Build backend + window agent
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DSPECTRA_USE_ROS2=OFF \
+            -DSPECTRA_BUILD_TESTS=OFF \
+            -DSPECTRA_BUILD_EXAMPLES=OFF \
+            -DSPECTRA_BUILD_GOLDEN_TESTS=OFF \
+            -DSPECTRA_RUNTIME_MODE=multiproc \
+            -DSPECTRA_USE_SYSTEM_FLATBUFFERS=OFF
+          cmake --build build --config ${{ env.BUILD_TYPE }} -j"$(nproc)" \
+            --target spectra-backend spectra-window flatc
+
+      - name: Generated FlatBuffers code is up to date
+        run: rust/generate_flatbuffers.sh --check
+
+      - name: Pin Vulkan ICD to lavapipe
+        uses: ./.github/actions/pin-lavapipe
+
+      - name: cargo test (xvfb + lavapipe)
+        working-directory: rust
+        env:
+          SPECTRA_BACKEND_PATH: ${{ github.workspace }}/build/spectra-backend
+        run: xvfb-run -a cargo test --all-features
+
+      - name: Cross-platform compile check (macOS, Windows)
+        working-directory: rust
+        run: |
+          rustup target add x86_64-apple-darwin x86_64-pc-windows-gnu
+          cargo check --all-targets --all-features --target x86_64-apple-darwin
+          cargo check --all-targets --all-features --target x86_64-pc-windows-gnu
+
   # ─── Build + Unit Tests (macOS) ─────────────────────────────────────────
   build-macos:
     strategy:

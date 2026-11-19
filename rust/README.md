@@ -29,9 +29,12 @@ fn main() -> spectra_plot::Result<()> {
 ## Getting the backend
 
 Install Spectra from a [release](https://github.com/danlil240/Spectra/releases) (.deb, .rpm,
-AppImage or macOS package) or build it from source. The backend runs on Linux and macOS; on
-Windows the crate builds but cannot connect yet. The client looks for the backend
-in this order:
+AppImage or macOS package) or build it from source. The backend runs on Linux and macOS. On
+Windows, run your program and the backend inside WSL2; WSLg shows the windows. WSL's stock Mesa
+only offers software Vulkan, so for the GPU build Mesa's D3D12 driver
+(`-Dvulkan-drivers=microsoft-experimental`) and point `VK_ICD_FILENAMES` at its ICD file. A
+native Windows build compiles but cannot connect yet. The client looks for the backend in this
+order:
 
 1. `$SPECTRA_SOCKET`: connect to that broker socket.
 2. A running Spectra app or backend for your user.
@@ -54,7 +57,8 @@ The API mirrors the Python client.
   client like the Python package.
 - Live data: `Series::append`, `FramePacer` for your own loop, and `Figure::animate` for a
   timed callback.
-- Topics: `Publisher` streams samples by name, `Axes::subscribe_topic` plots them live.
+- Topics: `Publisher` streams samples by name, `Axes::subscribe_topic` plots them live, with
+  the axes following the data until you set limits.
 - Knobs: sliders in the window that your code reads with `Session::knob`.
 - Export to PNG and SVG files or bytes, offscreen.
 

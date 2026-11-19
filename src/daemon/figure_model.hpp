@@ -63,6 +63,18 @@ class FigureModel
                                  double   z_min,
                                  double   z_max);
 
+    // --- Topic-fed axes ---
+    // Only the backend sees topic samples, so it fits axes fed by a topic
+    // subscription: they follow their data until a client sets limits or the
+    // user scrolls the axes in a window.
+    void set_follow_data(uint64_t figure_id, uint32_t axes_index, bool follow);
+    bool follows_data(uint64_t figure_id, uint32_t axes_index) const;
+
+    // Fit a following axes to all of its series (5% padding). Returns the limit
+    // ops to broadcast; empty when the axes does not follow, has no finite data
+    // or already shows those limits.
+    std::vector<ipc::DiffOp> fit_followed_axes(uint64_t figure_id, uint32_t axes_index);
+
     // Apply the built-in plot style `name` (StyleSheet) to a figure: new axes
     // and series follow it, existing ones are restyled like Figure::apply_style.
     // Returns false (no change) for an unknown figure or style.
@@ -311,6 +323,7 @@ class FigureModel
         std::string                           style;   // built-in plot style name
         std::vector<ipc::SnapshotAxisState>   axes;
         std::vector<ipc::SnapshotSeriesState> series;
+        std::vector<uint32_t>                 follow_axes;   // axes fitted to topic data
     };
 
     std::unordered_map<uint64_t, FigureData> figures_;

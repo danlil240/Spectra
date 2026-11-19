@@ -491,3 +491,35 @@ def test_anim_stop_turns_live_redraw_off(session):
     anim.stop()
     assert time.perf_counter() - t0 < 2.0
     assert _snapshot(session)[fig.id]["live_fps"] == 0.0
+
+
+def test_topic_subscription_follows_data(session):
+    from spectra import _codec as codec
+    from spectra.topic import Publisher
+
+    pub = Publisher("it/follow", socket=session._socket_path, auto_launch=False)
+    try:
+        fig = session.figure()
+        ax = fig.subplot(1, 1, 1)
+        payload = codec.encode_req_subscribe_topic("it/follow", fig.id, 0)
+        session._request(P.REQ_SUBSCRIBE_TOPIC, payload)
+        for i in range(50):
+            pub.publish(i * 0.1, 10.0 + i)
+        # Only the backend sees topic data, so it must fit the axes. The view
+        # used to stay at the 0..1 default.
+        deadline = time.monotonic() + 5.0
+        while True:
+            a = _snapshot(session)[fig.id]["axes"][0]
+            if a["xlim"][1] > 4.0 or time.monotonic() > deadline:
+                break
+            time.sleep(0.05)
+        assert a["xlim"][0] < 0.0 < 4.9 < a["xlim"][1]
+        assert a["ylim"][0] < 10.0 and 59.0 < a["ylim"][1] < 70.0
+
+        # Limits set by the client stop the axes following the topic.
+        ax.set_ylim(-1.0, 1.0)
+        pub.publish(5.0, 500.0)
+        time.sleep(0.3)
+        assert _snapshot(session)[fig.id]["axes"][0]["ylim"] == (-1.0, 1.0)
+    finally:
+        pub.close()

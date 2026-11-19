@@ -49,6 +49,8 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- Topic subscriptions: an axes fed by a topic now follows its data. Only the backend sees topic samples, so it refits those axes after each publish (5% padding, 2D and 3D) until a client sets limits or the user scrolls the axes. The view used to stay at the 0..1 default.
+
 - Stopping a backend animation (Python `BackendAnimator.stop()`) no longer hangs until the IPC timeout: the backend now handles `REQ_ANIM_STOP` and turns the window's live redraw off.
 - Zoomed views of very dense lines drew no line once the view started past the first few thousand points (for example 300 s into a 1 kHz log of a 20 min flight): the draw range of an M4-decimated line was searched only among as many data points as it had decimated vertices. It is now searched over all of the line's points, in the main draw and in the selection highlight.
 - Multiproc windows now show series colormaps: surfaces and colormapped scatters (2D/3D) carry their colormap (built-in, reversed or user `from_colors` table), value range and per-point values in the IPC snapshot, and Python can change them at runtime (`Series.set_colormap()`, `set_colormap_range()`, `surf(cmap=..., vmin=..., vmax=...)`; new `SET_SERIES_COLORMAP` diff). The window agent's state cache also keeps live-streaming FPS, so a rebuild no longer stops a live figure.

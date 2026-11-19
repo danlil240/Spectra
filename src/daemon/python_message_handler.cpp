@@ -212,6 +212,7 @@ static bool apply_property_update(FigureModel&              fig_model,
     }
     else if (property == "xlim")
     {
+        fig_model.set_follow_data(figure_id, axes_index, false);
         double cx0 = NAN;
         double cx1 = NAN;
         double cy0 = NAN;
@@ -221,6 +222,7 @@ static bool apply_property_update(FigureModel&              fig_model,
     }
     else if (property == "ylim")
     {
+        fig_model.set_follow_data(figure_id, axes_index, false);
         double cx0 = NAN;
         double cx1 = NAN;
         double cy0 = NAN;
@@ -230,6 +232,7 @@ static bool apply_property_update(FigureModel&              fig_model,
     }
     else if (property == "zlim")
     {
+        fig_model.set_follow_data(figure_id, axes_index, false);
         diff.ops.push_back(fig_model.set_axis_zlimits(figure_id, axes_index, f1, f2));
     }
     else if (property == "title")

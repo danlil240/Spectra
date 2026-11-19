@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <vector>
 
 #include "daemon/figure_model.hpp"
@@ -130,6 +131,80 @@ TEST(BugfixDaemonAgent, AppendSeriesDataTrimsToMaxPoints3D)
     auto op = model.append_series_data(fid, si, {0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4}, 2);
     std::vector<float> expected = {3, 3, 3, 4, 4, 4};
     EXPECT_EQ(op.data, expected);
+}
+
+// ─── Topic-fed axes follow their data ───────────────────────────────────────
+
+TEST(TopicFollow, FitsAxesOnlyWhileFollowing)
+{
+    FigureModel model;
+    auto        fid = model.create_figure("f");
+    model.add_axes(fid);
+    uint32_t si = 0;
+    model.add_series_with_diff(fid, "s", "line", 0, si);
+    model.append_series_data(fid, si, {0.0f, -2.0f, 10.0f, 8.0f});
+
+    // Not following: no refit, limits stay at the 0..1 default.
+    EXPECT_TRUE(model.fit_followed_axes(fid, 0).empty());
+
+    model.set_follow_data(fid, 0, true);
+    auto ops = model.fit_followed_axes(fid, 0);
+    ASSERT_EQ(ops.size(), 1u);
+    EXPECT_EQ(ops[0].type, ipc::DiffOp::Type::SET_AXIS_LIMITS);
+    double x0, x1, y0, y1;
+    ASSERT_TRUE(model.get_axis_limits(fid, 0, x0, x1, y0, y1));
+    EXPECT_DOUBLE_EQ(x0, -0.5);   // 5% padding of 0..10
+    EXPECT_DOUBLE_EQ(x1, 10.5);
+    EXPECT_DOUBLE_EQ(y0, -2.5);   // 5% padding of -2..8
+    EXPECT_DOUBLE_EQ(y1, 8.5);
+
+    // Same data again: limits already fit, nothing to send.
+    EXPECT_TRUE(model.fit_followed_axes(fid, 0).empty());
+
+    // Setting limits by hand stops following.
+    model.set_follow_data(fid, 0, false);
+    EXPECT_FALSE(model.follows_data(fid, 0));
+    model.append_series_data(fid, si, {100.0f, 100.0f});
+    EXPECT_TRUE(model.fit_followed_axes(fid, 0).empty());
+}
+
+TEST(TopicFollow, Fits3DAxesIncludingZ)
+{
+    FigureModel model;
+    auto        fid = model.create_figure("f");
+    model.add_axes(fid, 0, 1, 0, 1, true);
+    uint32_t si = 0;
+    model.add_series_with_diff(fid, "s", "line3d", 0, si);
+    model.append_series_data(fid, si, {0, 0, 0, 2, 4, 6});
+    model.set_follow_data(fid, 0, true);
+
+    auto ops = model.fit_followed_axes(fid, 0);
+    ASSERT_EQ(ops.size(), 2u);
+    EXPECT_EQ(ops[1].type, ipc::DiffOp::Type::SET_AXIS_ZLIMITS);
+    EXPECT_DOUBLE_EQ(ops[1].f1, -0.3);
+    EXPECT_DOUBLE_EQ(ops[1].f2, 6.3);
+}
+
+TEST(TopicFollow, IgnoresOtherAxesAndNonFiniteData)
+{
+    FigureModel model;
+    auto        fid = model.create_figure("f");
+    model.add_axes(fid);
+    model.add_axes(fid);
+    uint32_t a = 0, b = 0;
+    model.add_series_with_diff(fid, "a", "line", 0, a);
+    model.add_series_with_diff(fid, "b", "line", 1, b);
+    model.append_series_data(fid, a, {1.0f, 1.0f, NAN, 50.0f});
+    model.append_series_data(fid, b, {1000.0f, 1000.0f});
+    model.set_follow_data(fid, 0, true);
+
+    ASSERT_EQ(model.fit_followed_axes(fid, 0).size(), 1u);
+    double x0, x1, y0, y1;
+    ASSERT_TRUE(model.get_axis_limits(fid, 0, x0, x1, y0, y1));
+    // One finite x value; y spans 1..50. Axes 1's data is not included.
+    EXPECT_DOUBLE_EQ(x0, 0.5);
+    EXPECT_DOUBLE_EQ(x1, 1.5);
+    EXPECT_LT(y1, 60.0);
 }
 
 // ─── TopicRegistry::on_series_removed ───────────────────────────────────────

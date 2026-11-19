@@ -283,6 +283,8 @@ HandleResult handle_evt_input(DaemonContext& ctx, ClientSlot& /*slot*/, const ip
                     zoom = 0.1;
                 if (zoom > 10.0)
                     zoom = 10.0;
+                // Zooming by hand stops a topic-fed axes from following its data.
+                ctx.fig_model.set_follow_data(input->figure_id, input->axes_index, false);
                 double cx = (ax.x_min + ax.x_max) * 0.5;
                 double cy = (ax.y_min + ax.y_max) * 0.5;
                 double hw = (ax.x_max - ax.x_min) * 0.5 * zoom;

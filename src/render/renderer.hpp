@@ -61,6 +61,13 @@ LineDrawRange compute_line_draw_range(std::span<const float> x,
                                       float                  local_x_min,
                                       float                  local_x_max);
 
+// The `n` to pass to compute_line_draw_range for a Line2D: how many of the
+// line's data points the draw range may cover.  A plain line has its points
+// in the ssbo, so `n` is bounded by what was uploaded.  An M4-decimated line
+// holds only the kept vertices (far fewer than its points) while the range is
+// still found in data-point space, so `n` is the line's point count.
+size_t line_draw_point_limit(size_t point_count, size_t uploaded_count, bool decimated);
+
 // Layout size and pixel scale for exporting a figure at export_width x export_height.
 // An export larger than the figure is a HiDPI export: the figure keeps (about) its own
 // layout size and everything is drawn pixel_scale times larger, so line widths, markers

@@ -139,6 +139,39 @@ TEST(BugfixRenderDraw, EmptyAndTinyInputs)
     EXPECT_EQ(r1.seg_count, 0u);
 }
 
+// A plain line draws from its uploaded points, so the range stays bounded by
+// the upload (bug #48 above).
+TEST(BugfixRenderDraw, PlainLineLimitIsUploadedCount)
+{
+    EXPECT_EQ(line_draw_point_limit(3000, 500, false), 500u);
+    EXPECT_EQ(line_draw_point_limit(500, 3000, false), 500u);
+}
+
+// An M4-decimated line uploads only its kept vertices (a few per pixel
+// column), but the visible range is searched among its data points.  Bounding
+// that search by the vertex count found nothing visible once the view started
+// past the first few thousand points, so zoomed views of large lines (e.g. a
+// 20 min flight log at 1 kHz) drew no line at all.
+TEST(BugfixRenderDraw, DecimatedLineLimitIsPointCount)
+{
+    const size_t points   = 1'200'000;   // 1200 s at 1 kHz
+    const size_t vertices = 3'200;       // M4 output for an 800-column view
+    EXPECT_EQ(line_draw_point_limit(points, vertices, true), points);
+
+    std::vector<float> x(points);
+    for (size_t i = 0; i < points; ++i)
+        x[i] = static_cast<float>(i) * 1e-3f;
+    const auto r = compute_line_draw_range(x,
+                                           line_draw_point_limit(points, vertices, true),
+                                           true,
+                                           true,
+                                           297.5f,
+                                           312.5f);
+    EXPECT_GE(r.pt_count, 15'000u);   // ~15 s of 1 kHz samples are visible
+    EXPECT_GE(r.first_pt, 297'000u);
+    expect_within(r, points);
+}
+
 // ─── SeriesTypeRegistry ──────────────────────────────────────────────────────
 
 namespace

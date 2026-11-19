@@ -138,3 +138,12 @@ pub fn message_name(msg_type: u16) -> &'static str {
         _ => "request",
     }
 }
+
+/// HELLO client type of a scripting client (Python, Rust): the backend routes
+/// `REQ_*` replies and window-close events to it and expects no heartbeats.
+/// Any other unknown type is treated as a render agent and dropped after the
+/// agent heartbeat timeout, so this must stay `"python"` (see
+/// `classify_client()` in `src/daemon/client_router.hpp`).
+pub const CLIENT_SCRIPT: &str = "python";
+/// HELLO client type of a topic publisher.
+pub const CLIENT_PUBLISHER: &str = "publisher";

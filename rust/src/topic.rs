@@ -291,7 +291,7 @@ impl Publisher {
     }
 
     fn connect_path(&mut self, path: &str) -> Result<()> {
-        let (transport, sid) = handshake(path, "publisher")?;
+        let (transport, sid) = handshake(path, p::CLIENT_PUBLISHER, "publisher")?;
         self.transport = Some(transport);
         self.session_id = sid;
         self.next_request_id = 0;

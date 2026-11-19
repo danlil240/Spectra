@@ -487,3 +487,19 @@ fn invalid_input_is_rejected_locally() {
     assert!(ax.plot(&[0.0], &[0.0], "zz").is_err());
     assert!(fig.subplot(1, 1, 2).is_err());
 }
+
+#[test]
+fn session_outlives_agent_heartbeat_timeout() {
+    // The backend drops render agents that send no heartbeat for 15 s (checked
+    // every 5 s); a
+    // client session must not be mistaken for one.
+    let Some((s, _g)) = session() else { return };
+    let fig = s.figure("idle").unwrap();
+    fig.subplot(1, 1, 1)
+        .unwrap()
+        .line(&[0.0, 1.0], &[0.0, 1.0])
+        .unwrap();
+    s.sleep(Duration::from_secs(22)).unwrap();
+    assert!(s.is_connected());
+    assert!(s.list_figures().unwrap().contains(&fig.id()));
+}

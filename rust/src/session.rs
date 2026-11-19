@@ -95,6 +95,7 @@ pub(crate) struct Inner {
     data_bytes: AtomicU64,
     closed: AtomicBool,
     default_style: Mutex<Option<PlotStyle>>,
+    client_name: String,
 }
 
 impl Drop for Inner {
@@ -129,7 +130,8 @@ pub struct SessionOptions {
     pub socket: Option<String>,
     /// Start `spectra-backend` when no broker is running (default `true`).
     pub auto_launch: bool,
-    /// Client name shown in backend logs.
+    /// Client name shown in backend logs (it does not change how the backend
+    /// treats the connection).
     pub client_name: String,
 }
 
@@ -182,12 +184,13 @@ fn base_timeout() -> f64 {
         .unwrap_or(DEFAULT_IPC_TIMEOUT)
 }
 
-pub(crate) fn handshake(path: &str, client_type: &str) -> Result<(Transport, u64)> {
+/// HELLO/WELCOME. `role` is the protocol client type the backend routes by
+/// ([`p::CLIENT_SCRIPT`] or [`p::CLIENT_PUBLISHER`]); `name` only labels the
+/// build string shown in backend logs.
+pub(crate) fn handshake(path: &str, role: &str, name: &str) -> Result<(Transport, u64)> {
     let mut t = Transport::connect(path)?;
-    let hello = codec::encode_hello(
-        client_type,
-        concat!("spectra-plot-rust/", env!("CARGO_PKG_VERSION")),
-    );
+    let build = format!("spectra-plot-rust/{} ({name})", env!("CARGO_PKG_VERSION"));
+    let hello = codec::encode_hello(role, &build);
     t.send(p::HELLO, &hello, 0, 0)?;
     match t.poll(Duration::from_secs_f64(base_timeout()))? {
         Polled::Message(m) if m.header.msg_type == p::WELCOME => {
@@ -208,7 +211,7 @@ pub(crate) fn handshake(path: &str, client_type: &str) -> Result<(Transport, u64
 pub(crate) fn connect_with_retry(
     explicit: Option<&str>,
     auto_launch: bool,
-    client_type: &str,
+    client_name: &str,
 ) -> Result<(Transport, u64, String)> {
     let attempts = if auto_launch { 3 } else { 1 };
     let mut last: Option<Error> = None;
@@ -223,7 +226,7 @@ pub(crate) fn connect_with_retry(
                     "no running Spectra backend found (auto_launch is off and SPECTRA_SOCKET is unset)",
                 ));
             }
-            let (t, sid) = handshake(&path, client_type)?;
+            let (t, sid) = handshake(&path, p::CLIENT_SCRIPT, client_name)?;
             Ok((t, sid, path))
         })();
         match result {
@@ -269,6 +272,7 @@ impl Session {
                 data_bytes: AtomicU64::new(0),
                 closed: AtomicBool::new(false),
                 default_style: Mutex::new(None),
+                client_name: opts.client_name.clone(),
             }),
         })
     }
@@ -663,7 +667,7 @@ impl Session {
             let mut guard = lock(&self.inner.transport);
             if guard.is_none() {
                 let path = self.socket_path();
-                let (t, sid) = handshake(&path, "rust")?;
+                let (t, sid) = handshake(&path, p::CLIENT_SCRIPT, &self.inner.client_name)?;
                 *guard = Some(t);
                 self.inner.session_id.store(sid, Ordering::SeqCst);
             }

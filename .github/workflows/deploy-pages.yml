@@ -19,6 +19,11 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  # The browser demo is hidden until it shows the full app (see the comment on
+  # the "Build WebGPU demo (wasm)" step).
+  PUBLISH_WEB_DEMO: 'false'
+
 jobs:
   deploy:
     environment:
@@ -58,11 +63,15 @@ jobs:
           test -f docs/api/html/index.html
           echo "Doxygen warnings: $(wc -l < doxygen-warnings.log)"
 
-      # Live browser demo at <site>/demo/: the WebGPU 2D build of
+      # Browser demo at <site>/demo/: the WebGPU 2D build of
       # examples/webgpu_demo.cpp, same toolchain as the CI build-wasm job.
       # A failed wasm build leaves the docs deploy intact (demo is skipped).
+      # Not published for now: the 2D-only demo has no ImGui chrome or 3D and
+      # undersells Spectra. CI's build-wasm job still compiles it. Set
+      # PUBLISH_WEB_DEMO to 'true' to bring /demo/ back.
       - name: Build WebGPU demo (wasm)
         id: wasm
+        if: env.PUBLISH_WEB_DEMO == 'true'
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -110,7 +119,9 @@ jobs:
           done
           mkdir -p _site/api
           cp -r docs/api/html _site/api/html
-          if [ -f wasm-demo/index.html ]; then
+          if [ "$PUBLISH_WEB_DEMO" != "true" ]; then
+            echo "Browser demo disabled (PUBLISH_WEB_DEMO); /demo/ is not published"
+          elif [ -f wasm-demo/index.html ]; then
             mkdir -p _site/demo
             cp wasm-demo/* _site/demo/
           else

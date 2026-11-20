@@ -25,8 +25,7 @@
 </p>
 
 <p align="center">
-  <b><a href="https://danlil240.github.io/Spectra/demo/">▶ Try it in your browser</a></b>
-  (WebGPU, Chrome or Edge 113+) · <code>pip install spectra-plot</code>
+  <code>pip install spectra-plot</code>
 </p>
 
 <table>
@@ -306,7 +305,6 @@ cmake --build build-wasm --target webgpu_demo
 # Serve build-wasm/examples/ over HTTP and open webgpu_demo.html in Chrome/Edge 113+
 ```
 
-> **Live demo →** [danlil240.github.io/Spectra/demo](https://danlil240.github.io/Spectra/demo/) ·
 > **Docs →** [WebGPU backend](https://danlil240.github.io/Spectra/webgpu.html) ·
 > [`examples/webgpu_demo.cpp`](examples/webgpu_demo.cpp)
 

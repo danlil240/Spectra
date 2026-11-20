@@ -63,7 +63,6 @@ __pycache__
 spectra_export.png
 spectra_export.svg
 
-.gitignore
 imgui.ini
 
 asan.log.*

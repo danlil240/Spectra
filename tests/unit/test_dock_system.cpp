@@ -518,3 +518,20 @@ TEST(DockSystemSplit, SplitIntoNewPaneWithSingleTab)
     EXPECT_EQ(ds.active_figure_index(), 1u);
     EXPECT_EQ(pane->parent()->split_direction(), SplitDirection::Vertical);
 }
+
+TEST(DockSystemSplit, CanSplitStopsAtMaxPanes)
+{
+    DockSystem ds;
+    ds.split_view().root()->add_figure(0);
+    EXPECT_TRUE(ds.can_split());
+
+    FigureId next = 1;
+    while (ds.pane_count() < SplitViewManager::MAX_PANES)
+    {
+        ASSERT_TRUE(ds.can_split());
+        ASSERT_NE(ds.split_into_new_pane(next - 1, next, SplitDirection::Horizontal), nullptr);
+        ++next;
+    }
+    EXPECT_FALSE(ds.can_split());
+    EXPECT_EQ(ds.split_into_new_pane(next - 1, next, SplitDirection::Horizontal), nullptr);
+}

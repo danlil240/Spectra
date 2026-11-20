@@ -633,6 +633,8 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
             {
                 // A single tab has nothing to move: open a new figure there.
                 const FigureId anchor = active_pane->figure_index();
+                if (!dock_system.can_split())
+                    return;
                 dock_system.split_into_new_pane(anchor, fig_mgr.create_figure(), dir);
                 return;
             }
@@ -659,7 +661,7 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
                 // A single figure has nothing to move: open a new one in the
                 // new pane.
                 const FigureId anchor = fig_mgr.active_index();
-                if (anchor == INVALID_FIGURE_ID)
+                if (anchor == INVALID_FIGURE_ID || !dock_system.can_split())
                     return;
                 dock_system.split_into_new_pane(anchor, fig_mgr.create_figure(), dir);
                 return;

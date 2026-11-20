@@ -155,6 +155,11 @@ class DockSystem
     bool   is_split() const { return split_view_.is_split(); }
     size_t pane_count() const { return split_view_.pane_count(); }
 
+    // True while another pane fits under SplitViewManager::MAX_PANES.  Check
+    // before creating a figure for a new pane, so a refused split leaves no
+    // stray figure behind.
+    bool can_split() const { return split_view_.pane_count() < SplitViewManager::MAX_PANES; }
+
     // ── Serialization ───────────────────────────────────────────────────
 
     std::string serialize() const;

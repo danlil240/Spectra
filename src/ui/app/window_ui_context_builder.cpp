@@ -369,6 +369,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
                 if (pane->figure_count() < 2)
                 {
                     // A single tab has nothing to move: open a new figure there.
+                    if (!dock_ptr->can_split())
+                        return;
                     dock_ptr->split_into_new_pane(index,
                                                   fig_mgr_ptr->create_figure(),
                                                   SplitDirection::Horizontal);
@@ -393,6 +395,8 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
                 if (pane->figure_count() < 2)
                 {
                     // A single tab has nothing to move: open a new figure there.
+                    if (!dock_ptr->can_split())
+                        return;
                     dock_ptr->split_into_new_pane(index,
                                                   fig_mgr_ptr->create_figure(),
                                                   SplitDirection::Vertical);

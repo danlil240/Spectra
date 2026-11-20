@@ -551,6 +551,11 @@ class ImGuiIntegration
     void set_status_bar_visible(bool v) { status_bar_visible_ = v; }
     bool is_canvas_visible() const { return canvas_visible_; }
     void set_canvas_visible(bool v) { canvas_visible_ = v; }
+    // Figure tab headers (with the "+" new-figure button) and split-view
+    // splitters.  They follow the canvas unless an adapter that hides the
+    // canvas (e.g. spectra-px4) turns them back on to keep figures and splits.
+    bool is_pane_chrome_visible() const { return canvas_visible_ || pane_chrome_visible_; }
+    void set_pane_chrome_visible(bool v) { pane_chrome_visible_ = v; }
 
     // When true, Vulkan figure rendering (axes, series, gridlines) proceeds
     // even if the ImGui canvas overlay is hidden.  This lets adapter shells
@@ -802,6 +807,7 @@ class ImGuiIntegration
     bool status_bar_visible_  = true;    // Spectra status bar
     bool canvas_visible_      = true;    // Plot canvas, overlays, splitters, tab headers
     bool render_figure_       = true;    // Vulkan figure rendering (independent of canvas UI)
+    bool pane_chrome_visible_ = false;   // Tab headers + splitters even with the canvas hidden
 
     enum class Section
     {

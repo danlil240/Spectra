@@ -210,6 +210,8 @@ Px4AppShell::Px4AppShell(const Px4AppConfig& cfg)
 #ifdef SPECTRA_USE_IMGUI
     file_chooser_ = choose_ulog_file_path;
 #endif
+    plots_.push_back(make_figure_plots(nullptr, spectra::INVALID_FIGURE_ID));
+    plots_.front()->primary = true;
 }
 
 Px4AppShell::~Px4AppShell()
@@ -223,10 +225,11 @@ Px4AppShell::~Px4AppShell()
 
 bool Px4AppShell::init()
 {
-    plot_mgr_.set_time_window(cfg_.time_window_s);
+    for (auto& fp : plots_)
+        fp->mgr.set_time_window(cfg_.time_window_s);
 
-    file_panel_ = std::make_unique<ULogFilePanel>(reader_, plot_mgr_);
-    live_panel_ = std::make_unique<LiveConnectionPanel>(bridge_, plot_mgr_);
+    file_panel_ = std::make_unique<ULogFilePanel>(reader_, active_plots().mgr);
+    live_panel_ = std::make_unique<LiveConnectionPanel>(bridge_, active_plots().mgr);
     file_panel_->set_file_callback(
         [this](const std::string& path)
         {
@@ -239,11 +242,12 @@ bool Px4AppShell::init()
             open_ulog(path);
         });
 
-    // Wire field callback: add to plot on double-click.
+    // Wire field callback: add to the active figure's plot on double-click.
     file_panel_->set_field_callback(
         [this](const std::string& topic, const std::string& field, int array_idx)
         {
-            plot_mgr_.add_field(topic, field, array_idx);
+            refresh_figure_targets();
+            active_plots().mgr.add_field(topic, field, array_idx);
             sync_canvas_figure();
         });
 
@@ -282,7 +286,8 @@ void Px4AppShell::connect_live()
 {
     bridge_.init(cfg_.host, cfg_.port);
     bridge_.start();
-    plot_mgr_.set_bridge(&bridge_);
+    for (auto& fp : plots_)
+        fp->mgr.set_bridge(&bridge_);
     set_panel_visible("px4.live_connection", true);
 }
 
@@ -374,10 +379,12 @@ void Px4AppShell::process_pending_panels()
 void Px4AppShell::poll()
 {
     process_pending_file_drop();
+    refresh_figure_targets();
 
     // Update live data if connected.
     if (bridge_.is_receiving())
-        plot_mgr_.poll();
+        for (auto& fp : plots_)
+            fp->mgr.poll();
 
     sync_canvas_figure();
     refresh_recent_menu();
@@ -512,22 +519,27 @@ bool Px4AppShell::open_ulog(const std::string& path)
         return false;
     }
 
+    refresh_figure_targets();
     if (!reader_.open(path))
     {
-        plot_mgr_.clear();
+        for (auto& fp : plots_)
+            fp->mgr.clear();
         set_panel_visible("px4.ulog_file", true);
         last_open_error_ = reader_.last_error();
         sync_canvas_figure(true);
         return false;
     }
 
-    plot_mgr_.load_ulog(reader_);
+    for (auto& fp : plots_)
+        fp->mgr.load_ulog(reader_);
     set_panel_visible("px4.ulog_file", true);
     last_open_error_.clear();
     recent_.push(path);
     recent_menu_dirty_ = true;
 
-    // Automatically generate flight-review-style plots on file open.
+    // Automatically generate flight-review-style plots on file open (in the
+    // figure the user is looking at; other figures keep their fields, now
+    // showing the new log's data).
     auto_plot_ulog();
 
     return true;
@@ -567,12 +579,17 @@ void Px4AppShell::auto_plot_ulog()
     if (!reader_.is_open())
         return;
 
-    // Clear existing state.
-    auto_plot_groups_.clear();
-    plot_mgr_.clear();
-    plot_mgr_.load_ulog(reader_);
+    refresh_figure_targets();
+    FigurePlots& fp = active_plots();
 
-    const auto topics       = plot_mgr_.available_topics();
+    // Clear existing state.
+    fp.auto_groups.clear();
+    fp.mgr.clear();
+    fp.mgr.load_ulog(reader_);
+    if (bridge_.is_connected())
+        fp.mgr.set_bridge(&bridge_);
+
+    const auto topics       = fp.mgr.available_topics();
     auto       topic_exists = [&](const char* t)
     { return std::find(topics.begin(), topics.end(), std::string(t)) != topics.end(); };
 
@@ -588,7 +605,7 @@ void Px4AppShell::auto_plot_ulog()
                 continue;
 
             // Verify the field exists in this topic.
-            const auto  fields    = plot_mgr_.topic_fields(fdef.topic);
+            const auto  fields    = fp.mgr.topic_fields(fdef.topic);
             std::string field_key = fdef.array_idx >= 0 ? std::string(fdef.field) + "["
                                                               + std::to_string(fdef.array_idx) + "]"
                                                         : std::string(fdef.field);
@@ -631,11 +648,11 @@ void Px4AppShell::auto_plot_ulog()
         }
 
         if (!group.fields.empty())
-            auto_plot_groups_.push_back(std::move(group));
+            fp.auto_groups.push_back(std::move(group));
     }
 
-    auto_plot_active_ = !auto_plot_groups_.empty();
-    sync_canvas_figure(true);
+    fp.auto_active = !fp.auto_groups.empty();
+    sync_figure(fp, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -644,63 +661,177 @@ void Px4AppShell::auto_plot_ulog()
 
 void Px4AppShell::close_all_plots()
 {
-    auto_plot_groups_.clear();
-    auto_plot_active_ = false;
-    plot_mgr_.clear();
+    refresh_figure_targets();
+    FigurePlots& fp = active_plots();
+    fp.auto_groups.clear();
+    fp.auto_active = false;
+    fp.mgr.clear();
     if (reader_.is_open())
-        plot_mgr_.load_ulog(reader_);
-    sync_canvas_figure(true);
+        fp.mgr.load_ulog(reader_);
+    if (bridge_.is_connected())
+        fp.mgr.set_bridge(&bridge_);
+    sync_figure(fp, true);
 }
 
 bool Px4AppShell::empty_state_visible() const
 {
-    return !reader_.is_open() && !bridge_.is_connected() && !auto_plot_active_
-           && plot_mgr_.field_count() == 0;
+    if (reader_.is_open() || bridge_.is_connected())
+        return false;
+    return std::none_of(plots_.begin(),
+                        plots_.end(),
+                        [](const auto& fp)
+                        { return fp->auto_active || fp->mgr.field_count() > 0; });
+}
+
+// ---------------------------------------------------------------------------
+// Figure targets — one plot set per figure (new figures, split panes).
+// ---------------------------------------------------------------------------
+
+void Px4AppShell::set_canvas_figure(spectra::Figure* fig)
+{
+    FigurePlots& primary  = *plots_.front();
+    primary.figure        = fig;
+    primary.id            = spectra::INVALID_FIGURE_ID;
+    primary.last_revision = static_cast<uint64_t>(-1);
+    refresh_figure_targets();
+}
+
+void Px4AppShell::set_figure_source(spectra::FigureRegistry*           registry,
+                                    std::function<spectra::FigureId()> active_figure)
+{
+    figure_registry_  = registry;
+    active_figure_fn_ = std::move(active_figure);
+    refresh_figure_targets();
+}
+
+spectra::Figure* Px4AppShell::target_figure() const
+{
+    return active_plots().figure;
+}
+
+std::unique_ptr<Px4AppShell::FigurePlots> Px4AppShell::make_figure_plots(spectra::Figure*  fig,
+                                                                         spectra::FigureId id)
+{
+    auto fp    = std::make_unique<FigurePlots>();
+    fp->figure = fig;
+    fp->id     = id;
+    fp->mgr.set_time_window(cfg_.time_window_s);
+    if (reader_.is_open())
+        fp->mgr.load_ulog(reader_);
+    if (bridge_.is_connected())
+        fp->mgr.set_bridge(&bridge_);
+    return fp;
+}
+
+void Px4AppShell::refresh_figure_targets()
+{
+    const Px4PlotManager* prev_mgr = &active_plots().mgr;
+
+    if (figure_registry_)
+    {
+        // Learn the canvas figure's id, then drop plot sets of closed figures.
+        FigurePlots& primary = *plots_.front();
+        if (primary.id == spectra::INVALID_FIGURE_ID && primary.figure)
+        {
+            const spectra::FigureId id = figure_registry_->find_id(primary.figure);
+            if (figure_registry_->get(id) == primary.figure)
+                primary.id = id;
+        }
+        for (auto& fp : plots_)
+            if (fp->id != spectra::INVALID_FIGURE_ID)
+                fp->figure = figure_registry_->get(fp->id);
+        // The canvas figure's set always stays (empty state, panels); a
+        // closed canvas figure just stops being drawn into.
+        plots_.erase(std::remove_if(plots_.begin() + 1,
+                                    plots_.end(),
+                                    [](const auto& fp) { return fp->figure == nullptr; }),
+                     plots_.end());
+
+        active_plots_ = 0;
+        const spectra::FigureId active =
+            active_figure_fn_ ? active_figure_fn_() : spectra::INVALID_FIGURE_ID;
+        spectra::Figure* active_fig =
+            active != spectra::INVALID_FIGURE_ID ? figure_registry_->get(active) : nullptr;
+        if (active_fig)
+        {
+            auto it = std::find_if(plots_.begin(),
+                                   plots_.end(),
+                                   [&](const auto& fp) { return fp->figure == active_fig; });
+            if (it == plots_.end())
+            {
+                plots_.push_back(make_figure_plots(active_fig, active));
+                it = plots_.end() - 1;
+            }
+            active_plots_ = static_cast<size_t>(it - plots_.begin());
+        }
+    }
+    else
+    {
+        active_plots_ = 0;
+    }
+
+    // Panels add fields to (and list them from) the active figure's set.
+    Px4PlotManager* mgr = &active_plots().mgr;
+    if (mgr != prev_mgr)
+    {
+        if (file_panel_)
+            file_panel_->set_plot_manager(*mgr);
+        if (live_panel_)
+            live_panel_->set_plot_manager(*mgr);
+    }
 }
 
 void Px4AppShell::sync_canvas_figure(bool force)
 {
-    if (!canvas_figure_)
+    for (auto& fp : plots_)
+        sync_figure(*fp, force);
+}
+
+void Px4AppShell::sync_figure(FigurePlots& fp, bool force)
+{
+    spectra::Figure* fig = fp.figure;
+    if (!fig)
         return;
 
-    if (empty_state_visible())
+    if (!fp.primary && !fp.auto_active && fp.mgr.field_count() == 0
+        && fp.last_revision == static_cast<uint64_t>(-1))
+        return;   // a new figure keeps its own (empty) axes until something is plotted
+
+    if (fp.primary && empty_state_visible())
     {
         // Nothing to plot: drop all axes so the canvas shows the empty state
         // rather than a meaningless 0-1 grid.
-        if (!canvas_figure_->axes().empty())
+        if (!fig->axes().empty())
         {
-            rebuild_figure_axes(1, 1);
-            canvas_figure_->legend().visible = false;
+            rebuild_figure_axes(fp, 1, 1);
+            fig->legend().visible = false;
         }
-        last_canvas_revision_ = static_cast<uint64_t>(-1);
+        fp.last_revision = static_cast<uint64_t>(-1);
         return;
     }
 
-    if (auto_plot_active_)
-    {
-        sync_auto_plot_figure();
-    }
+    if (fp.auto_active)
+        sync_auto_plot_figure(fp);
     else
-    {
-        sync_manual_plot_figure(force);
-    }
+        sync_manual_plot_figure(fp, force);
 }
 
 // ---------------------------------------------------------------------------
 // rebuild_figure_axes — safely reset figure to a fresh rows×cols grid.
 // ---------------------------------------------------------------------------
 
-void Px4AppShell::rebuild_figure_axes(int rows, int cols)
+void Px4AppShell::rebuild_figure_axes(FigurePlots& fp, int rows, int cols)
 {
+    spectra::Figure* fig = fp.figure;
     // Clear all existing series (GPU-safe deferred cleanup).
-    for (auto& ax : canvas_figure_->axes_mut())
+    for (auto& ax : fig->axes_mut())
         if (ax)
             ax->clear_series();
 
     // Drop the axes vector and reset the grid.
-    canvas_figure_->axes_mut().clear();
-    canvas_figure_->set_grid(rows, cols);
-    last_canvas_revision_ = static_cast<uint64_t>(-1);
+    fig->axes_mut().clear();
+    fig->set_grid(rows, cols);
+    fp.last_revision = static_cast<uint64_t>(-1);
 }
 
 std::pair<int, int> Px4AppShell::auto_plot_grid(int num_groups)
@@ -719,43 +850,44 @@ std::pair<int, int> Px4AppShell::auto_plot_grid(int num_groups)
 // sync_auto_plot_figure — multi-subplot layout for auto-plot mode.
 // ---------------------------------------------------------------------------
 
-void Px4AppShell::sync_auto_plot_figure()
+void Px4AppShell::sync_auto_plot_figure(FigurePlots& fp)
 {
-    if (!canvas_figure_)
+    spectra::Figure* fig = fp.figure;
+    if (!fig)
         return;
 
-    const uint64_t revision     = plot_mgr_.revision();
-    const bool     data_changed = (revision != last_canvas_revision_);
+    const uint64_t revision     = fp.mgr.revision();
+    const bool     data_changed = (revision != fp.last_revision);
 
-    const int n = static_cast<int>(auto_plot_groups_.size());
+    const int n = static_cast<int>(fp.auto_groups.size());
     if (n == 0)
     {
-        rebuild_figure_axes(1, 1);
-        auto& ax = canvas_figure_->subplot(1, 1, 1);
+        rebuild_figure_axes(fp, 1, 1);
+        auto& ax = fig->subplot(1, 1, 1);
         ax.title("PX4 ULog — no data");
         ax.xlabel("time (s)");
-        canvas_figure_->legend().visible = false;
-        last_canvas_revision_            = revision;
+        fig->legend().visible = false;
+        fp.last_revision      = revision;
         return;
     }
 
     // Ensure the axes vector is properly sized for the current group count.
     const auto [rows, cols] = auto_plot_grid(n);
-    if (canvas_figure_->grid_rows() != rows || canvas_figure_->grid_cols() != cols
-        || static_cast<int>(canvas_figure_->axes().size()) != n)
+    if (fig->grid_rows() != rows || fig->grid_cols() != cols
+        || static_cast<int>(fig->axes().size()) != n)
     {
-        rebuild_figure_axes(rows, cols);
+        rebuild_figure_axes(fp, rows, cols);
         // The default 150 px minimum per row makes three rows of plots (plus
         // title / tick margins) taller than a typical canvas; let the grid
         // shrink to the canvas instead of overflowing it.
-        canvas_figure_->style().min_subplot_height =
-            std::min(canvas_figure_->style().min_subplot_height, kAutoPlotMinSubplotHeight);
+        fig->style().min_subplot_height =
+            std::min(fig->style().min_subplot_height, kAutoPlotMinSubplotHeight);
     }
 
     for (int i = 0; i < n; ++i)
     {
-        const auto& group = auto_plot_groups_[static_cast<size_t>(i)];
-        auto&       ax    = canvas_figure_->subplot(rows, cols, i + 1);
+        const auto& group = fp.auto_groups[static_cast<size_t>(i)];
+        auto&       ax    = fig->subplot(rows, cols, i + 1);
 
         ax.title(group.title);
         ax.xlabel("time (s)");
@@ -825,35 +957,35 @@ void Px4AppShell::sync_auto_plot_figure()
             ax.auto_fit();
     }
 
-    canvas_figure_->legend().visible = true;
-    last_canvas_revision_            = revision;
+    fig->legend().visible = true;
+    fp.last_revision      = revision;
 }
 
 // ---------------------------------------------------------------------------
 // sync_manual_plot_figure — single subplot for manually added fields.
 // ---------------------------------------------------------------------------
 
-void Px4AppShell::sync_manual_plot_figure(bool force)
+void Px4AppShell::sync_manual_plot_figure(FigurePlots& fp, bool force)
 {
-    if (!canvas_figure_)
+    spectra::Figure* fig = fp.figure;
+    if (!fig)
         return;
 
-    const uint64_t revision = plot_mgr_.revision();
-    if (!force && revision == last_canvas_revision_)
+    const uint64_t revision = fp.mgr.revision();
+    if (!force && revision == fp.last_revision)
         return;
 
     // Ensure we are back to a 1×1 grid if coming from auto-plot.
-    if (canvas_figure_->grid_rows() != 1 || canvas_figure_->grid_cols() != 1
-        || canvas_figure_->axes().size() != 1)
-        rebuild_figure_axes(1, 1);
+    if (fig->grid_rows() != 1 || fig->grid_cols() != 1 || fig->axes().size() != 1)
+        rebuild_figure_axes(fp, 1, 1);
 
-    auto& ax = canvas_figure_->subplot(1, 1, 1);
+    auto& ax = fig->subplot(1, 1, 1);
     ax.xlabel("time (s)");
     ax.grid(true);
     ax.show_border(true);
 
-    if (plot_mgr_.field_count() == 1)
-        ax.ylabel(plot_mgr_.fields().front().label);
+    if (fp.mgr.field_count() == 1)
+        ax.ylabel(fp.mgr.fields().front().label);
     else
         ax.ylabel("value");
 
@@ -864,11 +996,11 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
     else
         ax.title("PX4");
 
-    const bool needs_rebuild = ax.series().size() != plot_mgr_.field_count();
+    const bool needs_rebuild = ax.series().size() != fp.mgr.field_count();
     if (needs_rebuild)
     {
         ax.clear_series();
-        for (const auto& field : plot_mgr_.fields())
+        for (const auto& field : fp.mgr.fields())
         {
             if (cfg_.use_chunked)
             {
@@ -890,9 +1022,9 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
     }
     else
     {
-        for (size_t i = 0; i < plot_mgr_.fields().size(); ++i)
+        for (size_t i = 0; i < fp.mgr.fields().size(); ++i)
         {
-            const auto& field = plot_mgr_.fields()[i];
+            const auto& field = fp.mgr.fields()[i];
             auto*       sptr  = ax.series_mut()[i].get();
 
             // Try ChunkedLineSeries first (when chunked mode active).
@@ -909,7 +1041,7 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
             if (!line)
             {
                 ax.clear_series();
-                for (const auto& rebuild_field : plot_mgr_.fields())
+                for (const auto& rebuild_field : fp.mgr.fields())
                 {
                     auto& ls = ax.line(rebuild_field.times, rebuild_field.values);
                     ls.label(rebuild_field.label);
@@ -925,11 +1057,11 @@ void Px4AppShell::sync_manual_plot_figure(bool force)
         }
     }
 
-    if (plot_mgr_.field_count() > 0)
+    if (fp.mgr.field_count() > 0)
         ax.auto_fit();
 
-    canvas_figure_->legend().visible = plot_mgr_.field_count() > 0;
-    last_canvas_revision_            = revision;
+    fig->legend().visible = fp.mgr.field_count() > 0;
+    fp.last_revision      = revision;
 }
 
 bool Px4AppShell::open_ulog_with_dialog()

@@ -209,7 +209,12 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
     plots.add_separator();
     plots.add({.label    = "Close All Plots",
                .on_click = [this]() { close_all_plots(); },
-               .enabled  = [this]() { return auto_plot_active_ || plot_mgr_.field_count() > 0; }});
+               .enabled =
+                   [this]()
+               {
+                   const FigurePlots& fp = active_plots();
+                   return fp.auto_active || fp.mgr.field_count() > 0;
+               }});
 
     auto& view = bar.menu("View");
     view.add({.label = "Navigation Rail",
@@ -231,6 +236,29 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
               .checked = [this]() { return nav_rail_expanded(); }});
     view.add_separator();
     view.add({.label = "Reset Dock Layout", .on_click = [this]() { request_dock_layout_reset(); }});
+    view.add_separator();
+
+    // Figures and split panes, through the main app's commands so the menu,
+    // command palette, pane tab "+" button and shortcuts behave the same.
+    auto run_cmd = [this](const char* id) { return [this, id]() { run_command(id); }; };
+    auto has_cmd = [this](const char* id)
+    { return [this, id]() { return cmd_registry_ && cmd_registry_->find(id) != nullptr; }; };
+    view.add({.label      = "New Figure",
+              .command_id = "figure.new",
+              .on_click   = run_cmd("figure.new"),
+              .enabled    = has_cmd("figure.new")});
+    view.add({.label      = "Split Right",
+              .command_id = "view.split_right",
+              .on_click   = run_cmd("view.split_right"),
+              .enabled    = has_cmd("view.split_right")});
+    view.add({.label      = "Split Down",
+              .command_id = "view.split_down",
+              .on_click   = run_cmd("view.split_down"),
+              .enabled    = has_cmd("view.split_down")});
+    view.add({.label      = "Close Split",
+              .command_id = "view.close_split",
+              .on_click   = run_cmd("view.close_split"),
+              .enabled    = has_cmd("view.close_split")});
     view.add_separator();
 
     if (file_panel_)
@@ -269,7 +297,8 @@ void Px4AppShell::on_populate_menus(spectra::ui::shell::MenuBar& bar)
                         [this]()
                     {
                         bridge_.shutdown();
-                        plot_mgr_.set_bridge(nullptr);
+                        for (auto& fp : plots_)
+                            fp->mgr.set_bridge(nullptr);
                     },
                     .enabled = [this]() { return bridge_.is_connected(); }});
 }
@@ -308,6 +337,12 @@ void Px4AppShell::refresh_recent_menu()
             break;
         }
     }
+}
+
+void Px4AppShell::run_command(const char* id)
+{
+    if (cmd_registry_)
+        cmd_registry_->execute(id);
 }
 
 void Px4AppShell::register_commands(spectra::CommandRegistry& registry,
@@ -446,7 +481,7 @@ void Px4AppShell::on_build_status_bar(spectra::ui::shell::StatusBar& bar)
 
                          if (reader_.is_open() || bridge_.is_receiving())
                              ImGui::SameLine();
-                         ImGui::Text("Fields: %zu", plot_mgr_.field_count());
+                         ImGui::Text("Fields: %zu", active_plots().mgr.field_count());
                      }});
 }
 #endif

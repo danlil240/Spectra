@@ -25,6 +25,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
+    #include "ui/figures/figure_manager.hpp"
     #include "ui/native_dialog_policy.hpp"
 #endif
 
@@ -120,10 +121,18 @@ int main(int argc, char** argv)
         lm.set_tab_bar_visible(false);
         ui_ctx->imgui_ui->set_nav_rail_visible(false);
         ui_ctx->imgui_ui->set_canvas_visible(false);
+        // Keep the figure tabs ("+" adds a figure) and split-pane splitters
+        // of the main app; the px4 shell plots into whichever figure is active.
+        ui_ctx->imgui_ui->set_pane_chrome_visible(true);
         ui_ctx->imgui_ui->set_render_figure_enabled(true);
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
         shell.set_layout_manager(&lm);
+        shell.set_figure_source(&app.figure_registry(),
+                                [ui_ctx]() {
+                                    return ui_ctx->fig_mgr ? ui_ctx->fig_mgr->active_index()
+                                                           : spectra::INVALID_FIGURE_ID;
+                                });
         // Reuse the main app's chrome: Vision command bar + icon/label nav rail.
         shell.set_chrome_integration(ui_ctx->imgui_ui.get());
         // File > Open ULog (Ctrl+O) and Exit (Ctrl+Q) go through the app's

@@ -6,6 +6,7 @@
 #include "px4_app_shell.hpp"
 
 #include <spectra/figure.hpp>
+#include <spectra/figure_registry.hpp>
 #include <spectra/series.hpp>
 
 #include "core/layout.hpp"
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -837,4 +839,75 @@ int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
+}
+
+// New figures and split panes: each figure keeps its own plots and new fields
+// go to the figure the user is looking at.
+TEST(Px4AppShellTest, FieldsGoToTheActiveFigureAndClosedFiguresDropTheirPlots)
+{
+    ULogBuilder builder;
+    builder.add_format("vehicle_attitude:uint64_t timestamp;float roll;float pitch");
+    builder.add_subscription(0, 1, "vehicle_attitude");
+    const float row1[2] = {1.0f, 2.0f};
+    const float row2[2] = {3.0f, 4.0f};
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(row1), sizeof(row1));
+    builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(row2), sizeof(row2));
+    const std::string path = builder.write_to_file(temp_path("multi_figure"));
+
+    spectra::FigureRegistry registry;
+    const spectra::FigureId id1 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    const spectra::FigureId id2 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    spectra::Figure* fig1 = registry.get(id1);
+    spectra::Figure* fig2 = registry.get(id2);
+    fig2->subplot(1, 1, 1);   // "New Figure" starts with one empty axes
+
+    spectra::FigureId active = id1;
+    Px4AppShell       shell(Px4AppConfig{});
+    shell.set_canvas_figure(fig1);
+    shell.set_figure_source(&registry, [&active]() { return active; });
+
+    ASSERT_TRUE(shell.open_ulog(path));
+    shell.close_all_plots();   // the fixture has no auto-plot topics
+    shell.plot_manager().add_field("vehicle_attitude", "roll");
+    shell.poll();
+    EXPECT_EQ(shell.target_figure(), fig1);
+
+    // Switch to the second figure: its plot set starts empty and the first
+    // figure's series are left alone.
+    active = id2;
+    shell.poll();
+    EXPECT_EQ(shell.target_figure(), fig2);
+    EXPECT_EQ(shell.plotted_figure_count(), 2u);
+    EXPECT_TRUE(shell.plot_manager().has_ulog_data());
+    EXPECT_EQ(shell.plot_manager().field_count(), 0u);
+    ASSERT_EQ(fig2->axes().size(), 1u);
+    EXPECT_TRUE(fig2->axes()[0]->series().empty());
+
+    shell.plot_manager().add_field("vehicle_attitude", "pitch");
+    shell.poll();
+
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_EQ(fig1->axes()[0]->series().size(), 1u);
+    EXPECT_EQ(fig1->axes()[0]->series()[0]->label(), "vehicle_attitude.roll");
+    ASSERT_EQ(fig2->axes().size(), 1u);
+    ASSERT_EQ(fig2->axes()[0]->series().size(), 1u);
+    EXPECT_EQ(fig2->axes()[0]->series()[0]->label(), "vehicle_attitude.pitch");
+
+    // Close All Plots only clears the active figure.
+    shell.close_all_plots();
+    shell.poll();
+    EXPECT_TRUE(fig2->axes()[0]->series().empty());
+    EXPECT_EQ(fig1->axes()[0]->series().size(), 1u);
+
+    // Closing the second figure drops its plot set; plots go back to the first.
+    registry.unregister_figure(id2);
+    active = id1;
+    shell.poll();
+    EXPECT_EQ(shell.plotted_figure_count(), 1u);
+    EXPECT_EQ(shell.target_figure(), fig1);
+    EXPECT_EQ(shell.plot_manager().field_count(), 1u);
+
+    std::remove(path.c_str());
 }

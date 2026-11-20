@@ -23,7 +23,7 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 ULogFilePanel::ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr)
-    : reader_(reader), plot_mgr_(plot_mgr)
+    : reader_(reader), plot_mgr_(&plot_mgr)
 {
     detach_ctrl_.set_title("ULog File");
     detach_ctrl_.set_detached_size(500.0f, 400.0f);
@@ -244,7 +244,7 @@ void ULogFilePanel::draw_topic_tree()
 
     ImGui::BeginChild("TopicTree", ImVec2(0, 0), 1);
 
-    auto topics = plot_mgr_.available_topics();
+    auto topics = plot_mgr_->available_topics();
 
     bool any_shown = false;
     for (auto& topic : topics)
@@ -267,7 +267,7 @@ void ULogFilePanel::draw_topic_tree()
 
         if (ImGui::TreeNode(label.c_str()))
         {
-            auto fields = plot_mgr_.topic_fields(topic);
+            auto fields = plot_mgr_->topic_fields(topic);
             for (auto& field : fields)
             {
                 // Check if it's an array element: "name[idx]"
@@ -292,7 +292,7 @@ void ULogFilePanel::draw_topic_tree()
                         if (field_cb_)
                             field_cb_(topic, field_name, array_idx);
                         else
-                            plot_mgr_.add_field(topic, field_name, array_idx);
+                            plot_mgr_->add_field(topic, field_name, array_idx);
                     }
                 }
             }

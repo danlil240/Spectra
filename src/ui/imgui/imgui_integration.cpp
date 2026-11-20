@@ -745,7 +745,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         draw_status_bar();
     if (export_dialog_)
         export_dialog_->draw(&figure);
-    if (canvas_visible_)
+    if (is_pane_chrome_visible())
     {
         draw_pane_tab_headers();   // Must run before splitters so pane_tab_hovered_ is set
         draw_split_view_splitters();

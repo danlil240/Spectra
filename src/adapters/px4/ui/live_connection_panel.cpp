@@ -21,7 +21,7 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 LiveConnectionPanel::LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr)
-    : bridge_(bridge), plot_mgr_(plot_mgr)
+    : bridge_(bridge), plot_mgr_(&plot_mgr)
 {
     detach_ctrl_.set_title("PX4 Live");
     detach_ctrl_.set_detached_size(450.0f, 350.0f);
@@ -222,7 +222,7 @@ void LiveConnectionPanel::draw_channel_list()
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {
-                        plot_mgr_.add_live_field(ch_name, field.name);
+                        plot_mgr_->add_live_field(ch_name, field.name);
                     }
                 }
             }

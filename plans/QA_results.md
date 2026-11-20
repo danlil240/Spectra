@@ -1,5 +1,31 @@
 # Spectra QA Results — Living Document
 
+## Latest audit — 2026-10-28 / session 4
+
+Revision `7952a2f800991f2e8b0802ed437c834a4579bcd8`; [report](../docs/qa/2026-10-28-session-4/index.html).
+
+Main/SDL builds pass. CTest: 186/186 CPU, 35/36 other GPU, 5/5 golden (**226/227 total**); sole failed suite is qa_design_review. Python 490 pass/1 skip. Gallery68 PNG+60 SVG. Design63 captures/240 assertions/61 proved; two named-state failures recur in standalone repeat and CTest, diagnosed as missing zoom target and insufficient animation settling. Eight isolated scenarios pass with validation active, zero validation errors/warnings; retained RSS+26–30MB is INFO including warm-up, not proof of leak. Ordinary four-plugin matrix8/8 clean exits, diagnostic lifecycle checks19/19 and heatmap output8/8 pass. Formatting977 tracked files pass with clang-format18.1.8. No production/test/baseline edits by audit. No baseline changes upstream since session3. WSL CPU software Vulkan only.
+
+### Previous audit
+
+## Latest audit — 2026-10-28 / session 3
+
+Revision `4affae439db5b302cb35305114d29b33d57cfc27`; [complete report](../docs/qa/2026-10-28-session-3/index.html).
+
+| Check | Actual result |
+|---|---|
+| Main / SDL-only builds | Pass |
+| CPU / other GPU / golden CTest | 183/183, 30/30, 5/5 pass; original Qt launchers pass as checked out |
+| Python + native embed | 490 pass, 1 skip |
+| Gallery / design / isolated scenarios | 68 PNG +60 SVG; 63 captures; 8/8 scenarios pass |
+| Ordinary plugin sessions | All eight render then fail during App teardown: four windowed exit139, four headless abort |
+| Explicit early-unload controls | 8/8 exit0; separate workaround, not a fix |
+| Tracked formatting | clang-format21.1.8 returns1, diagnostics in 200 tracked files; make wrapper falsely returns0 |
+
+No production/test/baseline edits by this audit. Thirty golden baselines changed upstream between audited revisions, so current golden passes are not independent sign-off on those changes. Targeted runtime controls confirm fixes to the previous shapes/crosshair/3D legends and reveal remaining transparency and early-export crop defects. All rendering uses WSL llvmpipe; actual monitor/warning data lives in the report's validation-summary.json.
+
+### Historical results below
+
 **Last updated:** 2026-06-17  
 
 **QA Agent build:** `build/tests/` (Release, QA agent + golden ON)  

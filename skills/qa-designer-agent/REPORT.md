@@ -8,13 +8,51 @@
 
 | Field | Value |
 |---|---|
-| Last run | 2026-03-28 Session 15 |
-| Screenshot count confirmed | 57 |
+| Last run | 2026-10-28 external audit session 4, revision7952a2f80099 |
+| Screenshot count confirmed | 63 design captures /61 proved /240 assertions +68 matrix PNGs +60 SVGs; independent repeat retained |
 | Open P0 issues | 0 |
-| Open P1 issues | 0 |
-| Open P2+ issues | 0 |
+| Open P1 issues | 0 reproduced in current bounded scope; prior three plugin cases pass fresh controls |
+| Open P2+ issues | Design gate fails two named states; compact dense legends and coverage gaps remain |
 | Last golden refresh | — |
 | SKILL.md last self-updated | 2026-03-28 (DES-I9: tiny window all panels screenshot, count 56→57) |
+
+---
+
+## Session 2026-10-28 23:55 — external audit session 4
+
+Revision `7952a2f800991f2e8b0802ed437c834a4579bcd8`, comparison `4affae439db5b302cb35305114d29b33d57cfc27`. [Report](../../docs/qa/2026-10-28-session-4/index.html).
+
+Seed42; 63 design captures, 240 assertions, 61 proved/2 failed in original/CTest/repeat. CTest226/227 pass (186CPU,35/36otherGPU,5golden); Python490pass/1skip. Gallery68PNG/60SVG, eight interaction scenarios pass with monitors active/zero validation errors or warnings. Ordinary plugin matrix8/8 clean exits, lifecycle19/19/output8/8 checks pass. Prior plugin/shapes/export/preview issues close in exercised controls; compact explicit legends and QA named-state gate remain. Formatting977trackedfiles passesclang-format18.1.8. Production fixes/files/tests/baselines changed:none; upstream baselines since prioraudit:0. SKILL.md self-updates:none, as designreview exits1. WSL CPU software Vulkan only.
+
+## Self-Improvement — 2026-10-28 / session 4
+
+Improvement: bind semantic capture records to manifest/decoded PNG evidence and propagate failed proof to the report.
+
+Motivation: screenshot counts alone falsely suggest every named state was tested successfully; new upstream assertions exposed invalid zoom/settled-rail captures.
+
+Change: QA-only `docs/qa/2026-10-28-session-4/verify_design_evidence.py` checks record uniqueness, manifest/file parity, nonblank decoding, frame/check counts and actual semantic failures. It correctly exits1 for this session's two failed states. The production semantic checks were upstream changes, not this audit's implementation.
+
+Next gap: framebuffer contrast through real glass/blur and transition states.
+
+---
+
+## Session 2026-10-28 11:18 — external audit session 3
+
+Revision `4affae439db5b302cb35305114d29b33d57cfc27`, comparison `ff284cb482a0457935a16df9dc27d1f0ea8bbcff`. [Report](../../docs/qa/2026-10-28-session-3/index.html).
+
+Seed 42; 63/63 design screenshots confirmed, 68 matrix PNGs / 60 SVGs. Previous missing 2D shapes, log crosshair and 3D legends corrected in original reproductions. Remaining P1: S3-P03 ordinary loaded-plugin teardown; S3-P01/P02 retained pipeline/grouped undo lifetime risks. P2: R07 coalesced transparency, R08 early deferred export crop, black preview-versus-resolved swatches, formatter false success. P3: primary button edge contract documentation. Production fixes applied: none. Production files/tests/baselines changed: none. Goldens updated by audit: no (30 changed upstream before audit). Self-updates to SKILL.md: none.
+
+Verification: 183/183 CPU, 30/30 other GPU, 5/5 golden; 490 Python pass / 1 skip; 8/8 isolated scenarios. Ordinary plugin matrix fails 8/8 teardowns; explicit early-unload controls pass 8/8 separately. CPU software Vulkan, not hardware performance evidence. Details and warning counts retained in linked report.
+
+## Self-Improvement — 2026-10-28
+
+Improvement: independently measure status/action helper outputs on actual supported backdrops.
+
+Motivation: palette/token matrices omit composed controls and do not verify their documented contrast contract.
+
+Change: QA-only `docs/qa/2026-10-28-session-3/contrast_probe` adds 128 UI rows and independent CSV recomputation. All applicable targets pass; Light primary fill meets 3:1 but misses a header's promised 4.5:1, recorded as a contract mismatch rather than a text failure.
+
+Next gap: final framebuffer contrast through real glass/blur and transition states.
 
 ---
 

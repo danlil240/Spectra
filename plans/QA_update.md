@@ -1,5 +1,35 @@
 # Spectra QA Agent — Capability Gaps & Backlog
 
+## Session 4 follow-up — 2026-10-28
+
+Revision `7952a2f800991f2e8b0802ed437c834a4579bcd8`; [report](../docs/qa/2026-10-28-session-4/index.html). Previous plugin ownership/shutdown, transparency, export crop, preview and formatter cases now have fresh passing controls.
+
+1. P2: establish/verify the input axes before design zoom commands, and measure that exact target. Nonblank shot16 is not zoom proof.
+2. P2: wait for bounded settled layout geometry rather than a fixed20-frame delay for shot50. Current design/CTest gate remains failed (61/63 proved).
+3. Preserve explicit legend positions while improving compact dense-list presentation; Best outside placement works in a new control, explicit TopRight still occludes data.
+4. Extend actual framebuffer contrast through glass/blur/transitions and real GPU/native DPI. Finish live adapters, native SDL drop, Windows DLL lifetime and long-run/concurrent sanitizer checks.
+5. Repeat memory scenarios to distinguish warming allocations from retained growth. Current8 INFO records (+26–30MB) are not leak findings.
+
+**Exactly one detection improvement implemented:** `docs/qa/2026-10-28-session-4/verify_design_evidence.py` binds semantic records to manifest/decoded images, rejects absent/duplicate/unproved/blank evidence and propagates the real two failed named states. Upstream production semantic assertions are credited separately. Next gap: actual framebuffer contrast through glass/blur and transitions.
+
+### Previous audit
+
+## Session 3 follow-up — 2026-10-28
+
+Revision `4affae439db5b302cb35305114d29b33d57cfc27`; [report](../docs/qa/2026-10-28-session-3/index.html). No production source/tests/baselines changed.
+
+1. Add ordinary real-App shutdown coverage with shipped plugins still loaded. Explicit pre-shutdown cleanup conceals the host-registry destruction-order crash (S3-P03).
+2. Track copied/saved transform lifetimes and all owners inside grouped/nested undo actions (S3-P01/P02). Safe diagnostics reproduce disable/ownership failures without invoking unmapped code.
+3. Extend transparency comparisons to same-color shapes batched around an independent translucent object. Original R06 now passes; remaining coalesced-range R07 fails visibly and repeatably.
+4. Compare an early deferred PNG with the actual resized framebuffer extent. R08 drops bottom rows/labels when the first window grows from800x600 to800x688.
+5. Compare displayed palette swatches with final resolved ink, including black slots in colorblind/Wong/monochrome on all themes. Viridis-only preview coverage misses nine mismatches.
+6. Propagate formatter failures from the piped shell loop and detect a missing tool. The wrapper returns0 with zero counters despite errors; strict tracked-file output is retained separately. Pin/agree formatter version.
+7. Preserve semantic assertions for menu/hover/closed-panel/DPI captures and complete real GPU/live adapter checks. Capture counts alone still overstate those states.
+
+**One detection improvement implemented in this session:** the QA-only contrast probe adds 128 independently measured status/action helper outputs, with explicit backdrop and per-row threshold. This found a documented4.5-vs-tested3 primary-edge contract mismatch without misclassifying it as a text failure. Next gap: framebuffer contrast through glass/blur and transitions.
+
+### Earlier backlog below
+
 **Last updated:** 2026-06-17
 
 ---

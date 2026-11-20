@@ -1,5 +1,27 @@
 # Spectra Visual QA Design Review
 
+## Current audit — 2026-10-28 / session 4
+
+Revision `7952a2f800991f2e8b0802ed437c834a4579bcd8`; [report/gallery](../docs/qa/2026-10-28-session-4/index.html), [full report](../docs/qa/2026-10-28-session-4/REPORT.md).
+
+Fresh matrix: 68 PNGs /60 SVGs, four themes/eight palettes. Plugin teardown and retained-transform/grouped-undo findings now pass focused ordinary lifecycle probes. R07 transparency matches exactly; R08 early PNG includes the full resized frame. Palette swatches match resolved ink, and clang-format18 checks 977 tracked files cleanly. No production fixes or baseline changes by audit; no upstream baseline changes since session3.
+
+**Design gate fails:** 63 files, 240 assertions, 61 proved captures. S4-Q01 zoom capture lacks a demonstrated command target; S4-Q02 collapsed rail capture precedes settled geometry. Both repeat in CTest and an independent full design run. Correct harness preconditions and rerun the gate. Compact explicit dense legends still occlude most data (S4-U01/P2). Source-color contrast rows all pass applicable targets; actual glass/transition/DPI legibility remains unverified. WSL software Vulkan only.
+
+### Previous audit
+
+## Current audit — 2026-10-28 / session 3
+
+Revision `4affae439db5b302cb35305114d29b33d57cfc27`; [report and gallery](../docs/qa/2026-10-28-session-3/index.html), [full evidence](../docs/qa/2026-10-28-session-3/REPORT.md).
+
+Fresh matrix: 68 PNGs / 60 SVGs, four themes and eight palettes; 63/63 design-harness captures. Original first-frame 2D shape and nonlinear crosshair reproductions now pass; 3D legends, requested font sizing and viewport-capped Settings are verified in fresh captures. No production fixes or baseline refresh by this audit.
+
+**Sign-off blocked:** S3-P03 (P1) ordinary shutdown with loaded plugins crashes in destroyed host registries. S3-P01 retained transform callbacks and S3-P02 mixed-owner undo groups retain lifetime risks. Runtime-confirmed P2 issues: R07 coalesced transparent shapes lose an interleaved layer, R08 early windowed export crops bottom labels, and nine palette swatches disagree with resolved ink. Details/controls are in the report.
+
+All 744 palette, 180 token and 128 UI-control source-color rows meet applicable targets; these are not framebuffer accessibility certification. WSL CPU software Vulkan only. Real GPU/DPI/live adapters remain outside verified coverage. Named screenshots still need semantic state assertions.
+
+### Historical review below
+
 > **Last Updated:** 2026-06-05
 > **Test Health:** golden_image_tests 5/5 PASS · unit_test_accessibility 17/17 PASS
 > **Design Health:** ✅ Good — No P0/P1 defects open. Live design-review capture: **63/63** screenshots (seed 42).

@@ -14,6 +14,7 @@
     #include "../../ui/dialog_env_guard.hpp"
     #include "../../ui/native_dialog_policy.hpp"
     #include "ui/layout/layout_manager.hpp"
+    #include "ui/theme/theme.hpp"
     #include "ui/shell/app_shell.hpp"
 #endif
 
@@ -246,9 +247,8 @@ bool Px4AppShell::init()
     file_panel_->set_field_callback(
         [this](const std::string& topic, const std::string& field, int array_idx)
         {
-            refresh_figure_targets();
-            active_plots().mgr.add_field(topic, field, array_idx);
-            sync_canvas_figure();
+            // Same path as a drop: on an auto-plot it joins the first subplot.
+            drop_field(make_field_drag_payload(topic, field, array_idx));
         });
 
     // Load the recent-files list before the launch file is pushed onto it.
@@ -405,6 +405,7 @@ void Px4AppShell::draw()
     // opens a file must not edit the item list it is being drawn from.
     refresh_recent_menu();
     draw_frame();
+    draw_field_drop_target();
 #endif
 }
 
@@ -702,6 +703,109 @@ void Px4AppShell::set_figure_source(spectra::FigureRegistry*           registry,
     figure_registry_  = registry;
     active_figure_fn_ = std::move(active_figure);
     refresh_figure_targets();
+}
+
+void Px4AppShell::set_figure_hit_test(std::function<spectra::FigureId(float, float)> figure_at)
+{
+    figure_at_fn_ = std::move(figure_at);
+}
+
+Px4AppShell::FigurePlots* Px4AppShell::plots_for(spectra::Figure* fig)
+{
+    if (!fig)
+        return nullptr;
+    for (auto& fp : plots_)
+        if (fp->figure == fig)
+            return fp.get();
+    if (!figure_registry_)
+        return nullptr;
+    const spectra::FigureId id = figure_registry_->find_id(fig);
+    if (figure_registry_->get(id) != fig)
+        return nullptr;
+    plots_.push_back(make_figure_plots(fig, id));
+    return plots_.back().get();
+}
+
+bool Px4AppShell::drop_field(const Px4FieldDragPayload& payload,
+                             spectra::Figure*           figure,
+                             int                        axes_index)
+{
+    refresh_figure_targets();
+    FigurePlots* fp = figure ? plots_for(figure) : &active_plots();
+    if (!fp)
+        return false;
+
+    // The payload buffers are always NUL-terminated.
+    const std::string topic(payload.topic);
+    const std::string field(payload.field);
+    if (topic.empty())
+        return false;
+
+    // Expand the drop to the fields it names: one field, or a whole topic.
+    std::vector<FieldKey> keys;
+    if (!field.empty())
+        keys.push_back({field, payload.array_idx});
+    else if (payload.live)
+    {
+        if (auto latest = bridge_.channel_latest(topic))
+            for (const auto& f : latest->fields)
+                keys.push_back({f.name, -1});
+    }
+    else
+    {
+        for (const auto& k : fp->mgr.topic_fields(topic))
+            if (k != "timestamp")
+                keys.push_back(parse_field_key(k));
+    }
+    if (keys.empty())
+        return false;
+
+    if (fp->auto_active)
+    {
+        // Auto-plot figure: the field joins the subplot it was dropped on.
+        if (payload.live || fp->auto_groups.empty())
+            return false;
+        const size_t gi =
+            axes_index >= 0 && static_cast<size_t>(axes_index) < fp->auto_groups.size()
+                ? static_cast<size_t>(axes_index)
+                : 0;
+        const auto* ts = reader_.data_for(topic, payload.multi_id);
+        if (!ts)
+            return false;
+        auto& group = fp->auto_groups[gi];
+        bool  added = false;
+        for (const auto& k : keys)
+        {
+            AutoPlotField apf;
+            apf.topic     = topic;
+            apf.field     = k.name;
+            apf.array_idx = k.array_idx;
+            apf.multi_id  = payload.multi_id;
+            apf.label     = topic + "." + k.name
+                        + (k.array_idx >= 0 ? "[" + std::to_string(k.array_idx) + "]" : "");
+            auto [times, values] = k.array_idx >= 0 ? ts->extract_array_element(k.name, k.array_idx)
+                                                    : ts->extract_field(k.name);
+            if (times.empty())
+                continue;
+            apf.times  = std::move(times);
+            apf.values = std::move(values);
+            group.fields.push_back(std::move(apf));
+            added = true;
+        }
+        if (added)
+            sync_figure(*fp, true);
+        return added;
+    }
+
+    for (const auto& k : keys)
+    {
+        if (payload.live)
+            fp->mgr.add_live_field(topic, k.name);
+        else
+            fp->mgr.add_field(topic, k.name, k.array_idx, payload.multi_id);
+    }
+    sync_figure(*fp, true);
+    return true;
 }
 
 spectra::Figure* Px4AppShell::target_figure() const
@@ -1062,6 +1166,89 @@ void Px4AppShell::sync_manual_plot_figure(FigurePlots& fp, bool force)
 
     fig->legend().visible = fp.mgr.field_count() > 0;
     fp.last_revision      = revision;
+}
+
+void Px4AppShell::draw_field_drop_target()
+{
+#ifdef SPECTRA_USE_IMGUI
+    const ImGuiPayload* active_payload = ImGui::GetDragDropPayload();
+    if (!active_payload || !active_payload->IsDataType(PX4_FIELD_DRAG_TYPE))
+        return;
+    spectra::LayoutManager* lm = layout_manager();
+    if (!lm)
+        return;
+    const spectra::Rect bounds = lm->canvas_rect();
+    if (bounds.w < 1.0f || bounds.h < 1.0f)
+        return;
+
+    // Figure (split pane) and subplot under the cursor.
+    const ImVec2     mouse  = ImGui::GetIO().MousePos;
+    spectra::Figure* figure = target_figure();
+    if (figure_at_fn_ && figure_registry_)
+    {
+        const spectra::FigureId id = figure_at_fn_(mouse.x, mouse.y);
+        if (id != spectra::INVALID_FIGURE_ID)
+            if (spectra::Figure* f = figure_registry_->get(id))
+                figure = f;
+    }
+    int                  axes_index = -1;
+    const spectra::Rect* hover_vp   = nullptr;
+    if (figure)
+    {
+        const auto& axes = figure->axes();
+        for (size_t i = 0; i < axes.size(); ++i)
+        {
+            if (!axes[i])
+                continue;
+            const spectra::Rect& vp = axes[i]->viewport();
+            if (mouse.x >= vp.x && mouse.x < vp.x + vp.w && mouse.y >= vp.y
+                && mouse.y < vp.y + vp.h)
+            {
+                axes_index = static_cast<int>(i);
+                hover_vp   = &vp;
+                break;
+            }
+        }
+    }
+
+    // Highlight where the drop lands: the hovered subplot, else the canvas.
+    const spectra::Rect hl     = hover_vp ? *hover_vp : bounds;
+    const auto&         accent = spectra::ui::theme().accent;
+    ImDrawList*         dl     = ImGui::GetForegroundDrawList();
+    const ImU32 fill = ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 0.16f));
+    const ImU32 border =
+        ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 0.85f));
+    dl->AddRectFilled(ImVec2(hl.x, hl.y), ImVec2(hl.x + hl.w, hl.y + hl.h), fill, 4.0f);
+    dl->AddRect(ImVec2(hl.x, hl.y), ImVec2(hl.x + hl.w, hl.y + hl.h), border, 4.0f, 0, 2.0f);
+
+    // Invisible drop window over the canvas, only while a px4 field is dragged.
+    ImGui::SetNextWindowPos(ImVec2(bounds.x, bounds.y));
+    ImGui::SetNextWindowSize(ImVec2(bounds.w, bounds.h));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    const ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
+        | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBackground
+        | ImGuiWindowFlags_NoDocking;
+    if (ImGui::Begin("##px4_field_drop", nullptr, flags))
+    {
+        ImGui::InvisibleButton("##px4_drop_area", ImVec2(bounds.w, bounds.h));
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload* p =
+                    ImGui::AcceptDragDropPayload(PX4_FIELD_DRAG_TYPE,
+                                                 ImGuiDragDropFlags_AcceptNoDrawDefaultRect))
+                if (p->DataSize == static_cast<int>(sizeof(Px4FieldDragPayload)))
+                    drop_field(*static_cast<const Px4FieldDragPayload*>(p->Data),
+                               figure,
+                               axes_index);
+            ImGui::EndDragDropTarget();
+        }
+    }
+    ImGui::End();
+    ImGui::PopStyleVar(2);
+#endif
 }
 
 bool Px4AppShell::open_ulog_with_dialog()

@@ -1,6 +1,7 @@
 #include "px4_panel_helpers.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <format>
 #include <numeric>
 
@@ -85,6 +86,33 @@ std::string live_channel_label(std::string_view channel, size_t field_count)
 std::string live_field_label(std::string_view field, double value)
 {
     return stable_label(std::format("{} = {:.4f}", field, value), field);
+}
+
+Px4FieldDragPayload make_field_drag_payload(std::string_view topic,
+                                            std::string_view field,
+                                            int              array_idx,
+                                            bool             live)
+{
+    Px4FieldDragPayload p;
+    const size_t        tn = std::min(topic.size(), sizeof(p.topic) - 1);
+    const size_t        fn = std::min(field.size(), sizeof(p.field) - 1);
+    std::copy_n(topic.data(), tn, p.topic);
+    std::copy_n(field.data(), fn, p.field);
+    p.array_idx = array_idx;
+    p.live      = live;
+    return p;
+}
+
+FieldKey parse_field_key(std::string_view key)
+{
+    const size_t open = key.find('[');
+    if (open == std::string_view::npos)
+        return {std::string(key), -1};
+    const size_t close = key.find(']', open);
+    int          idx   = -1;
+    if (close != std::string_view::npos)
+        std::from_chars(key.data() + open + 1, key.data() + close, idx);
+    return {std::string(key.substr(0, open)), idx};
 }
 
 }   // namespace spectra::adapters::px4

@@ -911,3 +911,59 @@ TEST(Px4AppShellTest, FieldsGoToTheActiveFigureAndClosedFiguresDropTheirPlots)
 
     std::remove(path.c_str());
 }
+
+// Drag and drop from the ULog panel: a field or a whole topic lands in the
+// dropped-on figure; on an auto-plot it joins the subplot under the cursor.
+TEST(Px4AppShellTest, DroppedFieldsAndTopicsArePlottedWhereTheyLand)
+{
+    ULogBuilder builder;
+    builder.add_format("vehicle_attitude:uint64_t timestamp;float roll;float pitch");
+    builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+    builder.add_subscription(0, 1, "vehicle_attitude");
+    builder.add_subscription(0, 2, "battery_status");
+    const float att[2] = {1.0f, 2.0f};
+    const float bat[2] = {16.0f, 3.0f};
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(att), sizeof(att));
+    builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(att), sizeof(att));
+    builder.add_data(2, 1000000, reinterpret_cast<const uint8_t*>(bat), sizeof(bat));
+    builder.add_data(2, 2000000, reinterpret_cast<const uint8_t*>(bat), sizeof(bat));
+    const std::string path = builder.write_to_file(temp_path("drop_fields"));
+
+    spectra::FigureRegistry registry;
+    const spectra::FigureId id1 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    const spectra::FigureId id2 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    spectra::Figure* fig1 = registry.get(id1);
+    spectra::Figure* fig2 = registry.get(id2);
+    fig2->subplot(1, 1, 1);
+
+    Px4AppShell shell(Px4AppConfig{});
+    shell.set_canvas_figure(fig1);
+    shell.set_figure_source(&registry, [id1]() { return id1; });
+    ASSERT_TRUE(shell.open_ulog(path));   // auto-plots the Battery group into fig1
+    shell.poll();
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_EQ(fig1->axes()[0]->series().size(), 2u);   // voltage, current
+
+    // A field dropped on the auto-plot subplot joins it.
+    EXPECT_TRUE(shell.drop_field(make_field_drag_payload("vehicle_attitude", "roll"), fig1, 0));
+    shell.poll();
+    ASSERT_EQ(fig1->axes()[0]->series().size(), 3u);
+    EXPECT_EQ(fig1->axes()[0]->series()[2]->label(), "vehicle_attitude.roll");
+
+    // A whole topic dropped on the second (non-active) figure adds every
+    // field but the timestamp, without touching the first figure.
+    EXPECT_TRUE(shell.drop_field(make_field_drag_payload("vehicle_attitude", ""), fig2, 0));
+    shell.poll();
+    ASSERT_EQ(fig2->axes().size(), 1u);
+    ASSERT_EQ(fig2->axes()[0]->series().size(), 2u);
+    EXPECT_EQ(fig2->axes()[0]->series()[0]->label(), "vehicle_attitude.roll");
+    EXPECT_EQ(fig2->axes()[0]->series()[1]->label(), "vehicle_attitude.pitch");
+    EXPECT_EQ(fig1->axes()[0]->series().size(), 3u);
+
+    // Unknown topics plot nothing.
+    EXPECT_FALSE(shell.drop_field(make_field_drag_payload("no_such_topic", ""), fig2, 0));
+
+    std::remove(path.c_str());
+}

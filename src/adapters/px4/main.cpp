@@ -133,6 +133,23 @@ int main(int argc, char** argv)
                                     return ui_ctx->fig_mgr ? ui_ctx->fig_mgr->active_index()
                                                            : spectra::INVALID_FIGURE_ID;
                                 });
+        // Drops from the ULog / Live panels land in the split pane under the cursor.
+        shell.set_figure_hit_test(
+            [ui_ctx](float x, float y)
+            {
+                auto& dock = ui_ctx->dock_system;
+                if (dock.is_split())
+                {
+                    for (const auto& pane : dock.get_pane_infos())
+                    {
+                        const auto& b = pane.bounds;
+                        if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h)
+                            return pane.figure_index;
+                    }
+                }
+                return ui_ctx->fig_mgr ? ui_ctx->fig_mgr->active_index()
+                                       : spectra::INVALID_FIGURE_ID;
+            });
         // Reuse the main app's chrome: Vision command bar + icon/label nav rail.
         shell.set_chrome_integration(ui_ctx->imgui_ui.get());
         // File > Open ULog (Ctrl+O) and Exit (Ctrl+Q) go through the app's

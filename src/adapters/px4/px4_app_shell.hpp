@@ -14,6 +14,7 @@
 #include <spectra/fwd.hpp>
 
 #include "ui/live_connection_panel.hpp"
+#include "ui/px4_panel_helpers.hpp"
 #include "ui/ulog_file_panel.hpp"
 
 #include <atomic>
@@ -127,6 +128,19 @@ class Px4AppShell
                            std::function<spectra::FigureId()> active_figure);
     // The figure new plots go to (the canvas figure in single-figure mode).
     spectra::Figure* target_figure() const;
+    // Which figure is drawn at a screen point (split panes); without it drops
+    // go to the active figure.
+    void set_figure_hit_test(std::function<spectra::FigureId(float, float)> figure_at);
+
+    // Plot a topic / field dragged from the ULog or Live panel into `figure`
+    // (the active figure when null).  `axes_index` is the subplot under the
+    // cursor: an auto-plot subplot gets the field added to its group.  A
+    // payload with no field adds every field of the topic.  Returns false
+    // when nothing could be plotted.
+    bool drop_field(const Px4FieldDragPayload& payload,
+                    spectra::Figure*           figure     = nullptr,
+                    int                        axes_index = -1);
+
     // Figures with their own px4 plot set (for tests / status display).
     size_t plotted_figure_count() const { return plots_.size(); }
 
@@ -251,6 +265,9 @@ class Px4AppShell
     std::unique_ptr<FigurePlots> make_figure_plots(spectra::Figure* fig, spectra::FigureId id);
     // Resolve figure ids, drop closed figures and pick the active plot set.
     void refresh_figure_targets();
+    // Plot set of `fig`, created for a figure the registry knows; else null.
+    FigurePlots* plots_for(spectra::Figure* fig);
+    void         draw_field_drop_target();
 
     bool        open_ulog_with_dialog();
     void        sync_canvas_figure(bool force = false);
@@ -273,10 +290,11 @@ class Px4AppShell
     Px4Bridge  bridge_;
 
     // One plot set per figure; [0] is the canvas figure's and always exists.
-    std::vector<std::unique_ptr<FigurePlots>> plots_;
-    size_t                                    active_plots_{0};
-    spectra::FigureRegistry*                  figure_registry_{nullptr};
-    std::function<spectra::FigureId()>        active_figure_fn_;
+    std::vector<std::unique_ptr<FigurePlots>>      plots_;
+    size_t                                         active_plots_{0};
+    spectra::FigureRegistry*                       figure_registry_{nullptr};
+    std::function<spectra::FigureId()>             active_figure_fn_;
+    std::function<spectra::FigureId(float, float)> figure_at_fn_;
 
     std::unique_ptr<ULogFilePanel>       file_panel_;
     std::unique_ptr<LiveConnectionPanel> live_panel_;

@@ -7,6 +7,7 @@
 #include "../ulog_reader.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <string>
 #include <string_view>
@@ -51,5 +52,36 @@ std::string live_channel_label(std::string_view channel, size_t field_count);
 
 // Selectable label for a live telemetry field, e.g. "roll = 0.1234".
 std::string live_field_label(std::string_view field, double value);
+
+// ---------------------------------------------------------------------------
+// Drag and drop of topics / fields from the ULog and Live panels onto a plot.
+// ---------------------------------------------------------------------------
+
+inline constexpr const char* PX4_FIELD_DRAG_TYPE = "PX4_FIELD";
+
+// Fixed-size ImGui payload (ImGui copies it by value).
+struct Px4FieldDragPayload
+{
+    char    topic[128]{};
+    char    field[128]{};   // empty for a whole topic
+    int32_t array_idx{-1};
+    uint8_t multi_id{0};
+    bool    live{false};   // MAVLink channel (Live panel) rather than a ULog topic
+};
+
+// Payload for one field, or for a whole topic when `field` is empty.  Names
+// longer than the buffers are truncated.
+Px4FieldDragPayload make_field_drag_payload(std::string_view topic,
+                                            std::string_view field,
+                                            int              array_idx = -1,
+                                            bool             live      = false);
+
+// Splits a topic_fields() key such as "q[2]" into {"q", 2}; plain keys give -1.
+struct FieldKey
+{
+    std::string name;
+    int         array_idx{-1};
+};
+FieldKey parse_field_key(std::string_view key);
 
 }   // namespace spectra::adapters::px4

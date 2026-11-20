@@ -627,8 +627,15 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
         if (dock_system.is_split())
         {
             SplitPane* active_pane = dock_system.split_view().active_pane();
-            if (!active_pane || active_pane->figure_count() < 2)
+            if (!active_pane)
                 return;
+            if (active_pane->figure_count() < 2)
+            {
+                // A single tab has nothing to move: open a new figure there.
+                const FigureId anchor = active_pane->figure_index();
+                dock_system.split_into_new_pane(anchor, fig_mgr.create_figure(), dir);
+                return;
+            }
 
             size_t active_local = active_pane->active_local_index();
             size_t move_local   = (active_local + 1) % active_pane->figure_count();
@@ -648,7 +655,15 @@ std::vector<CommandDescriptor> make_view_commands(CommandContext& ctx)
         else
         {
             if (fig_mgr.count() < 2)
+            {
+                // A single figure has nothing to move: open a new one in the
+                // new pane.
+                const FigureId anchor = fig_mgr.active_index();
+                if (anchor == INVALID_FIGURE_ID)
+                    return;
+                dock_system.split_into_new_pane(anchor, fig_mgr.create_figure(), dir);
                 return;
+            }
 
             FigureId orig_active = fig_mgr.active_index();
 

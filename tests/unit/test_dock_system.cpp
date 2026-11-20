@@ -496,3 +496,25 @@ TEST(DockSystemEdgeCases, ActivateAtPointOutsideBounds)
     // Should not crash, active should remain 0
     EXPECT_EQ(ds.active_figure_index(), 0u);
 }
+
+// Split Right / Down with a single tab: the new figure gets the new pane on
+// its own and becomes active; the original pane keeps its tab.
+TEST(DockSystemSplit, SplitIntoNewPaneWithSingleTab)
+{
+    DockSystem ds;
+    SplitPane* root = ds.split_view().root();
+    ASSERT_NE(root, nullptr);
+    root->add_figure(0);   // what the window keeps in sync before a split
+    root->add_figure(1);   // the new figure may already be synced too
+
+    SplitPane* pane = ds.split_into_new_pane(0, 1, SplitDirection::Vertical);
+    ASSERT_NE(pane, nullptr);
+    EXPECT_TRUE(ds.is_split());
+    EXPECT_EQ(pane->figure_count(), 1u);
+    EXPECT_EQ(pane->figure_index(), 1u);
+    SplitPane* first = pane->parent()->first();
+    EXPECT_TRUE(first->has_figure(0));
+    EXPECT_FALSE(first->has_figure(1));
+    EXPECT_EQ(ds.active_figure_index(), 1u);
+    EXPECT_EQ(pane->parent()->split_direction(), SplitDirection::Vertical);
+}

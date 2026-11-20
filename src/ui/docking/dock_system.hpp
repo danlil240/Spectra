@@ -75,6 +75,14 @@ class DockSystem
                                  FigureId new_figure_index,
                                  float    ratio = 0.5f);
 
+    // Split the pane holding `figure_index` and show `new_figure_index` alone
+    // in the new pane (right for Horizontal, below for Vertical), which
+    // becomes the active one.  Used when the pane has a single tab, so there
+    // is nothing to move: callers create a fresh figure for the new pane.
+    SplitPane* split_into_new_pane(FigureId       figure_index,
+                                   FigureId       new_figure_index,
+                                   SplitDirection direction);
+
     // Close a split pane (unsplit, keeping sibling)
     bool close_split(FigureId figure_index);
 

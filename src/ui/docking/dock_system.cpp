@@ -51,6 +51,25 @@ SplitPane* DockSystem::split_figure_down(FigureId figure_index,
     return result;
 }
 
+SplitPane* DockSystem::split_into_new_pane(FigureId       figure_index,
+                                           FigureId       new_figure_index,
+                                           SplitDirection direction)
+{
+    SplitPane* new_pane = direction == SplitDirection::Horizontal
+                              ? split_figure_right(figure_index, new_figure_index)
+                              : split_figure_down(figure_index, new_figure_index);
+    if (!new_pane)
+        return nullptr;
+    // The original pane keeps its own tabs; the new figure lives only in the
+    // new pane even if it had already been synced into the original one.
+    if (SplitPane* parent = new_pane->parent())
+        if (SplitPane* first = parent->first();
+            first && first != new_pane && first->is_leaf() && first->figure_count() > 1)
+            first->remove_figure(new_figure_index);
+    split_view_.set_active_figure_index(new_figure_index);
+    return new_pane;
+}
+
 bool DockSystem::close_split(FigureId figure_index)
 {
     SPECTRA_LOG_TRACE("dock", "Close split: figure={}", figure_index);

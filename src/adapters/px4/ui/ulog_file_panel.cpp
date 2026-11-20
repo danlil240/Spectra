@@ -23,7 +23,7 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 ULogFilePanel::ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr)
-    : reader_(reader), plot_mgr_(plot_mgr)
+    : reader_(reader), plot_mgr_(&plot_mgr)
 {
     detach_ctrl_.set_title("ULog File");
     detach_ctrl_.set_detached_size(500.0f, 400.0f);
@@ -244,7 +244,7 @@ void ULogFilePanel::draw_topic_tree()
 
     ImGui::BeginChild("TopicTree", ImVec2(0, 0), 1);
 
-    auto topics = plot_mgr_.available_topics();
+    auto topics = plot_mgr_->available_topics();
 
     bool any_shown = false;
     for (auto& topic : topics)
@@ -265,34 +265,42 @@ void ULogFilePanel::draw_topic_tree()
 
         const std::string label = std::format("{} ({})", topic, count);
 
-        if (ImGui::TreeNode(label.c_str()))
+        const bool open = ImGui::TreeNode(label.c_str());
+        // Drag a whole topic onto a plot to add all its fields.
+        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
         {
-            auto fields = plot_mgr_.topic_fields(topic);
+            const Px4FieldDragPayload payload = make_field_drag_payload(topic, {});
+            ImGui::SetDragDropPayload(PX4_FIELD_DRAG_TYPE, &payload, sizeof(payload));
+            ImGui::Text("%s (all fields)", topic.c_str());
+            ImGui::EndDragDropSource();
+        }
+        if (open)
+        {
+            auto fields = plot_mgr_->topic_fields(topic);
             for (auto& field : fields)
             {
-                // Check if it's an array element: "name[idx]"
-                std::string field_name = field;
-                int         array_idx  = -1;
-                auto        bracket    = field.find('[');
-                if (bracket != std::string::npos)
-                {
-                    field_name = field.substr(0, bracket);
-                    auto close = field.find(']', bracket);
-                    if (close != std::string::npos)
-                    {
-                        array_idx =
-                            std::atoi(field.substr(bracket + 1, close - bracket - 1).c_str());
-                    }
-                }
+                const FieldKey     key        = parse_field_key(field);
+                const std::string& field_name = key.name;
+                const int          array_idx  = key.array_idx;
 
-                if (ImGui::Selectable(field.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick))
+                const bool clicked =
+                    ImGui::Selectable(field.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick);
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                {
+                    const Px4FieldDragPayload payload =
+                        make_field_drag_payload(topic, field_name, array_idx);
+                    ImGui::SetDragDropPayload(PX4_FIELD_DRAG_TYPE, &payload, sizeof(payload));
+                    ImGui::Text("%s.%s", topic.c_str(), field.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (clicked)
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {
                         if (field_cb_)
                             field_cb_(topic, field_name, array_idx);
                         else
-                            plot_mgr_.add_field(topic, field_name, array_idx);
+                            plot_mgr_->add_field(topic, field_name, array_idx);
                     }
                 }
             }

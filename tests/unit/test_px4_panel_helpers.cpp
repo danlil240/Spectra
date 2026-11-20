@@ -176,3 +176,28 @@ TEST(Px4PanelHelpers, StableLabelFormat)
 {
     EXPECT_EQ(stable_label("shown", "id"), "shown###id");
 }
+
+TEST(Px4PanelHelpers, ParseFieldKeySplitsArrayElements)
+{
+    const FieldKey plain = parse_field_key("roll");
+    EXPECT_EQ(plain.name, "roll");
+    EXPECT_EQ(plain.array_idx, -1);
+    const FieldKey elem = parse_field_key("q[3]");
+    EXPECT_EQ(elem.name, "q");
+    EXPECT_EQ(elem.array_idx, 3);
+}
+
+TEST(Px4PanelHelpers, DragPayloadTruncatesLongNames)
+{
+    const std::string         long_topic(300, 't');
+    const Px4FieldDragPayload p = make_field_drag_payload(long_topic, "x", 2, true);
+    EXPECT_EQ(std::string(p.topic).size(), sizeof(p.topic) - 1);
+    EXPECT_STREQ(p.field, "x");
+    EXPECT_EQ(p.array_idx, 2);
+    EXPECT_TRUE(p.live);
+
+    const Px4FieldDragPayload topic_only = make_field_drag_payload("battery_status", "");
+    EXPECT_STREQ(topic_only.topic, "battery_status");
+    EXPECT_STREQ(topic_only.field, "");
+    EXPECT_FALSE(topic_only.live);
+}

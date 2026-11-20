@@ -21,7 +21,7 @@ namespace spectra::adapters::px4
 // ---------------------------------------------------------------------------
 
 LiveConnectionPanel::LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr)
-    : bridge_(bridge), plot_mgr_(plot_mgr)
+    : bridge_(bridge), plot_mgr_(&plot_mgr)
 {
     detach_ctrl_.set_title("PX4 Live");
     detach_ctrl_.set_detached_size(450.0f, 350.0f);
@@ -210,19 +210,37 @@ void LiveConnectionPanel::draw_channel_list()
         // stable so open state, hover and double-click survive updates.
         const std::string label = live_channel_label(ch_name, latest->fields.size());
 
-        if (ImGui::TreeNode(label.c_str()))
+        const bool open = ImGui::TreeNode(label.c_str());
+        // Drag a whole channel onto a plot to add all its fields.
+        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+        {
+            const Px4FieldDragPayload payload = make_field_drag_payload(ch_name, {}, -1, true);
+            ImGui::SetDragDropPayload(PX4_FIELD_DRAG_TYPE, &payload, sizeof(payload));
+            ImGui::Text("%s (all fields)", ch_name.c_str());
+            ImGui::EndDragDropSource();
+        }
+        if (open)
         {
             for (auto& field : latest->fields)
             {
                 const std::string field_label = live_field_label(field.name, field.value);
 
-                if (ImGui::Selectable(field_label.c_str(),
-                                      false,
-                                      ImGuiSelectableFlags_AllowDoubleClick))
+                const bool clicked = ImGui::Selectable(field_label.c_str(),
+                                                       false,
+                                                       ImGuiSelectableFlags_AllowDoubleClick);
+                if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                {
+                    const Px4FieldDragPayload payload =
+                        make_field_drag_payload(ch_name, field.name, -1, true);
+                    ImGui::SetDragDropPayload(PX4_FIELD_DRAG_TYPE, &payload, sizeof(payload));
+                    ImGui::Text("%s.%s", ch_name.c_str(), field.name.c_str());
+                    ImGui::EndDragDropSource();
+                }
+                if (clicked)
                 {
                     if (ImGui::IsMouseDoubleClicked(0))
                     {
-                        plot_mgr_.add_live_field(ch_name, field.name);
+                        plot_mgr_->add_live_field(ch_name, field.name);
                     }
                 }
             }

@@ -32,6 +32,9 @@ class LiveConnectionPanel
 {
    public:
     explicit LiveConnectionPanel(Px4Bridge& bridge, Px4PlotManager& plot_mgr);
+
+    // Retarget field adds/listing (spectra-px4 keeps one manager per figure).
+    void set_plot_manager(Px4PlotManager& plot_mgr) { plot_mgr_ = &plot_mgr; }
     ~LiveConnectionPanel();
 
     LiveConnectionPanel(const LiveConnectionPanel&)            = delete;
@@ -70,7 +73,7 @@ class LiveConnectionPanel
     bool was_docked_{true};
 
     Px4Bridge&      bridge_;
-    Px4PlotManager& plot_mgr_;
+    Px4PlotManager* plot_mgr_;
 
     // Connection config.
     char host_buf_[64]{"127.0.0.1"};

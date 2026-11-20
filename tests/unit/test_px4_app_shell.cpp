@@ -6,6 +6,7 @@
 #include "px4_app_shell.hpp"
 
 #include <spectra/figure.hpp>
+#include <spectra/figure_registry.hpp>
 #include <spectra/series.hpp>
 
 #include "core/layout.hpp"
@@ -21,6 +22,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -837,4 +839,186 @@ int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
+}
+
+// New figures and split panes: each figure keeps its own plots and new fields
+// go to the figure the user is looking at.
+TEST(Px4AppShellTest, FieldsGoToTheActiveFigureAndClosedFiguresDropTheirPlots)
+{
+    ULogBuilder builder;
+    builder.add_format("vehicle_attitude:uint64_t timestamp;float roll;float pitch");
+    builder.add_subscription(0, 1, "vehicle_attitude");
+    const float row1[2] = {1.0f, 2.0f};
+    const float row2[2] = {3.0f, 4.0f};
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(row1), sizeof(row1));
+    builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(row2), sizeof(row2));
+    const std::string path = builder.write_to_file(temp_path("multi_figure"));
+
+    spectra::FigureRegistry registry;
+    const spectra::FigureId id1 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    const spectra::FigureId id2 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    spectra::Figure* fig1 = registry.get(id1);
+    spectra::Figure* fig2 = registry.get(id2);
+    fig2->subplot(1, 1, 1);   // "New Figure" starts with one empty axes
+
+    spectra::FigureId active = id1;
+    Px4AppShell       shell(Px4AppConfig{});
+    shell.set_canvas_figure(fig1);
+    shell.set_figure_source(&registry, [&active]() { return active; });
+
+    ASSERT_TRUE(shell.open_ulog(path));
+    shell.close_all_plots();   // the fixture has no auto-plot topics
+    shell.plot_manager().add_field("vehicle_attitude", "roll");
+    shell.poll();
+    EXPECT_EQ(shell.target_figure(), fig1);
+
+    // Switch to the second figure: its plot set starts empty and the first
+    // figure's series are left alone.
+    active = id2;
+    shell.poll();
+    EXPECT_EQ(shell.target_figure(), fig2);
+    EXPECT_EQ(shell.plotted_figure_count(), 2u);
+    EXPECT_TRUE(shell.plot_manager().has_ulog_data());
+    EXPECT_EQ(shell.plot_manager().field_count(), 0u);
+    ASSERT_EQ(fig2->axes().size(), 1u);
+    EXPECT_TRUE(fig2->axes()[0]->series().empty());
+
+    shell.plot_manager().add_field("vehicle_attitude", "pitch");
+    shell.poll();
+
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_EQ(fig1->axes()[0]->series().size(), 1u);
+    EXPECT_EQ(fig1->axes()[0]->series()[0]->label(), "vehicle_attitude.roll");
+    ASSERT_EQ(fig2->axes().size(), 1u);
+    ASSERT_EQ(fig2->axes()[0]->series().size(), 1u);
+    EXPECT_EQ(fig2->axes()[0]->series()[0]->label(), "vehicle_attitude.pitch");
+
+    // Close All Plots only clears the active figure.
+    shell.close_all_plots();
+    shell.poll();
+    EXPECT_TRUE(fig2->axes()[0]->series().empty());
+    EXPECT_EQ(fig1->axes()[0]->series().size(), 1u);
+
+    // Closing the second figure drops its plot set; plots go back to the first.
+    registry.unregister_figure(id2);
+    active = id1;
+    shell.poll();
+    EXPECT_EQ(shell.plotted_figure_count(), 1u);
+    EXPECT_EQ(shell.target_figure(), fig1);
+    EXPECT_EQ(shell.plot_manager().field_count(), 1u);
+
+    std::remove(path.c_str());
+}
+
+// Drag and drop from the ULog panel: a field or a whole topic lands in the
+// dropped-on figure; on an auto-plot it joins the subplot under the cursor.
+TEST(Px4AppShellTest, DroppedFieldsAndTopicsArePlottedWhereTheyLand)
+{
+    ULogBuilder builder;
+    builder.add_format("vehicle_attitude:uint64_t timestamp;float roll;float pitch");
+    builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+    builder.add_subscription(0, 1, "vehicle_attitude");
+    builder.add_subscription(0, 2, "battery_status");
+    const float att[2] = {1.0f, 2.0f};
+    const float bat[2] = {16.0f, 3.0f};
+    builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(att), sizeof(att));
+    builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(att), sizeof(att));
+    builder.add_data(2, 1000000, reinterpret_cast<const uint8_t*>(bat), sizeof(bat));
+    builder.add_data(2, 2000000, reinterpret_cast<const uint8_t*>(bat), sizeof(bat));
+    const std::string path = builder.write_to_file(temp_path("drop_fields"));
+
+    spectra::FigureRegistry registry;
+    const spectra::FigureId id1 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    const spectra::FigureId id2 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    spectra::Figure* fig1 = registry.get(id1);
+    spectra::Figure* fig2 = registry.get(id2);
+    fig2->subplot(1, 1, 1);
+
+    Px4AppShell shell(Px4AppConfig{});
+    shell.set_canvas_figure(fig1);
+    shell.set_figure_source(&registry, [id1]() { return id1; });
+    ASSERT_TRUE(shell.open_ulog(path));   // auto-plots the Battery group into fig1
+    shell.poll();
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_EQ(fig1->axes()[0]->series().size(), 2u);   // voltage, current
+
+    // A field dropped on the auto-plot subplot joins it.
+    EXPECT_TRUE(shell.drop_field(make_field_drag_payload("vehicle_attitude", "roll"), fig1, 0));
+    shell.poll();
+    ASSERT_EQ(fig1->axes()[0]->series().size(), 3u);
+    EXPECT_EQ(fig1->axes()[0]->series()[2]->label(), "vehicle_attitude.roll");
+
+    // A whole topic dropped on the second (non-active) figure adds every
+    // field but the timestamp, without touching the first figure.
+    EXPECT_TRUE(shell.drop_field(make_field_drag_payload("vehicle_attitude", ""), fig2, 0));
+    shell.poll();
+    ASSERT_EQ(fig2->axes().size(), 1u);
+    ASSERT_EQ(fig2->axes()[0]->series().size(), 2u);
+    EXPECT_EQ(fig2->axes()[0]->series()[0]->label(), "vehicle_attitude.roll");
+    EXPECT_EQ(fig2->axes()[0]->series()[1]->label(), "vehicle_attitude.pitch");
+    EXPECT_EQ(fig1->axes()[0]->series().size(), 3u);
+
+    // Unknown topics plot nothing.
+    EXPECT_FALSE(shell.drop_field(make_field_drag_payload("no_such_topic", ""), fig2, 0));
+
+    std::remove(path.c_str());
+}
+
+// Opening another log while a different figure is active must not leave the
+// first figure's auto-plot showing the previous flight's samples.
+TEST(Px4AppShellTest, OpeningAnotherLogRefreshesAutoPlotsInOtherFigures)
+{
+    auto write_battery_log = [](const std::string& name, float voltage)
+    {
+        ULogBuilder builder;
+        builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+        builder.add_subscription(0, 1, "battery_status");
+        const float row[2] = {voltage, 3.0f};
+        builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(row), sizeof(row));
+        builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(row), sizeof(row));
+        return builder.write_to_file(temp_path(name));
+    };
+    const std::string first  = write_battery_log("reload_first", 16.0f);
+    const std::string second = write_battery_log("reload_second", 12.0f);
+
+    spectra::FigureRegistry registry;
+    const spectra::FigureId id1 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    const spectra::FigureId id2 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    spectra::Figure* fig1 = registry.get(id1);
+    registry.get(id2)->subplot(1, 1, 1);
+
+    spectra::FigureId active = id1;
+    Px4AppShell       shell(Px4AppConfig{});
+    shell.set_canvas_figure(fig1);
+    shell.set_figure_source(&registry, [&active]() { return active; });
+
+    ASSERT_TRUE(shell.open_ulog(first));   // auto-plots the Battery group into fig1
+    shell.poll();
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_FALSE(fig1->axes()[0]->series().empty());
+    auto* voltage = dynamic_cast<spectra::LineSeries*>(fig1->axes()[0]->series()[0].get());
+    ASSERT_NE(voltage, nullptr);
+    ASSERT_FALSE(voltage->y_data().empty());
+    EXPECT_FLOAT_EQ(voltage->y_data()[0], 16.0f);
+
+    active = id2;
+    shell.poll();
+    ASSERT_TRUE(shell.open_ulog(second));
+    shell.poll();
+
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_FALSE(fig1->axes()[0]->series().empty());
+    voltage = dynamic_cast<spectra::LineSeries*>(fig1->axes()[0]->series()[0].get());
+    ASSERT_NE(voltage, nullptr);
+    ASSERT_FALSE(voltage->y_data().empty());
+    EXPECT_FLOAT_EQ(voltage->y_data()[0], 12.0f);
+
+    std::remove(first.c_str());
+    std::remove(second.c_str());
 }

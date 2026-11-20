@@ -10,9 +10,11 @@
 #include "px4_recent_files.hpp"
 #include "ulog_reader.hpp"
 
+#include <spectra/figure_registry.hpp>
 #include <spectra/fwd.hpp>
 
 #include "ui/live_connection_panel.hpp"
+#include "ui/px4_panel_helpers.hpp"
 #include "ui/ulog_file_panel.hpp"
 
 #include <atomic>
@@ -114,8 +116,33 @@ class Px4AppShell
     Px4AppShell(Px4AppShell&&)                 = delete;
     Px4AppShell& operator=(Px4AppShell&&)      = delete;
 
-    // Bind to the Spectra render figure.
-    void set_canvas_figure(spectra::Figure* fig) { canvas_figure_ = fig; }
+    // Bind to the Spectra render figure.  It holds the auto-plot and fields
+    // until set_figure_source() lets other figures hold their own.
+    void set_canvas_figure(spectra::Figure* fig);
+
+    // Multi-figure support (new figures, split panes).  `registry` resolves
+    // figure ids (a closed figure drops its plots); `active_figure` names the
+    // figure the user is looking at, which receives new fields, Auto Plot and
+    // Close All Plots.  Without it every plot goes to the canvas figure.
+    void set_figure_source(spectra::FigureRegistry*           registry,
+                           std::function<spectra::FigureId()> active_figure);
+    // The figure new plots go to (the canvas figure in single-figure mode).
+    spectra::Figure* target_figure() const;
+    // Which figure is drawn at a screen point (split panes); without it drops
+    // go to the active figure.
+    void set_figure_hit_test(std::function<spectra::FigureId(float, float)> figure_at);
+
+    // Plot a topic / field dragged from the ULog or Live panel into `figure`
+    // (the active figure when null).  `axes_index` is the subplot under the
+    // cursor: an auto-plot subplot gets the field added to its group.  A
+    // payload with no field adds every field of the topic.  Returns false
+    // when nothing could be plotted.
+    bool drop_field(const Px4FieldDragPayload& payload,
+                    spectra::Figure*           figure     = nullptr,
+                    int                        axes_index = -1);
+
+    // Figures with their own px4 plot set (for tests / status display).
+    size_t plotted_figure_count() const { return plots_.size(); }
 
     // Wire WindowManager for OS-level panel tearoff.
     void set_window_manager(spectra::WindowManager* wm);
@@ -191,6 +218,8 @@ class Px4AppShell
     // outlive the shell, or call unregister_commands() before they go away.
     void register_commands(spectra::CommandRegistry& registry, spectra::ShortcutManager& shortcuts);
     void unregister_commands();
+    // Run a command from the app's registry (no-op before register_commands()).
+    void run_command(const char* id);
 #endif
 
     // True when there is nothing to plot (no ULog open, no MAVLink link, no
@@ -202,9 +231,10 @@ class Px4AppShell
     void connect_live();
 
     // Accessors.
-    ULogReader&         reader() { return reader_; }
-    Px4Bridge&          bridge() { return bridge_; }
-    Px4PlotManager&     plot_manager() { return plot_mgr_; }
+    ULogReader& reader() { return reader_; }
+    Px4Bridge&  bridge() { return bridge_; }
+    // Plot manager of the target figure (see set_figure_source()).
+    Px4PlotManager&     plot_manager() { return active_plots().mgr; }
     const Px4AppConfig& config() const { return cfg_; }
 
 #ifdef SPECTRA_USE_IMGUI
@@ -218,13 +248,36 @@ class Px4AppShell
 #endif
 
    private:
-    bool open_ulog_with_dialog();
-    void sync_canvas_figure(bool force = false);
-    void sync_auto_plot_figure();
-    void sync_manual_plot_figure(bool force);
-    void rebuild_figure_axes(int rows, int cols);
-    void refresh_recent_menu();
-    void sync_layout_chrome();
+    // The plots shown in one figure: its fields plus the auto-plot groups.
+    struct FigurePlots
+    {
+        spectra::FigureId          id{spectra::INVALID_FIGURE_ID};
+        spectra::Figure*           figure{nullptr};
+        bool                       primary{false};   // the canvas figure
+        Px4PlotManager             mgr;
+        std::vector<AutoPlotGroup> auto_groups;
+        bool                       auto_active{false};
+        uint64_t                   last_revision{static_cast<uint64_t>(-1)};
+    };
+
+    FigurePlots&                 active_plots() { return *plots_[active_plots_]; }
+    const FigurePlots&           active_plots() const { return *plots_[active_plots_]; }
+    std::unique_ptr<FigurePlots> make_figure_plots(spectra::Figure* fig, spectra::FigureId id);
+    // Resolve figure ids, drop closed figures and pick the active plot set.
+    void refresh_figure_targets();
+    // Plot set of `fig`, created for a figure the registry knows; else null.
+    FigurePlots* plots_for(spectra::Figure* fig);
+    void         draw_field_drop_target();
+
+    bool        open_ulog_with_dialog();
+    void        sync_canvas_figure(bool force = false);
+    void        sync_figure(FigurePlots& fp, bool force);
+    void        sync_auto_plot_figure(FigurePlots& fp);
+    void        reload_auto_groups(FigurePlots& fp);
+    void        sync_manual_plot_figure(FigurePlots& fp, bool force);
+    static void rebuild_figure_axes(FigurePlots& fp, int rows, int cols);
+    void        refresh_recent_menu();
+    void        sync_layout_chrome();
 
     void draw_ulog_file(bool* p_open = nullptr);
     void draw_live_connection(bool* p_open = nullptr);
@@ -234,19 +287,18 @@ class Px4AppShell
 
     Px4AppConfig cfg_;
 
-    ULogReader     reader_;
-    Px4Bridge      bridge_;
-    Px4PlotManager plot_mgr_;
+    ULogReader reader_;
+    Px4Bridge  bridge_;
+
+    // One plot set per figure; [0] is the canvas figure's and always exists.
+    std::vector<std::unique_ptr<FigurePlots>>      plots_;
+    size_t                                         active_plots_{0};
+    spectra::FigureRegistry*                       figure_registry_{nullptr};
+    std::function<spectra::FigureId()>             active_figure_fn_;
+    std::function<spectra::FigureId(float, float)> figure_at_fn_;
 
     std::unique_ptr<ULogFilePanel>       file_panel_;
     std::unique_ptr<LiveConnectionPanel> live_panel_;
-
-    spectra::Figure* canvas_figure_{nullptr};
-    uint64_t         last_canvas_revision_{static_cast<uint64_t>(-1)};
-
-    // Auto-plot state.
-    std::vector<AutoPlotGroup> auto_plot_groups_;
-    bool                       auto_plot_active_{false};
 
     std::atomic<bool> shutdown_requested_{false};
 

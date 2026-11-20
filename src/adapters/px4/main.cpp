@@ -25,6 +25,7 @@
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/app/window_ui_context.hpp"
+    #include "ui/figures/figure_manager.hpp"
     #include "ui/native_dialog_policy.hpp"
 #endif
 
@@ -99,12 +100,11 @@ int main(int argc, char** argv)
 
     SPECTRA_LOG_INFO("px4", "ready.  Ctrl+C to exit.");
 
-    // Animation loop.
-    fig.animate()
-        .fps(60.0f)
-        .on_frame([&shell](spectra::Frame& /*frame*/) { shell.poll(); })
-        .loop(true)
-        .play();
+    // Keep the launch figure animating so frames keep coming. The shell is
+    // polled from the render loop below, not from this figure's on_frame:
+    // only the active and split-visible figures get frame callbacks, and the
+    // shell must keep polling when another figure is shown.
+    fig.animate().fps(60.0f).on_frame([](spectra::Frame& /*frame*/) {}).loop(true).play();
 
     app.init_runtime();
 
@@ -120,10 +120,35 @@ int main(int argc, char** argv)
         lm.set_tab_bar_visible(false);
         ui_ctx->imgui_ui->set_nav_rail_visible(false);
         ui_ctx->imgui_ui->set_canvas_visible(false);
+        // Keep the figure tabs ("+" adds a figure) and split-pane splitters
+        // of the main app; the px4 shell plots into whichever figure is active.
+        ui_ctx->imgui_ui->set_pane_chrome_visible(true);
         ui_ctx->imgui_ui->set_render_figure_enabled(true);
         ui_ctx->imgui_ui->set_command_bar_visible(false);
         ui_ctx->imgui_ui->set_status_bar_visible(false);
         shell.set_layout_manager(&lm);
+        shell.set_figure_source(&app.figure_registry(),
+                                [ui_ctx]() {
+                                    return ui_ctx->fig_mgr ? ui_ctx->fig_mgr->active_index()
+                                                           : spectra::INVALID_FIGURE_ID;
+                                });
+        // Drops from the ULog / Live panels land in the split pane under the cursor.
+        shell.set_figure_hit_test(
+            [ui_ctx](float x, float y)
+            {
+                auto& dock = ui_ctx->dock_system;
+                if (dock.is_split())
+                {
+                    for (const auto& pane : dock.get_pane_infos())
+                    {
+                        const auto& b = pane.bounds;
+                        if (x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h)
+                            return pane.figure_index;
+                    }
+                }
+                return ui_ctx->fig_mgr ? ui_ctx->fig_mgr->active_index()
+                                       : spectra::INVALID_FIGURE_ID;
+            });
         // Reuse the main app's chrome: Vision command bar + icon/label nav rail.
         shell.set_chrome_integration(ui_ctx->imgui_ui.get());
         // File > Open ULog (Ctrl+O) and Exit (Ctrl+Q) go through the app's
@@ -148,6 +173,7 @@ int main(int argc, char** argv)
     {
         if (shell.shutdown_requested())
             break;
+        shell.poll();
         auto result = app.step();
         shell.process_pending_panels();
         if (result.should_exit)

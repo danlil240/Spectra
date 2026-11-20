@@ -32,6 +32,9 @@ class ULogFilePanel
 {
    public:
     explicit ULogFilePanel(ULogReader& reader, Px4PlotManager& plot_mgr);
+
+    // Retarget field adds/listing (spectra-px4 keeps one manager per figure).
+    void set_plot_manager(Px4PlotManager& plot_mgr) { plot_mgr_ = &plot_mgr; }
     ~ULogFilePanel();
 
     ULogFilePanel(const ULogFilePanel&)            = delete;
@@ -89,7 +92,7 @@ class ULogFilePanel
     bool was_docked_{true};
 
     ULogReader&     reader_;
-    Px4PlotManager& plot_mgr_;
+    Px4PlotManager* plot_mgr_;
 
     std::string current_file_;
 

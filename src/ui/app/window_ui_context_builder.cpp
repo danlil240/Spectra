@@ -359,13 +359,23 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
             [fig_mgr_ptr, doc_ptr = &ui->document](FigureId index)
             { request_close_figure(*fig_mgr_ptr, *doc_ptr, index); });
         ui->imgui_ui->set_pane_tab_split_right_cb(
-            [dock_ptr](FigureId index)
+            [dock_ptr, fig_mgr_ptr](FigureId index)
             {
                 auto* pane = dock_ptr->split_view().root()
                                  ? dock_ptr->split_view().root()->find_by_figure(index)
                                  : nullptr;
-                if (!pane || pane->figure_count() < 2)
+                if (!pane)
                     return;
+                if (pane->figure_count() < 2)
+                {
+                    // A single tab has nothing to move: open a new figure there.
+                    if (!dock_ptr->can_split())
+                        return;
+                    dock_ptr->split_into_new_pane(index,
+                                                  fig_mgr_ptr->create_figure(),
+                                                  SplitDirection::Horizontal);
+                    return;
+                }
                 auto* new_pane = dock_ptr->split_figure_right(index, index);
                 if (!new_pane)
                     return;
@@ -375,13 +385,23 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
                 dock_ptr->set_active_figure_index(index);
             });
         ui->imgui_ui->set_pane_tab_split_down_cb(
-            [dock_ptr](FigureId index)
+            [dock_ptr, fig_mgr_ptr](FigureId index)
             {
                 auto* pane = dock_ptr->split_view().root()
                                  ? dock_ptr->split_view().root()->find_by_figure(index)
                                  : nullptr;
-                if (!pane || pane->figure_count() < 2)
+                if (!pane)
                     return;
+                if (pane->figure_count() < 2)
+                {
+                    // A single tab has nothing to move: open a new figure there.
+                    if (!dock_ptr->can_split())
+                        return;
+                    dock_ptr->split_into_new_pane(index,
+                                                  fig_mgr_ptr->create_figure(),
+                                                  SplitDirection::Vertical);
+                    return;
+                }
                 auto* new_pane = dock_ptr->split_figure_down(index, index);
                 if (!new_pane)
                     return;

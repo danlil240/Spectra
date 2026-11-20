@@ -115,7 +115,7 @@ jobs:
             ${{ matrix.toolchain_ppa == 'true' && 'gcc-13 g++-13 rpm ffmpeg' || '' }}
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: build-linux-${{ matrix.os }}-${{ matrix.compiler }}
           max-size: 1G
@@ -183,7 +183,7 @@ jobs:
         uses: ./.github/actions/setup-linux
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: build-linux-sdl3-ubuntu-24.04-gcc
           max-size: 1G
@@ -230,7 +230,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends qt6-base-dev
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: build-linux-qt-ubuntu-24.04-gcc
           max-size: 1G
@@ -319,7 +319,7 @@ jobs:
         run: python -m py_compile python/examples/*.py
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: python-tests-ubuntu-24.04
           max-size: 500M
@@ -398,7 +398,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: rust-ubuntu-24.04
           max-size: 500M
@@ -559,7 +559,7 @@ jobs:
         uses: ./.github/actions/pin-lavapipe
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: golden-tests-ubuntu-24.04
           max-size: 500M
@@ -638,7 +638,7 @@ jobs:
         run: sudo sysctl -w vm.mmap_rnd_bits=28
 
       - name: ccache
-        uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
         with:
           key: sanitizers-${{ matrix.sanitizer }}
           max-size: 1G

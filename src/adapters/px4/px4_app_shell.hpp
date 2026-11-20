@@ -273,6 +273,7 @@ class Px4AppShell
     void        sync_canvas_figure(bool force = false);
     void        sync_figure(FigurePlots& fp, bool force);
     void        sync_auto_plot_figure(FigurePlots& fp);
+    void        reload_auto_groups(FigurePlots& fp);
     void        sync_manual_plot_figure(FigurePlots& fp, bool force);
     static void rebuild_figure_axes(FigurePlots& fp, int rows, int cols);
     void        refresh_recent_menu();

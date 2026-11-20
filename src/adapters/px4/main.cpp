@@ -100,12 +100,11 @@ int main(int argc, char** argv)
 
     SPECTRA_LOG_INFO("px4", "ready.  Ctrl+C to exit.");
 
-    // Animation loop.
-    fig.animate()
-        .fps(60.0f)
-        .on_frame([&shell](spectra::Frame& /*frame*/) { shell.poll(); })
-        .loop(true)
-        .play();
+    // Keep the launch figure animating so frames keep coming. The shell is
+    // polled from the render loop below, not from this figure's on_frame:
+    // only the active and split-visible figures get frame callbacks, and the
+    // shell must keep polling when another figure is shown.
+    fig.animate().fps(60.0f).on_frame([](spectra::Frame& /*frame*/) {}).loop(true).play();
 
     app.init_runtime();
 
@@ -174,6 +173,7 @@ int main(int argc, char** argv)
     {
         if (shell.shutdown_requested())
             break;
+        shell.poll();
         auto result = app.step();
         shell.process_pending_panels();
         if (result.should_exit)

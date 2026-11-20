@@ -967,3 +967,58 @@ TEST(Px4AppShellTest, DroppedFieldsAndTopicsArePlottedWhereTheyLand)
 
     std::remove(path.c_str());
 }
+
+// Opening another log while a different figure is active must not leave the
+// first figure's auto-plot showing the previous flight's samples.
+TEST(Px4AppShellTest, OpeningAnotherLogRefreshesAutoPlotsInOtherFigures)
+{
+    auto write_battery_log = [](const std::string& name, float voltage)
+    {
+        ULogBuilder builder;
+        builder.add_format("battery_status:uint64_t timestamp;float voltage_v;float current_a");
+        builder.add_subscription(0, 1, "battery_status");
+        const float row[2] = {voltage, 3.0f};
+        builder.add_data(1, 1000000, reinterpret_cast<const uint8_t*>(row), sizeof(row));
+        builder.add_data(1, 2000000, reinterpret_cast<const uint8_t*>(row), sizeof(row));
+        return builder.write_to_file(temp_path(name));
+    };
+    const std::string first  = write_battery_log("reload_first", 16.0f);
+    const std::string second = write_battery_log("reload_second", 12.0f);
+
+    spectra::FigureRegistry registry;
+    const spectra::FigureId id1 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    const spectra::FigureId id2 =
+        registry.register_figure(std::make_unique<spectra::Figure>(spectra::FigureConfig{}));
+    spectra::Figure* fig1 = registry.get(id1);
+    registry.get(id2)->subplot(1, 1, 1);
+
+    spectra::FigureId active = id1;
+    Px4AppShell       shell(Px4AppConfig{});
+    shell.set_canvas_figure(fig1);
+    shell.set_figure_source(&registry, [&active]() { return active; });
+
+    ASSERT_TRUE(shell.open_ulog(first));   // auto-plots the Battery group into fig1
+    shell.poll();
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_FALSE(fig1->axes()[0]->series().empty());
+    auto* voltage = dynamic_cast<spectra::LineSeries*>(fig1->axes()[0]->series()[0].get());
+    ASSERT_NE(voltage, nullptr);
+    ASSERT_FALSE(voltage->y_data().empty());
+    EXPECT_FLOAT_EQ(voltage->y_data()[0], 16.0f);
+
+    active = id2;
+    shell.poll();
+    ASSERT_TRUE(shell.open_ulog(second));
+    shell.poll();
+
+    ASSERT_EQ(fig1->axes().size(), 1u);
+    ASSERT_FALSE(fig1->axes()[0]->series().empty());
+    voltage = dynamic_cast<spectra::LineSeries*>(fig1->axes()[0]->series()[0].get());
+    ASSERT_NE(voltage, nullptr);
+    ASSERT_FALSE(voltage->y_data().empty());
+    EXPECT_FLOAT_EQ(voltage->y_data()[0], 12.0f);
+
+    std::remove(first.c_str());
+    std::remove(second.c_str());
+}

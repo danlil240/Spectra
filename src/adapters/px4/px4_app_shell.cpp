@@ -524,7 +524,11 @@ bool Px4AppShell::open_ulog(const std::string& path)
     if (!reader_.open(path))
     {
         for (auto& fp : plots_)
+        {
             fp->mgr.clear();
+            fp->auto_groups.clear();
+            fp->auto_active = false;
+        }
         set_panel_visible("px4.ulog_file", true);
         last_open_error_ = reader_.last_error();
         sync_canvas_figure(true);
@@ -532,7 +536,16 @@ bool Px4AppShell::open_ulog(const std::string& path)
     }
 
     for (auto& fp : plots_)
+    {
         fp->mgr.load_ulog(reader_);
+        // Auto-plots in the other figures keep their layout but show the new
+        // log's samples; fields the new log lacks are dropped.
+        if (fp->auto_active)
+        {
+            reload_auto_groups(*fp);
+            sync_figure(*fp, true);
+        }
+    }
     set_panel_visible("px4.ulog_file", true);
     last_open_error_.clear();
     recent_.push(path);
@@ -654,6 +667,33 @@ void Px4AppShell::auto_plot_ulog()
 
     fp.auto_active = !fp.auto_groups.empty();
     sync_figure(fp, true);
+}
+
+// Re-extract every auto-plot field from the open log, dropping fields (and
+// then groups) the log doesn't have.
+void Px4AppShell::reload_auto_groups(FigurePlots& fp)
+{
+    for (auto& group : fp.auto_groups)
+    {
+        std::vector<AutoPlotField> kept;
+        for (auto& apf : group.fields)
+        {
+            const auto* ts = reader_.data_for(apf.topic, apf.multi_id);
+            if (!ts)
+                continue;
+            auto [times, values] = apf.array_idx >= 0
+                                       ? ts->extract_array_element(apf.field, apf.array_idx)
+                                       : ts->extract_field(apf.field);
+            if (times.empty())
+                continue;
+            apf.times  = std::move(times);
+            apf.values = std::move(values);
+            kept.push_back(std::move(apf));
+        }
+        group.fields = std::move(kept);
+    }
+    std::erase_if(fp.auto_groups, [](const AutoPlotGroup& g) { return g.fields.empty(); });
+    fp.auto_active = !fp.auto_groups.empty();
 }
 
 // ---------------------------------------------------------------------------

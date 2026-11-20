@@ -396,7 +396,7 @@ void ImGuiIntegration::draw_canvas_content(Figure& figure)
             bool thumb_hovered = track_hovered && ImGui::GetIO().MousePos.y >= thumb_y
                                  && ImGui::GetIO().MousePos.y <= thumb_y + thumb_h;
 
-            ImDrawList* dl = ImGui::GetForegroundDrawList();
+            ImDrawList* dl = ui::canvas_overlay_draw_list();
 
             // Track background
             auto  bg        = theme_colors().bg_elevated;
@@ -1235,7 +1235,7 @@ void ImGuiIntegration::draw_split_view_splitters()
     if (!dock_system_)
         return;
 
-    auto*  draw_list = ImGui::GetForegroundDrawList();
+    auto*  draw_list = ui::canvas_overlay_draw_list();
     auto&  theme     = theme_colors();
     ImVec2 mouse     = ImGui::GetMousePos();
 
@@ -1583,7 +1583,7 @@ void ImGuiIntegration::draw_canvas_drop_overlay(
     if (hover_ax && hover_idx >= 0)
     {
         const auto& vp     = hover_ax->viewport();
-        ImDrawList* dl     = ImGui::GetForegroundDrawList();
+        ImDrawList* dl     = ui::canvas_overlay_draw_list();
         const auto& th     = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<int>(th.accent.r * 255),
                               static_cast<int>(th.accent.g * 255),
@@ -1691,7 +1691,7 @@ void ImGuiIntegration::draw_welcome_drop_overlay(
                                                  | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
 
     // Draw a visual hint so the user can see the drop zone.
-    ImDrawList* dl     = ImGui::GetForegroundDrawList();
+    ImDrawList* dl     = ui::canvas_overlay_draw_list();
     const auto& th     = theme_colors();
     const float margin = 20.0f;
 

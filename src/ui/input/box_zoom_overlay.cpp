@@ -7,6 +7,7 @@
     #include <format>
     #include <imgui.h>
 
+    #include "ui/overlay/canvas_overlay_layer.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -71,7 +72,7 @@ void BoxZoomOverlay::draw(float /*window_width*/, float /*window_height*/)
     if (opacity_ < 0.01f)
         return;
 
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    ImDrawList* dl = ui::canvas_overlay_draw_list();
     if (!dl)
         return;
 
@@ -148,7 +149,7 @@ void BoxZoomOverlay::draw_dashed_line_impl(float        x0,
                                            unsigned int col,
                                            float        thickness) const
 {
-    ImDrawList* dl  = ImGui::GetForegroundDrawList();
+    ImDrawList* dl  = ui::canvas_overlay_draw_list();
     float       dx  = x1 - x0;
     float       dy  = y1 - y0;
     float       len = std::sqrt(dx * dx + dy * dy);
@@ -179,7 +180,7 @@ void BoxZoomOverlay::draw_corner_handles_impl(float        x0,
                                               float        y1,
                                               unsigned int col) const
 {
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    ImDrawList* dl = ui::canvas_overlay_draw_list();
     float       s  = CORNER_HANDLE_SIZE;
     // Four corners: filled squares
     dl->AddRectFilled(ImVec2(x0 - s, y0 - s), ImVec2(x0 + s, y0 + s), col);
@@ -196,7 +197,7 @@ void BoxZoomOverlay::draw_dimension_label_impl(float        x0,
                                                float        y1,
                                                unsigned int col) const
 {
-    ImDrawList* dl   = ImGui::GetForegroundDrawList();
+    ImDrawList* dl   = ui::canvas_overlay_draw_list();
     float       w_px = std::abs(x1 - x0);
     float       h_px = std::abs(y1 - y0);
 
@@ -265,7 +266,7 @@ void BoxZoomOverlay::draw_zoom_crosshair_impl(float        x0,
                                               float        vp_h,
                                               unsigned int col) const
 {
-    ImDrawList* dl        = ImGui::GetForegroundDrawList();
+    ImDrawList* dl        = ui::canvas_overlay_draw_list();
     float       vp_right  = vp_x + vp_w;
     float       vp_bottom = vp_y + vp_h;
 

@@ -328,6 +328,7 @@ Python client / topic publisher / automation client
 - `src/ui/imgui/` is the main UI composition layer: menu bars, panes, selections, dialogs, previews, panels.
 - `src/ui/figures/`, `src/ui/docking/`, and `src/ui/window/` make multi-window + tab tear-off + split views work.
 - `src/ui/overlay/` contains interaction overlays (crosshair, annotations, inspector, legend, tooltips, markers).
+  Canvas-level overlays (splitters, active-pane outline, drop zones, rubber bands, measure lines) draw through `ui::canvas_overlay_draw_list()` (`canvas_overlay_layer.hpp`), never `ImGui::GetForegroundDrawList()`, so menus, popups and modals stay on top.
 - `src/ui/commands/` and `src/ui/app/commands/` split generic command plumbing from command-domain registration.
 - `src/ui/accessibility/`, `src/ui/settings/`, and `src/ui/topics/` add non-plot UI subsystems missing from the older map.
 - `src/ui/automation/` exposes the UI to automation/MCP-style remote control.

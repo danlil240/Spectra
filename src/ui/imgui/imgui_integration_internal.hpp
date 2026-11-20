@@ -35,6 +35,7 @@
     #include "ui/animation/animation_curve_editor.hpp"
     #include "ui/data/axis_link.hpp"
     #include "ui/input/box_zoom_overlay.hpp"
+    #include "ui/overlay/canvas_overlay_layer.hpp"
     #include "ui/commands/command_palette.hpp"
     #include "ui/commands/command_registry.hpp"
     #include "ui/commands/series_clipboard.hpp"

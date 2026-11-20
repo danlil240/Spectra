@@ -921,7 +921,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         auto        x1 = static_cast<float>(std::max(sr.x0, sr.x1));
         auto        y1 = static_cast<float>(std::max(sr.y0, sr.y1));
 
-        ImDrawList* fg     = ImGui::GetForegroundDrawList();
+        ImDrawList* fg     = ui::canvas_overlay_draw_list();
         const auto& colors = theme_colors();
         ImU32       fill   = IM_COL32(static_cast<uint8_t>(colors.selection_fill.r * 255),
                               static_cast<uint8_t>(colors.selection_fill.g * 255),
@@ -1044,7 +1044,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     {
         auto&       theme     = theme_colors();
         auto        drop_info = window_manager_->cross_window_drop_info();
-        ImDrawList* dl        = ImGui::GetForegroundDrawList();
+        ImDrawList* dl        = ui::canvas_overlay_draw_list();
 
         if (drop_info.zone >= 1 && drop_info.zone <= 5)
         {
@@ -1138,7 +1138,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
 
 void ImGuiIntegration::draw_measure_overlay()
 {
-    auto*       dl     = ImGui::GetForegroundDrawList();
+    auto*       dl     = ui::canvas_overlay_draw_list();
     const auto& colors = theme_colors();
     const ImU32 accent = ui::to_imu32(colors.accent, 1.0f);
 

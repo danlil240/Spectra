@@ -9,6 +9,7 @@
     #include <spectra/axes.hpp>
     #include <spectra/series.hpp>
 
+    #include "ui/overlay/canvas_overlay_layer.hpp"
     #include "ui/theme/design_tokens.hpp"
     #include "ui/theme/theme.hpp"
 
@@ -206,7 +207,7 @@ void RegionSelect::draw(const AxisMapping& map, float window_width, float window
         return;
 
     const auto& colors = theme_mgr_->colors();
-    ImDrawList* fg     = ImGui::GetForegroundDrawList();
+    ImDrawList* fg     = ui::canvas_overlay_draw_list();
 
     // Convert data rect to screen rect
     const auto sx0 = static_cast<float>(map.to_screen_x(data_x0_));

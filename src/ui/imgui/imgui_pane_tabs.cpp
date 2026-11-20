@@ -548,6 +548,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
             if (add_hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
             {
+                // Make this pane the active one first: the new figure is
+                // placed in the pane of the active figure, so "+" in another
+                // split pane would otherwise add the tab to that pane.
+                if (!ph.pane->figure_indices().empty())
+                    dock_system_->activate_local_tab(ph.pane->id(), ph.pane->active_local_index());
                 if (command_registry_)
                     command_registry_->execute("figure.new");
             }

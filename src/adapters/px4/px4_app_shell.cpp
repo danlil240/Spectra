@@ -14,6 +14,7 @@
     #include "../../ui/dialog_env_guard.hpp"
     #include "../../ui/native_dialog_policy.hpp"
     #include "ui/layout/layout_manager.hpp"
+    #include "ui/overlay/canvas_overlay_layer.hpp"
     #include "ui/theme/theme.hpp"
     #include "ui/shell/app_shell.hpp"
 #endif
@@ -1254,7 +1255,7 @@ void Px4AppShell::draw_field_drop_target()
     // Highlight where the drop lands: the hovered subplot, else the canvas.
     const spectra::Rect hl     = hover_vp ? *hover_vp : bounds;
     const auto&         accent = spectra::ui::theme().accent;
-    ImDrawList*         dl     = ImGui::GetForegroundDrawList();
+    ImDrawList*         dl     = spectra::ui::canvas_overlay_draw_list();
     const ImU32 fill = ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 0.16f));
     const ImU32 border =
         ImGui::ColorConvertFloat4ToU32(ImVec4(accent.r, accent.g, accent.b, 0.85f));

@@ -734,6 +734,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         src/ui/input/region_select.cpp
         src/ui/overlay/legend_interaction.cpp
         src/ui/input/box_zoom_overlay.cpp
+        src/ui/overlay/canvas_overlay_layer.cpp
         src/ui/commands/command_palette.cpp
         src/ui/commands/command_registry.cpp
         src/ui/imgui/axes_context_menu_model.cpp

@@ -174,6 +174,7 @@ set(SPECTRA_UNIT_TESTS
     test_figure_manager
     test_inspector_stats
     test_box_zoom_overlay
+    test_canvas_overlay_layer
     test_undo_property
     test_workspace_v2
     test_timeline_editor
@@ -568,7 +569,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
         # ImGui context; test_theme checks the ImGui palette apply_to_imgui() writes
         # during a theme transition; settings_layout drives the Settings modal;
         # font_fallback checks ImGui decodes code points above U+FFFF.
-        if(_test MATCHES "^test_(crosshair_mapping|series_probe|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(crosshair_mapping|series_probe|log_overlays|log_browser_panel|data_sidebar|double_precision_data|data_interaction|legend_bounds|canvas_overlay_layer|legend_font_size|inspector|overlay_text_fit|settings_layout|theme|font_fallback|marker_actions)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.

@@ -771,7 +771,7 @@ void ImGuiIntegration::draw_axis_link_indicators(Figure& figure)
     if (!axis_link_mgr_ || axis_link_mgr_->group_count() == 0)
         return;
 
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    ImDrawList* dl = ui::canvas_overlay_draw_list();
 
     for (auto& axes_ptr : figure.axes())
     {

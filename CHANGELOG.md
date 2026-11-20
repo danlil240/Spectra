@@ -13,6 +13,8 @@ summarise the main changes rather than listing every commit.
 
 ### Added
 
+- Rust client: the `spectra-plot` crate (`rust/`) is a pure-Rust client for the Spectra backend with the Python Session API's surface: figures and subplot grids, every 2D and 3D series type, statistical charts, annotations, styles, axis limits/scales/datetime with autoscaling, streaming appends, topic publishing and subscribing, knobs, animation and PNG/SVG export. It finds or launches `spectra-backend` like the Python package. See `rust/README.md`.
+
 - Plot style presets ("default", "paper", "talk", "minimal", "dark-paper") via `Figure::apply_style`, `spectra::style::use`/`style::context`, Python `spectra.style.use()`/`with spectra.style.context()`, an Inspector Style picker and `style.<name>` commands; per-axes minor grid, minor ticks, tick direction and despine options; and an Export options dialog (`file.export_dialog`: format PNG/SVG/PDF, theme, size in px or inches + DPI, scale, transparent background, live preview) whose choices are saved in settings.
 - Matplotlib-style mathtext in plot text (titles, axis labels, legend entries, annotations): `$\alpha_1 = 10^{-3}$ s` renders Greek letters, common symbols, function names and sub/superscripts (70% size, baseline-shifted, stacked as in `x_i^2`) on screen and in SVG/PDF export, and text measurement uses the same layout; `\$` is a literal dollar and strings with an odd number of `$` stay plain.
 
@@ -47,6 +49,9 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- Topic subscriptions: an axes fed by a topic now follows its data. Only the backend sees topic samples, so it refits those axes after each publish (5% padding, 2D and 3D) until a client sets limits or the user scrolls the axes. The view used to stay at the 0..1 default.
+
+- Stopping a backend animation (Python `BackendAnimator.stop()`) no longer hangs until the IPC timeout: the backend now handles `REQ_ANIM_STOP` and turns the window's live redraw off.
 - Zoomed views of very dense lines drew no line once the view started past the first few thousand points (for example 300 s into a 1 kHz log of a 20 min flight): the draw range of an M4-decimated line was searched only among as many data points as it had decimated vertices. It is now searched over all of the line's points, in the main draw and in the selection highlight.
 - Multiproc windows now show series colormaps: surfaces and colormapped scatters (2D/3D) carry their colormap (built-in, reversed or user `from_colors` table), value range and per-point values in the IPC snapshot, and Python can change them at runtime (`Series.set_colormap()`, `set_colormap_range()`, `surf(cmap=..., vmin=..., vmax=...)`; new `SET_SERIES_COLORMAP` diff). The window agent's state cache also keeps live-streaming FPS, so a rebuild no longer stops a live figure.
 - WebGPU: every WGSL shader declared the per-series uniform with an `array<f32, 8>` dash pattern, which the WGSL uniform address space forbids (16-byte element stride), so naga and strict WebGPU implementations rejected the shaders. It is now `array<vec4<f32>, 2>` with the same bytes, and a unit test checks that no uniform array in an embedded WGSL shader has a stride below 16.

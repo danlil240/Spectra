@@ -59,8 +59,8 @@ Qt or ROS2 tools.
   transparency, colormaps and an orbit camera.
 - **MATLAB-style one-liners** — `spectra::plot(x, y, "r--o")` scales up to multi-window,
   multi-tab workspaces.
-- **C++ and Python** — a native C++20 library, plus a Python package that starts the Spectra
-  backend for you.
+- **C++, Python and Rust** — a native C++20 library, plus Python and Rust clients that start the
+  Spectra backend for you.
 - **Headless export** — render PNG, SVG, GIF or MP4 without a window, for CI and batch jobs.
 
 ## Why Spectra?
@@ -141,6 +141,22 @@ live, pannable canvas instead.
 
 Live streaming, 3D plots, statistical charts and the Session API are covered in the
 [Feature Guide](https://danlil240.github.io/Spectra/features.html#python-api).
+
+**Rust**
+
+```rust
+use spectra_plot::{linspace, Session};
+
+let session = Session::new()?;
+let ax = session.figure("Hello")?.subplot(1, 1, 1)?;
+let x = linspace(0.0, 10.0, 500);
+let y: Vec<f64> = x.iter().map(|v| v.sin()).collect();
+ax.plot(&x, &y, "r--")?;
+session.show()?;
+```
+
+The `spectra-plot` crate is a pure-Rust client for the Spectra backend; see
+[`rust/README.md`](rust/README.md).
 
 ---
 

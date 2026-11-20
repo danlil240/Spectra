@@ -99,6 +99,8 @@ void append_topic_samples_to_subscribers(DaemonContext&                        c
             continue;
         diff.ops.push_back(
             ctx.fig_model.append_series_data(s.figure_id, s.series_index, fdata, max_points));
+        for (auto& op : ctx.fig_model.fit_followed_axes(s.figure_id, s.axes_index))
+            diff.ops.push_back(std::move(op));
     }
 }
 
@@ -324,6 +326,10 @@ HandleResult handle_req_subscribe_topic(DaemonContext&      ctx,
                                                 to_float_vector(retained_samples));
         subscription_diff.ops.push_back(std::move(op));
     }
+    // The axes follows the topic's data until someone sets its limits.
+    ctx.fig_model.set_follow_data(req->figure_id, req->axes_index, true);
+    for (auto& op : ctx.fig_model.fit_followed_axes(req->figure_id, req->axes_index))
+        subscription_diff.ops.push_back(std::move(op));
 
     if (!subscription_diff.ops.empty())
     {

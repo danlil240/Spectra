@@ -1,0 +1,37 @@
+[package]
+name = "spectra-plot"
+version = "0.4.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Rust client for Spectra: GPU-accelerated interactive 2D/3D plotting with live streaming"
+license = "MIT"
+repository = "https://github.com/danlil240/Spectra"
+homepage = "https://github.com/danlil240/Spectra"
+documentation = "https://docs.rs/spectra-plot"
+readme = "README.md"
+keywords = ["plotting", "visualization", "gpu", "vulkan", "charts"]
+categories = ["visualization", "science", "graphics"]
+include = ["src/**/*", "examples/**/*", "README.md", "LICENSE", "Cargo.toml"]
+
+[lib]
+name = "spectra_plot"
+
+[features]
+default = []
+# Accept ndarray 1-D arrays (and 2-D for surfaces) as plot data.
+ndarray = ["dep:ndarray"]
+
+[dependencies]
+flatbuffers = "25.2.10"
+ndarray = { version = "0.16", optional = true, default-features = false, features = ["std"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+uds_windows = "1.1"
+
+[dev-dependencies]
+
+[package.metadata.docs.rs]
+all-features = true

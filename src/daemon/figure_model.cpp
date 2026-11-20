@@ -8,6 +8,9 @@
 #include "../ipc/style3d_state.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <utility>
 #include <cstdint>
 #include <spectra/color.hpp>
 
@@ -157,6 +160,102 @@ ipc::DiffOp FigureModel::set_axis_zlimits(uint64_t figure_id,
     op.f1         = z_min;
     op.f2         = z_max;
     return op;
+}
+
+// --- Topic-fed axes ---
+
+void FigureModel::set_follow_data(uint64_t figure_id, uint32_t axes_index, bool follow)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end())
+        return;
+    auto&      list  = it->second.follow_axes;
+    const auto found = std::find(list.begin(), list.end(), axes_index);
+    if (follow && found == list.end())
+        list.push_back(axes_index);
+    else if (!follow && found != list.end())
+        list.erase(found);
+}
+
+bool FigureModel::follows_data(uint64_t figure_id, uint32_t axes_index) const
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end())
+        return false;
+    const auto& list = it->second.follow_axes;
+    return std::find(list.begin(), list.end(), axes_index) != list.end();
+}
+
+std::vector<ipc::DiffOp> FigureModel::fit_followed_axes(uint64_t figure_id, uint32_t axes_index)
+{
+    struct Range
+    {
+        double lo  = std::numeric_limits<double>::infinity();
+        double hi  = -std::numeric_limits<double>::infinity();
+        bool   any = false;
+
+        void add(double v)
+        {
+            if (!std::isfinite(v))
+                return;
+            lo  = std::min(lo, v);
+            hi  = std::max(hi, v);
+            any = true;
+        }
+        std::pair<double, double> padded() const
+        {
+            const double pad = hi > lo ? (hi - lo) * 0.05 : 0.5;
+            return {lo - pad, hi + pad};
+        }
+    };
+
+    Range                  rx, ry, rz;
+    bool                   is_3d = false;
+    ipc::SnapshotAxisState cur;
+    {
+        std::lock_guard lock(mu_);
+        auto            it = figures_.find(figure_id);
+        if (it == figures_.end() || axes_index >= it->second.axes.size())
+            return {};
+        const auto& list = it->second.follow_axes;
+        if (std::find(list.begin(), list.end(), axes_index) == list.end())
+            return {};
+        cur   = it->second.axes[axes_index];
+        is_3d = cur.is_3d;
+        for (const auto& s : it->second.series)
+        {
+            // Only point series: bars, surfaces and the like are not fed by topics.
+            const bool pts2 = s.type == "line" || s.type == "scatter";
+            const bool pts3 = s.type == "line3d" || s.type == "scatter3d";
+            if (s.axes_index != axes_index || (!pts2 && !pts3))
+                continue;
+            const size_t stride = pts3 ? 3u : 2u;
+            for (size_t i = 0; i + stride <= s.data.size(); i += stride)
+            {
+                rx.add(s.x_origin + s.data[i]);
+                ry.add(s.y_origin + s.data[i + 1]);
+                if (pts3)
+                    rz.add(s.data[i + 2]);
+            }
+        }
+    }
+    if (!rx.any || !ry.any)
+        return {};
+
+    std::vector<ipc::DiffOp> ops;
+    const auto [x0, x1] = rx.padded();
+    const auto [y0, y1] = ry.padded();
+    if (x0 != cur.x_min || x1 != cur.x_max || y0 != cur.y_min || y1 != cur.y_max)
+        ops.push_back(set_axis_limits(figure_id, axes_index, x0, x1, y0, y1));
+    if (is_3d && rz.any)
+    {
+        const auto [z0, z1] = rz.padded();
+        if (z0 != cur.z_min || z1 != cur.z_max)
+            ops.push_back(set_axis_zlimits(figure_id, axes_index, z0, z1));
+    }
+    return ops;
 }
 
 bool FigureModel::set_figure_style(uint64_t figure_id, const std::string& name, ipc::DiffOp* op_out)

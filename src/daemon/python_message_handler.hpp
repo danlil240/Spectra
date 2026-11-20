@@ -242,6 +242,8 @@ HandleResult handle_req_disconnect(DaemonContext& ctx, ClientSlot& slot, const i
 HandleResult handle_req_get_snapshot(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
 
 HandleResult handle_req_anim_start(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
+// Turn continuous redraw back off; replies RESP_OK (404 for an unknown figure).
+HandleResult handle_req_anim_stop(DaemonContext& ctx, ClientSlot& slot, const ipc::Message& msg);
 
 // Render a figure offscreen to a PNG/SVG file (figure_export.hpp); replies once written.
 HandleResult handle_req_export_figure(DaemonContext&      ctx,

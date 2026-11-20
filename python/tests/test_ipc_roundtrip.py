@@ -135,6 +135,7 @@ def _snapshot(session):
             "grid": (f.GridRows(), f.GridCols()),
             "axes": axes,
             "series": series,
+            "live_fps": f.LiveFps(),
         }
     return figures
 
@@ -475,3 +476,50 @@ def test_large_numpy_series_round_trips_quickly(session):
     assert series[0]["points"] == n
     # 1M points used to take ~1.5 s in Python alone; vectorised it is ~0.1 s.
     assert elapsed < 5.0
+
+
+def test_anim_stop_turns_live_redraw_off(session):
+    from spectra._animation import BackendAnimator
+
+    fig = session.figure()
+    fig.subplot(1, 1, 1).line([0.0, 1.0], [0.0, 1.0])
+    anim = BackendAnimator(session, fig.id, fps=30)
+    anim.start()
+    assert _snapshot(session)[fig.id]["live_fps"] == pytest.approx(30.0)
+    # REQ_ANIM_STOP used to get no reply, so stop() hung until the IPC timeout.
+    t0 = time.perf_counter()
+    anim.stop()
+    assert time.perf_counter() - t0 < 2.0
+    assert _snapshot(session)[fig.id]["live_fps"] == 0.0
+
+
+def test_topic_subscription_follows_data(session):
+    from spectra import _codec as codec
+    from spectra.topic import Publisher
+
+    pub = Publisher("it/follow", socket=session._socket_path, auto_launch=False)
+    try:
+        fig = session.figure()
+        ax = fig.subplot(1, 1, 1)
+        payload = codec.encode_req_subscribe_topic("it/follow", fig.id, 0)
+        session._request(P.REQ_SUBSCRIBE_TOPIC, payload)
+        for i in range(50):
+            pub.publish(i * 0.1, 10.0 + i)
+        # Only the backend sees topic data, so it must fit the axes. The view
+        # used to stay at the 0..1 default.
+        deadline = time.monotonic() + 5.0
+        while True:
+            a = _snapshot(session)[fig.id]["axes"][0]
+            if a["xlim"][1] > 4.0 or time.monotonic() > deadline:
+                break
+            time.sleep(0.05)
+        assert a["xlim"][0] < 0.0 < 4.9 < a["xlim"][1]
+        assert a["ylim"][0] < 10.0 and 59.0 < a["ylim"][1] < 70.0
+
+        # Limits set by the client stop the axes following the topic.
+        ax.set_ylim(-1.0, 1.0)
+        pub.publish(5.0, 500.0)
+        time.sleep(0.3)
+        assert _snapshot(session)[fig.id]["axes"][0]["ylim"] == (-1.0, 1.0)
+    finally:
+        pub.close()

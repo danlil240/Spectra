@@ -63,7 +63,6 @@ __pycache__
 spectra_export.png
 spectra_export.svg
 
-.gitignore
 imgui.ini
 
 asan.log.*
@@ -119,3 +118,10 @@ docker/.env
 # Rust client crate
 rust/target/
 rust/Cargo.lock
+
+# Claude Code agent worktrees and local QA audit evidence (screenshots, logs, ~190 MB)
+.claude/worktrees/
+docs/qa/
+
+# Local Python virtualenvs (e.g. benchmark runs)
+.venv*/

@@ -344,27 +344,38 @@ void InputHandler::clear_figure_cache(Figure* fig)
         view_gesture_before_.clear();
     }
 
-    if (!fig || figure_ == fig)
+    // Cancel any in-flight animations that hold raw Axes* pointers to axes
+    // owned by the figure being destroyed, whether or not it is the figure
+    // this handler currently shows: an animation started on figure A keeps
+    // running after the handler moved on to figure B, and
+    // AnimationController::update() would then write limits into freed axes
+    // (QA fuzz SIGSEGV in Axes::xlim, 2026-11-22).
+    if (fig)
     {
-        // Cancel any in-flight animations that hold raw Axes* pointers
-        // to axes owned by the figure being destroyed.  Without this,
-        // AnimationController::update() would dereference freed memory.
-        if (anim_ctrl_)
+        for (const auto& ax : fig->axes())
         {
-            if (fig)
+            if (!ax)
+                continue;
+            if (anim_ctrl_)
+                anim_ctrl_->cancel_for_axes(ax.get());
+            if (transition_engine_)
+                transition_engine_->cancel_for_axes(ax.get());
+            if (Axes* twin = ax->twin())
             {
-                for (const auto& ax : fig->axes())
-                {
-                    if (ax)
-                        anim_ctrl_->cancel_for_axes(ax.get());
-                }
-            }
-            else
-            {
-                anim_ctrl_->cancel_all();
+                if (anim_ctrl_)
+                    anim_ctrl_->cancel_for_axes(twin);
+                if (transition_engine_)
+                    transition_engine_->cancel_for_axes(twin);
             }
         }
+    }
+    else if (anim_ctrl_)
+    {
+        anim_ctrl_->cancel_all();
+    }
 
+    if (!fig || figure_ == fig)
+    {
         figure_            = nullptr;
         active_axes_       = nullptr;
         active_axes_base_  = nullptr;

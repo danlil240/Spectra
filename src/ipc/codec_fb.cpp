@@ -351,7 +351,8 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.fog,
                                              ax.light_angles_set,
                                              ax.light_azimuth,
-                                             ax.light_elevation);
+                                             ax.light_elevation,
+                                             ax.colorbar_visible);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -381,6 +382,7 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
     ax.light_angles_set = fb->light_angles_set();
     ax.light_azimuth    = fb->light_azimuth();
     ax.light_elevation  = fb->light_elevation();
+    ax.colorbar_visible = fb->colorbar_visible();
     if (fb->annotations())
     {
         for (const auto* fa : *fb->annotations())

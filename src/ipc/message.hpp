@@ -291,6 +291,8 @@ struct SnapshotAxisState
     bool    light_angles_set = false;
     float   light_azimuth    = 0.0f;
     float   light_elevation  = 0.0f;
+    // Colorbar for the axes' colormapped series (AxesBase::show_colorbar).
+    bool colorbar_visible = false;
 };
 
 // SnapshotSeriesState::line_style / marker_style value meaning "not set".
@@ -488,6 +490,8 @@ struct DiffOp
         // Per-point colormap values of a 2D / 3D scatter (matplotlib's
         // scatter(c=values)): data=one value per point; empty clears them.
         SET_SERIES_COLOR_VALUES = 48,
+        // Colorbar of an axes (AxesBase::show_colorbar): bool_val=shown.
+        SET_COLORBAR_VISIBLE = 49,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

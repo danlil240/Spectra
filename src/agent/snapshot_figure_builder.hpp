@@ -241,6 +241,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
             ax3d.ylim(sa.y_min, sa.y_max);
             ax3d.zlim(sa.z_min, sa.z_max);
             ax3d.grid(sa.grid_visible);
+            ax3d.show_colorbar(sa.colorbar_visible);
             if (!sa.x_label.empty())
                 ax3d.xlabel(sa.x_label);
             if (!sa.y_label.empty())
@@ -258,6 +259,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
                 ax.xlim(sa.x_min, sa.x_max);
                 ax.ylim(sa.y_min, sa.y_max);
                 ax.grid(sa.grid_visible);
+                ax.show_colorbar(sa.colorbar_visible);
                 if (!sa.x_label.empty())
                     ax.xlabel(sa.x_label);
                 if (!sa.y_label.empty())

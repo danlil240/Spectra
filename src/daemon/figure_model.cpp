@@ -287,6 +287,22 @@ ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_inde
     return op;
 }
 
+ipc::DiffOp FigureModel::set_colorbar_visible(uint64_t figure_id, uint32_t axes_index, bool visible)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+        it->second.axes[axes_index].colorbar_visible = visible;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type       = ipc::DiffOp::Type::SET_COLORBAR_VISIBLE;
+    op.figure_id  = figure_id;
+    op.axes_index = axes_index;
+    op.bool_val   = visible;
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t           figure_id,
                                          uint32_t           axes_index,
                                          const std::string& label)
@@ -1296,6 +1312,12 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (it == figures_.end() || op.axes_index >= it->second.axes.size())
                 return false;
             it->second.axes[op.axes_index].grid_visible = op.bool_val;
+            break;
+
+        case ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            it->second.axes[op.axes_index].colorbar_visible = op.bool_val;
             break;
 
         case ipc::DiffOp::Type::SET_LINE_WIDTH:

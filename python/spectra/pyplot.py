@@ -15,7 +15,7 @@ Lets common matplotlib scripts run on Spectra by changing one import::
 Covered: plot, scatter, bar, barh, hist, errorbar, fill_between, stem,
 semilogx/semilogy/loglog, figure, subplot, subplots, xlabel/ylabel/title,
 legend, xlim/ylim, xscale/yscale, grid, axhline/axvline, cla/clf,
-ion/ioff/draw/pause, savefig, show, close, gcf/gca and the matching ``Axes``
+ion/ioff/draw/pause, colorbar, savefig, show, close, gcf/gca and the matching ``Axes``
 methods.  Format strings ("r--o"), ``linestyle=`` and
 ``marker=`` are honoured.  Keyword arguments Spectra cannot honour (dash
 tuples, per-point colours, ``bbox_inches`` ...) are ignored with one
@@ -41,7 +41,7 @@ __all__ = [
     "ylabel", "title", "suptitle", "legend", "xlim", "ylim", "xscale", "yscale",
     "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style", "step",
     "stairs", "text", "annotate", "axhline", "axvline", "cla", "clf", "ion", "ioff",
-    "isinteractive", "draw", "pause",
+    "isinteractive", "draw", "pause", "colorbar",
 ]
 
 # Pixels per inch for figsize (matplotlib's default dpi).
@@ -182,6 +182,9 @@ class Figure:
         """Title centred above all subplots of the figure."""
         _ignore("suptitle", kwargs)
         self._fig.suptitle(str(t))
+
+    def colorbar(self, mappable=None, cax=None, ax=None, **kwargs) -> "Colorbar":
+        return colorbar(mappable, cax=cax, ax=ax, **kwargs)
 
     def tight_layout(self, *args, **kwargs) -> None:
         """Fit the subplot spacing to the labels (constrained layout)."""
@@ -833,6 +836,35 @@ def pause(interval: float) -> None:
     draw()
     if interval > 0:
         time.sleep(float(interval))
+
+
+class Colorbar:
+    """What :func:`colorbar` returns.  Spectra draws the bar itself, so its
+    label and ticks cannot be changed; those calls warn once."""
+
+    def __init__(self, ax: Any) -> None:
+        self.ax = ax
+
+    def set_label(self, label, **kwargs) -> None:
+        _ignore("colorbar", {"set_label": True})
+
+    def remove(self) -> None:
+        self.ax.colorbar(False)
+
+
+def colorbar(mappable=None, cax=None, ax=None, **kwargs) -> Colorbar:
+    """Colorbar for the colormapped series of ``ax`` (default: the current axes)."""
+    if cax is not None:
+        _ignore("colorbar", {"cax": True})
+    label = kwargs.pop("label", None)
+    if label:
+        _ignore("colorbar", {"label": True})
+    _ignore("colorbar", kwargs)
+    if isinstance(ax, (list, tuple)):
+        ax = ax[0] if ax else None
+    target = ax._ax if isinstance(ax, Axes) else _sp._current_axes_any()
+    target.colorbar(True)
+    return Colorbar(target)
 
 
 def _set_title(label, **kw):

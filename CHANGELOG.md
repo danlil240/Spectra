@@ -13,7 +13,7 @@ summarise the main changes rather than listing every commit.
 
 ### Added
 
-- Python `scatter(x, y, c=values, cmap=, vmin=, vmax=)` (easy API and `spectra.pyplot`) colours each point by value through a colormap in multi-process windows, through a new `color_values` series property and `SET_SERIES_COLOR_VALUES` diff op (Python `Series.set_color_values()`, Rust `Series::set_color_values()`). `spectra.pyplot` also gains `axhline` / `axvline`, `cla` / `clf` and `ion` / `ioff` / `draw` / `pause`.
+- Python `scatter(x, y, c=values, cmap=, vmin=, vmax=)` (easy API and `spectra.pyplot`) colours each point by value through a colormap in multi-process windows, through a new `color_values` series property and `SET_SERIES_COLOR_VALUES` diff op (Python `Series.set_color_values()`, Rust `Series::set_color_values()`). Colorbars reach multi-process windows too (`Axes.colorbar()` / `sp.colorbar()` in Python, `Axes::colorbar()` in Rust, `SET_COLORBAR_VISIBLE` op, saved in snapshots). `spectra.pyplot` also gains `colorbar`, `axhline` / `axvline`, `cla` / `clf` and `ion` / `ioff` / `draw` / `pause`.
 
 - Rust client: the `spectra-plot` crate (`rust/`) is a pure-Rust client for the Spectra backend with the Python Session API's surface: figures and subplot grids, every 2D and 3D series type, statistical charts, annotations, styles, axis limits/scales/datetime with autoscaling, streaming appends, topic publishing and subscribing, knobs, animation and PNG/SVG export. It finds or launches `spectra-backend` like the Python package. See `rust/README.md`.
 

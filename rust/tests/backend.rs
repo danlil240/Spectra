@@ -281,6 +281,7 @@ fn three_d_series_render() {
         .unwrap()
         .set_colormap("turbo")
         .unwrap();
+    b.colorbar(true).unwrap();
     // 2D-only calls are rejected on 3D axes and vice versa.
     assert!(b.bar(&[1.0], &[1.0]).is_err());
     assert!(fig.subplot(2, 2, 4).unwrap().surface(&g, &g, &z).is_err());

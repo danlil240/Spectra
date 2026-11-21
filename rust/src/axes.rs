@@ -1415,6 +1415,11 @@ impl Axes {
         self.send(self.prop("grid").b(visible))
     }
 
+    /// Show or hide a colorbar for the axes' colormapped series.
+    pub fn colorbar(&self, visible: bool) -> Result<&Self> {
+        self.send(self.prop("colorbar").b(visible))
+    }
+
     /// Show or hide the legend.
     pub fn legend(&self, visible: bool) -> Result<&Self> {
         self.send(self.prop("legend").b(visible))

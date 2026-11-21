@@ -142,6 +142,9 @@ class _FakeAxes:
     def legend(self, v=True):
         self.legend_on = v
 
+    def colorbar(self, v=True):
+        self.colorbar_on = v
+
     def clear(self):
         self.cleared = getattr(self, "cleared", 0) + 1
         self.created.clear()
@@ -841,3 +844,20 @@ def test_easy_scatter_c_validates_length_and_range(fake):
         sp.scatter([0, 1], [0, 1], c=[1.0, 2.0], vmin=0)
     s = sp.scatter([0, 1], [0, 1], c=[1.0, 2.0], cmap="turbo", vmin=0, vmax=4)
     assert (s.color_values, s.cmap, s.cmap_range) == ([1.0, 2.0], "turbo", (0, 4))
+
+
+def test_pyplot_colorbar_turns_on_the_axes_colorbar(monkeypatch, fake_plt):
+    ax, _ = fake_plt
+    monkeypatch.setattr(easy._state, "_current_axes3d", None)
+    sc = plt.scatter([0, 1], [0, 1], c=[0.0, 1.0])
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        cb = plt.colorbar(sc, label="speed")
+        cb.set_label("speed")
+    assert ax.colorbar_on is True
+    assert len(w) == 2  # label= and set_label are not drawn
+    cb.remove()
+    assert ax.colorbar_on is False
+    other = _FakeAxes(3)
+    plt.gcf().colorbar(sc, ax=plt.Axes(plt.gcf(), other, (1, 1, 1)))
+    assert other.colorbar_on is True

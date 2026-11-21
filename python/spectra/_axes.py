@@ -413,6 +413,17 @@ class Axes:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def colorbar(self, visible: bool = True) -> None:
+        """Show (or hide) a colorbar for this axes' colormapped series
+        (colormapped scatters, surfaces, images)."""
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="colorbar",
+            bool_val=bool(visible),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def legend(self, visible: bool = True) -> None:
         """Toggle legend visibility on this axes."""
         payload = codec.encode_req_update_property(

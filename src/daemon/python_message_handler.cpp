@@ -270,6 +270,10 @@ static bool apply_property_update(FigureModel&              fig_model,
             return false;
         diff.ops.push_back(std::move(op));
     }
+    else if (property == "colorbar")
+    {
+        diff.ops.push_back(fig_model.set_colorbar_visible(figure_id, axes_index, bool_val));
+    }
     else if (property == "grid")
     {
         diff.ops.push_back(fig_model.set_grid_visible(figure_id, axes_index, bool_val));
@@ -696,7 +700,8 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                                         "fog",
                                         "colormap",
                                         "colormap_range",
-                                        "color_values"};
+                                        "color_values",
+                                        "colorbar"};
     bool               known         = false;
     for (const auto* p : known_props)
     {

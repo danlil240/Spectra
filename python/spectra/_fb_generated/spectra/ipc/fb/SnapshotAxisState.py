@@ -196,8 +196,15 @@ class SnapshotAxisState(object):
             return self._tab.Get(flatbuffers.number_types.Float32Flags, o + self._tab.Pos)
         return 0.0
 
+    # SnapshotAxisState
+    def ColorbarVisible(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(48))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(22)
+    builder.StartObject(23)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -339,6 +346,12 @@ def SnapshotAxisStateAddLightElevation(builder, lightElevation):
 
 def AddLightElevation(builder, lightElevation):
     SnapshotAxisStateAddLightElevation(builder, lightElevation)
+
+def SnapshotAxisStateAddColorbarVisible(builder, colorbarVisible):
+    builder.PrependBoolSlot(22, colorbarVisible, 0)
+
+def AddColorbarVisible(builder, colorbarVisible):
+    SnapshotAxisStateAddColorbarVisible(builder, colorbarVisible)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

@@ -82,6 +82,7 @@ class FigureModel
 
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
+    ipc::DiffOp set_colorbar_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
 
     // Set axis xlabel. Returns a DiffOp.
     ipc::DiffOp set_axis_xlabel(uint64_t figure_id, uint32_t axes_index, const std::string& label);

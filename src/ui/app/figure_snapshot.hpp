@@ -617,8 +617,9 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
         }
         if (base)
         {
-            sa.grid_visible = base->grid_enabled();
-            sa.title        = base->title();
+            sa.grid_visible     = base->grid_enabled();
+            sa.title            = base->title();
+            sa.colorbar_visible = base->colorbar_visible();
         }
         snap.axes.push_back(std::move(sa));
     }

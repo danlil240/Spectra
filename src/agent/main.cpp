@@ -151,6 +151,10 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 ax3d->ylim(op.f3, op.f4);
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:
+            if (base)
+                base->show_colorbar(op.bool_val);
+            break;
         case spectra::ipc::DiffOp::Type::SET_GRID_VISIBLE:
             if (ax2d)
                 ax2d->grid(op.bool_val);

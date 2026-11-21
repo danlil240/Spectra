@@ -2104,6 +2104,12 @@ def _current_axes_any():
     return _state._ensure_axes()
 
 
+def colorbar(visible: bool = True):
+    """Show (or hide) a colorbar for the current axes' colormapped series,
+    e.g. after ``scatter(x, y, c=z)`` or ``surf(..., cmap=...)``."""
+    _current_axes_any().colorbar(visible)
+
+
 def title(text: str):
     """Set the title of the current axes."""
     _current_axes_any().set_title(text)

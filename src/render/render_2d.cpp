@@ -141,6 +141,99 @@ void Renderer::draw_stat_fill(SeriesGpuData&             gpu,
     }
 }
 
+bool Renderer::draw_density_line(const LineSeries&          line,
+                                 SeriesGpuData&             gpu,
+                                 const SeriesPushConstants& pc,
+                                 uint32_t                   first_pt,
+                                 uint32_t                   pt_count,
+                                 double                     view_cx,
+                                 double                     view_cy)
+{
+    const LineView& v = line_view_;
+    if (!v.density_valid || !image2d_pipeline_ || pt_count < 2)
+        return false;
+    const double ax0 = to_axis_space(v.xscale, v.x_min);
+    const double ax1 = to_axis_space(v.xscale, v.x_max);
+    const double ay0 = to_axis_space(v.yscale, v.y_min);
+    const double ay1 = to_axis_space(v.yscale, v.y_max);
+    if (!std::isfinite(ax0) || !std::isfinite(ax1) || !std::isfinite(ay0) || !std::isfinite(ay1)
+        || !(ax1 > ax0) || !(ay1 > ay0))
+        return false;
+
+    const float               scale = std::max(backend_.pixel_scale(), 1.0f);
+    SeriesGpuData::DensityKey key;
+    key.generation = line.change_generation();
+    key.x_min      = v.x_min;
+    key.x_max      = v.x_max;
+    key.y_min      = v.y_min;
+    key.y_max      = v.y_max;
+    key.cols       = v.columns;
+    key.rows       = v.rows;
+    key.first_pt   = first_pt;
+    key.pt_count   = pt_count;
+    for (int i = 0; i < 4; ++i)
+        key.color[i] = pc.color[i];
+    key.half_width = 0.5f * pc.line_width * scale;
+    key.xscale     = v.xscale;
+    key.yscale     = v.yscale;
+
+    if (!gpu.density_texture || !(gpu.density_key == key))
+    {
+        const auto   xs   = line.x_data();
+        const auto   ys   = line.y_data();
+        const size_t n    = std::min({line.point_count(), xs.size(), ys.size()});
+        const size_t end  = std::min(n, static_cast<size_t>(first_pt) + pt_count);
+        const double xoff = line.x_offset();
+        const double yoff = line.y_offset();
+        const double sx   = static_cast<double>(v.columns) / (ax1 - ax0);
+        const double sy   = static_cast<double>(v.rows) / (ay1 - ay0);
+        auto         px   = [&](size_t i)
+        { return (to_axis_space(v.xscale, static_cast<double>(xs[i]) + xoff) - ax0) * sx; };
+        auto py = [&](size_t i)
+        { return (to_axis_space(v.yscale, static_cast<double>(ys[i]) + yoff) - ay0) * sy; };
+
+        density_grid_.reset(v.columns, v.rows);
+        if (first_pt < end)
+        {
+            double x_prev = px(first_pt);
+            double y_prev = py(first_pt);
+            for (size_t i = static_cast<size_t>(first_pt) + 1; i < end; ++i)
+            {
+                const double x = px(i);
+                const double y = py(i);
+                density_grid_.add_segment(x_prev, y_prev, x, y, key.half_width);
+                x_prev = x;
+                y_prev = y;
+            }
+        }
+        density_grid_.to_rgba(pc.color[0], pc.color[1], pc.color[2], pc.color[3], density_rgba_);
+
+        if (gpu.density_texture)
+            backend_.destroy_texture(gpu.density_texture);   // deferred by the backend
+        gpu.density_texture = backend_.create_texture(v.columns, v.rows, density_rgba_.data());
+        gpu.density_key     = key;
+        if (!gpu.density_texture)
+            return false;   // e.g. plot area above the device texture limit
+    }
+
+    // One straight-alpha RGBA quad over the plot area, texel per pixel
+    // (nearest, row 0 at the bottom): see image2d.frag.
+    SeriesPushConstants ipc{};
+    ipc.color[3]        = 1.0f;
+    ipc.opacity         = 1.0f;
+    ipc.dash_pattern[0] = static_cast<float>(ax0 - view_cx);
+    ipc.dash_pattern[1] = static_cast<float>(ax1 - view_cx);
+    ipc.dash_pattern[2] = static_cast<float>(ay0 - view_cy);
+    ipc.dash_pattern[3] = static_cast<float>(ay1 - view_cy);
+    ipc.dash_count      = 2;   // FLAG_RGBA
+    backend_.bind_pipeline(image2d_pipeline_);
+    backend_.push_constants(ipc);
+    backend_.bind_texture(gpu.density_texture, 0);
+    backend_.bind_texture(gpu.density_texture, 1);
+    backend_.draw(6);
+    return true;
+}
+
 void Renderer::draw_polyline(SeriesPushConstants pc,
                              SeriesGpuData&      gpu,
                              uint32_t            first_seg,
@@ -254,10 +347,30 @@ void Renderer::render_series(Series&             series,
             const uint32_t pt_count  = range.pt_count;
 
             // Density mode: every segment translucent, so overlaps build up.
+            // Dense enough to overlap, a solid line is drawn as one coverage
+            // texture instead (see draw_density_line): hundreds of 8-bit blends
+            // per pixel would stall short of the line colour.
+            bool drew_density = false;
             if (line->dense_mode() == DenseLineMode::Density && line_view_.valid)
-                pc.color[3] *= data::density_alpha(pt_count, line_view_.columns);
+            {
+                const float density = data::density_alpha(pt_count, line_view_.columns);
+                pc.color[3] *= density;
+                if (density < 1.0f && style.has_line() && seg_count > 0
+                    && style.line_style == LineStyle::Solid && !gpu.line_transformed)
+                {
+                    pc.line_width = line->width();
+                    drew_density =
+                        draw_density_line(*line, gpu, pc, first_pt, pt_count, view_cx, view_cy);
+                }
+            }
+            if (!drew_density && gpu.density_texture)
+            {
+                backend_.destroy_texture(gpu.density_texture);   // deferred by the backend
+                gpu.density_texture = TextureHandle{};
+                gpu.density_key     = {};
+            }
 
-            if (style.has_line() && seg_count > 0)
+            if (style.has_line() && seg_count > 0 && !drew_density)
             {
                 pc.line_width = line->width();
                 draw_polyline(pc, gpu, first_seg, seg_count);

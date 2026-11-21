@@ -10,7 +10,7 @@ public issues.
 
 ## 1. Get a working build
 
-Spectra targets Linux x86_64 first (Ubuntu 22.04 / 24.04, GCC 13+ or Clang 17+, Vulkan 1.2+).
+Spectra targets Linux x86_64 first (Ubuntu 22.04 / 24.04 / 26.04, GCC 13+ or Clang 17+, Vulkan 1.2+).
 The full, authoritative list of packages and CMake flags is in
 [`BUILD_ENVIRONMENT.md`](BUILD_ENVIRONMENT.md). Please use it rather than guessing dependencies.
 

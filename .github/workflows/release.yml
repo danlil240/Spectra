@@ -77,10 +77,21 @@ jobs:
             label: ubuntu22.04
             docker_tag: "22.04"
             codename: jammy
+            cc: gcc-13
+            cxx: g++-13
           - os: ubuntu-24.04
             label: ubuntu24.04
             docker_tag: "24.04"
             codename: noble
+            cc: gcc-13
+            cxx: g++-13
+          # Ubuntu 26.04 no longer carries gcc-13; build with its default GCC.
+          - os: ubuntu-26.04
+            label: ubuntu26.04
+            docker_tag: "26.04"
+            codename: resolute
+            cc: gcc
+            cxx: g++
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -108,8 +119,8 @@ jobs:
           # fetched stay in the apt cache, so each retry only fetches the rest.
           for attempt in 1 2 3 4; do
             sudo apt-get install -y \
-              gcc-13 \
-              g++-13 \
+              ${{ matrix.cc }} \
+              ${{ matrix.cxx }} \
               libvulkan-dev \
               vulkan-validationlayers \
               libwayland-dev \
@@ -136,8 +147,8 @@ jobs:
           # libstdc++6 dependency.
           cmake -B build \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-            -DCMAKE_C_COMPILER=gcc-13 \
-            -DCMAKE_CXX_COMPILER=g++-13 \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
             -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
             -DCMAKE_SHARED_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
             -DSPECTRA_BUILD_TESTS=OFF \
@@ -431,7 +442,11 @@ jobs:
   # "start the bundled backend and render" check runs here on the built wheel.
   wheel-smoke-linux:
     needs: python-wheels
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -739,6 +754,8 @@ jobs:
             sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64_ubuntu22.04.deb
             # or:
             sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64_ubuntu24.04.deb
+            # or:
+            sudo apt install -y ./spectra_${{ steps.version.outputs.version }}_amd64_ubuntu26.04.deb
             ```
 
             **Linux (.rpm, AppImage, .tar.gz):** see the assets below.
@@ -924,6 +941,8 @@ jobs:
               codename="jammy"
             elif [[ "$deb" == *ubuntu24.04* ]]; then
               codename="noble"
+            elif [[ "$deb" == *ubuntu26.04* ]]; then
+              codename="resolute"
             else
               echo "WARNING: Unknown distro for $deb, skipping"
               continue

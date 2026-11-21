@@ -26,6 +26,16 @@ if(NOT _spectra_gtest_system)
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
     FetchContent_MakeAvailable(googletest)
+    # Our -Werror CXXFLAGS also reach GoogleTest's own sources; newer compilers
+    # (e.g. Clang 21's -Wcharacter-conversion on Ubuntu 26.04) warn inside them.
+    # Keep the warnings visible but never fail the build on third-party code.
+    if(NOT MSVC)
+        foreach(_gt gtest gtest_main gmock gmock_main)
+            if(TARGET ${_gt})
+                target_compile_options(${_gt} PRIVATE -Wno-error)
+            endif()
+        endforeach()
+    endif()
 endif()
 
 # Treat Google Test headers as system includes so third-party warnings

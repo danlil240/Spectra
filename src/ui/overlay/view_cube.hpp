@@ -157,9 +157,20 @@ inline Layout compute_layout(const Axes3D& axes)
         if (out.faces[i].facing > 1e-4f)
             out.order[out.visible_count++] = i;
     }
-    std::sort(out.order.begin(),
-              out.order.begin() + out.visible_count,
-              [&out](int l, int r) { return out.faces[l].facing < out.faces[r].facing; });
+    // Insertion sort: at most six entries, and std::sort over this partial
+    // range trips GCC 15's -Warray-bounds false positive (introsort's heap
+    // fallback indexes past the struct as far as the optimizer can tell).
+    for (int i = 1; i < out.visible_count; ++i)
+    {
+        const int idx = out.order[i];
+        int       j   = i - 1;
+        while (j >= 0 && out.faces[out.order[j]].facing > out.faces[idx].facing)
+        {
+            out.order[j + 1] = out.order[j];
+            --j;
+        }
+        out.order[j + 1] = idx;
+    }
     return out;
 }
 

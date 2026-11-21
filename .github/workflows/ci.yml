@@ -103,6 +103,34 @@ jobs:
             gpu_tests: false
             package: true
             codename: jammy
+            docker_tag: "22.04"
+          # Newest Ubuntu LTS: default GCC/Clang (26.04 no longer carries gcc-13
+          # or clang-17), so new compiler warnings surface under -Werror. Also
+          # smoke-tests the release packaging for the 26.04 .deb.
+          - os: ubuntu-26.04
+            compiler: gcc
+            cc: gcc
+            cxx: g++
+            cxxflags: "-Wall -Wextra -Werror"
+            linker_flags: "-static-libstdc++ -static-libgcc"
+            toolchain_ppa: "false"
+            examples: "ON"
+            golden: "OFF"
+            gpu_tests: true
+            package: true
+            codename: resolute
+            docker_tag: "26.04"
+          - os: ubuntu-26.04
+            compiler: clang
+            cc: clang
+            cxx: clang++
+            cxxflags: "-Wall -Wextra -Werror"
+            linker_flags: ""
+            toolchain_ppa: "false"
+            examples: "ON"
+            golden: "OFF"
+            gpu_tests: true
+            package: false
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -113,6 +141,7 @@ jobs:
           toolchain-ppa: ${{ matrix.toolchain_ppa }}
           extra-packages: >-
             ${{ matrix.toolchain_ppa == 'true' && 'gcc-13 g++-13 rpm ffmpeg' || '' }}
+            ${{ matrix.os == 'ubuntu-26.04' && 'gcc g++ clang rpm ffmpeg' || '' }}
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
@@ -168,6 +197,23 @@ jobs:
           cpack -G DEB
           cpack -G RPM
           ls -la ./*.tar.gz ./*.deb ./*.rpm
+
+      - name: Smoke-test DEB install (clean container)
+        if: matrix.package
+        env:
+          DOCKER_TAG: ${{ matrix.docker_tag }}
+        run: |
+          # Same check as the release job: the .deb must install on a stock
+          # image of its target Ubuntu release and its binaries must resolve.
+          docker run --rm -v "$PWD/build:/pkgs:ro" "ubuntu:$DOCKER_TAG" bash -euc '
+            apt-get update
+            apt-get install -y --no-install-recommends /pkgs/*.deb
+            spectra --version
+            spectra-backend --version
+            for b in spectra spectra-backend; do
+              if ldd "$(command -v "$b")" | grep "not found"; then exit 1; fi
+            done
+          '
 
   # ─── SDL3 windowing build (instead of GLFW) ─────────────────────────────
   # SDL3 is mutually exclusive with GLFW, so the matrix above never compiles

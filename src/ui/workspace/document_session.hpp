@@ -184,7 +184,6 @@ class DocumentSession
     bool                     autosave_enabled_ = false;
     bool                     close_confirmed_  = false;
     bool                     recovery_checked_ = false;
-    bool                     last_modified_    = false;
     std::vector<std::string> recovery_files_;
 
     SnapshotFn                              snapshot_fn_;

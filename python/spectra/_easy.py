@@ -2104,6 +2104,17 @@ def _current_axes_any():
     return _state._ensure_axes()
 
 
+def xticks(ticks=None, labels=None):
+    """Fixed x ticks of the current axes at ``ticks`` with optional
+    ``labels``; ``[]`` hides them and ``None`` restores automatic ticks."""
+    _state._ensure_axes().set_xticks(ticks, labels)
+
+
+def yticks(ticks=None, labels=None):
+    """Fixed y ticks of the current axes; see :func:`xticks`."""
+    _state._ensure_axes().set_yticks(ticks, labels)
+
+
 def colorbar(visible: bool = True):
     """Show (or hide) a colorbar for the current axes' colormapped series,
     e.g. after ``scatter(x, y, c=z)`` or ``surf(..., cmap=...)``."""

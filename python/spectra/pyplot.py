@@ -15,7 +15,7 @@ Lets common matplotlib scripts run on Spectra by changing one import::
 Covered: plot, scatter, bar, barh, hist, errorbar, fill_between, stem,
 semilogx/semilogy/loglog, figure, subplot, subplots, xlabel/ylabel/title,
 legend, xlim/ylim, xscale/yscale, grid, axhline/axvline, cla/clf,
-ion/ioff/draw/pause, colorbar, savefig, show, close, gcf/gca and the matching ``Axes``
+ion/ioff/draw/pause, colorbar, xticks/yticks, savefig, show, close, gcf/gca and the matching ``Axes``
 methods.  Format strings ("r--o"), ``linestyle=`` and
 ``marker=`` are honoured.  Keyword arguments Spectra cannot honour (dash
 tuples, per-point colours, ``bbox_inches`` ...) are ignored with one
@@ -41,7 +41,7 @@ __all__ = [
     "ylabel", "title", "suptitle", "legend", "xlim", "ylim", "xscale", "yscale",
     "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style", "step",
     "stairs", "text", "annotate", "axhline", "axvline", "cla", "clf", "ion", "ioff",
-    "isinteractive", "draw", "pause", "colorbar",
+    "isinteractive", "draw", "pause", "colorbar", "xticks", "yticks",
 ]
 
 # Pixels per inch for figsize (matplotlib's default dpi).
@@ -838,6 +838,58 @@ def pause(interval: float) -> None:
         time.sleep(float(interval))
 
 
+_fixed_ticks: Dict[Tuple[int, int], List[float]] = {}  # (id(axes), axis) -> positions
+
+
+def _set_ticks(func: str, axis: int, ticks, labels, kwargs: Dict[str, Any]):
+    for k in ("rotation", "fontsize", "ha", "va", "minor"):
+        if k in kwargs:
+            _ignore(func, {k: True})
+            kwargs.pop(k)
+    _ignore(func, kwargs)
+    ax = _sp._state._ensure_axes()
+    key = (id(ax), axis)
+    if ticks is None:
+        if labels is not None:
+            ticks = _fixed_ticks.get(key)
+            if ticks is None:
+                raise TypeError(f"spectra.pyplot.{func}: labels need tick positions")
+        else:
+            pos = _fixed_ticks.get(key, [])
+            return list(pos), []
+    pos = [float(t) for t in _sp._to_list(ticks)]
+    names = None if labels is None else [str(n) for n in labels]
+    (ax.set_xticks if axis == 0 else ax.set_yticks)(pos, names)
+    _fixed_ticks[key] = pos
+    return pos, names or []
+
+
+def xticks(ticks=None, labels=None, **kwargs):
+    """Fixed x ticks (and labels); without arguments returns the fixed ticks set before."""
+    return _set_ticks("xticks", 0, ticks, labels, kwargs)
+
+
+def yticks(ticks=None, labels=None, **kwargs):
+    """Fixed y ticks (and labels); without arguments returns the fixed ticks set before."""
+    return _set_ticks("yticks", 1, ticks, labels, kwargs)
+
+
+def _set_xticks(ticks, labels=None, **kwargs):
+    _set_ticks("set_xticks", 0, ticks, labels, kwargs)
+
+
+def _set_yticks(ticks, labels=None, **kwargs):
+    _set_ticks("set_yticks", 1, ticks, labels, kwargs)
+
+
+def _set_xticklabels(labels, **kwargs):
+    _set_ticks("set_xticklabels", 0, None, labels, kwargs)
+
+
+def _set_yticklabels(labels, **kwargs):
+    _set_ticks("set_yticklabels", 1, None, labels, kwargs)
+
+
 class Colorbar:
     """What :func:`colorbar` returns.  Spectra draws the bar itself, so its
     label and ticks cannot be changed; those calls warn once."""
@@ -895,4 +947,8 @@ _AXES_METHODS = {
     "axhline": axhline,
     "axvline": axvline,
     "cla": cla,
+    "set_xticks": _set_xticks,
+    "set_yticks": _set_yticks,
+    "set_xticklabels": _set_xticklabels,
+    "set_yticklabels": _set_yticklabels,
 }

@@ -103,6 +103,9 @@ def _snapshot(session):
                     "scale": (ax.XScale(), ax.YScale()),
                     "datetime": (ax.XDatetime(), ax.YDatetime()),
                     "colorbar": ax.ColorbarVisible(),
+                    "xticks": (ax.XticksSet(),
+                               [ax.XtickPositions(j) for j in range(ax.XtickPositionsLength())],
+                               [s(ax.XtickLabels(j)) for j in range(ax.XtickLabelsLength())]),
                     "annotation_styles": [
                         [ax.Annotations(n).Style(j)
                          for j in range(ax.Annotations(n).StyleLength())]
@@ -574,3 +577,26 @@ def test_scatter_color_values_round_trip_and_render(session, tmp_path):
 
     pts.set_color_values(None)
     assert _snapshot(session)[fig.id]["series"][0]["color_values"] == []
+
+
+def test_fixed_ticks_round_trip_and_validate(session):
+    from spectra import BackendError
+
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    t0 = 1.7e9
+    ax.set_xticks([t0, t0 + 0.5, t0 + 1.0], ["start", "", "end"])
+    assert _snapshot(session)[fig.id]["axes"][0]["xticks"] == (
+        True, [t0, t0 + 0.5, t0 + 1.0], ["start", " ", "end"])
+    ax.set_xticks([])
+    assert _snapshot(session)[fig.id]["axes"][0]["xticks"] == (True, [], [])
+    ax.set_xticks(None)
+    assert _snapshot(session)[fig.id]["axes"][0]["xticks"] == (False, [], [])
+    with pytest.raises(ValueError):
+        ax.set_xticks([0, 1], ["only one"])
+    from spectra import _codec as codec
+
+    bad = codec.encode_req_update_property(
+        figure_id=fig.id, axes_index=0, prop="ticks", f1=5.0, bool_val=True, data=[0.0])
+    with pytest.raises(BackendError):
+        session._request(P.REQ_UPDATE_PROPERTY, bad)

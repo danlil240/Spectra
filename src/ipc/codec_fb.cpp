@@ -334,6 +334,16 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                                                       a.visible,
                                                                       style));
     }
+    auto strings = [&](const std::vector<std::string>& v)
+    {
+        std::vector<flatbuffers::Offset<flatbuffers::String>> out;
+        out.reserve(v.size());
+        for (const auto& s : v)
+            out.push_back(fbb.CreateString(s));
+        return out;
+    };
+    const auto xtick_labels = strings(ax.xtick_labels);
+    const auto ytick_labels = strings(ax.ytick_labels);
     return fb::CreateSnapshotAxisStateDirect(fbb,
                                              ax.x_min,
                                              ax.x_max,
@@ -357,7 +367,13 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.light_angles_set,
                                              ax.light_azimuth,
                                              ax.light_elevation,
-                                             ax.colorbar_visible);
+                                             ax.colorbar_visible,
+                                             ax.xticks_set,
+                                             ax.yticks_set,
+                                             ax.xticks_set ? &ax.xtick_positions : nullptr,
+                                             ax.yticks_set ? &ax.ytick_positions : nullptr,
+                                             xtick_labels.empty() ? nullptr : &xtick_labels,
+                                             ytick_labels.empty() ? nullptr : &ytick_labels);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -388,6 +404,19 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
     ax.light_azimuth    = fb->light_azimuth();
     ax.light_elevation  = fb->light_elevation();
     ax.colorbar_visible = fb->colorbar_visible();
+    ax.xticks_set       = fb->xticks_set();
+    ax.yticks_set       = fb->yticks_set();
+    auto read_ticks =
+        [](const auto* pos, const auto* labels, std::vector<double>& p, std::vector<std::string>& l)
+    {
+        if (pos)
+            p.assign(pos->begin(), pos->end());
+        if (labels)
+            for (const auto* s : *labels)
+                l.push_back(s ? s->str() : std::string());
+    };
+    read_ticks(fb->xtick_positions(), fb->xtick_labels(), ax.xtick_positions, ax.xtick_labels);
+    read_ticks(fb->ytick_positions(), fb->ytick_labels(), ax.ytick_positions, ax.ytick_labels);
     if (fb->annotations())
     {
         for (const auto* fa : *fb->annotations())

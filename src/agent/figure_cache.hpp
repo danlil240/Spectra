@@ -76,6 +76,10 @@ inline void apply_diff_op_to_cache(ipc::SnapshotFigureState& fig, const ipc::Dif
             if (op.axes_index < fig.axes.size())
                 fig.axes[op.axes_index].grid_visible = op.bool_val;
             break;
+        case ipc::DiffOp::Type::SET_AXIS_TICKS:
+            if (op.axes_index < fig.axes.size())
+                ipc::axis_ticks_from_op(op, fig.axes[op.axes_index]);
+            break;
         case ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:
             if (op.axes_index < fig.axes.size())
                 fig.axes[op.axes_index].colorbar_visible = op.bool_val;

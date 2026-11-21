@@ -1996,9 +1996,54 @@ static LinearTickOptions tick_options(const std::vector<std::unique_ptr<Series>>
 
 // Sqrt axes get nice data values placed at their square-root positions
 // (generate_sqrt_ticks), labelled in data units.
+// Fixed ticks inside the limits; labels as given or formatted at the tick spacing.
+static TickResult fixed_ticks(const TickResult& manual, AxisLimits lim)
+{
+    TickResult   out;
+    const auto&  pos     = manual.positions;
+    const bool   own     = manual.labels.size() == pos.size();
+    const double lo      = std::min(lim.min, lim.max);
+    const double hi      = std::max(lim.min, lim.max);
+    const double eps     = (hi - lo) * 1e-9;
+    double       spacing = hi - lo;
+    for (size_t i = 1; i < pos.size(); ++i)
+        if (const double d = std::abs(pos[i] - pos[i - 1]); d > 0.0)
+            spacing = std::min(spacing, d);
+    for (size_t i = 0; i < pos.size(); ++i)
+    {
+        if (!std::isfinite(pos[i]) || pos[i] < lo - eps || pos[i] > hi + eps)
+            continue;
+        out.positions.push_back(pos[i]);
+        out.labels.push_back(own ? manual.labels[i] : format_tick_value(pos[i], spacing));
+    }
+    return out;
+}
+
+static TickResult make_manual_ticks(std::vector<double> positions, std::vector<std::string> labels)
+{
+    TickResult t;
+    if (labels.size() != positions.size())
+        labels.clear();
+    t.positions = std::move(positions);
+    t.labels    = std::move(labels);
+    return t;
+}
+
+void Axes::xticks(std::vector<double> positions, std::vector<std::string> labels)
+{
+    manual_xticks_ = make_manual_ticks(std::move(positions), std::move(labels));
+}
+
+void Axes::yticks(std::vector<double> positions, std::vector<std::string> labels)
+{
+    manual_yticks_ = make_manual_ticks(std::move(positions), std::move(labels));
+}
+
 TickResult Axes::compute_x_ticks() const
 {
-    auto       lim = x_limits();
+    auto lim = x_limits();
+    if (manual_xticks_)
+        return fixed_ticks(*manual_xticks_, lim);
     const auto opt = tick_options(series_, true, viewport_.w);
     if (xscale_ == ScaleType::Linear)
     {
@@ -2018,7 +2063,9 @@ TickResult Axes::compute_x_ticks() const
 
 TickResult Axes::compute_y_ticks() const
 {
-    auto       lim = y_limits();
+    auto lim = y_limits();
+    if (manual_yticks_)
+        return fixed_ticks(*manual_yticks_, lim);
     const auto opt = tick_options(series_, false, viewport_.h);
     if (yscale_ == ScaleType::Linear)
     {

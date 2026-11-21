@@ -568,3 +568,34 @@ TEST(ZoomCenter, ZoomLimitsCenteredInAxisSpace)
     EXPECT_DOUBLE_EQ(z.min, 1.7e9 + 2.75);
     EXPECT_DOUBLE_EQ(z.max, 1.7e9 + 7.75);
 }
+
+// ─── Fixed ticks (matplotlib xticks / yticks) ───────────────────────────────
+
+TEST(FixedTicks, PositionsInsideLimitsWithLabelsOrFormattedValues)
+{
+    Axes ax;
+    ax.xlim(0.0, 10.0);
+    ax.ylim(-1.0, 1.0);
+    ax.xticks({-5.0, 0.0, 2.5, 5.0, 12.0}, {"a", "zero", "two", "five", "far"});
+    auto x = ax.compute_x_ticks();
+    EXPECT_EQ(x.positions, (std::vector<double>{0.0, 2.5, 5.0}));   // outside limits dropped
+    EXPECT_EQ(x.labels, (std::vector<std::string>{"zero", "two", "five"}));
+
+    ax.yticks({-1.0, 0.0, 0.5});
+    auto y = ax.compute_y_ticks();
+    ASSERT_EQ(y.labels.size(), 3u);
+    EXPECT_EQ(y.labels[1], "0");
+    EXPECT_NE(y.labels[2].find("0.5"), std::string::npos);
+
+    // Labels of the wrong length fall back to formatted values.
+    ax.xticks({1.0, 2.0}, {"only one"});
+    EXPECT_EQ(ax.compute_x_ticks().labels.size(), 2u);
+    EXPECT_TRUE(ax.manual_xticks()->labels.empty());
+
+    // No positions hides the ticks; clearing restores the automatic ones.
+    ax.xticks({});
+    EXPECT_TRUE(ax.compute_x_ticks().positions.empty());
+    ax.clear_xticks();
+    EXPECT_EQ(ax.manual_xticks(), nullptr);
+    EXPECT_GT(ax.compute_x_ticks().positions.size(), 2u);
+}

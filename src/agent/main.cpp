@@ -151,6 +151,27 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 ax3d->ylim(op.f3, op.f4);
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_AXIS_TICKS:
+            if (ax2d)
+            {
+                spectra::ipc::SnapshotAxisState sa;
+                if (spectra::ipc::axis_ticks_from_op(op, sa))
+                {
+                    // Apply only the axis the op addresses.
+                    if (op.f1 == 0.0)
+                    {
+                        if (sa.xticks_set)
+                            ax2d->xticks(sa.xtick_positions, sa.xtick_labels);
+                        else
+                            ax2d->clear_xticks();
+                    }
+                    else if (sa.yticks_set)
+                        ax2d->yticks(sa.ytick_positions, sa.ytick_labels);
+                    else
+                        ax2d->clear_yticks();
+                }
+            }
+            break;
         case spectra::ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:
             if (base)
                 base->show_colorbar(op.bool_val);

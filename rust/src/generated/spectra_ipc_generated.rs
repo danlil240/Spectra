@@ -37,10 +37,10 @@ pub mod fb {
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_DIFF_OP_TYPE: u8 = 1;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_DIFF_OP_TYPE: u8 = 49;
+pub const ENUM_MAX_DIFF_OP_TYPE: u8 = 50;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 39] = [
+pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 40] = [
   DiffOpType::SET_AXIS_LIMITS,
   DiffOpType::SET_SERIES_COLOR,
   DiffOpType::SET_SERIES_VISIBLE,
@@ -80,6 +80,7 @@ pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 39] = [
   DiffOpType::SET_SERIES_COLORMAP,
   DiffOpType::SET_SERIES_COLOR_VALUES,
   DiffOpType::SET_COLORBAR_VISIBLE,
+  DiffOpType::SET_AXIS_TICKS,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -126,9 +127,10 @@ impl DiffOpType {
   pub const SET_SERIES_COLORMAP: Self = Self(47);
   pub const SET_SERIES_COLOR_VALUES: Self = Self(48);
   pub const SET_COLORBAR_VISIBLE: Self = Self(49);
+  pub const SET_AXIS_TICKS: Self = Self(50);
 
   pub const ENUM_MIN: u8 = 1;
-  pub const ENUM_MAX: u8 = 49;
+  pub const ENUM_MAX: u8 = 50;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::SET_AXIS_LIMITS,
     Self::SET_SERIES_COLOR,
@@ -169,6 +171,7 @@ impl DiffOpType {
     Self::SET_SERIES_COLORMAP,
     Self::SET_SERIES_COLOR_VALUES,
     Self::SET_COLORBAR_VISIBLE,
+    Self::SET_AXIS_TICKS,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
@@ -212,6 +215,7 @@ impl DiffOpType {
       Self::SET_SERIES_COLORMAP => Some("SET_SERIES_COLORMAP"),
       Self::SET_SERIES_COLOR_VALUES => Some("SET_SERIES_COLOR_VALUES"),
       Self::SET_COLORBAR_VISIBLE => Some("SET_COLORBAR_VISIBLE"),
+      Self::SET_AXIS_TICKS => Some("SET_AXIS_TICKS"),
       _ => None,
     }
   }
@@ -2179,6 +2183,12 @@ impl<'a> SnapshotAxisState<'a> {
   pub const VT_LIGHT_AZIMUTH: flatbuffers::VOffsetT = 44;
   pub const VT_LIGHT_ELEVATION: flatbuffers::VOffsetT = 46;
   pub const VT_COLORBAR_VISIBLE: flatbuffers::VOffsetT = 48;
+  pub const VT_XTICKS_SET: flatbuffers::VOffsetT = 50;
+  pub const VT_YTICKS_SET: flatbuffers::VOffsetT = 52;
+  pub const VT_XTICK_POSITIONS: flatbuffers::VOffsetT = 54;
+  pub const VT_YTICK_POSITIONS: flatbuffers::VOffsetT = 56;
+  pub const VT_XTICK_LABELS: flatbuffers::VOffsetT = 58;
+  pub const VT_YTICK_LABELS: flatbuffers::VOffsetT = 60;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -2196,6 +2206,10 @@ impl<'a> SnapshotAxisState<'a> {
     builder.add_y_min(args.y_min);
     builder.add_x_max(args.x_max);
     builder.add_x_min(args.x_min);
+    if let Some(x) = args.ytick_labels { builder.add_ytick_labels(x); }
+    if let Some(x) = args.xtick_labels { builder.add_xtick_labels(x); }
+    if let Some(x) = args.ytick_positions { builder.add_ytick_positions(x); }
+    if let Some(x) = args.xtick_positions { builder.add_xtick_positions(x); }
     builder.add_light_elevation(args.light_elevation);
     builder.add_light_azimuth(args.light_azimuth);
     builder.add_fog(args.fog);
@@ -2203,6 +2217,8 @@ impl<'a> SnapshotAxisState<'a> {
     if let Some(x) = args.title { builder.add_title(x); }
     if let Some(x) = args.y_label { builder.add_y_label(x); }
     if let Some(x) = args.x_label { builder.add_x_label(x); }
+    builder.add_yticks_set(args.yticks_set);
+    builder.add_xticks_set(args.xticks_set);
     builder.add_colorbar_visible(args.colorbar_visible);
     builder.add_light_angles_set(args.light_angles_set);
     builder.add_light_mode(args.light_mode);
@@ -2378,6 +2394,48 @@ impl<'a> SnapshotAxisState<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<bool>(SnapshotAxisState::VT_COLORBAR_VISIBLE, Some(false)).unwrap()}
   }
+  #[inline]
+  pub fn xticks_set(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(SnapshotAxisState::VT_XTICKS_SET, Some(false)).unwrap()}
+  }
+  #[inline]
+  pub fn yticks_set(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(SnapshotAxisState::VT_YTICKS_SET, Some(false)).unwrap()}
+  }
+  #[inline]
+  pub fn xtick_positions(&self) -> Option<flatbuffers::Vector<'a, f64>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, f64>>>(SnapshotAxisState::VT_XTICK_POSITIONS, None)}
+  }
+  #[inline]
+  pub fn ytick_positions(&self) -> Option<flatbuffers::Vector<'a, f64>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, f64>>>(SnapshotAxisState::VT_YTICK_POSITIONS, None)}
+  }
+  #[inline]
+  pub fn xtick_labels(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>(SnapshotAxisState::VT_XTICK_LABELS, None)}
+  }
+  #[inline]
+  pub fn ytick_labels(&self) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>> {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>(SnapshotAxisState::VT_YTICK_LABELS, None)}
+  }
 }
 
 impl flatbuffers::Verifiable for SnapshotAxisState<'_> {
@@ -2410,6 +2468,12 @@ impl flatbuffers::Verifiable for SnapshotAxisState<'_> {
      .visit_field::<f32>("light_azimuth", Self::VT_LIGHT_AZIMUTH, false)?
      .visit_field::<f32>("light_elevation", Self::VT_LIGHT_ELEVATION, false)?
      .visit_field::<bool>("colorbar_visible", Self::VT_COLORBAR_VISIBLE, false)?
+     .visit_field::<bool>("xticks_set", Self::VT_XTICKS_SET, false)?
+     .visit_field::<bool>("yticks_set", Self::VT_YTICKS_SET, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, f64>>>("xtick_positions", Self::VT_XTICK_POSITIONS, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, f64>>>("ytick_positions", Self::VT_YTICK_POSITIONS, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("xtick_labels", Self::VT_XTICK_LABELS, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("ytick_labels", Self::VT_YTICK_LABELS, false)?
      .finish();
     Ok(())
   }
@@ -2438,6 +2502,12 @@ pub struct SnapshotAxisStateArgs<'a> {
     pub light_azimuth: f32,
     pub light_elevation: f32,
     pub colorbar_visible: bool,
+    pub xticks_set: bool,
+    pub yticks_set: bool,
+    pub xtick_positions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, f64>>>,
+    pub ytick_positions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, f64>>>,
+    pub xtick_labels: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
+    pub ytick_labels: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
 }
 impl<'a> Default for SnapshotAxisStateArgs<'a> {
   #[inline]
@@ -2466,6 +2536,12 @@ impl<'a> Default for SnapshotAxisStateArgs<'a> {
       light_azimuth: 0.0,
       light_elevation: 0.0,
       colorbar_visible: false,
+      xticks_set: false,
+      yticks_set: false,
+      xtick_positions: None,
+      ytick_positions: None,
+      xtick_labels: None,
+      ytick_labels: None,
     }
   }
 }
@@ -2568,6 +2644,30 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> SnapshotAxisStateBuilder<'a, 'b
     self.fbb_.push_slot::<bool>(SnapshotAxisState::VT_COLORBAR_VISIBLE, colorbar_visible, false);
   }
   #[inline]
+  pub fn add_xticks_set(&mut self, xticks_set: bool) {
+    self.fbb_.push_slot::<bool>(SnapshotAxisState::VT_XTICKS_SET, xticks_set, false);
+  }
+  #[inline]
+  pub fn add_yticks_set(&mut self, yticks_set: bool) {
+    self.fbb_.push_slot::<bool>(SnapshotAxisState::VT_YTICKS_SET, yticks_set, false);
+  }
+  #[inline]
+  pub fn add_xtick_positions(&mut self, xtick_positions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , f64>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SnapshotAxisState::VT_XTICK_POSITIONS, xtick_positions);
+  }
+  #[inline]
+  pub fn add_ytick_positions(&mut self, ytick_positions: flatbuffers::WIPOffset<flatbuffers::Vector<'b , f64>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SnapshotAxisState::VT_YTICK_POSITIONS, ytick_positions);
+  }
+  #[inline]
+  pub fn add_xtick_labels(&mut self, xtick_labels: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SnapshotAxisState::VT_XTICK_LABELS, xtick_labels);
+  }
+  #[inline]
+  pub fn add_ytick_labels(&mut self, ytick_labels: flatbuffers::WIPOffset<flatbuffers::Vector<'b , flatbuffers::ForwardsUOffset<&'b  str>>>) {
+    self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SnapshotAxisState::VT_YTICK_LABELS, ytick_labels);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> SnapshotAxisStateBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     SnapshotAxisStateBuilder {
@@ -2608,6 +2708,12 @@ impl core::fmt::Debug for SnapshotAxisState<'_> {
       ds.field("light_azimuth", &self.light_azimuth());
       ds.field("light_elevation", &self.light_elevation());
       ds.field("colorbar_visible", &self.colorbar_visible());
+      ds.field("xticks_set", &self.xticks_set());
+      ds.field("yticks_set", &self.yticks_set());
+      ds.field("xtick_positions", &self.xtick_positions());
+      ds.field("ytick_positions", &self.ytick_positions());
+      ds.field("xtick_labels", &self.xtick_labels());
+      ds.field("ytick_labels", &self.ytick_labels());
       ds.finish()
   }
 }

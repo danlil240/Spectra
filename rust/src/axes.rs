@@ -1415,6 +1415,58 @@ impl Axes {
         self.send(self.prop("grid").b(visible))
     }
 
+    /// Fixed x ticks at `ticks` (inside the limits), labelled with `labels`
+    /// (same length) or the formatted values; `Some(&[])` hides the ticks and
+    /// `None` goes back to automatic ticks.
+    pub fn set_xticks(&self, ticks: Option<&[f64]>, labels: Option<&[&str]>) -> Result<&Self> {
+        self.send_ticks(0, ticks, labels)
+    }
+
+    /// Fixed y ticks; see [`Axes::set_xticks`].
+    pub fn set_yticks(&self, ticks: Option<&[f64]>, labels: Option<&[&str]>) -> Result<&Self> {
+        self.send_ticks(1, ticks, labels)
+    }
+
+    fn send_ticks(
+        &self,
+        axis: u8,
+        ticks: Option<&[f64]>,
+        labels: Option<&[&str]>,
+    ) -> Result<&Self> {
+        self.need_2d("set_xticks / set_yticks")?;
+        let pos = ticks.unwrap_or(&[]);
+        if pos.iter().any(|p| !p.is_finite()) {
+            return Err(Error::invalid("tick positions must be finite"));
+        }
+        let mut names = String::new();
+        if let (Some(_), Some(labels)) = (ticks, labels) {
+            if labels.len() != pos.len() {
+                return Err(Error::invalid("tick labels must match the tick positions"));
+            }
+            let cleaned: Vec<String> = labels
+                .iter()
+                .map(|l| {
+                    let l = l.replace('\u{1f}', " ");
+                    if l.is_empty() {
+                        " ".to_string()
+                    } else {
+                        l
+                    }
+                })
+                .collect();
+            names = cleaned.join("\u{1f}");
+        }
+        let origin = pos.first().copied().unwrap_or(0.0);
+        let data = pos.iter().map(|p| (p - origin) as f32).collect();
+        self.send(
+            self.prop("ticks")
+                .f2(axis as f64, origin)
+                .b(ticks.is_some())
+                .data(data)
+                .s(names),
+        )
+    }
+
     /// Show or hide a colorbar for the axes' colormapped series.
     pub fn colorbar(&self, visible: bool) -> Result<&Self> {
         self.send(self.prop("colorbar").b(visible))

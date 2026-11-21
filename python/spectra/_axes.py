@@ -413,6 +413,43 @@ class Axes:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_xticks(self, ticks=None, labels=None) -> None:
+        """Fixed x ticks at ``ticks`` (inside the limits), labelled with
+        ``labels`` or the formatted values; ``[]`` hides the ticks and
+        ``None`` goes back to automatic ticks."""
+        self._send_ticks(0, ticks, labels)
+
+    def set_yticks(self, ticks=None, labels=None) -> None:
+        """Fixed y ticks; see :meth:`set_xticks`."""
+        self._send_ticks(1, ticks, labels)
+
+    def _send_ticks(self, axis: int, ticks, labels) -> None:
+        if ticks is None:
+            pos: List[float] = []
+        else:
+            pos = [float(t) for t in ticks]
+            if not all(math.isfinite(p) for p in pos):
+                raise ValueError("tick positions must be finite")
+        names: List[str] = []
+        if labels is not None and ticks is not None:
+            names = [str(n) for n in labels]
+            if len(names) != len(pos):
+                raise ValueError(f"{len(names)} labels for {len(pos)} ticks")
+            # A label may not contain the separator; an empty one is drawn blank.
+            names = [n.replace("\x1f", " ") or " " for n in names]
+        origin = pos[0] if pos else 0.0
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            axes_index=self._index,
+            prop="ticks",
+            f1=float(axis),
+            f2=origin,
+            bool_val=ticks is not None,
+            data=[p - origin for p in pos],
+            str_val="\x1f".join(names),
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def colorbar(self, visible: bool = True) -> None:
         """Show (or hide) a colorbar for this axes' colormapped series
         (colormapped scatters, surfaces, images)."""

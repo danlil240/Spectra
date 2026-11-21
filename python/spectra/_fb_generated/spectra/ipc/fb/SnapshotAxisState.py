@@ -203,8 +203,116 @@ class SnapshotAxisState(object):
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return False
 
+    # SnapshotAxisState
+    def XticksSet(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(50))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotAxisState
+    def YticksSet(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(52))
+        if o != 0:
+            return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
+        return False
+
+    # SnapshotAxisState
+    def XtickPositions(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float64Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 8))
+        return 0
+
+    # SnapshotAxisState
+    def XtickPositionsAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float64Flags, o)
+        return 0
+
+    # SnapshotAxisState
+    def XtickPositionsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotAxisState
+    def XtickPositionsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(54))
+        return o == 0
+
+    # SnapshotAxisState
+    def YtickPositions(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(56))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.Get(flatbuffers.number_types.Float64Flags, a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 8))
+        return 0
+
+    # SnapshotAxisState
+    def YtickPositionsAsNumpy(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(56))
+        if o != 0:
+            return self._tab.GetVectorAsNumpy(flatbuffers.number_types.Float64Flags, o)
+        return 0
+
+    # SnapshotAxisState
+    def YtickPositionsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(56))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotAxisState
+    def YtickPositionsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(56))
+        return o == 0
+
+    # SnapshotAxisState
+    def XtickLabels(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(58))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.String(a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return ""
+
+    # SnapshotAxisState
+    def XtickLabelsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(58))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotAxisState
+    def XtickLabelsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(58))
+        return o == 0
+
+    # SnapshotAxisState
+    def YtickLabels(self, j):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(60))
+        if o != 0:
+            a = self._tab.Vector(o)
+            return self._tab.String(a + flatbuffers.number_types.UOffsetTFlags.py_type(j * 4))
+        return ""
+
+    # SnapshotAxisState
+    def YtickLabelsLength(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(60))
+        if o != 0:
+            return self._tab.VectorLen(o)
+        return 0
+
+    # SnapshotAxisState
+    def YtickLabelsIsNone(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(60))
+        return o == 0
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(23)
+    builder.StartObject(29)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -352,6 +460,66 @@ def SnapshotAxisStateAddColorbarVisible(builder, colorbarVisible):
 
 def AddColorbarVisible(builder, colorbarVisible):
     SnapshotAxisStateAddColorbarVisible(builder, colorbarVisible)
+
+def SnapshotAxisStateAddXticksSet(builder, xticksSet):
+    builder.PrependBoolSlot(23, xticksSet, 0)
+
+def AddXticksSet(builder, xticksSet):
+    SnapshotAxisStateAddXticksSet(builder, xticksSet)
+
+def SnapshotAxisStateAddYticksSet(builder, yticksSet):
+    builder.PrependBoolSlot(24, yticksSet, 0)
+
+def AddYticksSet(builder, yticksSet):
+    SnapshotAxisStateAddYticksSet(builder, yticksSet)
+
+def SnapshotAxisStateAddXtickPositions(builder, xtickPositions):
+    builder.PrependUOffsetTRelativeSlot(25, flatbuffers.number_types.UOffsetTFlags.py_type(xtickPositions), 0)
+
+def AddXtickPositions(builder, xtickPositions):
+    SnapshotAxisStateAddXtickPositions(builder, xtickPositions)
+
+def SnapshotAxisStateStartXtickPositionsVector(builder, numElems):
+    return builder.StartVector(8, numElems, 8)
+
+def StartXtickPositionsVector(builder, numElems):
+    return SnapshotAxisStateStartXtickPositionsVector(builder, numElems)
+
+def SnapshotAxisStateAddYtickPositions(builder, ytickPositions):
+    builder.PrependUOffsetTRelativeSlot(26, flatbuffers.number_types.UOffsetTFlags.py_type(ytickPositions), 0)
+
+def AddYtickPositions(builder, ytickPositions):
+    SnapshotAxisStateAddYtickPositions(builder, ytickPositions)
+
+def SnapshotAxisStateStartYtickPositionsVector(builder, numElems):
+    return builder.StartVector(8, numElems, 8)
+
+def StartYtickPositionsVector(builder, numElems):
+    return SnapshotAxisStateStartYtickPositionsVector(builder, numElems)
+
+def SnapshotAxisStateAddXtickLabels(builder, xtickLabels):
+    builder.PrependUOffsetTRelativeSlot(27, flatbuffers.number_types.UOffsetTFlags.py_type(xtickLabels), 0)
+
+def AddXtickLabels(builder, xtickLabels):
+    SnapshotAxisStateAddXtickLabels(builder, xtickLabels)
+
+def SnapshotAxisStateStartXtickLabelsVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartXtickLabelsVector(builder, numElems):
+    return SnapshotAxisStateStartXtickLabelsVector(builder, numElems)
+
+def SnapshotAxisStateAddYtickLabels(builder, ytickLabels):
+    builder.PrependUOffsetTRelativeSlot(28, flatbuffers.number_types.UOffsetTFlags.py_type(ytickLabels), 0)
+
+def AddYtickLabels(builder, ytickLabels):
+    SnapshotAxisStateAddYtickLabels(builder, ytickLabels)
+
+def SnapshotAxisStateStartYtickLabelsVector(builder, numElems):
+    return builder.StartVector(4, numElems, 4)
+
+def StartYtickLabelsVector(builder, numElems):
+    return SnapshotAxisStateStartYtickLabelsVector(builder, numElems)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

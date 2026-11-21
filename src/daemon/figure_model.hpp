@@ -83,6 +83,15 @@ class FigureModel
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
     ipc::DiffOp set_colorbar_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
+    // Fixed ticks of one axis (0 = x, 1 = y); `set` false = automatic.
+    // false (and no op) when the axes does not exist.
+    bool set_axis_ticks(uint64_t                 figure_id,
+                        uint32_t                 axes_index,
+                        int                      axis,
+                        bool                     set,
+                        std::vector<double>      positions,
+                        std::vector<std::string> labels,
+                        ipc::DiffOp*             op_out);
 
     // Set axis xlabel. Returns a DiffOp.
     ipc::DiffOp set_axis_xlabel(uint64_t figure_id, uint32_t axes_index, const std::string& label);

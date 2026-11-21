@@ -614,6 +614,61 @@ TEST(ColormapTransport, ColorbarVisibilityTravelsToTheWindow)
     EXPECT_FALSE(model.snapshot().figures[0].axes[0].colorbar_visible);
 }
 
+TEST(AxisTicksTransport, FixedTicksTravelToTheWindow)
+{
+    // App snapshot -> wire -> window rebuild.
+    Figure fig;
+    auto&  ax = fig.subplot(1, 1, 1);
+    ax.xlim(0.0, 10.0);
+    ax.xticks({1.0, 5.0}, {"one", "five"});
+    ax.yticks({0.25});
+    auto snap = round_trip(figure_to_snapshot(fig, 1));
+    ASSERT_EQ(snap.axes.size(), 1u);
+    EXPECT_TRUE(snap.axes[0].xticks_set);
+    EXPECT_EQ(snap.axes[0].xtick_labels, (std::vector<std::string>{"one", "five"}));
+    EXPECT_TRUE(snap.axes[0].ytick_labels.empty());
+    auto  built = agent::build_figure_from_snapshot(snap);
+    auto* bax   = dynamic_cast<Axes*>(built->axes()[0].get());
+    ASSERT_NE(bax, nullptr);
+    ASSERT_NE(bax->manual_xticks(), nullptr);
+    EXPECT_EQ(bax->manual_xticks()->positions, (std::vector<double>{1.0, 5.0}));
+    ASSERT_NE(bax->manual_yticks(), nullptr);
+
+    // Daemon model -> op (epoch-size values stay precise) -> cache and model.
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    model.add_axes(fid, 0.0, 1.0, 0.0, 1.0, false);
+    ipc::SnapshotFigureState cache = model.snapshot().figures.at(0);
+    ipc::DiffOp              op;
+    EXPECT_FALSE(model.set_axis_ticks(fid, 7, 0, true, {1.0}, {}, &op));
+    ASSERT_TRUE(
+        model.set_axis_ticks(fid, 0, 0, true, {1.7e9, 1.7e9 + 0.5}, {"start", "half"}, &op));
+    op = round_trip(op);
+    EXPECT_EQ(op.type, ipc::DiffOp::Type::SET_AXIS_TICKS);
+    agent::apply_diff_op_to_cache(cache, op);
+    EXPECT_TRUE(cache.axes[0].xticks_set);
+    ASSERT_EQ(cache.axes[0].xtick_positions.size(), 2u);
+    EXPECT_DOUBLE_EQ(cache.axes[0].xtick_positions[1], 1.7e9 + 0.5);
+    EXPECT_EQ(cache.axes[0].xtick_labels[1], "half");
+    EXPECT_EQ(model.snapshot().figures[0].axes[0].xtick_labels[0], "start");
+
+    // Back to automatic.
+    ASSERT_TRUE(model.set_axis_ticks(fid, 0, 0, false, {}, {}, &op));
+    EXPECT_TRUE(model.apply_diff_op(round_trip(op)));
+    EXPECT_FALSE(model.snapshot().figures[0].axes[0].xticks_set);
+
+    // Malformed ops are rejected.
+    ipc::SnapshotAxisState sa;
+    ipc::DiffOp            bad = op;
+    bad.f1                     = 2.0;
+    EXPECT_FALSE(ipc::axis_ticks_from_op(bad, sa));
+    bad.f1      = 0.0;
+    bad.data    = {0.0f, 1.0f};
+    bad.f3      = 3.0;
+    bad.str_val = "a";
+    EXPECT_FALSE(ipc::axis_ticks_from_op(bad, sa));
+}
+
 // ─── Window agent cache: ops a rebuild must not lose ────────────────────────
 
 TEST(AgentFigureCache, KeepsGridVisibilityAndLiveFps)

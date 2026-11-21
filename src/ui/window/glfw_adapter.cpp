@@ -85,6 +85,25 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
         return false;
     }
 
+    #ifndef __EMSCRIPTEN__
+    // The OS picks the first window's position.  Windows only keeps a new
+    // window on its monitor, not inside the work area, so a tall window in a
+    // late cascade slot ended under the taskbar.  Pull it into the work area,
+    // as WindowManager::create_window() does for every later window.
+    if (GLFWmonitor* mon = glfwGetPrimaryMonitor())
+    {
+        ScreenWorkArea wa;
+        glfwGetMonitorWorkarea(mon, &wa.x, &wa.y, &wa.w, &wa.h);
+        int x = 0, y = 0, cw = 0, ch = 0, fl = 0, ft = 0, fr = 0, fb = 0;
+        glfwGetWindowPos(window_, &x, &y);
+        glfwGetWindowSize(window_, &cw, &ch);
+        glfwGetWindowFrameSize(window_, &fl, &ft, &fr, &fb);
+        const auto pos = keep_window_in_work_area(x, y, cw, ch, fl, ft, fr, fb, wa);
+        if (pos.first != x || pos.second != y)
+            glfwSetWindowPos(window_, pos.first, pos.second);
+    }
+    #endif
+
     // NOTE: No GLFW callbacks are installed here.  WindowManager owns all
     // callbacks for every window (initial and secondary).  Installing
     // callbacks here would cause ImGui's callback chaining to invoke them

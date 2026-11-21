@@ -73,6 +73,7 @@
 #include "ui/automation/automation_security.hpp"
 #include "ui/automation/automation_server.hpp"
 #include "ui/automation/mcp_server.hpp"
+#include "ui/native_dialog_policy.hpp"
 
 #ifndef _WIN32
     #include "../../app/inproc_topic_server.hpp"
@@ -1134,6 +1135,15 @@ void App::init_runtime()
             if (rt.auto_server->start(auto_sock))
             {
                 SPECTRA_LOG_INFO("app", "Automation server started: " + auto_sock);
+
+                // An agent drives this process: a modal OS file dialog would block the
+                // main loop and with it every automation/MCP request.
+                if (native_dialogs_enabled())
+                {
+                    set_native_dialogs_enabled(false);
+                    SPECTRA_LOG_INFO("app",
+                                     "Native file dialogs disabled (automation server active)");
+                }
 
                 std::string mcp_bind = "127.0.0.1";
                 if (const char* mcp_bind_env = std::getenv("SPECTRA_MCP_BIND"))

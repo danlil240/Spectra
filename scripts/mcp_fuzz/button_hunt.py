@@ -25,7 +25,12 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-from ui_action_log import StderrActionTracker, classify_interaction  # noqa: E402
+from ui_action_log import (  # noqa: E402
+    DEBUG_LOG_HINT,
+    StderrActionTracker,
+    classify_interaction,
+    log_has_actions,
+)
 from nav_rail_layout import (  # noqa: E402
     discover_nav_rail_centers,
     expected_buttons,
@@ -474,6 +479,10 @@ def main() -> int:
         return 1
 
     warmup()
+    if not log_has_actions(stderr_path):
+        issue("CRITICAL", "Action log missing", DEBUG_LOG_HINT)
+        print(f"button_hunt: {DEBUG_LOG_HINT}", file=sys.stderr)
+        return 2
     width, height = window_size()
     if width == 0:
         issue("ERROR", "Zero window size", tag)

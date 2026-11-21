@@ -181,12 +181,20 @@ std::vector<AutomationHandlerEntry> make_figure_handlers()
         "Create a new figure in Spectra.",
         Ctx::None,
         {},
-        [](AutomationRequest& req, App* app, WindowUIContext* /*ui_ctx*/)
+        [](AutomationRequest& req, App* app, WindowUIContext* ui_ctx)
         {
-            uint32_t w        = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
-            uint32_t h        = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
-            Figure&  new_fig  = app->figure({w, h});
-            FigureId new_id   = app->figure_registry().find_id(&new_fig);
+            uint32_t w       = static_cast<uint32_t>(json_get_int(req.params_json, "width", 1280));
+            uint32_t h       = static_cast<uint32_t>(json_get_int(req.params_json, "height", 720));
+            Figure&  new_fig = app->figure({w, h});
+            FigureId new_id  = app->figure_registry().find_id(&new_fig);
+#ifdef SPECTRA_USE_IMGUI
+            // Show it, as File > New Figure does (the welcome screen stayed up
+            // until a separate switch_figure).
+            if (ui_ctx && ui_ctx->fig_mgr)
+                ui_ctx->fig_mgr->queue_switch(new_id);
+#else
+            (void)ui_ctx;
+#endif
             req.response_json = json_ok(req.id, "{\"figure_id\":" + std::to_string(new_id) + "}");
         }));
 

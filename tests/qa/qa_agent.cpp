@@ -961,6 +961,7 @@ class QAAgent
             try
             {
                 auto result = app_->step();
+                flush_pending_screenshot();
                 total_frames_++;
                 frame_stats_.record(result.frame_time_ms);
                 check_frame(result);
@@ -6990,19 +6991,20 @@ class QAAgent
     }
 
     // ── Screenshot capture ───────────────────────────────────────────────
+    // Evidence screenshots are requested here and written after the next
+    // frame: the backend copies the swapchain image during that frame's
+    // end_frame(), between submit and present.  Reading back an image that
+    // was already presented (readback_framebuffer between frames) uses a
+    // swapchain image the app no longer owns
+    // (UNASSIGNED-non-acquired-swapchain-image-used).  Returns the path the
+    // PNG will be written to, or "" when no capture could be requested.
     std::string capture_screenshot(const std::string& reason)
     {
-        auto* backend = app_->backend();
-        if (!backend)
+        auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
+        if (!backend || backend->swapchain_width() == 0 || backend->swapchain_height() == 0)
             return "";
-
-        uint32_t w = backend->swapchain_width();
-        uint32_t h = backend->swapchain_height();
-        if (w == 0 || h == 0)
-            return "";
-
-        std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
-        if (!backend->readback_framebuffer(pixels.data(), w, h))
+        // One capture at a time; never displace a design-review capture.
+        if (!pending_screenshot_path_.empty() || backend->has_pending_capture())
             return "";
 
         // Sanitize reason for filename
@@ -7015,8 +7017,35 @@ class QAAgent
 
         std::string path = opts_.output_dir + "/screenshot_frame" + std::to_string(total_frames_)
                            + "_" + safe_reason + ".png";
-        ImageExporter::write_png(path, pixels.data(), w, h);
+        backend->request_surface_capture();
+        pending_screenshot_path_ = path;
         return path;
+    }
+
+    // Write the evidence screenshot requested by capture_screenshot() once a
+    // frame has captured it; give up if the capture was cancelled or failed.
+    void flush_pending_screenshot()
+    {
+        if (pending_screenshot_path_.empty())
+            return;
+        auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
+        if (!backend)
+        {
+            pending_screenshot_path_.clear();
+            return;
+        }
+        std::vector<uint8_t> pixels;
+        uint32_t             w = 0;
+        uint32_t             h = 0;
+        if (backend->take_surface_capture(pixels, w, h))
+        {
+            ImageExporter::write_png(pending_screenshot_path_, pixels.data(), w, h);
+            pending_screenshot_path_.clear();
+        }
+        else if (!backend->has_pending_capture())
+        {
+            pending_screenshot_path_.clear();
+        }
     }
 
     // ── Wall clock check ─────────────────────────────────────────────────
@@ -7497,6 +7526,7 @@ class QAAgent
 
     // P0 fix: screenshot rate limiting per category
     std::unordered_map<std::string, uint64_t> last_screenshot_frame_;
+    std::string pending_screenshot_path_;   // capture requested, PNG not yet written
     std::unordered_map<std::string, uint32_t> validation_message_hits_;
 
     // Design review

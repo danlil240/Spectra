@@ -622,6 +622,22 @@ bool VulkanBackend::recreate_swapchain(uint32_t width, uint32_t height)
 
     // Destroy the old swapchain context (skip render pass — we reused it).
     // No-op if it was already released in the surface-lost path above.
+    // The in-flight fences cover submitted command buffers but not queued
+    // presents, which still use the old swapchain's images: drain the queues
+    // first (VUID-vkDestroySwapchainKHR-swapchain-01282).  Resizes are rare,
+    // so the wait costs nothing noticeable.
+    if (active_window_->swapchain.swapchain != VK_NULL_HANDLE)
+    {
+        if (vkQueueWaitIdle(ctx_.present_queue) == VK_ERROR_DEVICE_LOST
+            || (ctx_.graphics_queue != ctx_.present_queue
+                && vkQueueWaitIdle(ctx_.graphics_queue) == VK_ERROR_DEVICE_LOST))
+        {
+            device_lost_ = true;
+            SPECTRA_LOG_ERROR("vulkan", "recreate_swapchain: device lost while draining queues");
+            vk::destroy_swapchain(ctx_.device, new_swapchain, /*skip_render_pass=*/true);
+            return false;
+        }
+    }
     SPECTRA_LOG_DEBUG("vulkan", "Destroying old swapchain...");
     vk::destroy_swapchain(ctx_.device, active_window_->swapchain, /*skip_render_pass=*/true);
     active_window_->swapchain = std::move(new_swapchain);

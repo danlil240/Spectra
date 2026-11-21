@@ -175,6 +175,12 @@ if(SPECTRA_PYTHON_WHEEL
     message(STATUS "SPECTRA_PYTHON_WHEEL: forcing portable x86_64 ISA (-march=x86-64 -mtune=generic)")
 endif()
 
+# MSVC reads sources in the system code page unless told otherwise, which
+# mangles UTF-8 literals in the UI ("Zoom 0.59\u00d7" rendered a box).
+if(MSVC)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>")
+endif()
+
 # Runtime mode: inproc (single-process, all windows in one process)
 #               multiproc (future: each window in its own process via IPC)
 set(SPECTRA_RUNTIME_MODE "multiproc" CACHE STRING "Runtime mode: inproc | multiproc")

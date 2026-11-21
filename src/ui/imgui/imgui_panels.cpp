@@ -1155,12 +1155,17 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              fps_badge_.on_frame(ui::FpsBadgeState::Clock::now());
              const bool        fps_live  = fps_badge_.is_live();
              const std::string fps_buf   = fps_badge_.label();
-             const std::string gpu_buf   = std::format("GPU: {:.1f}ms", gpu_time_ms_);
+             // Only a measured GPU time is shown (nothing feeds it yet: a
+             // constant "GPU: 0.0ms" read as a broken counter).
+             const bool        show_gpu = gpu_time_ms_ > 0.0f;
+             const std::string gpu_buf =
+                 show_gpu ? std::format("GPU: {:.1f}ms", gpu_time_ms_) : std::string();
              const float       perf_gap  = ui::tokens::STATUS_BAR_PERF_GAP;
              const float       fps_pad_h = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
              const float       fps_pad_v = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
-             const float       right_w   = ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f
-                                   + perf_gap + ImGui::CalcTextSize(gpu_buf.c_str()).x;
+             const float       right_w =
+                 ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f
+                 + (show_gpu ? perf_gap + ImGui::CalcTextSize(gpu_buf.c_str()).x : 0.0f);
              const float right_x =
                  ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
              const float center_end = ImGui::GetCursorPosX();
@@ -1217,14 +1222,18 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                  ImGui::PopStyleColor();
              }
 
-             ImGui::SameLine(0.0f, perf_gap);
-             // SameLine returns to the line's top (the fps text was placed with
-             // SetCursorPosY inside a SameLine), so centre the GPU readout again.
-             ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
-             const ui::Color& gpu_text = perf.gpu_text;
-             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
-             ImGui::TextUnformatted(gpu_buf.c_str());
-             ImGui::PopStyleColor();
+             if (show_gpu)
+             {
+                 ImGui::SameLine(0.0f, perf_gap);
+                 // SameLine returns to the line's top (the fps text was placed with
+                 // SetCursorPosY inside a SameLine), so centre the GPU readout again.
+                 ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
+                 const ui::Color& gpu_text = perf.gpu_text;
+                 ImGui::PushStyleColor(ImGuiCol_Text,
+                                       ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
+                 ImGui::TextUnformatted(gpu_buf.c_str());
+                 ImGui::PopStyleColor();
+             }
 
              ImGui::PopFont();
          }});

@@ -49,6 +49,21 @@ float suptitle_line_height(float s)
 
 }   // namespace
 
+std::vector<Axes*> axes_with_twins(const Figure& fig)
+{
+    std::vector<Axes*> out;
+    out.reserve(fig.axes().size());
+    for (const auto& a : fig.axes())
+    {
+        if (!a)
+            continue;
+        out.push_back(a.get());
+        if (a->twin())
+            out.push_back(a->twin());
+    }
+    return out;
+}
+
 float left_label_extent(const Axes& axes)
 {
     const AxisTextMetrics m      = axis_text_metrics(axes);

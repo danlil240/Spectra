@@ -734,6 +734,35 @@ void App::run_multiproc()
 
                         axes_idx++;
                     }
+                    // twinx() twins: their y limits, at their snapshot index
+                    // (after the grid slots, figure_to_snapshot()).
+                    {
+                        uint32_t tw_idx = static_cast<uint32_t>(snapshot_axes_slot_count(*fig));
+                        for (size_t host : snapshot_twin_hosts(*fig))
+                        {
+                            const Axes&   tw   = *fig->axes()[host]->twin();
+                            auto          xlim = tw.x_limits();
+                            auto          ylim = tw.y_limits();
+                            AxisLimitsKey key{reg_to_ipc[id], tw_idx};
+                            auto          it = sent_limits.find(key);
+                            if (it == sent_limits.end() || it->second.ymin != ylim.min
+                                || it->second.ymax != ylim.max || it->second.xmin != xlim.min
+                                || it->second.xmax != xlim.max)
+                            {
+                                ipc::DiffOp op;
+                                op.type       = ipc::DiffOp::Type::SET_AXIS_LIMITS;
+                                op.figure_id  = reg_to_ipc[id];
+                                op.axes_index = tw_idx;
+                                op.f1         = xlim.min;
+                                op.f2         = xlim.max;
+                                op.f3         = ylim.min;
+                                op.f4         = ylim.max;
+                                diff.ops.push_back(std::move(op));
+                                sent_limits[key] = {xlim.min, xlim.max, ylim.min, ylim.max};
+                            }
+                            ++tw_idx;
+                        }
+                    }
 
                     // Text annotations: emit ops when Axes::text()/annotate()
                     // changed, addressed by snapshot axes slot.

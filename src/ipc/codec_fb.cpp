@@ -373,7 +373,8 @@ static flatbuffers::Offset<fb::SnapshotAxisState> build_fb_axis(flatbuffers::Fla
                                              ax.xticks_set ? &ax.xtick_positions : nullptr,
                                              ax.yticks_set ? &ax.ytick_positions : nullptr,
                                              xtick_labels.empty() ? nullptr : &xtick_labels,
-                                             ytick_labels.empty() ? nullptr : &ytick_labels);
+                                             ytick_labels.empty() ? nullptr : &ytick_labels,
+                                             ax.twin_of);
 }
 
 static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
@@ -406,6 +407,7 @@ static SnapshotAxisState read_fb_axis(const fb::SnapshotAxisState* fb)
     ax.colorbar_visible = fb->colorbar_visible();
     ax.xticks_set       = fb->xticks_set();
     ax.yticks_set       = fb->yticks_set();
+    ax.twin_of          = fb->twin_of();
     auto read_ticks =
         [](const auto* pos, const auto* labels, std::vector<double>& p, std::vector<std::string>& l)
     {
@@ -928,7 +930,8 @@ std::vector<uint8_t> encode_fb_req_create_axes(const ReqCreateAxesPayload& p)
                                                  p.grid_rows,
                                                  p.grid_cols,
                                                  p.grid_index,
-                                                 p.is_3d);
+                                                 p.is_3d,
+                                                 p.twin_of);
     fbb.Finish(offset);
     return finalize(fbb);
 }
@@ -946,6 +949,7 @@ std::optional<ReqCreateAxesPayload> decode_fb_req_create_axes(std::span<const ui
     p.grid_cols  = fb->grid_cols();
     p.grid_index = fb->grid_index();
     p.is_3d      = fb->is_3d();
+    p.twin_of    = fb->twin_of();
     return p;
 }
 

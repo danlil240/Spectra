@@ -181,6 +181,10 @@ pub(crate) struct AxesState {
     pub bar_mode: Mutex<BarMode>,
     fit: Mutex<Fit>,
     share: Mutex<[Option<Arc<ShareGroup>>; 2]>,
+    /// twinx(): index of the host axes, -1 for an ordinary axes.
+    pub twin_of: i32,
+    /// twinx(): the twin of this axes, once made.
+    pub twin: Mutex<Option<Arc<AxesState>>>,
 }
 
 impl AxesState {
@@ -194,6 +198,8 @@ impl AxesState {
             bar_mode: Mutex::new(BarMode::Grouped),
             fit: Mutex::new(Fit::default()),
             share: Mutex::new([None, None]),
+            twin_of: -1,
+            twin: Mutex::new(None),
         }
     }
 
@@ -1340,8 +1346,62 @@ impl Axes {
         Ok(self)
     }
 
+    /// A second y axis on the right of this axes, sharing its x axis
+    /// (matplotlib's `twinx`).
+    ///
+    /// Series added to the returned axes use its own y limits, ticks, scale
+    /// and label (drawn on the right), while x limits, pan and zoom follow
+    /// this axes.  Its series join this axes' legend and continue its colour
+    /// cycle.  Calling it again returns the same twin; on a twin it returns
+    /// that twin.
+    pub fn twinx(&self) -> Result<Axes> {
+        self.need_2d("twinx")?;
+        if self.state.twin_of >= 0 {
+            return Ok(self.clone());
+        }
+        if let Some(t) = lock(&self.state.twin).clone() {
+            return Ok(Axes::from_state(self.figure.clone(), t));
+        }
+        let twin = self
+            .figure
+            .request_axes(1, 1, 1, false, self.index() as i32)?;
+        *lock(&self.state.twin) = Some(twin.state.clone());
+        // The twin's x axis is fitted with its host's (and the host's share group).
+        let existing = lock(&self.state.share)[0].clone();
+        let g = match existing {
+            Some(g) => g,
+            None => {
+                let g = Arc::new(ShareGroup {
+                    members: Mutex::new(vec![Arc::downgrade(&self.state)]),
+                });
+                lock(&self.state.share)[0] = Some(g.clone());
+                g
+            }
+        };
+        lock(&g.members).push(Arc::downgrade(&twin.state));
+        lock(&twin.state.share)[0] = Some(g);
+        self.apply_fit()?;
+        Ok(twin)
+    }
+
+    /// The host of a twin made by [`Axes::twinx`], if this axes is one.
+    fn twin_host(&self) -> Option<Axes> {
+        if self.state.twin_of < 0 {
+            return None;
+        }
+        lock(&self.figure.state.axes)
+            .iter()
+            .find(|a| a.index as i32 == self.state.twin_of)
+            .map(|a| Axes::from_state(self.figure.clone(), a.clone()))
+    }
+
     /// Fix the x limits (turns automatic x limits off; see [`Axes::autoscale`]).
+    /// On a twin this sets its host's x limits.
     pub fn set_xlim(&self, lo: f64, hi: f64) -> Result<&Self> {
+        if let Some(h) = self.twin_host() {
+            h.set_xlim(lo, hi)?;
+            return Ok(self);
+        }
         self.set_lim(0, "xlim", lo, hi)
     }
 
@@ -1369,8 +1429,12 @@ impl Axes {
         Ok(self)
     }
 
-    /// X axis label.
+    /// X axis label (on a twin: its host's).
     pub fn set_xlabel(&self, label: &str) -> Result<&Self> {
+        if let Some(h) = self.twin_host() {
+            h.set_xlabel(label)?;
+            return Ok(self);
+        }
         self.send(self.prop("xlabel").s(label))
     }
 
@@ -1379,8 +1443,12 @@ impl Axes {
         self.send(self.prop("ylabel").s(label))
     }
 
-    /// Title above the axes.
+    /// Title above the axes (on a twin: its host's).
     pub fn set_title(&self, title: &str) -> Result<&Self> {
+        if let Some(h) = self.twin_host() {
+            h.set_title(title)?;
+            return Ok(self);
+        }
         self.send(self.prop("axes_title").s(title))
     }
 

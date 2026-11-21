@@ -140,6 +140,7 @@ pub(crate) fn encode_create_axes(
     cols: i32,
     index: i32,
     is_3d: bool,
+    twin_of: i32,
 ) -> Vec<u8> {
     let mut fbb = FlatBufferBuilder::with_capacity(64);
     let root = fb::ReqCreateAxesPayload::create(
@@ -150,6 +151,7 @@ pub(crate) fn encode_create_axes(
             grid_cols: cols,
             grid_index: index,
             is_3d,
+            twin_of,
         },
     );
     finish(fbb, root)

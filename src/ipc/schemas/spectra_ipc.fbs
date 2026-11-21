@@ -136,6 +136,7 @@ table SnapshotAxisState {
     ytick_positions: [double];
     xtick_labels: [string];          // empty = formatted values
     ytick_labels: [string];
+    twin_of: int32 = -1;             // twinx(): index of the host axes, -1 = none
 }
 
 table SnapshotSeriesState {
@@ -316,6 +317,7 @@ table ReqCreateAxesPayload {
     grid_cols: int32 = 1;
     grid_index: int32 = 1;
     is_3d: bool = false;
+    twin_of: int32 = -1;   // >= 0: create the twinx() twin of this 2D axes
 }
 
 table ReqAddSeriesPayload {

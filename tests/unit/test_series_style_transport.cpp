@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "agent/figure_cache.hpp"
+#include "core/figure_layout.hpp"
 #include "agent/snapshot_figure_builder.hpp"
 #include "daemon/figure_model.hpp"
 #include "ipc/codec.hpp"
@@ -21,6 +22,7 @@
 #include "ipc/series_style_state.hpp"
 #include "ipc/style3d_state.hpp"
 #include "ui/app/figure_snapshot.hpp"
+#include "ui/overlay/legend_layout.hpp"
 
 using namespace spectra;
 
@@ -710,4 +712,157 @@ TEST(AgentFigureCache, KeepsGridVisibilityAndLiveFps)
     fps.bool_val = false;
     agent::apply_diff_op_to_cache(cache, fps);
     EXPECT_FLOAT_EQ(cache.live_fps, 0.0f);
+}
+
+// ─── twinx(): a second y axis on the right ──────────────────────────────────
+
+TEST(Twinx, SharesXOwnYColourCycleAndLegend)
+{
+    Figure             fig;
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x{0.0f, 1.0f, 2.0f};
+    std::vector<float> y{0.0f, 1.0f, 0.5f};
+    std::vector<float> y2{100.0f, 300.0f, 200.0f};
+    ax.line(x, y).label("left");
+    auto& tw = ax.twinx();
+    EXPECT_EQ(&ax.twinx(), &tw);
+    EXPECT_EQ(&tw.twinx(), &tw);
+    EXPECT_TRUE(tw.is_twin());
+    EXPECT_EQ(tw.twin_host(), &ax);
+    EXPECT_EQ(ax.twin(), &tw);
+    EXPECT_FALSE(tw.grid_enabled());
+    EXPECT_FALSE(tw.x_tick_labels_visible());
+    auto& s2 = tw.line(x, y2).label("right");
+    EXPECT_EQ(s2.auto_color_index(), 1);   // continues the host's cycle
+
+    // x is shared, y is not.
+    ax.xlim(-1.0, 5.0);
+    EXPECT_DOUBLE_EQ(tw.x_limits().min, -1.0);
+    EXPECT_DOUBLE_EQ(tw.x_limits().max, 5.0);
+    EXPECT_GT(tw.y_limits().max, 250.0);
+    EXPECT_LT(ax.y_limits().max, 2.0);
+
+    // The legend of the host lists both.
+    const auto entries = legend_layout::legend_entries(ax);
+    ASSERT_EQ(entries.size(), 2u);
+    EXPECT_EQ(entries[1]->label(), "right");
+
+    // The twin is listed after its host and not as a subplot.
+    EXPECT_EQ(fig.axes().size(), 1u);
+    const auto all = axes_with_twins(fig);
+    ASSERT_EQ(all.size(), 2u);
+    EXPECT_EQ(all[1], &tw);
+
+    // Home (auto_fit) refits the twin too.
+    tw.ylim(0.0, 1.0);
+    ax.auto_fit();
+    EXPECT_GT(tw.y_limits().max, 250.0);
+}
+
+TEST(Twinx, LayoutKeepsRoomOnTheRightAndShareModesKeepTheTwin)
+{
+    Figure fig;
+    auto&  ax = fig.subplot(1, 2, 1);
+    fig.subplot(1, 2, 2);
+    std::vector<float> x{0.0f, 1.0f};
+    std::vector<float> y{0.0f, 123456.0f};
+    ax.line(x, x);
+    auto& tw = ax.twinx();
+    tw.line(x, y);
+    tw.ylabel("right label");
+    ax.set_viewport(Rect{100.0f, 50.0f, 500.0f, 400.0f});
+    EXPECT_LT(ax.viewport().w, 500.0f - 30.0f);   // tick labels + label on the right
+    EXPECT_EQ(tw.viewport().x, ax.viewport().x);
+    EXPECT_EQ(tw.viewport().w, ax.viewport().w);
+
+    fig.share_x(ShareAxes::All);
+    EXPECT_TRUE(tw.x_shared());
+    ax.xlim(2.0, 3.0);
+    EXPECT_DOUBLE_EQ(tw.x_limits().min, 2.0);
+    EXPECT_DOUBLE_EQ(fig.axes()[1]->x_limits().min, 2.0);
+}
+
+TEST(Twinx, PanAndZoomOfTheHostMoveTheTwinAlong)
+{
+    Figure fig;
+    auto&  ax = fig.subplot(1, 1, 1);
+    auto&  tw = ax.twinx();
+    ax.ylim(0.0, 10.0);
+    tw.ylim(100.0, 200.0);
+    ax.sync_twin_y();   // first frame: only recorded
+    EXPECT_DOUBLE_EQ(tw.y_limits().min, 100.0);
+    ax.ylim(5.0, 10.0);   // zoom into the top half
+    ax.sync_twin_y();
+    EXPECT_DOUBLE_EQ(tw.y_limits().min, 150.0);
+    EXPECT_DOUBLE_EQ(tw.y_limits().max, 200.0);
+    ax.ylim(6.0, 11.0);   // pan up by a fifth
+    ax.sync_twin_y();
+    EXPECT_DOUBLE_EQ(tw.y_limits().min, 160.0);
+    EXPECT_DOUBLE_EQ(tw.y_limits().max, 210.0);
+    ax.remove_twin();
+    EXPECT_EQ(ax.twin(), nullptr);
+}
+
+TEST(TwinxTransport, TwinTravelsThroughSnapshotModelAndCache)
+{
+    // App snapshot -> wire -> window rebuild.
+    Figure fig;
+    auto&  ax = fig.subplot(1, 2, 1);
+    fig.subplot(1, 2, 2);
+    std::vector<float> x{0.0f, 1.0f};
+    ax.line(x, x).label("a");
+    auto& tw = ax.twinx();
+    tw.line(x, std::vector<float>{5.0f, 9.0f}).label("b");
+    tw.ylabel("right");
+    tw.ylim(0.0, 50.0);
+    auto snap = round_trip(figure_to_snapshot(fig, 1));
+    ASSERT_EQ(snap.axes.size(), 3u);
+    EXPECT_EQ(snap.axes[2].twin_of, 0);
+    EXPECT_EQ(snap.series.at(1).axes_index, 2u);
+    EXPECT_EQ(ipc::axes_grid_slot(snap.axes, 1), 1u);
+    EXPECT_EQ(ipc::axes_grid_slot(snap.axes, 2), 0u);
+    auto built = agent::build_figure_from_snapshot(snap);
+    ASSERT_EQ(built->axes().size(), 2u);
+    Axes* bt = built->axes()[0]->twin();
+    ASSERT_NE(bt, nullptr);
+    EXPECT_EQ(bt->ylabel(), "right");
+    EXPECT_DOUBLE_EQ(bt->y_limits().max, 50.0);
+    ASSERT_EQ(bt->series().size(), 1u);
+    EXPECT_EQ(agent::live_axes_at(*built, 2, &snap), bt);
+    EXPECT_EQ(agent::live_axes_at(*built, 1, &snap), built->axes()[1].get());
+
+    // Daemon model: a twin takes no slot, keeps the host's x, continues its colours.
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    model.add_axes(fid, 0.0, 1.0, 0.0, 1.0, false);
+    EXPECT_EQ(model.add_twin_axes(fid, 5), -1);
+    bool          created = false;
+    const int32_t t       = model.add_twin_axes(fid, 0, &created);
+    EXPECT_EQ(t, 1);
+    EXPECT_TRUE(created);
+    EXPECT_EQ(model.add_twin_axes(fid, 0, &created), 1);
+    EXPECT_FALSE(created);
+    EXPECT_EQ(model.add_twin_axes(fid, 1), 1);
+    uint32_t si = 0;
+    model.add_series_with_diff(fid, "a", "line", 0, si);
+    model.add_series_with_diff(fid, "b", "line", 1, si);
+    EXPECT_EQ(model.snapshot().figures[0].series[1].color_index, 1);
+    auto op = model.set_axis_limits(fid, 0, 2.0, 4.0, 0.0, 1.0);
+    op      = model.set_axis_limits(fid, 1, 7.0, 9.0, 10.0, 20.0);
+    EXPECT_DOUBLE_EQ(op.f1, 2.0);   // a twin keeps its host's x
+    EXPECT_DOUBLE_EQ(op.f3, 10.0);
+    const auto& m = model.snapshot().figures[0].axes;
+    EXPECT_DOUBLE_EQ(m[1].x_min, 2.0);
+    EXPECT_DOUBLE_EQ(m[0].y_min, 0.0);
+
+    // ADD_AXES op carrying the host (f3 = host + 1) builds the cache entry.
+    ipc::SnapshotFigureState cache;
+    cache.axes.resize(1);
+    ipc::DiffOp add;
+    add.type       = ipc::DiffOp::Type::ADD_AXES;
+    add.axes_index = 1;
+    add.f3         = 1.0;
+    agent::apply_diff_op_to_cache(cache, round_trip(add));
+    ASSERT_EQ(cache.axes.size(), 2u);
+    EXPECT_EQ(cache.axes[1].twin_of, 0);
 }

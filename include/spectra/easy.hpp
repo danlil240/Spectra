@@ -1135,6 +1135,17 @@ inline Axes* gca()
     return detail::easy_state().current_ax;
 }
 
+/// A second y axis on the right of the current axes, sharing its x axis
+/// (matplotlib's twinx).  It becomes the current axes, so the next plot()
+/// uses the right-hand y axis; subplot() switches back.
+inline Axes& twinx()
+{
+    auto& s      = detail::easy_state();
+    auto& twin   = s.ensure_axes().twinx();
+    s.current_ax = &twin;
+    return twin;
+}
+
 /// Get the current 3D axes. Returns nullptr if no 3D axes created yet.
 inline Axes3D* gca3d()
 {

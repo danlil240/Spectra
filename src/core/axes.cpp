@@ -18,6 +18,7 @@
 #include <spectra/series_stats.hpp>
 
 #include "colorbar_layout.hpp"
+#include "figure_layout.hpp"
 #include "contour.hpp"
 #include "core/axes_data_extent.hpp"
 #include "core/axis_scale.hpp"
@@ -93,7 +94,11 @@ T& Axes::add_series(Args&&... args)
     auto  s   = std::make_unique<T>(std::forward<Args>(args)...);
     auto& ref = *s;
     // Auto colour: the renderer resolves the slot from the theme's data palette.
-    ref.set_auto_color_index(static_cast<int>(series_.size()));
+    // A twin continues its host's colour cycle (and the host counts its twin's
+    // series), so the two sets of lines never start on the same colour.
+    const size_t other =
+        twin_host_ ? twin_host_->series_.size() : (twin_ ? twin_->series_.size() : 0);
+    ref.set_auto_color_index(static_cast<int>(series_.size() + other));
     // Plot style defaults (AxesBase::apply_style).
     if constexpr (std::is_base_of_v<LineSeries, T>)
         ref.width(default_line_width_);
@@ -420,6 +425,7 @@ void Axes::clear_ylim()
 
 Axes::~Axes()
 {
+    twin_.reset();
     unshare_x();
     unshare_y();
 }
@@ -444,6 +450,78 @@ void join_share_group(Axes*                            self,
 }
 
 }   // namespace
+
+Axes& Axes::twinx()
+{
+    if (twin_host_)
+        return *this;
+    if (twin_)
+        return *twin_;
+    twin_                    = std::make_unique<Axes>();
+    Axes& t                  = *twin_;
+    t.twin_host_             = this;
+    t.event_system_          = event_system_;
+    t.axis_style_            = axis_style_;
+    t.tick_direction_        = tick_direction_;
+    t.minor_ticks_enabled_   = minor_ticks_enabled_;
+    t.despined_              = despined_;
+    t.default_line_width_    = default_line_width_;
+    t.default_marker_size_   = default_marker_size_;
+    t.grid_enabled_          = false;   // the host draws the grid and the border
+    t.border_enabled_        = false;
+    t.xscale_                = xscale_;
+    t.x_datetime_            = x_datetime_;
+    t.x_tick_labels_visible_ = false;
+    t.viewport_              = viewport_;
+    t.text_scale_            = text_scale_;
+    t.sharex(*this);
+    return t;
+}
+
+void Axes::set_viewport(const Rect& r, float outside_legend_width)
+{
+    AxesBase::set_viewport(r, outside_legend_width);
+    if (!twin_)
+        return;
+    // The twin's labels are measured at the provisional plot area (its tick
+    // count follows the height), then the plot gives up that width.
+    twin_->text_scale_ = text_scale_;
+    twin_->viewport_   = viewport_;
+    const float right  = left_label_extent(*twin_);
+    viewport_.w        = std::max(0.0f, viewport_.w - std::min(right, viewport_.w * 0.5f));
+    twin_->viewport_   = viewport_;
+}
+
+void Axes::remove_twin()
+{
+    twin_.reset();
+    twin_seen_ylim_.reset();
+}
+
+void Axes::sync_twin_y()
+{
+    if (!twin_)
+        return;
+    const AxisLimits now  = y_limits();
+    const auto       seen = twin_seen_ylim_;
+    twin_seen_ylim_       = now;
+    if (!ylim_ || !seen || (seen->min == now.min && seen->max == now.max))
+        return;
+    const AxisLimits o    = axis_space_limits(yscale_, *seen);
+    const AxisLimits n    = axis_space_limits(yscale_, now);
+    const double     span = o.max - o.min;
+    if (!(std::isfinite(span) && span > 0.0 && std::isfinite(n.min) && std::isfinite(n.max)))
+        return;
+    const double     f0 = (n.min - o.min) / span;
+    const double     f1 = (n.max - o.min) / span;
+    const ScaleType  ts = twin_->yscale_;
+    const AxisLimits t  = axis_space_limits(ts, twin_->y_limits());
+    const double     tw = t.max - t.min;
+    const double     lo = from_axis_space(ts, t.min + f0 * tw);
+    const double     hi = from_axis_space(ts, t.min + f1 * tw);
+    if (std::isfinite(lo) && std::isfinite(hi) && lo < hi)
+        twin_->ylim(lo, hi);
+}
 
 void Axes::sharex(Axes& other)
 {
@@ -1546,6 +1624,8 @@ void Axes::auto_fit()
 {
     xlim_.reset();
     ylim_.reset();
+    if (twin_)
+        twin_->ylim_.reset();
     if (share_x_)
     {
         for (Axes* m : share_x_->members)

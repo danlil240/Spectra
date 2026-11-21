@@ -157,7 +157,7 @@ def encode_fb_req_create_figure(
 
 
 def encode_fb_req_create_axes(
-    figure_id: int, rows: int, cols: int, index: int, is_3d: bool = False
+    figure_id: int, rows: int, cols: int, index: int, is_3d: bool = False, twin_of: int = -1
 ) -> bytes:
     builder = flatbuffers.Builder(128)
     FBReqCreateAxes.Start(builder)
@@ -166,6 +166,8 @@ def encode_fb_req_create_axes(
     FBReqCreateAxes.AddGridCols(builder, cols)
     FBReqCreateAxes.AddGridIndex(builder, index)
     FBReqCreateAxes.AddIs3d(builder, is_3d)
+    if twin_of >= 0:
+        FBReqCreateAxes.AddTwinOf(builder, twin_of)
     root = builder.EndObject()
     builder.Finish(root)
     return _finalize(builder)

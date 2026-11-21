@@ -49,10 +49,27 @@ inline void apply_snapshot_color(Series& s, const ipc::SnapshotSeriesState& ss)
         s.color({ss.color_r, ss.color_g, ss.color_b, ss.color_a});
 }
 
-// Resolve an axes slot on a live Figure. 2D axes live in axes(); 3D axes are
-// created by subplot3d() and only exist in all_axes().
-inline AxesBase* live_axes_at(Figure& fig, uint32_t index)
+// Resolve an axes index of the snapshot on a live Figure. 2D axes live in
+// axes(); 3D axes are created by subplot3d() and only exist in all_axes().
+// With the snapshot, a twinx() twin resolves to its live host's twin() and
+// other axes to their grid slot (twins take none); without it the index is
+// the slot.
+inline AxesBase* live_axes_at(Figure&                         fig,
+                              uint32_t                        index,
+                              const ipc::SnapshotFigureState* snap = nullptr)
 {
+    if (snap && index < snap->axes.size())
+    {
+        const int32_t host = snap->axes[index].twin_of;
+        if (host >= 0)
+        {
+            if (static_cast<uint32_t>(host) >= index)
+                return nullptr;
+            auto* h = dynamic_cast<Axes*>(live_axes_at(fig, static_cast<uint32_t>(host), snap));
+            return h ? h->twin() : nullptr;
+        }
+        index = static_cast<uint32_t>(ipc::axes_grid_slot(snap->axes, index));
+    }
     if (index < fig.axes().size() && fig.axes()[index])
         return fig.axes_mut()[index].get();
     if (index < fig.all_axes().size() && fig.all_axes()[index])
@@ -225,17 +242,43 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
     int cols = std::clamp(snap.grid_cols, int32_t(1), MAX_GRID_DIM);
 
     const size_t num_axes = built_axes_count(snap);
+    // twinx() twins take no grid slot.
+    const size_t num_slots = num_axes > 0 ? ipc::axes_grid_slot(snap.axes, num_axes - 1) + 1 : 0;
     // Figure::subplot()/subplot3d() throw std::out_of_range when the index
     // exceeds rows*cols. The cached grid can lag behind the axes list (e.g. an
     // ADD_AXES from an older daemon without grid info), so grow it to fit.
-    while (static_cast<size_t>(rows) * static_cast<size_t>(cols) < num_axes)
+    while (static_cast<size_t>(rows) * static_cast<size_t>(cols) < num_slots)
         ++rows;
     for (size_t i = 0; i < num_axes; ++i)
     {
         const auto axes_index = static_cast<uint32_t>(i);
-        if (built_axes_is_3d(snap, axes_index))
+        const int  slot       = static_cast<int>(ipc::axes_grid_slot(snap.axes, i)) + 1;
+        // A twin: its host's twinx(), with the twin's own y state only (its x
+        // axis is the host's).
+        if (i < snap.axes.size() && snap.axes[i].twin_of >= 0)
         {
-            auto&       ax3d = fig->subplot3d(rows, cols, static_cast<int>(i + 1));
+            auto* host =
+                snap.axes[i].twin_of < static_cast<int32_t>(i)
+                    ? dynamic_cast<Axes*>(
+                          live_axes_at(*fig, static_cast<uint32_t>(snap.axes[i].twin_of), &snap))
+                    : nullptr;
+            if (host && !host->is_twin())
+            {
+                const auto& sa = snap.axes[i];
+                auto&       tw = host->twinx();
+                tw.ylim(sa.y_min, sa.y_max);
+                if (!sa.y_label.empty())
+                    tw.ylabel(sa.y_label);
+                tw.yscale(static_cast<ScaleType>(sa.y_scale));
+                tw.yaxis_datetime(sa.y_datetime);
+                ipc::apply_axis_ticks_state(tw, sa);
+                tw.clear_xticks();
+                sync_live_annotations(tw, sa.annotations);
+            }
+        }
+        else if (built_axes_is_3d(snap, axes_index))
+        {
+            auto&       ax3d = fig->subplot3d(rows, cols, slot);
             const auto& sa   = snap.axes[i];
             ax3d.xlim(sa.x_min, sa.x_max);
             ax3d.ylim(sa.y_min, sa.y_max);
@@ -252,7 +295,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
         }
         else
         {
-            auto& ax = fig->subplot(rows, cols, static_cast<int>(i + 1));
+            auto& ax = fig->subplot(rows, cols, slot);
             if (i < snap.axes.size())
             {
                 const auto& sa = snap.axes[i];
@@ -279,9 +322,10 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
         {
             if (ss.axes_index != axes_index || !series_is_built(snap, ss))
                 continue;
-            if (auto* ax3d = dynamic_cast<Axes3D*>(live_axes_at(*fig, axes_index)))
+            auto* live = live_axes_at(*fig, axes_index, &snap);
+            if (auto* ax3d = dynamic_cast<Axes3D*>(live))
                 add_3d_series(*ax3d, ss);
-            else if (auto* ax2d = dynamic_cast<Axes*>(live_axes_at(*fig, axes_index)))
+            else if (auto* ax2d = dynamic_cast<Axes*>(live))
                 add_2d_series(*ax2d, ss);
         }
     }

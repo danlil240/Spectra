@@ -537,6 +537,17 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
     return &s;
 }
 
+// Grid slots whose 2D axes has a twinx() twin, in order.  The snapshot lists
+// the twins after the grid slots, in this order.
+inline std::vector<size_t> snapshot_twin_hosts(const Figure& fig)
+{
+    std::vector<size_t> out;
+    for (size_t i = 0; i < fig.axes().size(); ++i)
+        if (fig.axes()[i] && fig.axes()[i]->twin())
+            out.push_back(i);
+    return out;
+}
+
 // ─── Series enumeration ─────────────────────────────────────────────────────
 
 // Visit every series the snapshot carries, in snapshot order:
@@ -546,18 +557,23 @@ inline void for_each_snapshot_series(const Figure& fig, Fn&& fn)
 {
     uint32_t     global = 0;
     const size_t slots  = snapshot_axes_slot_count(fig);
-    for (size_t slot = 0; slot < slots; ++slot)
+    auto         visit  = [&](const AxesBase* ax, size_t index)
     {
-        const AxesBase* ax = snapshot_axes_at(fig, slot);
         if (!ax)
-            continue;
+            return;
         for (const auto& s_ptr : ax->series())
         {
             if (!s_ptr || snapshot_series_type(*s_ptr)[0] == '\0')
                 continue;
-            fn(static_cast<uint32_t>(slot), global++, *s_ptr);
+            fn(static_cast<uint32_t>(index), global++, *s_ptr);
         }
-    }
+    };
+    for (size_t slot = 0; slot < slots; ++slot)
+        visit(snapshot_axes_at(fig, slot), slot);
+    // twinx() twins follow the grid slots (snapshot_twin_hosts()).
+    size_t index = slots;
+    for (size_t host : snapshot_twin_hosts(fig))
+        visit(fig.axes()[host]->twin(), index++);
 }
 
 // ─── Serialize a Figure into a SnapshotFigureState ──────────────────────────
@@ -622,6 +638,26 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             sa.title            = base->title();
             sa.colorbar_visible = base->colorbar_visible();
         }
+        snap.axes.push_back(std::move(sa));
+    }
+    for (size_t host : snapshot_twin_hosts(fig))
+    {
+        const Axes&            tw = *fig.axes()[host]->twin();
+        ipc::SnapshotAxisState sa;
+        sa.twin_of = static_cast<int32_t>(host);
+        sa.x_min   = tw.x_limits().min;
+        sa.x_max   = tw.x_limits().max;
+        sa.y_min   = tw.y_limits().min;
+        sa.y_max   = tw.y_limits().max;
+        sa.y_label = tw.ylabel();
+        ipc::axis_format_to_state(tw, sa);
+        ipc::capture_axis_ticks(tw, sa);
+        for (const auto& ann : tw.annotations())
+        {
+            if (ann)
+                sa.annotations.push_back(ipc::annotation_to_state(*ann));
+        }
+        sa.grid_visible = false;
         snap.axes.push_back(std::move(sa));
     }
 

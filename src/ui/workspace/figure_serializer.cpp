@@ -123,6 +123,10 @@ enum ChunkTag : uint16_t
     // 3D hover spike lines on/off (u8), written with the overlay config.
     // Version-free: older readers skip it and keep spike lines on.
     TAG_OVERLAY_SPIKES3D = 0x0066,
+    // twinx(): the next TAG_AXES_2D chunk is the twin of the 2D axes with the
+    // given index (i32), not a new subplot.  Version-free: older readers skip
+    // it and load the twin as one more subplot.
+    TAG_AXES_TWIN = 0x0067,
 
     TAG_END = 0xFFFF,
 };
@@ -1032,8 +1036,17 @@ bool FigureSerializer::save(std::ostream& f, const Figure& figure, const Overlay
         // Check 2D (axes_)
         if (i < figure.axes().size() && figure.axes()[i])
         {
+            const int host = axes_idx;
             write_axes_2d(w, *figure.axes()[i], axes_idx);
             ++axes_idx;
+            if (const Axes* twin = figure.axes()[i]->twin())
+            {
+                auto tpos = w.begin_chunk(TAG_AXES_TWIN);
+                w.write_i32(host);
+                w.end_chunk(tpos);
+                write_axes_2d(w, *twin, axes_idx);
+                ++axes_idx;
+            }
             continue;
         }
     }
@@ -1172,6 +1185,8 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
         AxisLimits y;
     };
     std::vector<PendingAutoLimits> pending_auto_limits;
+    // TAG_AXES_TWIN: host of the next 2D axes chunk.
+    Axes* pending_twin_host = nullptr;
 
     // Read chunks
     while (r.good())
@@ -1251,14 +1266,29 @@ bool FigureSerializer::load(std::istream& f, Figure& figure, OverlaySnapshot* ov
                 break;
             }
 
+            case TAG_AXES_TWIN:
+            {
+                const int host    = r.read_i32();
+                pending_twin_host = (host >= 0 && host < static_cast<int>(axes_ptrs.size()))
+                                        ? dynamic_cast<Axes*>(axes_ptrs[host])
+                                        : nullptr;
+                if (pending_twin_host && pending_twin_host->is_twin())
+                    pending_twin_host = nullptr;
+                break;
+            }
+
             case TAG_AXES_2D:
             {
                 int idx = r.read_i32();
                 (void)idx;
 
-                // Create axes via subplot to maintain proper grid
-                int   current = static_cast<int>(figure.axes().size());
-                auto& axes    = figure.subplot(grid_rows, grid_cols, current + 1);
+                // Create axes via subplot to maintain proper grid (or the
+                // twin announced by TAG_AXES_TWIN).
+                Axes* twin_host   = pending_twin_host;
+                pending_twin_host = nullptr;
+                int   current     = static_cast<int>(figure.axes().size());
+                auto& axes        = twin_host ? twin_host->twinx()
+                                              : figure.subplot(grid_rows, grid_cols, current + 1);
 
                 axes.title(r.read_string());
                 axes.xlabel(r.read_string());

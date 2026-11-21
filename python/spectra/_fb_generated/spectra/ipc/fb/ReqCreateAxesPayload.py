@@ -59,8 +59,15 @@ class ReqCreateAxesPayload(object):
             return bool(self._tab.Get(flatbuffers.number_types.BoolFlags, o + self._tab.Pos))
         return False
 
+    # ReqCreateAxesPayload
+    def TwinOf(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(14))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
+        return -1
+
 def ReqCreateAxesPayloadStart(builder):
-    builder.StartObject(5)
+    builder.StartObject(6)
 
 def Start(builder):
     ReqCreateAxesPayloadStart(builder)
@@ -94,6 +101,12 @@ def ReqCreateAxesPayloadAddIs3d(builder, is3d):
 
 def AddIs3d(builder, is3d):
     ReqCreateAxesPayloadAddIs3d(builder, is3d)
+
+def ReqCreateAxesPayloadAddTwinOf(builder, twinOf):
+    builder.PrependInt32Slot(5, twinOf, -1)
+
+def AddTwinOf(builder, twinOf):
+    ReqCreateAxesPayloadAddTwinOf(builder, twinOf)
 
 def ReqCreateAxesPayloadEnd(builder):
     return builder.EndObject()

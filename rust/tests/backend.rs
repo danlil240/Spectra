@@ -515,3 +515,29 @@ fn session_outlives_agent_heartbeat_timeout() {
     assert!(s.is_connected());
     assert!(s.list_figures().unwrap().contains(&fig.id()));
 }
+
+#[test]
+fn twinx_shares_x_and_has_its_own_y() {
+    let Some((s, _g)) = session() else { return };
+    let fig = s.figure("twin").unwrap();
+    let ax = fig.subplot(1, 1, 1).unwrap();
+    let x = linspace(0.0, 10.0, 50);
+    let y: Vec<f64> = x.iter().map(|v| v.sin()).collect();
+    let y2: Vec<f64> = x.iter().map(|v| 1000.0 * v).collect();
+    ax.line(&x, &y).unwrap();
+    let tw = ax.twinx().unwrap();
+    assert!(!tw.is_3d());
+    assert_ne!(tw.index(), ax.index());
+    // Same twin on later calls, and twinx() of the twin is the twin.
+    assert_eq!(ax.twinx().unwrap().index(), tw.index());
+    assert_eq!(tw.twinx().unwrap().index(), tw.index());
+    tw.line(&x, &y2).unwrap();
+    tw.set_ylabel("right").unwrap().set_title("twins").unwrap();
+    let path = out_dir().join("twinx.png");
+    fig.savefig(&path).unwrap();
+    assert_png(&path);
+    let ax3 = fig.subplot3d(1, 1, 1);
+    if let Ok(a3) = ax3 {
+        assert!(a3.twinx().is_err());
+    }
+}

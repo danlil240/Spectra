@@ -107,6 +107,40 @@ uint32_t FigureModel::add_axes(uint64_t figure_id,
     return static_cast<uint32_t>(it->second.axes.size() - 1);
 }
 
+int32_t FigureModel::add_twin_axes(uint64_t figure_id, uint32_t host_index, bool* created)
+{
+    if (created)
+        *created = false;
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end())
+        return -1;
+    auto& axes = it->second.axes;
+    if (host_index >= axes.size())
+        return -1;
+    // The twin of a twin is that twin (Axes::twinx()).
+    if (axes[host_index].twin_of >= 0)
+        return static_cast<int32_t>(host_index);
+    if (axes[host_index].is_3d)
+        return -1;
+    if (const int32_t existing = ipc::twin_axes_index(axes, host_index); existing >= 0)
+        return existing;
+    const auto&            host = axes[host_index];
+    ipc::SnapshotAxisState ax;
+    ipc::style_new_axes(it->second.style, ax);
+    ax.x_min        = host.x_min;
+    ax.x_max        = host.x_max;
+    ax.x_scale      = host.x_scale;
+    ax.x_datetime   = host.x_datetime;
+    ax.grid_visible = false;
+    ax.twin_of      = static_cast<int32_t>(host_index);
+    axes.push_back(std::move(ax));
+    bump_revision();
+    if (created)
+        *created = true;
+    return static_cast<int32_t>(axes.size() - 1);
+}
+
 ipc::DiffOp FigureModel::set_axis_limits(uint64_t figure_id,
                                          uint32_t axes_index,
                                          double   x_min,
@@ -124,6 +158,9 @@ ipc::DiffOp FigureModel::set_axis_limits(uint64_t figure_id,
         ax.y_min = y_min;
         ax.y_max = y_max;
         share_limits_from(it->second, axes_index);
+        // A twin keeps its host's x limits (share_limits_from).
+        x_min = ax.x_min;
+        x_max = ax.x_max;
     }
     bump_revision();
 
@@ -526,14 +563,24 @@ ipc::DiffOp FigureModel::set_series_label(uint64_t           figure_id,
 namespace
 {
 // Palette slot for a new series: its position among the series of its axes,
-// like Axes::add_series.  The window resolves it from its own data palette.
+// like Axes::add_series (a twinx() twin and its host count together, so the
+// twin continues the host's colour cycle).  The window resolves it from its
+// own data palette.
 int32_t next_auto_color_index(const std::vector<ipc::SnapshotSeriesState>& series,
+                              const std::vector<ipc::SnapshotAxisState>&   axes,
                               uint32_t                                     axes_index)
 {
+    int64_t partner = -1;
+    if (axes_index < axes.size() && axes[axes_index].twin_of >= 0)
+        partner = axes[axes_index].twin_of;
+    else
+        partner = ipc::twin_axes_index(axes, axes_index);
     return static_cast<int32_t>(std::count_if(series.begin(),
                                               series.end(),
-                                              [&](const ipc::SnapshotSeriesState& o)
-                                              { return o.axes_index == axes_index; }));
+                                              [&](const ipc::SnapshotSeriesState& o) {
+                                                  return o.axes_index == axes_index
+                                                         || o.axes_index == partner;
+                                              }));
 }
 }   // namespace
 
@@ -548,7 +595,7 @@ uint32_t FigureModel::add_series(uint64_t           figure_id,
     ipc::SnapshotSeriesState s;
     s.name        = name;
     s.type        = type;
-    s.color_index = next_auto_color_index(it->second.series, s.axes_index);
+    s.color_index = next_auto_color_index(it->second.series, it->second.axes, s.axes_index);
     ipc::style_new_series(it->second.style, s);
     it->second.series.push_back(std::move(s));
     bump_revision();
@@ -572,7 +619,7 @@ ipc::DiffOp FigureModel::add_series_with_diff(uint64_t           figure_id,
     s.name        = name;
     s.type        = type;
     s.axes_index  = axes_index;
-    s.color_index = next_auto_color_index(it->second.series, axes_index);
+    s.color_index = next_auto_color_index(it->second.series, it->second.axes, axes_index);
     ipc::style_new_series(it->second.style, s);
     it->second.series.push_back(std::move(s));
     out_index = static_cast<uint32_t>(it->second.series.size() - 1);
@@ -1078,21 +1125,37 @@ void FigureModel::share_limits_from(FigureData& fd, uint32_t axes_index)
 {
     if (axes_index >= fd.axes.size() || fd.axes[axes_index].is_3d)
         return;
-    const size_t cols = static_cast<size_t>(std::max<int32_t>(1, fd.grid_cols));
-    const auto&  src  = fd.axes[axes_index];
-    const size_t kx   = share_group_key(fd.share_x, axes_index, cols);
-    const size_t ky   = share_group_key(fd.share_y, axes_index, cols);
+    // twinx(): a twin's x axis is its host's.  It takes no grid slot and no
+    // part in y sharing.
+    auto x_owner = [&fd](size_t i) -> size_t
+    {
+        const int32_t h = fd.axes[i].twin_of;
+        return (h >= 0 && static_cast<size_t>(h) < fd.axes.size()) ? static_cast<size_t>(h) : i;
+    };
+    auto& src = fd.axes[axes_index];
+    if (x_owner(axes_index) != axes_index)
+    {
+        src.x_min = fd.axes[x_owner(axes_index)].x_min;
+        src.x_max = fd.axes[x_owner(axes_index)].x_max;
+    }
+    const size_t cols  = static_cast<size_t>(std::max<int32_t>(1, fd.grid_cols));
+    const size_t owner = x_owner(axes_index);
+    const bool   twin  = owner != axes_index;
+    auto         slot  = [&fd](size_t i) { return ipc::axes_grid_slot(fd.axes, i); };
+    const size_t kx    = share_group_key(fd.share_x, slot(owner), cols);
+    const size_t ky    = twin ? SIZE_MAX : share_group_key(fd.share_y, slot(axes_index), cols);
     for (size_t j = 0; j < fd.axes.size(); ++j)
     {
         auto& dst = fd.axes[j];
         if (j == axes_index || dst.is_3d)
             continue;
-        if (kx != SIZE_MAX && share_group_key(fd.share_x, j, cols) == kx)
+        const size_t oj = x_owner(j);
+        if (oj == owner || (kx != SIZE_MAX && share_group_key(fd.share_x, slot(oj), cols) == kx))
         {
             dst.x_min = src.x_min;
             dst.x_max = src.x_max;
         }
-        if (ky != SIZE_MAX && share_group_key(fd.share_y, j, cols) == ky)
+        if (ky != SIZE_MAX && oj == j && share_group_key(fd.share_y, slot(j), cols) == ky)
         {
             dst.y_min = src.y_min;
             dst.y_max = src.y_max;

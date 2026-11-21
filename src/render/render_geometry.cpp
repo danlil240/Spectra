@@ -171,12 +171,12 @@ void Renderer::render_plot_text(Figure& figure)
     }
 
     // ── 2D Axes: tick labels, axis labels, title ──
-    for (auto& axes_ptr : figure.axes())
+    // A twinx() twin follows its host, with its y axis text on the right.
+    for (Axes* axes_ptr : axes_with_twins(figure))
     {
-        if (!axes_ptr)
-            continue;
-        auto&       axes = *axes_ptr;
-        const auto& vp   = axes.viewport();
+        auto&       axes    = *axes_ptr;
+        const auto& vp      = axes.viewport();
+        const bool  right_y = axes.is_twin();
 
         // Skip axes entirely outside the framebuffer (scrolled off-screen)
         if (vp.y + vp.h < 0.0f || vp.y > static_cast<float>(fig_h))
@@ -309,11 +309,11 @@ void Renderer::render_plot_text(Figure& figure)
                     && i < static_cast<int>(y_ticks.positions.size()) - 1)
                     continue;
                 text_renderer_.draw_text(y_ticks.labels[i],
-                                         vp.x - tl - pad,
+                                         right_y ? vp.x + vp.w + tl + pad : vp.x - tl - pad,
                                          py,
                                          tf.preset,
                                          ax_tick_col,
-                                         TextAlign::Right,
+                                         right_y ? TextAlign::Left : TextAlign::Right,
                                          TextVAlign::Middle,
                                          tf.scale);
                 last_y_bottom    = y_bottom;
@@ -347,11 +347,11 @@ void Renderer::render_plot_text(Figure& figure)
             y_offset_reserve = offset_annotation_reserve(
                 text_renderer_.measure_text(y_ticks.offset_label, tf.preset, tf.scale).width);
             text_renderer_.draw_text(y_ticks.offset_label,
-                                     vp.x,
+                                     right_y ? vp.x + vp.w : vp.x,
                                      vp.y - tm.px(4.0f),
                                      tf.preset,
                                      ax_tick_col,
-                                     TextAlign::Left,
+                                     right_y ? TextAlign::Right : TextAlign::Left,
                                      TextVAlign::Bottom,
                                      tf.scale);
         }
@@ -401,9 +401,9 @@ void Renderer::render_plot_text(Figure& figure)
             const auto  sf        = label_font(fit);
             const auto  label_ext = text_renderer_.measure_text(fit.text, sf.preset, sf.scale);
             const float label_gap = tm.px(6.0f);   // gap between widest tick label and axis label
-            float       center_x =
-                vp.x - tl - pad - max_y_tick_width - label_gap - label_ext.height * 0.5f;
-            float           center_y   = vp.y + vp.h * 0.5f;
+            const float out = tl + pad + max_y_tick_width + label_gap + label_ext.height * 0.5f;
+            float       center_x       = right_y ? vp.x + vp.w + out : vp.x - out;
+            float       center_y       = vp.y + vp.h * 0.5f;
             constexpr float neg_90_deg = -1.5707963f;   // -π/2
             text_renderer_.draw_text_rotated(fit.text,
                                              center_x,
@@ -1516,16 +1516,24 @@ void Renderer::render_plot_geometry(Figure& figure)
     overlay_line_scratch_.clear();
 
     // ── 2D Axes: border and tick mark lines ──
-    for (auto& axes_ptr : figure.axes())
+    // A twinx() twin draws only its y tick marks, on the right edge (plus that
+    // edge when its host is despined).
+    for (Axes* axes_ptr : axes_with_twins(figure))
     {
-        if (!axes_ptr)
-            continue;
-        auto&       axes = *axes_ptr;
-        const auto& vp   = axes.viewport();
+        auto&       axes    = *axes_ptr;
+        const auto& vp      = axes.viewport();
+        const bool  right_y = axes.is_twin();
 
         // Skip axes entirely outside the framebuffer (scrolled off-screen)
         if (vp.y + vp.h < 0.0f || vp.y > fh)
             continue;
+        if (right_y && axes.twin_host()->despined())
+        {
+            overlay_line_scratch_.push_back(vp.x + vp.w);
+            overlay_line_scratch_.push_back(vp.y);
+            overlay_line_scratch_.push_back(vp.x + vp.w);
+            overlay_line_scratch_.push_back(vp.y + vp.h);
+        }
 
         // ── Border: 4 lines at viewport edges (screen-space) ──
         // Rendered in screen space to avoid a GPU buffer race condition:
@@ -1614,9 +1622,14 @@ void Renderer::render_plot_geometry(Figure& figure)
 
         auto x_ticks = axes.compute_x_ticks();
         auto y_ticks = axes.compute_y_ticks();
+        if (right_y)
+            x_ticks.positions.clear();   // the host draws the x axis
 
         // Tick marks point out of the plot area, or into it (TickDirection::In).
         const float dir = axes.tick_direction() == TickDirection::In ? -1.0f : 1.0f;
+        // Y marks stand on the left edge, or the right one for a twin.
+        const float y_edge = right_y ? vp.x + vp.w : vp.x;
+        const float y_out  = right_y ? 1.0f : -1.0f;
         auto        tick_marks =
             [&](const std::vector<double>& xs, const std::vector<double>& ys, float len, bool clip)
         {
@@ -1637,9 +1650,9 @@ void Renderer::render_plot_geometry(Figure& figure)
                 float py = data_to_px_y(position);
                 if (clip && (py < vp.y - 0.5f || py > vp.y + vp.h + 0.5f))
                     continue;
-                overlay_line_scratch_.push_back(vp.x);
+                overlay_line_scratch_.push_back(y_edge);
                 overlay_line_scratch_.push_back(py);
-                overlay_line_scratch_.push_back(vp.x - len * dir);
+                overlay_line_scratch_.push_back(y_edge + y_out * len * dir);
                 overlay_line_scratch_.push_back(py);
             }
         };
@@ -1659,12 +1672,8 @@ void Renderer::render_plot_geometry(Figure& figure)
 
     // ── Text-annotation arrows (screen-space triangles, scissored to the plot area) ──
     {
-        for (auto& axes_ptr : figure.axes())
-        {
-            if (!axes_ptr)
-                continue;
+        for (Axes* axes_ptr : axes_with_twins(figure))
             render_annotation_arrows(*axes_ptr, slot, fw, fh);
-        }
     }
 
     // Restore full-figure scissor for border + tick overlay

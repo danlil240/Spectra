@@ -770,6 +770,16 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);
+        // twinx(): the twin's series over the same plot area, in its own y range.
+        if (Axes* twin = ax.twin())
+        {
+            // Pan / zoom of the host moves the twin's y axis along.
+            ax.sync_twin_y();
+            if (!twin->has_series_removed_callback())
+                twin->set_series_removed_callback(ax.series_removed_callback());
+            twin->sync_bar_layout();
+            render_axes(*twin, twin->viewport(), w, h);
+        }
     }
 
     // Render each 3D axes (stored in all_axes_)

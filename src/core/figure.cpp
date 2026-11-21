@@ -206,7 +206,15 @@ void Figure::apply_share_modes(bool x, bool y)
         }
     };
     if (x)
+    {
         regroup(share_x_, true);
+        // A twin always shares its host's x axis (and so the host's group).
+        for (auto& a : axes_)
+        {
+            if (a && a->twin())
+                a->twin()->sharex(*a);
+        }
+    }
     if (y)
         regroup(share_y_, false);
 }

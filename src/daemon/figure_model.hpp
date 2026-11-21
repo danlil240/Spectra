@@ -49,6 +49,13 @@ class FigureModel
                       double   y_max = 1.0,
                       bool     is_3d = false);
 
+    // Add (or get) the twinx() twin of 2D axes @p host_index: an axes sharing
+    // the host's plot area and x axis, with its own y axis on the right.
+    // Returns its index (the host's own index when it is a twin, its existing
+    // twin when it has one), or -1 for an unknown figure / axes or a 3D axes.
+    // *created is true when a new axes was added.
+    int32_t add_twin_axes(uint64_t figure_id, uint32_t host_index, bool* created = nullptr);
+
     // Set axis limits. Returns a DiffOp for broadcasting.
     ipc::DiffOp set_axis_limits(uint64_t figure_id,
                                 uint32_t axes_index,

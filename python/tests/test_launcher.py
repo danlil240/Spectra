@@ -94,6 +94,9 @@ def test_long_xdg_pins_short_socket(tmp_path, monkeypatch):
         f'open({str(argv_file)!r}, "w").write("\\n".join(sys.argv[1:])); sys.exit(1)',
     )
     monkeypatch.setenv("SPECTRA_BACKEND_PATH", backend)
+    # /tmp is shared: a Spectra app running on this machine must not be
+    # discovered in place of the fake backend.
+    monkeypatch.setattr(_launcher, "_discover_live_brokers", lambda exclude=None: [])
     with pytest.raises(RuntimeError):
         _launcher.ensure_backend("", timeout=5.0)
     args = argv_file.read_text().splitlines()

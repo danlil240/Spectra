@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Optional
+from typing import Iterable, Optional
 
 from ._log import log
 
@@ -63,7 +63,7 @@ def _socket_path_fits(path: str) -> bool:
     return len(os.fsencode(path)) < _sun_path_max()
 
 
-def _discover_live_brokers() -> list[str]:
+def _discover_live_brokers(exclude: Optional[Iterable[str]] = None) -> list[str]:
     """Return live `spectra-*.sock` entries in the runtime dir, newest first.
 
     Mirrors the C++ Publisher discovery (`src/ipc/publisher_client.cpp`) and
@@ -72,6 +72,7 @@ def _discover_live_brokers() -> list[str]:
     that respond to a connect probe. The publisher still performs the full
     HELLO/WELCOME/DECLARE handshake on each candidate before trusting it.
     """
+    skip = set(exclude or ())
     dir_ = _runtime_socket_dir()
     try:
         entries = os.listdir(dir_)
@@ -86,6 +87,8 @@ def _discover_live_brokers() -> list[str]:
         if name.startswith("spectra-auto-"):
             continue
         full = os.path.join(dir_, name)
+        if full in skip:
+            continue
         try:
             mtime = os.path.getmtime(full)
         except OSError:
@@ -100,9 +103,9 @@ def _discover_live_brokers() -> list[str]:
     return live
 
 
-def _discover_live_broker() -> Optional[str]:
+def _discover_live_broker(exclude: Optional[Iterable[str]] = None) -> Optional[str]:
     """Return the newest live `spectra-*.sock` in the runtime dir, or None."""
-    brokers = _discover_live_brokers()
+    brokers = _discover_live_brokers(exclude)
     return brokers[0] if brokers else None
 
 
@@ -256,7 +259,9 @@ def _find_backend_binary() -> Optional[str]:
     return None
 
 
-def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
+def ensure_backend(
+    socket_path: str, timeout: float = 5.0, exclude: Optional[Iterable[str]] = None
+) -> str:
     """Ensure a backend is running. Returns the socket path actually in use.
 
     Behaviour:
@@ -270,14 +275,21 @@ def ensure_backend(socket_path: str, timeout: float = 5.0) -> str:
       so it picks its default ``$XDG_RUNTIME_DIR/spectra-<daemon_pid>.sock``,
       poll the runtime directory until a live broker appears, and return
       its path.
+
+    ``exclude`` lists discovered sockets the caller already rejected (for
+    example an in-process app's topic broker, which cannot host figures).
+    They are never reused, and a fresh backend is launched instead.
     """
+    skip = set(exclude or ())
+    if socket_path in skip:
+        socket_path = ""
     if socket_path and _can_connect(socket_path):
         log.info("launcher reusing existing backend socket=%s", socket_path)
         return socket_path
 
     # A live broker may have appeared between resolve_socket_path() and now —
     # e.g. the user just launched an inproc Spectra app in another terminal.
-    rediscovered = _discover_live_broker()
+    rediscovered = _discover_live_broker(skip)
     if rediscovered and (not socket_path or rediscovered == socket_path):
         log.info("launcher attaching to live broker socket=%s", rediscovered)
         return rediscovered

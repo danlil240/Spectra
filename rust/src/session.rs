@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 use crate::codec::{self, Message, PropertyUpdate, TopicInfo};
 use crate::error::{Error, Result};
 use crate::figure::{Figure, FigureState};
+use std::collections::HashSet;
+
 use crate::launcher;
 use crate::protocol as p;
 use crate::style::PlotStyle;
@@ -188,13 +190,24 @@ fn base_timeout() -> f64 {
 /// ([`p::CLIENT_SCRIPT`] or [`p::CLIENT_PUBLISHER`]); `name` only labels the
 /// build string shown in backend logs.
 pub(crate) fn handshake(path: &str, role: &str, name: &str) -> Result<(Transport, u64)> {
+    handshake_with_mode(path, role, name).map(|(t, sid, _)| (t, sid))
+}
+
+/// [`handshake`], also returning the WELCOME mode ("multiproc" for the
+/// daemon, "inproc" for an in-process app's topic broker).
+pub(crate) fn handshake_with_mode(
+    path: &str,
+    role: &str,
+    name: &str,
+) -> Result<(Transport, u64, String)> {
     let mut t = Transport::connect(path)?;
     let build = format!("spectra-plot-rust/{} ({name})", env!("CARGO_PKG_VERSION"));
     let hello = codec::encode_hello(role, &build);
     t.send(p::HELLO, &hello, 0, 0)?;
     match t.poll(Duration::from_secs_f64(base_timeout()))? {
         Polled::Message(m) if m.header.msg_type == p::WELCOME => {
-            Ok((t, codec::decode_welcome(&m.payload)?.session_id))
+            let w = codec::decode_welcome(&m.payload)?;
+            Ok((t, w.session_id, w.mode))
         }
         Polled::Message(m) => Err(Error::protocol(format!(
             "expected WELCOME, got message type 0x{:04X}",
@@ -214,20 +227,38 @@ pub(crate) fn connect_with_retry(
     client_name: &str,
 ) -> Result<(Transport, u64, String)> {
     let attempts = if auto_launch { 3 } else { 1 };
+    let pinned = explicit.is_some_and(|p| !p.is_empty())
+        || std::env::var("SPECTRA_SOCKET").is_ok_and(|p| !p.is_empty());
+    // Discovered sockets that belong to an in-process app's topic broker: it
+    // relays topics but never answers figure requests, so skip it.
+    let mut rejected: HashSet<String> = HashSet::new();
     let mut last: Option<Error> = None;
     for attempt in 1..=attempts {
-        let result = (|| {
+        let result = (|| loop {
             let mut path = launcher::resolve_socket_path(explicit);
+            if rejected.contains(&path) {
+                path.clear();
+            }
             if auto_launch {
-                path = launcher::ensure_backend(&path, LAUNCH_TIMEOUT)?;
+                path = launcher::ensure_backend_excluding(&path, LAUNCH_TIMEOUT, &rejected)?;
             }
             if path.is_empty() {
                 return Err(Error::connection(
                     "no running Spectra backend found (auto_launch is off and SPECTRA_SOCKET is unset)",
                 ));
             }
-            let (t, sid) = handshake(&path, p::CLIENT_SCRIPT, client_name)?;
-            Ok((t, sid, path))
+            let (t, sid, mode) = handshake_with_mode(&path, p::CLIENT_SCRIPT, client_name)?;
+            if mode != "inproc" || pinned {
+                return Ok((t, sid, path));
+            }
+            drop(t);
+            if !auto_launch {
+                return Err(Error::connection(
+                    "only an in-process Spectra app is running and it cannot host figures; \
+                     start spectra-backend or enable auto_launch",
+                ));
+            }
+            rejected.insert(path);
         })();
         match result {
             Ok(v) => return Ok(v),

@@ -123,19 +123,51 @@ void App::run()
         return;
     }
 
-    // Optionally install signal handlers so Ctrl+C (SIGINT) and SIGTERM
-    // trigger a graceful shutdown through shutdown_runtime() instead of
-    // killing the process mid-frame (which would leak Vulkan resources).
-    // Opt-in via AppConfig::install_signal_handlers: a library must not
-    // replace its host process's signal dispositions behind its back.
+    // Ctrl+C (SIGINT) and SIGTERM trigger a graceful shutdown through
+    // shutdown_runtime() instead of killing the process mid-frame (which
+    // would leak Vulkan resources and leave autosaves and the topic socket
+    // behind).  With AppConfig::install_signal_handlers the handlers stay for
+    // the life of the process.  Otherwise they are only installed where the
+    // host left the default disposition (a host's own handler is never
+    // replaced) and the default is restored when run() returns.
+    using Handler                    = void (*)(int);
+    const Handler graceful           = [](int) { App::request_exit(); };
+    bool          restore_sigint     = false;
+    bool          restore_sigterm    = false;
+    auto          install_if_default = [&](int sig) -> bool
+    {
+        const Handler prev = std::signal(sig, graceful);
+        if (prev == SIG_DFL)
+            return true;
+        if (prev != SIG_ERR)
+            std::signal(sig, prev);
+        return false;
+    };
     if (config_.install_signal_handlers)
     {
-        std::signal(SIGINT, [](int) { App::request_exit(); });
-        std::signal(SIGTERM, [](int) { App::request_exit(); });
+        std::signal(SIGINT, graceful);
+        std::signal(SIGTERM, graceful);
 #ifndef _WIN32
         std::signal(SIGPIPE, SIG_IGN);
 #endif
     }
+    else
+    {
+        restore_sigint  = install_if_default(SIGINT);
+        restore_sigterm = install_if_default(SIGTERM);
+    }
+    struct RestoreDefaultSignals
+    {
+        bool sigint;
+        bool sigterm;
+        ~RestoreDefaultSignals()
+        {
+            if (sigint)
+                std::signal(SIGINT, SIG_DFL);
+            if (sigterm)
+                std::signal(SIGTERM, SIG_DFL);
+        }
+    } restore_signals{restore_sigint, restore_sigterm};
 
     bool multiproc = !config_.socket_path.empty();
     if (!multiproc)

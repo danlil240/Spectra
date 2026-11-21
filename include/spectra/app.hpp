@@ -37,8 +37,10 @@ struct AppConfig
 
     /// When true, App::run() installs process-wide SIGINT/SIGTERM handlers that
     /// request a graceful exit (App::request_exit()) and ignores SIGPIPE.
-    /// Off by default so embedding Spectra never replaces the host's signal
-    /// dispositions; the standalone `spectra` executable turns it on.
+    /// When false, run() still turns SIGINT/SIGTERM into a graceful exit while
+    /// it runs, but only where the host left the default disposition (a
+    /// host's own handler is never replaced), and restores the default when it
+    /// returns.  The standalone `spectra` executable turns it on.
     bool install_signal_handlers = false;
 
     /// Theme name: "night", "dark", "light" or "high_contrast".  Empty → "night"

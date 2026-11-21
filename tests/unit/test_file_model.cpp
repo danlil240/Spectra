@@ -413,6 +413,24 @@ TEST(DocumentSession, CloseWindowAsksOnlyWhenModified)
     EXPECT_TRUE(doc.confirm_close_window([&]() { ++closes; }));
 }
 
+TEST(DocumentSession, AutosaveFolderIsPerProgram)
+{
+    // One program's crash must not make an unrelated program offer to
+    // restore its work (QA H4): each program autosaves into its own folder.
+    const fs::path a = DocumentSession::autosave_dir_for("basic_line");
+    const fs::path b = DocumentSession::autosave_dir_for("spectra-px4");
+    EXPECT_NE(a, b);
+    EXPECT_EQ(a.parent_path(), b.parent_path());
+    EXPECT_EQ(a.filename(), "basic_line");
+    EXPECT_EQ(a.parent_path().filename(), "autosave");
+    EXPECT_EQ(fs::path(DocumentSession::autosave_dir_for("a/b:c")).filename(), "a_b_c");
+    EXPECT_EQ(fs::path(DocumentSession::autosave_dir_for("..")).filename(), "spectra");
+    EXPECT_EQ(fs::path(DocumentSession::autosave_dir_for("")).filename(), "spectra");
+    EXPECT_EQ(fs::path(DocumentSession::default_autosave_dir()).filename(),
+              DocumentSession::current_program_name());
+    EXPECT_EQ(DocumentSession::current_program_name(), "unit_test_file_model");
+}
+
 TEST(DocumentSession, AutosaveWritesWhileModifiedAndCleansUp)
 {
     const fs::path dir = fresh_dir("autosave");

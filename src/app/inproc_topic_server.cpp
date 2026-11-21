@@ -51,6 +51,11 @@ std::string InprocTopicServer::start(FigureRegistry* fig_registry)
 
     fig_registry_ = fig_registry;
 
+    // Sockets left by Spectra processes that were killed would otherwise pile
+    // up and be probed by every client's discovery.
+    if (const size_t n = ipc::remove_stale_sockets(runtime_dir()); n > 0)
+        SPECTRA_LOG_DEBUG("topics", "Removed {} stale socket(s)", n);
+
     socket_path_ = runtime_dir() + "/spectra-" + std::to_string(::getpid()) + ".sock";
     if (!server_.listen(socket_path_))
     {

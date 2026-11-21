@@ -133,6 +133,11 @@ std::string runtime_dir();
 //   <runtime_dir()>/spectra-<pid>.sock
 std::string default_socket_path();
 
+// Deletes "spectra-<pid>.sock" files in @p dir whose process is gone and that
+// nobody answers on (left by a crash or SIGKILL).  Returns how many it removed.
+// No-op on Windows.
+size_t remove_stale_sockets(const std::string& dir);
+
 // Maximum length (in bytes, excluding the terminator) of a Unix socket path
 // on this platform (sizeof(sockaddr_un::sun_path) - 1); 0 where unsupported.
 size_t max_socket_path_length();

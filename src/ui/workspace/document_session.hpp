@@ -14,6 +14,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "document_tracker.hpp"
@@ -154,7 +155,13 @@ class DocumentSession
     // Parses the pid out of "autosave-<pid>-<token>.spectra" (-1 if not one).
     static int64_t     autosave_pid(const std::string& file_name);
     static bool        process_alive(int64_t pid);
+    // <config dir>/autosave/<program>: each program (spectra, spectra-px4, an
+    // example, ...) recovers only its own work, never another program's.
     static std::string default_autosave_dir();
+    static std::string autosave_dir_for(std::string_view program);
+    // Executable base name without extension, reduced to [A-Za-z0-9._-]
+    // ("spectra" when unknown).
+    static std::string current_program_name();
 
     // Looks for orphaned autosaves once (claims them so another window does
     // not offer the same ones).  Returns true if recovery should be offered.

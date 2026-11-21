@@ -24,6 +24,7 @@
     #include <pthread.h>
     #include <sys/socket.h>
     #include <sys/un.h>
+    #include <sys/wait.h>
     #include <unistd.h>
 
 using namespace spectra::ipc;
@@ -283,6 +284,43 @@ TEST(BugfixIpcTransport, CloseDoesNotUnlinkReplacedSocket)
 
     second.close();
     EXPECT_FALSE(fs::exists(path));
+}
+
+// ─── QA H4: sockets of killed processes are swept ───────────────────────────
+
+TEST(BugfixIpcTransport, RemoveStaleSocketsOnlyTouchesDeadOwners)
+{
+    const fs::path dir =
+        fs::temp_directory_path() / ("spectra-sweep-" + std::to_string(::getpid()));
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+
+    // A pid that certainly is not running: a child that already exited.
+    const pid_t child = ::fork();
+    if (child == 0)
+        ::_exit(0);
+    ASSERT_GT(child, 0);
+    ::waitpid(child, nullptr, 0);
+
+    const std::string dead  = (dir / ("spectra-" + std::to_string(child) + ".sock")).string();
+    const std::string mine  = (dir / ("spectra-" + std::to_string(::getpid()) + ".sock")).string();
+    const std::string other = (dir / "spectra-backend-x.sock").string();
+    ASSERT_TRUE(make_stale_socket(dead));
+    ASSERT_TRUE(make_stale_socket(mine));
+    ASSERT_TRUE(make_stale_socket(other));
+
+    EXPECT_EQ(remove_stale_sockets(dir.string()), 1u);
+    EXPECT_FALSE(fs::exists(dead));
+    EXPECT_TRUE(fs::exists(mine));    // our own pid: never touched
+    EXPECT_TRUE(fs::exists(other));   // not spectra-<pid>.sock
+
+    // A dead owner's socket that something still answers on is kept.
+    Server server;
+    ASSERT_TRUE(server.listen(dead));
+    EXPECT_EQ(remove_stale_sockets(dir.string()), 0u);
+    EXPECT_TRUE(fs::exists(dead));
+    server.close();
+    fs::remove_all(dir);
 }
 
 // ─── Bug #41: publisher discovery skips stale/automation sockets ────────────

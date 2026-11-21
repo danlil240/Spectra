@@ -284,11 +284,11 @@ void NavRail::draw()
 
     const auto& theme = ui::theme();
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
-                             | ImGuiWindowFlags_NoBackground;
+    // Wheel-scrollable (no scrollbar) so short windows can reach every item.
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, ui::tokens::SPACE_3));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);

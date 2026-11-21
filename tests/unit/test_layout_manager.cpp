@@ -378,15 +378,18 @@ TEST(LayoutManager, PlotMarginRightClearsInspectorTab)
     EXPECT_FLOAT_EQ(LayoutManager::plot_margin_right(80.0f), 80.0f);
 }
 
-TEST(LayoutManager, MinWindowSizeAccountsForNavRail)
+TEST(LayoutManager, MinWindowSizeDoesNotDependOnNavRailHeight)
 {
     const float with_nav    = LayoutManager::min_window_height(true, true, true);
     const float without_nav = LayoutManager::min_window_height(false, true, true);
 
-    EXPECT_GT(with_nav, without_nav);
+    // The rail scrolls when short, so it does not raise the minimum height:
+    // a window fits a 1366 x 768 laptop screen with a taskbar (QA M5).
+    EXPECT_FLOAT_EQ(with_nav, without_nav);
+    EXPECT_LT(with_nav, 600.0f);
     EXPECT_GE(with_nav,
               LayoutManager::COMMAND_BAR_HEIGHT + LayoutManager::STATUS_BAR_HEIGHT
-                  + LayoutManager::nav_rail_min_content_height());
+                  + LayoutManager::WINDOW_MIN_HEIGHT_NO_NAV);
 
     // The OS minimum stays rail + minimum canvas; open panels are fitted
     // responsively inside that (see NarrowWindow* tests below).

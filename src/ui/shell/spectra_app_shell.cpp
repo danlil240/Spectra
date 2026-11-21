@@ -211,11 +211,12 @@ void SpectraNavRail::draw()
     if (bounds.w < 1.0f || bounds.h < 1.0f)
         return;
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
-                             | ImGuiWindowFlags_NoBackground;
+    // Wheel-scrollable (no scrollbar): on windows too short for every item
+    // even at the smallest cells, the bottom ones (Help) stay reachable.
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground;
 
     const float rail_w = bounds.w;
 

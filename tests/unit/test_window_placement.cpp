@@ -129,3 +129,25 @@ TEST(WindowFit, NeverBelowOnePixel)
     EXPECT_GE(w, 1);
     EXPECT_GE(h, 1);
 }
+
+// QA M5: a first window the OS placed partly under the taskbar is pulled
+// back into the work area, decorations included.
+TEST(WindowPlacement, KeepWindowInWorkArea)
+{
+    const ScreenWorkArea wa{0, 0, 1366, 728};   // 768 px screen, 40 px taskbar
+    // Fits already: unchanged.
+    EXPECT_EQ(keep_window_in_work_area(100, 100, 800, 500, 8, 31, 8, 8, wa),
+              (std::pair<int, int>{100, 100}));
+    // Bottom under the taskbar: moved up so the bottom border ends at 728.
+    EXPECT_EQ(keep_window_in_work_area(100, 300, 800, 500, 8, 31, 8, 8, wa),
+              (std::pair<int, int>{100, 728 - 8 - 500}));
+    // Off the left / top edge: the frame starts at the work-area corner.
+    EXPECT_EQ(keep_window_in_work_area(-50, -10, 800, 500, 8, 31, 8, 8, wa),
+              (std::pair<int, int>{8, 31}));
+    // Taller than the work area: the title bar stays on screen.
+    EXPECT_EQ(keep_window_in_work_area(100, 200, 800, 900, 8, 31, 8, 8, wa),
+              (std::pair<int, int>{100, 31}));
+    // Unknown work area: unchanged.
+    EXPECT_EQ(keep_window_in_work_area(-50, 900, 800, 500, 8, 31, 8, 8, ScreenWorkArea{}),
+              (std::pair<int, int>{-50, 900}));
+}

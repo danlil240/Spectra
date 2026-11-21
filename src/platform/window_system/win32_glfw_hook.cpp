@@ -11,6 +11,7 @@
     #include <GLFW/glfw3native.h>
 
     #include <commctrl.h>
+    #include <dwmapi.h>
     #include <unordered_map>
 
 namespace spectra
@@ -88,6 +89,22 @@ bool win32_window_in_size_move(GLFWwindow* window)
 
     auto it = g_size_move.find(hwnd);
     return it != g_size_move.end() && it->second;
+}
+
+void win32_set_dark_title_bar(GLFWwindow* window, bool dark)
+{
+    if (!window)
+        return;
+
+    HWND hwnd = glfwGetWin32Window(window);
+    if (!hwnd)
+        return;
+
+    // DWMWA_USE_IMMERSIVE_DARK_MODE is 20 from Windows 10 20H1; builds
+    // 1809-1909 used the undocumented 19.  Older SDKs lack the constant.
+    const BOOL value = dark ? TRUE : FALSE;
+    if (FAILED(DwmSetWindowAttribute(hwnd, 20, &value, sizeof(value))))
+        DwmSetWindowAttribute(hwnd, 19, &value, sizeof(value));
 }
 
 }   // namespace spectra

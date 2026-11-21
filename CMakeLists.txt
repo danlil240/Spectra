@@ -588,7 +588,7 @@ elseif(SPECTRA_USE_GLFW)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
     if(WIN32)
         target_sources(spectra PRIVATE src/platform/window_system/win32_glfw_hook.cpp)
-        target_link_libraries(spectra PRIVATE comctl32)
+        target_link_libraries(spectra PRIVATE comctl32 dwmapi)
     endif()
 endif()
 

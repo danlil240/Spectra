@@ -178,6 +178,8 @@ struct WindowUIContext
     // Cached minimum window size — avoids redundant platform calls each frame.
     float applied_min_window_w_ = 0.0f;
     float applied_min_window_h_ = 0.0f;
+    // Title bar darkness last requested from the OS (-1: not yet).
+    int applied_dark_title_bar_ = -1;
 #endif
 
     // Runtime copy of last export directory. Synced to WorkspaceData on save/load.

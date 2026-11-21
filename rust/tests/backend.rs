@@ -276,7 +276,12 @@ fn three_d_series_render() {
     b.scatter3d(&t, &t, &t)
         .unwrap()
         .set_depth_shade(true)
+        .unwrap()
+        .set_color_values(&t)
+        .unwrap()
+        .set_colormap("turbo")
         .unwrap();
+    b.colorbar(true).unwrap();
     // 2D-only calls are rejected on 3D axes and vice versa.
     assert!(b.bar(&[1.0], &[1.0]).is_err());
     assert!(fig.subplot(2, 2, 4).unwrap().surface(&g, &g, &z).is_err());

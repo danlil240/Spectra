@@ -151,6 +151,10 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 ax3d->ylim(op.f3, op.f4);
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:
+            if (base)
+                base->show_colorbar(op.bool_val);
+            break;
         case spectra::ipc::DiffOp::Type::SET_GRID_VISIBLE:
             if (ax2d)
                 ax2d->grid(op.bool_val);
@@ -339,6 +343,10 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 spectra::ipc::series_colormap_from_op(op, ss);
                 spectra::ipc::apply_series_colormap(*s, ss);
             }
+            break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR_VALUES:
+            if (auto* s = find_live_series())
+                spectra::ipc::apply_series_color_values(*s, op.data);
             break;
         case spectra::ipc::DiffOp::Type::SET_AXES_LIGHT_3D:
             if (ax3d)

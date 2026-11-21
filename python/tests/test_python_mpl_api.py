@@ -61,6 +61,15 @@ class _FakeSeries:
     def set_opacity(self, o):
         self.opacity = o
 
+    def set_color_values(self, v):
+        self.color_values = list(v)
+
+    def set_colormap(self, cmap):
+        self.cmap = cmap
+
+    def set_colormap_range(self, lo, hi):
+        self.cmap_range = (lo, hi)
+
 
 class _FakeAxes:
     def __init__(self, index=0):
@@ -132,6 +141,13 @@ class _FakeAxes:
 
     def legend(self, v=True):
         self.legend_on = v
+
+    def colorbar(self, v=True):
+        self.colorbar_on = v
+
+    def clear(self):
+        self.cleared = getattr(self, "cleared", 0) + 1
+        self.created.clear()
 
 
 class _FakeFigure:
@@ -743,3 +759,105 @@ def test_pyplot_savefig_dpi_scales_figsize(monkeypatch, fake_plt):
         "spectra.pyplot.savefig: keyword 'transparent' is not supported and was ignored"]
     fig.savefig("p.svg")
     assert fig.spectra_figure.saved[-1][0] == "p.svg"
+
+
+# ─── Reference lines, clearing and interactive mode ──────────────────────────
+
+def test_pyplot_axhline_axvline_style(fake_plt):
+    ax, _ = fake_plt
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        h = plt.axhline(0.5, color="k", linestyle="--", lw=2, alpha=0.5, label="zero")
+        v = plt.axvline(2)
+        plt.axhline(1, xmin=0.2)
+    assert h.kw["y"] == [0.5, 0.5] and h.kw["label"] == "zero"
+    assert (h.letter, h.line_style, h.width, h.opacity) == ("k", "--", 2.0, 0.5)
+    assert v.kw["x"] == [2.0, 2.0] and v.letter is None and v.rgb is None  # auto colour
+    assert [str(x.message) for x in w] == [
+        "spectra.pyplot.axhline: keyword 'xmin/xmax' is not supported and was ignored"]
+
+
+def test_pyplot_cla_forgets_fitted_extent(fake_plt):
+    ax, _ = fake_plt
+    plt.plot([0, 100], [0, 100])
+    plt.cla()
+    assert ax.cleared == 1 and ax.created == []
+    plt.plot([0, 1], [0, 1])
+    assert ax.limits[0][1] < 2  # fits the new data only
+
+
+def test_pyplot_clf_clears_every_axes(monkeypatch, fake_plt):
+    _, fig = fake_plt
+    a, b = _FakeAxes(0), _FakeAxes(1)
+    fig.axes = [a, b]
+    plt.clf()
+    assert a.cleared == 1 and b.cleared == 1
+
+
+def test_pyplot_interactive_mode_and_pause(monkeypatch, fake_plt):
+    shown = []
+    monkeypatch.setattr(easy._state, "_show_if_pending", lambda: shown.append(1))
+    slept = []
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda t: slept.append(t))
+    plt.ion()
+    assert plt.isinteractive()
+    plt.pause(0.05)
+    plt.draw()
+    plt.ioff()
+    assert not plt.isinteractive()
+    assert shown == [1, 1] and slept == [0.05]
+
+
+def test_pyplot_axes_methods_include_reference_lines(monkeypatch, fake_plt):
+    ax, fig = fake_plt
+    _, axs = plt.subplots(1, 1)
+    axs.axhline(1.0)  # the fixture routes every axes call to `ax`
+    assert ax.created[-1].kw["y"] == [1.0, 1.0]
+    axs.cla()
+    assert ax.cleared == 1
+
+
+# ─── scatter(c=values) ───────────────────────────────────────────────────────
+
+def test_pyplot_scatter_colours_points_by_value(fake_plt):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        s = plt.scatter([0, 1, 2], [0, 1, 4], c=[3.0, 1.0, 2.0], cmap="plasma")
+        d = plt.scatter([0, 1], [0, 1], c=[5, 6])
+        r = plt.scatter([0, 1], [0, 1], c=[5, 6], vmax=10)
+        k = plt.scatter([0, 1], [0, 1], c=["red", "blue"])
+    assert s.color_values == [3.0, 1.0, 2.0] and s.cmap == "plasma"
+    assert not hasattr(s, "cmap_range")
+    assert d.cmap == "viridis"
+    assert r.cmap_range == (5.0, 10)  # the missing end comes from the data
+    assert not hasattr(k, "color_values")
+    assert [str(x.message) for x in w] == [
+        "spectra.pyplot.scatter: keyword 'c (per-point colours)' is not supported and was ignored"]
+
+
+def test_easy_scatter_c_validates_length_and_range(fake):
+    with pytest.raises(ValueError, match="c has 1 values but there are 2 points"):
+        sp.scatter([0, 1], [0, 1], c=[1.0])
+    with pytest.raises(ValueError, match="both vmin and vmax"):
+        sp.scatter([0, 1], [0, 1], c=[1.0, 2.0], vmin=0)
+    s = sp.scatter([0, 1], [0, 1], c=[1.0, 2.0], cmap="turbo", vmin=0, vmax=4)
+    assert (s.color_values, s.cmap, s.cmap_range) == ([1.0, 2.0], "turbo", (0, 4))
+
+
+def test_pyplot_colorbar_turns_on_the_axes_colorbar(monkeypatch, fake_plt):
+    ax, _ = fake_plt
+    monkeypatch.setattr(easy._state, "_current_axes3d", None)
+    sc = plt.scatter([0, 1], [0, 1], c=[0.0, 1.0])
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        cb = plt.colorbar(sc, label="speed")
+        cb.set_label("speed")
+    assert ax.colorbar_on is True
+    assert len(w) == 2  # label= and set_label are not drawn
+    cb.remove()
+    assert ax.colorbar_on is False
+    other = _FakeAxes(3)
+    plt.gcf().colorbar(sc, ax=plt.Axes(plt.gcf(), other, (1, 1, 1)))
+    assert other.colorbar_on is True

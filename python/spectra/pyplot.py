@@ -14,8 +14,9 @@ Lets common matplotlib scripts run on Spectra by changing one import::
 
 Covered: plot, scatter, bar, barh, hist, errorbar, fill_between, stem,
 semilogx/semilogy/loglog, figure, subplot, subplots, xlabel/ylabel/title,
-legend, xlim/ylim, xscale/yscale, grid, savefig, show, close, gcf/gca and the
-matching ``Axes`` methods.  Format strings ("r--o"), ``linestyle=`` and
+legend, xlim/ylim, xscale/yscale, grid, axhline/axvline, cla/clf,
+ion/ioff/draw/pause, colorbar, savefig, show, close, gcf/gca and the matching ``Axes``
+methods.  Format strings ("r--o"), ``linestyle=`` and
 ``marker=`` are honoured.  Keyword arguments Spectra cannot honour (dash
 tuples, per-point colours, ``bbox_inches`` ...) are ignored with one
 ``UserWarning`` per function and argument.  Subplot spacing is fitted to the
@@ -39,7 +40,8 @@ __all__ = [
     "semilogx", "semilogy", "loglog", "figure", "subplot", "subplots", "xlabel",
     "ylabel", "title", "suptitle", "legend", "xlim", "ylim", "xscale", "yscale",
     "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style", "step",
-    "stairs", "text", "annotate",
+    "stairs", "text", "annotate", "axhline", "axvline", "cla", "clf", "ion", "ioff",
+    "isinteractive", "draw", "pause", "colorbar",
 ]
 
 # Pixels per inch for figsize (matplotlib's default dpi).
@@ -180,6 +182,9 @@ class Figure:
         """Title centred above all subplots of the figure."""
         _ignore("suptitle", kwargs)
         self._fig.suptitle(str(t))
+
+    def colorbar(self, mappable=None, cax=None, ax=None, **kwargs) -> "Colorbar":
+        return colorbar(mappable, cax=cax, ax=ax, **kwargs)
 
     def tight_layout(self, *args, **kwargs) -> None:
         """Fit the subplot spacing to the labels (constrained layout)."""
@@ -594,12 +599,34 @@ def loglog(*args, **kwargs):
     return lines
 
 
-def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
-    """Scatter plot; ``s`` is the marker area in points² (scalar only)."""
+def _color_values(c) -> Optional[List[float]]:
+    """``c`` as one number per point, or None when it is colours."""
+    try:
+        return _sp._to_list(c)
+    except (TypeError, ValueError):
+        return None
+
+
+def scatter(x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None, alpha=None,
+            **kwargs):
+    """Scatter plot; ``s`` is the marker area in points² (scalar only).
+
+    ``c`` is one colour, or one number per point coloured through ``cmap``
+    (default "viridis") with ``vmin`` / ``vmax`` as its ends.
+    """
     style = _style(kwargs)
+    extra: Dict[str, Any] = {}
     if c is not None and "color" not in style:
+        values = None if isinstance(c, (str, tuple)) else _color_values(c)
         if isinstance(c, (str, tuple)):
             style["color"] = c
+        elif values is not None:
+            if (vmin is None) != (vmax is None):
+                finite = [v for v in values if math.isfinite(v)] or [0.0, 1.0]
+                lo, hi = min(finite), max(finite)
+                vmin = lo if vmin is None else vmin
+                vmax = hi if vmax is None else vmax
+            extra = {"c": values, "cmap": cmap, "vmin": vmin, "vmax": vmax}
         else:
             _ignore("scatter", {"c (per-point colours)": True})
     size = None
@@ -610,7 +637,7 @@ def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
             _ignore("scatter", {"s (per-point sizes)": True})
     mk = _style_token("scatter", "marker", marker)
     _ignore("scatter", kwargs)
-    return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style)
+    return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style, **extra)
 
 
 def _bar_bottom(bottom):
@@ -727,6 +754,119 @@ def stem(*args, linefmt=None, markerfmt=None, basefmt=None, bottom=0, **kwargs):
     return _sp.stem(*args, baseline=float(bottom), **style)
 
 
+def _ref_line(func: str, draw, value, lo, hi, kwargs: Dict[str, Any]):
+    style = _style(kwargs)
+    ls = _style_token(func, "linestyle", _pop_alias(kwargs, "linestyle", "ls"))
+    width = _pop_alias(kwargs, "linewidth", "lw")
+    alpha = kwargs.pop("alpha", None)
+    if (lo, hi) != (0, 1):
+        _ignore(func, {"xmin/xmax" if func == "axhline" else "ymin/ymax": True})
+    kwargs.pop("zorder", None)
+    _ignore(func, kwargs)
+    series = draw(float(value), color=style.get("color"), label=style["label"])
+    if ls is not None:
+        series.set_line_style(ls)
+    if width is not None:
+        series.set_line_width(float(width))
+    if alpha is not None:
+        series.set_opacity(float(alpha))
+    return series
+
+
+def axhline(y=0, xmin=0, xmax=1, **kwargs):
+    """Horizontal line across the axes at ``y`` (full width only)."""
+    return _ref_line("axhline", _sp.hline, y, xmin, xmax, kwargs)
+
+
+def axvline(x=0, ymin=0, ymax=1, **kwargs):
+    """Vertical line across the axes at ``x`` (full height only)."""
+    return _ref_line("axvline", _sp.vline, x, ymin, ymax, kwargs)
+
+
+def cla() -> None:
+    """Clear the current axes: remove its series."""
+    _sp.clear()
+
+
+def clf() -> None:
+    """Clear the current figure: remove the series of every axes in it."""
+    fig = _sp._state._current_fig
+    if fig is None:
+        return
+    for ax in fig.axes:
+        ax.clear()
+        _sp._forget_axes_extent(ax)
+
+
+# ─── Interactive mode ────────────────────────────────────────────────────────
+#
+# Spectra windows are separate processes that redraw on their own, so the
+# figures are always live.  ``ion`` / ``ioff`` only record the mode; ``draw``
+# and ``pause`` open any figure not yet on screen, and ``pause`` then sleeps
+# so a plot-update loop runs at the rate the script asks for.
+
+_interactive = False
+
+
+def ion() -> None:
+    """Turn interactive mode on (Spectra windows always update live)."""
+    global _interactive
+    _interactive = True
+
+
+def ioff() -> None:
+    """Turn interactive mode off."""
+    global _interactive
+    _interactive = False
+
+
+def isinteractive() -> bool:
+    return _interactive
+
+
+def draw() -> None:
+    """Open any figure not yet shown; updates already reach open windows."""
+    _sp._state._show_if_pending()
+
+
+def pause(interval: float) -> None:
+    """Show pending figures, then wait ``interval`` seconds."""
+    import time
+
+    draw()
+    if interval > 0:
+        time.sleep(float(interval))
+
+
+class Colorbar:
+    """What :func:`colorbar` returns.  Spectra draws the bar itself, so its
+    label and ticks cannot be changed; those calls warn once."""
+
+    def __init__(self, ax: Any) -> None:
+        self.ax = ax
+
+    def set_label(self, label, **kwargs) -> None:
+        _ignore("colorbar", {"set_label": True})
+
+    def remove(self) -> None:
+        self.ax.colorbar(False)
+
+
+def colorbar(mappable=None, cax=None, ax=None, **kwargs) -> Colorbar:
+    """Colorbar for the colormapped series of ``ax`` (default: the current axes)."""
+    if cax is not None:
+        _ignore("colorbar", {"cax": True})
+    label = kwargs.pop("label", None)
+    if label:
+        _ignore("colorbar", {"label": True})
+    _ignore("colorbar", kwargs)
+    if isinstance(ax, (list, tuple)):
+        ax = ax[0] if ax else None
+    target = ax._ax if isinstance(ax, Axes) else _sp._current_axes_any()
+    target.colorbar(True)
+    return Colorbar(target)
+
+
 def _set_title(label, **kw):
     title(label, **kw)
 
@@ -752,4 +892,7 @@ _AXES_METHODS = {
     "set_ylim": ylim,
     "set_xscale": xscale,
     "set_yscale": yscale,
+    "axhline": axhline,
+    "axvline": axvline,
+    "cla": cla,
 }

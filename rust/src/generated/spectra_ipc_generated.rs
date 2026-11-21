@@ -37,10 +37,10 @@ pub mod fb {
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_DIFF_OP_TYPE: u8 = 1;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_DIFF_OP_TYPE: u8 = 47;
+pub const ENUM_MAX_DIFF_OP_TYPE: u8 = 49;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 37] = [
+pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 39] = [
   DiffOpType::SET_AXIS_LIMITS,
   DiffOpType::SET_SERIES_COLOR,
   DiffOpType::SET_SERIES_VISIBLE,
@@ -78,6 +78,8 @@ pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 37] = [
   DiffOpType::SET_AXES_LIGHT_3D,
   DiffOpType::SET_ANIM_PLAYBACK,
   DiffOpType::SET_SERIES_COLORMAP,
+  DiffOpType::SET_SERIES_COLOR_VALUES,
+  DiffOpType::SET_COLORBAR_VISIBLE,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -122,9 +124,11 @@ impl DiffOpType {
   pub const SET_AXES_LIGHT_3D: Self = Self(45);
   pub const SET_ANIM_PLAYBACK: Self = Self(46);
   pub const SET_SERIES_COLORMAP: Self = Self(47);
+  pub const SET_SERIES_COLOR_VALUES: Self = Self(48);
+  pub const SET_COLORBAR_VISIBLE: Self = Self(49);
 
   pub const ENUM_MIN: u8 = 1;
-  pub const ENUM_MAX: u8 = 47;
+  pub const ENUM_MAX: u8 = 49;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::SET_AXIS_LIMITS,
     Self::SET_SERIES_COLOR,
@@ -163,6 +167,8 @@ impl DiffOpType {
     Self::SET_AXES_LIGHT_3D,
     Self::SET_ANIM_PLAYBACK,
     Self::SET_SERIES_COLORMAP,
+    Self::SET_SERIES_COLOR_VALUES,
+    Self::SET_COLORBAR_VISIBLE,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
@@ -204,6 +210,8 @@ impl DiffOpType {
       Self::SET_AXES_LIGHT_3D => Some("SET_AXES_LIGHT_3D"),
       Self::SET_ANIM_PLAYBACK => Some("SET_ANIM_PLAYBACK"),
       Self::SET_SERIES_COLORMAP => Some("SET_SERIES_COLORMAP"),
+      Self::SET_SERIES_COLOR_VALUES => Some("SET_SERIES_COLOR_VALUES"),
+      Self::SET_COLORBAR_VISIBLE => Some("SET_COLORBAR_VISIBLE"),
       _ => None,
     }
   }
@@ -2170,6 +2178,7 @@ impl<'a> SnapshotAxisState<'a> {
   pub const VT_LIGHT_ANGLES_SET: flatbuffers::VOffsetT = 42;
   pub const VT_LIGHT_AZIMUTH: flatbuffers::VOffsetT = 44;
   pub const VT_LIGHT_ELEVATION: flatbuffers::VOffsetT = 46;
+  pub const VT_COLORBAR_VISIBLE: flatbuffers::VOffsetT = 48;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -2194,6 +2203,7 @@ impl<'a> SnapshotAxisState<'a> {
     if let Some(x) = args.title { builder.add_title(x); }
     if let Some(x) = args.y_label { builder.add_y_label(x); }
     if let Some(x) = args.x_label { builder.add_x_label(x); }
+    builder.add_colorbar_visible(args.colorbar_visible);
     builder.add_light_angles_set(args.light_angles_set);
     builder.add_light_mode(args.light_mode);
     builder.add_bar_mode(args.bar_mode);
@@ -2361,6 +2371,13 @@ impl<'a> SnapshotAxisState<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<f32>(SnapshotAxisState::VT_LIGHT_ELEVATION, Some(0.0)).unwrap()}
   }
+  #[inline]
+  pub fn colorbar_visible(&self) -> bool {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<bool>(SnapshotAxisState::VT_COLORBAR_VISIBLE, Some(false)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for SnapshotAxisState<'_> {
@@ -2392,6 +2409,7 @@ impl flatbuffers::Verifiable for SnapshotAxisState<'_> {
      .visit_field::<bool>("light_angles_set", Self::VT_LIGHT_ANGLES_SET, false)?
      .visit_field::<f32>("light_azimuth", Self::VT_LIGHT_AZIMUTH, false)?
      .visit_field::<f32>("light_elevation", Self::VT_LIGHT_ELEVATION, false)?
+     .visit_field::<bool>("colorbar_visible", Self::VT_COLORBAR_VISIBLE, false)?
      .finish();
     Ok(())
   }
@@ -2419,6 +2437,7 @@ pub struct SnapshotAxisStateArgs<'a> {
     pub light_angles_set: bool,
     pub light_azimuth: f32,
     pub light_elevation: f32,
+    pub colorbar_visible: bool,
 }
 impl<'a> Default for SnapshotAxisStateArgs<'a> {
   #[inline]
@@ -2446,6 +2465,7 @@ impl<'a> Default for SnapshotAxisStateArgs<'a> {
       light_angles_set: false,
       light_azimuth: 0.0,
       light_elevation: 0.0,
+      colorbar_visible: false,
     }
   }
 }
@@ -2544,6 +2564,10 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> SnapshotAxisStateBuilder<'a, 'b
     self.fbb_.push_slot::<f32>(SnapshotAxisState::VT_LIGHT_ELEVATION, light_elevation, 0.0);
   }
   #[inline]
+  pub fn add_colorbar_visible(&mut self, colorbar_visible: bool) {
+    self.fbb_.push_slot::<bool>(SnapshotAxisState::VT_COLORBAR_VISIBLE, colorbar_visible, false);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> SnapshotAxisStateBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     SnapshotAxisStateBuilder {
@@ -2583,6 +2607,7 @@ impl core::fmt::Debug for SnapshotAxisState<'_> {
       ds.field("light_angles_set", &self.light_angles_set());
       ds.field("light_azimuth", &self.light_azimuth());
       ds.field("light_elevation", &self.light_elevation());
+      ds.field("colorbar_visible", &self.colorbar_visible());
       ds.finish()
   }
 }

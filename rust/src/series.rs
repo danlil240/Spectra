@@ -524,6 +524,13 @@ impl Series {
         self.send(self.prop("colormap").s("custom").data(data))
     }
 
+    /// Scatter (2D / 3D): one value per point, coloured through the series
+    /// colormap (see [`Series::set_colormap`]); an empty slice clears them.
+    pub fn set_color_values(&self, values: &[f64]) -> Result<&Self> {
+        let data = values.iter().map(|&v| v as f32).collect();
+        self.send(self.prop("color_values").data(data))
+    }
+
     /// Values mapped onto the ends of the colormap (`None` = the data range).
     pub fn set_colormap_range(&self, range: Option<(f64, f64)>) -> Result<&Self> {
         match range {

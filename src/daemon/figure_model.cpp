@@ -287,6 +287,22 @@ ipc::DiffOp FigureModel::set_grid_visible(uint64_t figure_id, uint32_t axes_inde
     return op;
 }
 
+ipc::DiffOp FigureModel::set_colorbar_visible(uint64_t figure_id, uint32_t axes_index, bool visible)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it != figures_.end() && axes_index < it->second.axes.size())
+        it->second.axes[axes_index].colorbar_visible = visible;
+    bump_revision();
+
+    ipc::DiffOp op;
+    op.type       = ipc::DiffOp::Type::SET_COLORBAR_VISIBLE;
+    op.figure_id  = figure_id;
+    op.axes_index = axes_index;
+    op.bool_val   = visible;
+    return op;
+}
+
 ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t           figure_id,
                                          uint32_t           axes_index,
                                          const std::string& label)
@@ -778,6 +794,28 @@ bool FigureModel::update_series_colormap(uint64_t figure_id,
     {
         *op_out = ipc::DiffOp{};
         ipc::series_colormap_to_op(ss, *op_out);
+        op_out->figure_id    = figure_id;
+        op_out->series_index = series_index;
+    }
+    return true;
+}
+
+bool FigureModel::set_series_color_values(uint64_t           figure_id,
+                                          uint32_t           series_index,
+                                          std::vector<float> values,
+                                          ipc::DiffOp*       op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || series_index >= it->second.series.size())
+        return false;
+    auto& ss        = it->second.series[series_index];
+    ss.color_values = std::move(values);
+    bump_revision();
+
+    if (op_out)
+    {
+        *op_out              = ipc::series_color_values_to_op(ss);
         op_out->figure_id    = figure_id;
         op_out->series_index = series_index;
     }
@@ -1276,6 +1314,12 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             it->second.axes[op.axes_index].grid_visible = op.bool_val;
             break;
 
+        case ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            it->second.axes[op.axes_index].colorbar_visible = op.bool_val;
+            break;
+
         case ipc::DiffOp::Type::SET_LINE_WIDTH:
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
@@ -1360,6 +1404,13 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
             ipc::series_colormap_from_op(op, it->second.series[op.series_index]);
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_COLOR_VALUES:
+            if (it == figures_.end() || op.series_index >= it->second.series.size()
+                || op.data.size() > ipc::MAX_COLOR_VALUES)
+                return false;
+            it->second.series[op.series_index].color_values = op.data;
             break;
 
         case ipc::DiffOp::Type::SET_AXES_LIGHT_3D:

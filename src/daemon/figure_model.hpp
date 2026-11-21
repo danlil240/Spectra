@@ -82,6 +82,7 @@ class FigureModel
 
     // Set grid visibility. Returns a DiffOp.
     ipc::DiffOp set_grid_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
+    ipc::DiffOp set_colorbar_visible(uint64_t figure_id, uint32_t axes_index, bool visible);
 
     // Set axis xlabel. Returns a DiffOp.
     ipc::DiffOp set_axis_xlabel(uint64_t figure_id, uint32_t axes_index, const std::string& label);
@@ -199,6 +200,14 @@ class FigureModel
                                 uint32_t                                              series_index,
                                 const std::function<void(ipc::SnapshotSeriesState&)>& edit,
                                 ipc::DiffOp*                                          op_out);
+
+    // Per-point colormap values of a scatter (empty clears them); returns a
+    // SET_SERIES_COLOR_VALUES op in `op_out`.  false (and no op) when the
+    // series does not exist.
+    bool set_series_color_values(uint64_t           figure_id,
+                                 uint32_t           series_index,
+                                 std::vector<float> values,
+                                 ipc::DiffOp*       op_out);
 
     // 3D light of an axes (light mode, fog, light angles), likewise; returns
     // a SET_AXES_LIGHT_3D op.

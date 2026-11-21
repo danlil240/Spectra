@@ -540,6 +540,80 @@ TEST(ColormapTransport, PropertyOpUpdatesModelCacheAndLiveSeries)
     EXPECT_NEAR(surf.cmap().sample(0.0f).r, 0.0f, 1e-5f);
 }
 
+TEST(ColormapTransport, ColorValuesOpUpdatesModelCacheAndLiveScatter)
+{
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    model.add_axes(fid, 0.0, 1.0, 0.0, 1.0, false);
+    uint32_t sidx = 0;
+    model.add_series_with_diff(fid, "pts", "scatter", 0, sidx);
+    ipc::SnapshotFigureState cache = model.snapshot().figures.at(0);
+
+    ipc::DiffOp op;
+    EXPECT_FALSE(model.set_series_color_values(fid, 99, {1.0f}, &op));
+    ASSERT_TRUE(model.set_series_color_values(fid, sidx, {0.0f, 0.5f, 1.0f}, &op));
+    op = round_trip(op);
+    EXPECT_EQ(op.type, ipc::DiffOp::Type::SET_SERIES_COLOR_VALUES);
+    EXPECT_EQ(op.series_index, sidx);
+    EXPECT_EQ(op.data, (std::vector<float>{0.0f, 0.5f, 1.0f}));
+    EXPECT_EQ(model.snapshot().figures[0].series[sidx].color_values.size(), 3u);
+
+    // The window cache keeps them for a rebuild.
+    agent::apply_diff_op_to_cache(cache, op);
+    EXPECT_EQ(cache.series[sidx].color_values, op.data);
+
+    // A live scatter takes them; an empty op clears them; other types ignore it.
+    Axes               ax;
+    std::vector<float> xs = {0.0f, 1.0f, 2.0f};
+    auto&              sc = ax.scatter(xs, xs);
+    sc.colormap(ColormapType::Viridis);
+    ipc::apply_series_color_values(sc, op.data);
+    EXPECT_EQ(sc.color_values_data().size(), 3u);
+    ipc::apply_series_color_values(sc, {});
+    EXPECT_TRUE(sc.color_values_data().empty());
+    auto& ln = ax.line(xs, xs);
+    ipc::apply_series_color_values(ln, op.data);   // no effect, no crash
+
+    // The daemon model applies the op too (e.g. ops replayed from an app).
+    ipc::DiffOp clear_op = op;
+    clear_op.data.clear();
+    EXPECT_TRUE(model.apply_diff_op(clear_op));
+    EXPECT_TRUE(model.snapshot().figures[0].series[sidx].color_values.empty());
+}
+
+TEST(ColormapTransport, ColorbarVisibilityTravelsToTheWindow)
+{
+    // App snapshot -> wire -> window rebuild.
+    Figure             fig;
+    auto&              ax = fig.subplot(1, 2, 1);
+    std::vector<float> xs = {0.0f, 1.0f, 2.0f};
+    ax.scatter(xs, xs).color_values(xs).colormap(ColormapType::Viridis);
+    ax.show_colorbar(true);
+    fig.subplot(1, 2, 2).line(xs, xs);
+    auto snap = round_trip(figure_to_snapshot(fig, 1));
+    ASSERT_EQ(snap.axes.size(), 2u);
+    EXPECT_TRUE(snap.axes[0].colorbar_visible);
+    EXPECT_FALSE(snap.axes[1].colorbar_visible);
+    auto built = agent::build_figure_from_snapshot(snap);
+    EXPECT_TRUE(built->axes()[0]->colorbar_visible());
+    EXPECT_FALSE(built->axes()[1]->colorbar_visible());
+
+    // Python property -> daemon model -> op -> window cache and live axes.
+    daemon::FigureModel model;
+    const auto          fid = model.create_figure("f");
+    model.add_axes(fid, 0.0, 1.0, 0.0, 1.0, false);
+    ipc::SnapshotFigureState cache = model.snapshot().figures.at(0);
+    const auto               op    = round_trip(model.set_colorbar_visible(fid, 0, true));
+    EXPECT_EQ(op.type, ipc::DiffOp::Type::SET_COLORBAR_VISIBLE);
+    EXPECT_TRUE(model.snapshot().figures[0].axes[0].colorbar_visible);
+    agent::apply_diff_op_to_cache(cache, op);
+    EXPECT_TRUE(cache.axes[0].colorbar_visible);
+    ipc::DiffOp off = op;
+    off.bool_val    = false;
+    EXPECT_TRUE(model.apply_diff_op(off));
+    EXPECT_FALSE(model.snapshot().figures[0].axes[0].colorbar_visible);
+}
+
 // ─── Window agent cache: ops a rebuild must not lose ────────────────────────
 
 TEST(AgentFigureCache, KeepsGridVisibilityAndLiveFps)

@@ -4,6 +4,7 @@
 
     #include <array>
     #include <algorithm>
+    #include <cstdint>
     #include <format>
 
     #include "../data_sidebar/data_sidebar.hpp"
@@ -137,21 +138,30 @@ void ImGuiIntegration::draw_empty_axes_hints(Figure& figure)
         const float block_w =
             std::min({ui::tokens::EMPTY_STATE_MAX_WIDTH, vp.w - 32.0f, std::max(220.0f, text_w)});
         const float line_h  = ImGui::GetTextLineHeightWithSpacing();
-        const float block_h = std::min(vp.h - 16.0f,
-                                       ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
-                                           + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2);
+        const float full_h  = ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
+                             + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2;
+        // A short axes (e.g. a split pane) drops the button rather than
+        // drawing it cut off; the subtitle still says how to add data.
+        const bool  with_button = full_h <= vp.h - 16.0f;
+        const float block_h =
+            std::min(vp.h - 16.0f, with_button ? full_h : full_h - ImGui::GetFrameHeight());
         ImGui::SetNextWindowPos(
             ImVec2(std::floor(mid_x - block_w * 0.5f), std::floor(mid_y - block_h * 0.5f)));
         ImGui::SetNextWindowSize(ImVec2(block_w, block_h));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        const std::string name    = "##empty_axes_hint" + std::to_string(i);
+        // Unique per figure: split panes show the hints of several figures.
+        const std::string name = "##empty_axes_hint"
+                                 + std::to_string(reinterpret_cast<uintptr_t>(&figure)) + "_"
+                                 + std::to_string(i);
         int               clicked = -1;
         if (ImGui::Begin(name.c_str(), nullptr, flags))
-            clicked = ui::widgets::empty_state(ui::Icon::FileText,
-                                               "No data yet",
-                                               subtitle.c_str(),
-                                               actions);
+            clicked = ui::widgets::empty_state(
+                ui::Icon::FileText,
+                "No data yet",
+                subtitle.c_str(),
+                with_button ? std::span<const ui::widgets::EmptyStateAction>(actions)
+                            : std::span<const ui::widgets::EmptyStateAction>());
         ImGui::End();
         ImGui::PopStyleVar(2);
         if (clicked == 0)

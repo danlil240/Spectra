@@ -899,6 +899,8 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                 {
                     data_interaction_->draw_legend_for_figure(*fig);
                     draw_view_cubes(*fig, overlay_dl, font_heading_);
+                    // An empty figure keeps its "No data yet" hint in any pane.
+                    draw_empty_axes_hints(*fig);
                 }
             }
         }

@@ -871,7 +871,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         pane_margins.top =
                             std::min(fs_style.margin_top * plot_scale, pinfo.bounds.h * 0.2f);
 
-                        const float min_sub_h = fs_style.min_subplot_height;
+                        // A pane is a fraction of the window: let a subplot
+                        // grid shrink to fit it instead of keeping the
+                        // full-window minimum row height and cutting off the
+                        // bottom rows.
+                        const float rows = static_cast<float>(std::max(1, fig->grid_rows()));
+                        const float min_sub_h =
+                            std::min(fs_style.min_subplot_height,
+                                     std::max(60.0f * plot_scale, pinfo.bounds.h / rows * 0.5f));
                         const float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
                         const float content_h = layout_figure(
                             *fig,

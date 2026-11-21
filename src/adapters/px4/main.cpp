@@ -112,6 +112,8 @@ int main(int argc, char** argv)
     // Hide Spectra's default chrome — spectra-px4 draws its own menu bar, nav rail, status bar
     // and dock layout through the shared AppShell, styled by the main app's ThemeManager.
     auto* ui_ctx = app.ui_context();
+    // The shell's commands live in this window's context; see shutdown below.
+    auto* const commands_ctx = ui_ctx;
     if (ui_ctx && ui_ctx->imgui_ui)
     {
         ui_ctx->imgui_ui->enable_docking();
@@ -185,10 +187,21 @@ int main(int argc, char** argv)
 
 #ifdef SPECTRA_USE_IMGUI
     {
+        // Closing the window destroys its WindowUIContext, and with it the
+        // command registry and shortcut manager register_commands() used.
+        // Unregister only while that context is still alive; otherwise the
+        // pointers dangle (use-after-free: 0xC0000005 on exit on Windows).
         auto* ctx = app.ui_context();
-        if (ctx && ctx->imgui_ui)
-            ctx->imgui_ui->set_extra_draw_callback(nullptr);
-        shell.unregister_commands();
+        if (ctx && ctx == commands_ctx)
+        {
+            if (ctx->imgui_ui)
+                ctx->imgui_ui->set_extra_draw_callback(nullptr);
+            shell.unregister_commands();
+        }
+        else
+        {
+            shell.forget_commands();
+        }
     }
 #endif
 

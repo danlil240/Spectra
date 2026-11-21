@@ -833,6 +833,28 @@ TEST(Px4AppShellTest, CtrlOOpensUlogAndCtrlQQuits)
 
     std::remove(ulog.c_str());
 }
+
+// Closing the window frees its command registry and shortcut manager before
+// the px4 shell shuts down; forget_commands() must drop them untouched
+// (unregister_commands() on them was a use-after-free, a crash on Windows).
+TEST(Px4AppShellTest, ForgetCommandsAfterTheWindowContextIsGone)
+{
+    Px4AppShell shell(Px4AppConfig{});
+    ASSERT_TRUE(shell.init());
+    {
+        auto registry  = std::make_unique<spectra::CommandRegistry>();
+        auto shortcuts = std::make_unique<spectra::ShortcutManager>();
+        shortcuts->set_command_registry(registry.get());
+        shell.register_commands(*registry, *shortcuts);
+        EXPECT_NE(registry->find("px4.file.open_ulog"), nullptr);
+    }   // the window's context goes away
+    shell.forget_commands();
+    const auto& resolve = shell.menu_bar().shortcut_resolver();
+    EXPECT_EQ(resolve("px4.file.open_ulog"), "");
+    shell.run_command("px4.app.quit");   // no registry: a no-op
+    EXPECT_FALSE(shell.shutdown_requested());
+    shell.unregister_commands();   // nothing left to unregister
+}
 #endif
 
 int main(int argc, char** argv)

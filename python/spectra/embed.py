@@ -449,7 +449,13 @@ def _render_with_options(
     return img
 
 
-_FMT_LINE_STYLES = (("--", "dashed"), ("-.", 4), ("-", "solid"), (":", "dotted"))
+_FMT_LINE_STYLES = (
+    ("--", "dashed"),
+    ("-..", "dashdotdot"),
+    ("-.", "dashdot"),
+    ("-", "solid"),
+    (":", "dotted"),
+)
 _FMT_COLOR_CHARS = "bgrcmykw"
 
 

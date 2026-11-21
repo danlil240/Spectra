@@ -45,10 +45,12 @@ extern "C"
     /* LineStyle (spectra::LineStyle) */
     enum
     {
-        SPECTRA_LINE_NONE   = 0,
-        SPECTRA_LINE_SOLID  = 1,
-        SPECTRA_LINE_DASHED = 2,
-        SPECTRA_LINE_DOTTED = 3
+        SPECTRA_LINE_NONE         = 0,
+        SPECTRA_LINE_SOLID        = 1,
+        SPECTRA_LINE_DASHED       = 2,
+        SPECTRA_LINE_DOTTED       = 3,
+        SPECTRA_LINE_DASH_DOT     = 4,
+        SPECTRA_LINE_DASH_DOT_DOT = 5
     };
 
     /* MarkerStyle (spectra::MarkerStyle) */

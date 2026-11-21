@@ -190,6 +190,14 @@ class TestFormatStrings:
         _apply_fmt(rec, "g:")
         assert ("set_line_style", ("dotted",)) in rec.calls
         rec = self._Rec()
+        _apply_fmt(rec, "m-.")
+        assert ("set_line_style", ("dashdot",)) in rec.calls
+        from spectra._embed import _LINE_STYLES, LINE_DASH_DOT
+
+        # The C API maps these to spectra::LineStyle::DashDot / DashDotDot.
+        assert _LINE_STYLES["dashdot"] == LINE_DASH_DOT == 4
+        assert _LINE_STYLES["dashdotdot"] == 5
+        rec = self._Rec()
         _apply_fmt(rec, "-")
         assert rec.calls == []
         with pytest.raises(ValueError):

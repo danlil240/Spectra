@@ -325,9 +325,10 @@ void CustomTransformDialog::draw_formula_input()
 
     // float button_h = ImGui::GetFrameHeight() * 0.85f;
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.0f, 2.0f));
+    // Opaque neutral chips: a translucent accent fill left the white label at ~3.3:1.
     ImGui::PushStyleColor(
         ImGuiCol_Button,
-        ImVec4(colors.accent_subtle.r, colors.accent_subtle.g, colors.accent_subtle.b, 0.5f));
+        ImVec4(colors.bg_tertiary.r, colors.bg_tertiary.g, colors.bg_tertiary.b, 1.0f));
 
     const char* snippets[] = {"sin(x)",
                               "log10(y)",

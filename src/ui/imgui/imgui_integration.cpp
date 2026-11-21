@@ -615,8 +615,9 @@ void draw_view_cubes(Figure& figure, ImDrawList* dl, ImFont* font)
                 dl->AddText(f,
                             size,
                             ImVec2(face.center_x - ts.x * 0.5f, face.center_y - ts.y * 0.5f),
-                            ui::to_imu32(hovered ? c.text_primary : c.text_secondary,
-                                         0.35f + 0.65f * face.facing),
+                            // Primary ink, at most slightly faded on oblique faces, so the
+                            // labels stay readable (secondary ink at facing alpha was ~3:1).
+                            ui::to_imu32(c.text_primary, 0.8f + 0.2f * face.facing),
                             face.label);
             }
         }

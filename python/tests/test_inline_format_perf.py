@@ -165,6 +165,28 @@ def test_autofit_is_nan_aware(fake_axes):
     assert lo < 0.0 and 5.0 < hi
 
 
+def test_autofit_keeps_huge_values(fake_axes):
+    """Data at 1e11 and beyond is real data, not a reference-line sentinel."""
+    sp.plot([0.0, 1.0, 2.0], [2e11, 5e11, 3e12])
+    lo, hi = fake_axes.limits["y"]
+    assert lo < 2e11 and 3e12 < hi
+
+
+def test_finite_bounds_with_and_without_numpy(monkeypatch):
+    vals = [float("nan"), -4e13, float("inf"), 7e12]
+    assert _easy._finite_bounds(vals) == (-4e13, 7e12, 7e12)
+    import builtins
+    real_import = builtins.__import__
+
+    def no_numpy(name, *a, **k):
+        if name == "numpy":
+            raise ImportError
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_numpy)
+    assert _easy._finite_bounds(vals) == (-4e13, 7e12, 7e12)
+
+
 def test_plot_keeps_numpy_arrays(fake_axes):
     np = pytest.importorskip("numpy")
     s = sp.plot(np.arange(5, dtype=np.int32), np.linspace(0, 1, 5))

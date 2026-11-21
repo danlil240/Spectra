@@ -215,13 +215,13 @@ pub(crate) fn interleave(cols: &[(&[f64], f64)]) -> Vec<f32> {
     out
 }
 
-/// `(min, max, smallest positive)` of the finite values with |v| < 1e11.
+/// `(min, max, smallest positive)` of the finite values (hline/vline spans never reach this).
 pub(crate) fn finite_bounds(values: &[f64]) -> Option<(f64, f64, Option<f64>)> {
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     let mut pos: Option<f64> = None;
     for &v in values {
-        if v.is_finite() && v.abs() < 1e11 {
+        if v.is_finite() {
             lo = lo.min(v);
             hi = hi.max(v);
             if v > 0.0 {
@@ -267,10 +267,10 @@ mod tests {
     }
 
     #[test]
-    fn bounds_skip_nan_and_sentinels() {
+    fn bounds_skip_non_finite_but_keep_huge_values() {
         assert_eq!(
-            finite_bounds(&[f64::NAN, -2.0, 3.0, 1e12]),
-            Some((-2.0, 3.0, Some(3.0)))
+            finite_bounds(&[f64::NAN, -2.0, f64::INFINITY, 3.0, 1e12]),
+            Some((-2.0, 1e12, Some(3.0)))
         );
         assert_eq!(finite_bounds(&[f64::NAN]), None);
     }

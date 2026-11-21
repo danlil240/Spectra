@@ -270,6 +270,35 @@ static bool apply_property_update(FigureModel&              fig_model,
             return false;
         diff.ops.push_back(std::move(op));
     }
+    else if (property == "ticks")
+    {
+        // Fixed ticks: f1 = axis (0 x, 1 y), bool_val = set (false =
+        // automatic), f2 = origin, data = positions - origin, str_val =
+        // labels joined by CATEGORY_SEPARATOR (empty = formatted values).
+        ipc::DiffOp in;
+        in.f1       = f1;
+        in.f2       = f2;
+        in.bool_val = bool_val;
+        in.data     = data;
+        in.str_val  = str_val;
+        if (!str_val.empty())
+            in.f3 = static_cast<double>(
+                std::count(str_val.begin(), str_val.end(), ipc::CATEGORY_SEPARATOR) + 1);
+        ipc::SnapshotAxisState parsed;
+        if (!ipc::axis_ticks_from_op(in, parsed))
+            return false;
+        const int   axis = f1 == 0.0 ? 0 : 1;
+        ipc::DiffOp op;
+        if (!fig_model.set_axis_ticks(figure_id,
+                                      axes_index,
+                                      axis,
+                                      bool_val,
+                                      axis == 0 ? parsed.xtick_positions : parsed.ytick_positions,
+                                      axis == 0 ? parsed.xtick_labels : parsed.ytick_labels,
+                                      &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "colorbar")
     {
         diff.ops.push_back(fig_model.set_colorbar_visible(figure_id, axes_index, bool_val));
@@ -701,7 +730,8 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                                         "colormap",
                                         "colormap_range",
                                         "color_values",
-                                        "colorbar"};
+                                        "colorbar",
+                                        "ticks"};
     bool               known         = false;
     for (const auto* p : known_props)
     {

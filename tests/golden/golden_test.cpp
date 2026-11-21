@@ -554,6 +554,8 @@ TEST(GoldenImageFramework, DefaultToleranceRejectsSubtleColourChange)
 TEST(GoldenImageFramework, DefaultToleranceRejectsShortenedLineEnd)
 {
     // A legend swatch / line cap two pixels shorter (3 px thick line).
+    if (golden_hw_profile())
+        GTEST_SKIP() << "SPECTRA_GOLDEN_HW=1 tolerates a few edge pixels per tile";
     constexpr uint32_t W = 640, H = 480;
     auto               expected = flat_image(W, H, 10, 12, 20);
     auto               actual   = expected;

@@ -145,6 +145,12 @@ class _FakeAxes:
     def colorbar(self, v=True):
         self.colorbar_on = v
 
+    def set_xticks(self, ticks=None, labels=None):
+        self.xticks = (ticks, labels)
+
+    def set_yticks(self, ticks=None, labels=None):
+        self.yticks = (ticks, labels)
+
     def clear(self):
         self.cleared = getattr(self, "cleared", 0) + 1
         self.created.clear()
@@ -861,3 +867,24 @@ def test_pyplot_colorbar_turns_on_the_axes_colorbar(monkeypatch, fake_plt):
     other = _FakeAxes(3)
     plt.gcf().colorbar(sc, ax=plt.Axes(plt.gcf(), other, (1, 1, 1)))
     assert other.colorbar_on is True
+
+
+def test_pyplot_xticks_yticks_and_axes_methods(fake_plt):
+    ax, _ = fake_plt
+    plt._fixed_ticks.clear()
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        locs, labels = plt.xticks([0, 1, 2], ["a", "b", "c"], rotation=45)
+    assert ax.xticks == ([0.0, 1.0, 2.0], ["a", "b", "c"])
+    assert (locs, labels) == ([0.0, 1.0, 2.0], ["a", "b", "c"])
+    assert len(w) == 1  # rotation
+    assert plt.xticks() == ([0.0, 1.0, 2.0], [])
+    plt.yticks([])
+    assert ax.yticks == ([], None)
+    _, axs = plt.subplots(1, 1)
+    axs.set_yticks([0.5, 1.5])
+    axs.set_yticklabels(["lo", "hi"])
+    assert ax.yticks == ([0.5, 1.5], ["lo", "hi"])
+    plt._fixed_ticks.clear()
+    with pytest.raises(TypeError, match="labels need tick positions"):
+        axs.set_xticklabels(["x"])

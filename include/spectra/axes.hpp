@@ -427,6 +427,20 @@ class Axes : public AxesBase
     void yaxis_datetime(bool enabled) { y_datetime_ = enabled; }
     bool yaxis_datetime() const { return y_datetime_; }
 
+    /// Fixed ticks (matplotlib's xticks / yticks): marks only at `positions`
+    /// inside the axis limits, labelled with `labels` (same length) or, when
+    /// `labels` is empty, with the formatted values.  An empty `positions`
+    /// hides the ticks and their labels.  Overrides the automatic, category
+    /// and date-time ticks until cleared.
+    void xticks(std::vector<double> positions, std::vector<std::string> labels = {});
+    void yticks(std::vector<double> positions, std::vector<std::string> labels = {});
+    /// Back to automatic ticks.
+    void clear_xticks() { manual_xticks_.reset(); }
+    void clear_yticks() { manual_yticks_.reset(); }
+    /// The fixed ticks as given (labels empty when formatted), or nullptr.
+    const TickResult* manual_xticks() const { return manual_xticks_ ? &*manual_xticks_ : nullptr; }
+    const TickResult* manual_yticks() const { return manual_yticks_ ? &*manual_yticks_ : nullptr; }
+
     // Shared axes (matplotlib's sharex / sharey)
     /// @brief Share the x axis with @p other.  All axes of a share group show the
     /// same x limits: setting them on one (xlim(), pan, zoom) sets them on all,
@@ -553,16 +567,18 @@ class Axes : public AxesBase
 
     std::vector<std::unique_ptr<TextAnnotation>> annotations_;
 
-    std::string           xlabel_;
-    std::string           ylabel_;
-    ScaleType             xscale_         = ScaleType::Linear;
-    ScaleType             yscale_         = ScaleType::Linear;
-    bool                  x_datetime_     = false;
-    bool                  y_datetime_     = false;
-    AutoscaleMode         autoscale_mode_ = AutoscaleMode::Padded;
-    std::optional<float>  presented_buffer_seconds_;
-    bool                  presented_buffer_following_ = false;
-    std::optional<double> presented_buffer_right_edge_;
+    std::string               xlabel_;
+    std::string               ylabel_;
+    ScaleType                 xscale_     = ScaleType::Linear;
+    ScaleType                 yscale_     = ScaleType::Linear;
+    bool                      x_datetime_ = false;
+    bool                      y_datetime_ = false;
+    std::optional<TickResult> manual_xticks_;
+    std::optional<TickResult> manual_yticks_;
+    AutoscaleMode             autoscale_mode_ = AutoscaleMode::Padded;
+    std::optional<float>      presented_buffer_seconds_;
+    bool                      presented_buffer_following_ = false;
+    std::optional<double>     presented_buffer_right_edge_;
 
     // Bar layout: the mode and the inputs of the last sync_bar_layout().
     BarMode                            bar_mode_ = BarMode::Grouped;

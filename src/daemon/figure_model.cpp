@@ -303,6 +303,26 @@ ipc::DiffOp FigureModel::set_colorbar_visible(uint64_t figure_id, uint32_t axes_
     return op;
 }
 
+bool FigureModel::set_axis_ticks(uint64_t                 figure_id,
+                                 uint32_t                 axes_index,
+                                 int                      axis,
+                                 bool                     set,
+                                 std::vector<double>      positions,
+                                 std::vector<std::string> labels,
+                                 ipc::DiffOp*             op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || axes_index >= it->second.axes.size() || (axis != 0 && axis != 1))
+        return false;
+    auto& sa = it->second.axes[axes_index];
+    ipc::set_axis_ticks_state(sa, axis, set, std::move(positions), std::move(labels));
+    bump_revision();
+    if (op_out)
+        *op_out = ipc::make_axis_ticks_op(figure_id, axes_index, axis, sa);
+    return true;
+}
+
 ipc::DiffOp FigureModel::set_axis_xlabel(uint64_t           figure_id,
                                          uint32_t           axes_index,
                                          const std::string& label)
@@ -1312,6 +1332,13 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (it == figures_.end() || op.axes_index >= it->second.axes.size())
                 return false;
             it->second.axes[op.axes_index].grid_visible = op.bool_val;
+            break;
+
+        case ipc::DiffOp::Type::SET_AXIS_TICKS:
+            if (it == figures_.end() || op.axes_index >= it->second.axes.size())
+                return false;
+            if (!ipc::axis_ticks_from_op(op, it->second.axes[op.axes_index]))
+                return false;
             break;
 
         case ipc::DiffOp::Type::SET_COLORBAR_VISIBLE:

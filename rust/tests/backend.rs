@@ -240,6 +240,13 @@ fn categorical_bars_and_bar_modes() {
         ax.set_bar_mode(mode).unwrap();
         assert_eq!(ax.bar_mode(), mode);
     }
+    ax.set_yticks(Some(&[0.0, 2.5, 5.0]), Some(&["none", "", "lots"]))
+        .unwrap();
+    assert!(ax.set_yticks(Some(&[1.0]), Some(&["a", "b"])).is_err());
+    ax.set_xticks(Some(&[]), None)
+        .unwrap()
+        .set_xticks(None, None)
+        .unwrap();
     let path = out_dir().join("bars.png");
     fig.savefig(&path).unwrap();
     assert_png(&path);

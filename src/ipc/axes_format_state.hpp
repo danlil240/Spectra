@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <spectra/axes.hpp>
@@ -205,6 +206,127 @@ inline bool same_figure_layout(const SnapshotFigureState& a, const SnapshotFigur
 {
     return a.constrained_layout == b.constrained_layout && a.share_x == b.share_x
            && a.share_y == b.share_y;
+}
+
+// ─── Fixed ticks (Axes::xticks / yticks) ────────────────────────────────────
+
+// Upper bound on fixed ticks accepted from a peer (per axis).
+inline constexpr size_t MAX_FIXED_TICKS = 4096;
+
+// The snapshot fields of one axis (0 = x, 1 = y).
+inline void set_axis_ticks_state(SnapshotAxisState&       sa,
+                                 int                      axis,
+                                 bool                     set,
+                                 std::vector<double>      positions,
+                                 std::vector<std::string> labels)
+{
+    if (!set)
+    {
+        positions.clear();
+        labels.clear();
+    }
+    if (labels.size() != positions.size())
+        labels.clear();
+    (axis == 0 ? sa.xticks_set : sa.yticks_set)           = set;
+    (axis == 0 ? sa.xtick_positions : sa.ytick_positions) = std::move(positions);
+    (axis == 0 ? sa.xtick_labels : sa.ytick_labels)       = std::move(labels);
+}
+
+// Live axes -> snapshot fields.
+inline void capture_axis_ticks(const Axes& ax, SnapshotAxisState& sa)
+{
+    for (int axis = 0; axis < 2; ++axis)
+    {
+        const TickResult* t = axis == 0 ? ax.manual_xticks() : ax.manual_yticks();
+        set_axis_ticks_state(sa,
+                             axis,
+                             t != nullptr,
+                             t ? t->positions : std::vector<double>{},
+                             t ? t->labels : std::vector<std::string>{});
+    }
+}
+
+// Snapshot fields -> live axes (automatic ticks when unset).
+inline void apply_axis_ticks_state(Axes& ax, const SnapshotAxisState& sa)
+{
+    if (sa.xticks_set && sa.xtick_positions.size() <= MAX_FIXED_TICKS)
+        ax.xticks(sa.xtick_positions, sa.xtick_labels);
+    else
+        ax.clear_xticks();
+    if (sa.yticks_set && sa.ytick_positions.size() <= MAX_FIXED_TICKS)
+        ax.yticks(sa.ytick_positions, sa.ytick_labels);
+    else
+        ax.clear_yticks();
+}
+
+inline DiffOp make_axis_ticks_op(uint64_t                 figure_id,
+                                 uint32_t                 axes_index,
+                                 int                      axis,
+                                 const SnapshotAxisState& sa)
+{
+    const bool  set    = axis == 0 ? sa.xticks_set : sa.yticks_set;
+    const auto& pos    = axis == 0 ? sa.xtick_positions : sa.ytick_positions;
+    const auto& labels = axis == 0 ? sa.xtick_labels : sa.ytick_labels;
+    DiffOp      op;
+    op.type       = DiffOp::Type::SET_AXIS_TICKS;
+    op.figure_id  = figure_id;
+    op.axes_index = axes_index;
+    op.f1         = axis;
+    op.bool_val   = set;
+    // Float data relative to the first tick keeps large values (epoch
+    // seconds) precise.
+    op.f2 = pos.empty() ? 0.0 : pos.front();
+    op.data.reserve(pos.size());
+    for (double p : pos)
+        op.data.push_back(static_cast<float>(p - op.f2));
+    op.f3 = static_cast<double>(labels.size());
+    for (size_t i = 0; i < labels.size(); ++i)
+    {
+        if (i > 0)
+            op.str_val += CATEGORY_SEPARATOR;
+        for (char c : labels[i])
+            op.str_val += c == CATEGORY_SEPARATOR ? ' ' : c;
+    }
+    return op;
+}
+
+// SET_AXIS_TICKS op -> snapshot fields; false when malformed.
+inline bool axis_ticks_from_op(const DiffOp& op, SnapshotAxisState& sa)
+{
+    if ((op.f1 != 0.0 && op.f1 != 1.0) || op.data.size() > MAX_FIXED_TICKS || !std::isfinite(op.f2))
+        return false;
+    std::vector<double> pos;
+    pos.reserve(op.data.size());
+    for (float d : op.data)
+        pos.push_back(op.f2 + static_cast<double>(d));
+    std::vector<std::string> labels;
+    if (op.f3 > 0.0)
+    {
+        if (op.f3 != static_cast<double>(op.data.size()))
+            return false;
+        std::string cur;
+        for (char c : op.str_val)
+        {
+            if (c == CATEGORY_SEPARATOR)
+            {
+                labels.push_back(std::move(cur));
+                cur.clear();
+            }
+            else
+            {
+                cur += c;
+            }
+        }
+        labels.push_back(std::move(cur));
+        if (labels.size() != pos.size())
+            return false;
+    }
+    set_axis_ticks_state(sa,
+                         static_cast<int>(op.f1),
+                         op.bool_val,
+                         std::move(pos),
+                         std::move(labels));
+    return true;
 }
 
 // ─── Bar category names ─────────────────────────────────────────────────────

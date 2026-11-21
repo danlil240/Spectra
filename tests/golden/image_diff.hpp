@@ -48,12 +48,25 @@ namespace spectra::test
 // previous defaults (threshold 24, 0.5%, 10% per tile) let all of those through.
 // Scenes that turn out to be noisier on CI get a per-test GoldenTolerance rather
 // than a looser global one.
+//
+// SPECTRA_GOLDEN_HW=1 selects a profile for hardware GPUs, whose rasterizers
+// differ from lavapipe within what Vulkan leaves implementation-defined: text
+// and edge anti-aliasing a few levels off (max ~7 on NVIDIA), nearest-filter
+// ties where a texel edge lands on a pixel centre (one column flips), and
+// equal-depth marker overlaps.  It still fails on real changes such as a hue
+// shift over a whole region.
+inline bool golden_hw_profile()
+{
+    const char* env = std::getenv("SPECTRA_GOLDEN_HW");
+    return env && std::string(env) == "1";
+}
+
 struct GoldenTolerance
 {
-    uint8_t pixel_threshold      = 2;
-    double  max_percent          = 0.05;
+    uint8_t pixel_threshold      = static_cast<uint8_t>(golden_hw_profile() ? 8 : 2);
+    double  max_percent          = golden_hw_profile() ? 0.4 : 0.05;
     double  max_mae              = 1.0;
-    double  max_tile_fraction    = 0.02;
+    double  max_tile_fraction    = golden_hw_profile() ? 0.10 : 0.02;
     size_t  max_differing_pixels = std::numeric_limits<size_t>::max();
 };
 

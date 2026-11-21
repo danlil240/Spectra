@@ -136,6 +136,9 @@ xvfb-run -a ctest --test-dir build -L golden -j1 --output-on-failure
 # Baselines resolve to <source>/tests/golden/baseline (absolute, set by CMake), so ctest and
 # direct runs compare against the same files. A missing baseline fails the test; set
 # SPECTRA_GOLDEN_STRICT=0 to skip instead. Regenerate with SPECTRA_UPDATE_BASELINES=1.
+# Baselines come from lavapipe. On a hardware GPU set SPECTRA_GOLDEN_HW=1: it allows the
+# anti-aliasing, nearest-filter and equal-depth differences drivers may legally produce
+# (tests/golden/image_diff.hpp) while still failing on real changes.
 
 # Run a single test binary directly
 ./build/tests/unit_test_easy_api

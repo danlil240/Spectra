@@ -218,6 +218,13 @@ class Px4AppShell
     // outlive the shell, or call unregister_commands() before they go away.
     void register_commands(spectra::CommandRegistry& registry, spectra::ShortcutManager& shortcuts);
     void unregister_commands();
+    // Drop the registry / shortcut pointers without touching them: for when
+    // the window that owned them is already destroyed (closing it frees both).
+    void forget_commands()
+    {
+        cmd_registry_ = nullptr;
+        shortcut_mgr_ = nullptr;
+    }
     // Run a command from the app's registry (no-op before register_commands()).
     void run_command(const char* id);
 #endif

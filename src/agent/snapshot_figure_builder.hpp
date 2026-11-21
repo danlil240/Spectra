@@ -267,6 +267,7 @@ inline std::unique_ptr<Figure> build_figure_from_snapshot(const ipc::SnapshotFig
                 if (!sa.title.empty())
                     ax.title(sa.title);
                 ipc::apply_axis_format_state(ax, sa);
+                ipc::apply_axis_ticks_state(ax, sa);
                 sync_live_annotations(ax, sa.annotations);
             }
         }

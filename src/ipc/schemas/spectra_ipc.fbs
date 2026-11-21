@@ -130,6 +130,12 @@ table SnapshotAxisState {
     light_azimuth: float = 0.0;  // degrees, when light_angles_set
     light_elevation: float = 0.0;
     colorbar_visible: bool = false;  // AxesBase::show_colorbar
+    xticks_set: bool = false;        // fixed ticks (Axes::xticks / yticks)
+    yticks_set: bool = false;
+    xtick_positions: [double];
+    ytick_positions: [double];
+    xtick_labels: [string];          // empty = formatted values
+    ytick_labels: [string];
 }
 
 table SnapshotSeriesState {
@@ -244,6 +250,7 @@ enum DiffOpType : uint8 {
     SET_SERIES_COLORMAP = 47,
     SET_SERIES_COLOR_VALUES = 48,
     SET_COLORBAR_VISIBLE = 49,
+    SET_AXIS_TICKS = 50,
 }
 
 table DiffOp {

@@ -293,6 +293,14 @@ struct SnapshotAxisState
     float   light_elevation  = 0.0f;
     // Colorbar for the axes' colormapped series (AxesBase::show_colorbar).
     bool colorbar_visible = false;
+    // Fixed ticks (Axes::xticks / yticks): when set, the positions and their
+    // labels (empty = formatted values).
+    bool                     xticks_set = false;
+    bool                     yticks_set = false;
+    std::vector<double>      xtick_positions;
+    std::vector<double>      ytick_positions;
+    std::vector<std::string> xtick_labels;
+    std::vector<std::string> ytick_labels;
 };
 
 // SnapshotSeriesState::line_style / marker_style value meaning "not set".
@@ -492,6 +500,11 @@ struct DiffOp
         SET_SERIES_COLOR_VALUES = 48,
         // Colorbar of an axes (AxesBase::show_colorbar): bool_val=shown.
         SET_COLORBAR_VISIBLE = 49,
+        // Fixed ticks of a 2D axes (axes_format_state.hpp): f1=axis (0 x,
+        // 1 y), bool_val=set (false = automatic ticks), f2=origin, data=
+        // positions - origin, f3=label count, str_val=labels joined by
+        // CATEGORY_SEPARATOR.
+        SET_AXIS_TICKS = 50,
     };
 
     Type     type         = Type::SET_AXIS_LIMITS;

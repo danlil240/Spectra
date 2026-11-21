@@ -592,6 +592,7 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             sa.x_label = ax->xlabel();
             sa.y_label = ax->ylabel();
             ipc::axis_format_to_state(*ax, sa);
+            ipc::capture_axis_ticks(*ax, sa);
             for (const auto& ann : ax->annotations())
             {
                 if (ann)

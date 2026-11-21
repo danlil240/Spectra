@@ -1197,3 +1197,29 @@ TEST_F(RendererFixture, TranslucentColormapAlphaReachesShaders)
         EXPECT_EQ(backend.find(PipelineType::Surface3D_Transparent), nullptr);
     }
 }
+
+// twinx(): the twin's series share the host's legend and plot area, so "Best"
+// must avoid them too (QA 2026-11-21: twinx_demo's legend sat on the rainfall
+// line, which showed through the legend box).
+TEST(LegendLayoutBestTwin, AvoidsTwinSeries)
+{
+    Axes ax;
+    // Host line along the bottom: both top corners are free of host data.
+    std::vector<float> x = ramp(101, 0.0f, 10.0f);
+    std::vector<float> y_low(x.size(), 1.0f);
+    ax.line(x, y_low);
+    ax.xlim(0.0, 10.0);
+    ax.ylim(0.0, 10.0);
+
+    // Twin line high up on the right half, in the twin's own y range.
+    Axes&              twin = ax.twinx();
+    std::vector<float> xr   = ramp(51, 6.0f, 10.0f);
+    std::vector<float> y_hi(xr.size(), 95.0f);
+    twin.line(xr, y_hi);
+    twin.ylim(0.0, 100.0);
+
+    EXPECT_EQ(score(ax, LegendPosition::TopRight), 0u);   // host alone: free
+    EXPECT_GT(score(twin, LegendPosition::TopRight), 0u);
+    EXPECT_EQ(legend_layout::choose_best_corner(ax, kVp, kW, kH, legend_layout::MARGIN),
+              LegendPosition::TopLeft);
+}

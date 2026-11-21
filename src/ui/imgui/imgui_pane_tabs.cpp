@@ -53,6 +53,32 @@ void ImGuiIntegration::draw_pane_tab_headers()
         return default_figure_title(fig_idx + 1);
     };
 
+    // Tab widths of one pane header: the natural width (title + padding,
+    // clamped), compressed evenly when they would run past the header so
+    // every tab and the "+" button stay reachable (titles are clipped and
+    // shown in full in a tooltip).
+    constexpr float TAB_FIT_MIN_W = 44.0f;
+    auto            tab_widths    = [&](const std::vector<size_t>& figs, float header_w)
+    {
+        std::vector<float> w(figs.size());
+        float              total = 0.0f;
+        for (size_t i = 0; i < figs.size(); ++i)
+        {
+            const ImVec2 tsz = ImGui::CalcTextSize(fig_title(figs[i]).c_str());
+            w[i]             = std::clamp(tsz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+            total += w[i] + 1.0f;
+        }
+        const float avail = header_w - 2.0f - (ADD_BTN_W + 8.0f);
+        if (!figs.empty() && total > avail)
+        {
+            const float cap =
+                std::max(TAB_FIT_MIN_W, avail / static_cast<float>(figs.size()) - 1.0f);
+            for (float& x : w)
+                x = std::min(x, cap);
+        }
+        return w;
+    };
+
     // Helper: ImU32 from theme color
     auto to_col = [](const ui::Color& c, float a = -1.0f) -> ImU32
     {
@@ -113,8 +139,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     gap_pane_id      = pane->id();
                     has_active_gap   = true;
                     gap_insert_after = SIZE_MAX;   // Before first tab by default
-                    const auto& figs = pane->figure_indices();
-                    float       cx   = hr.x + 2.0f;
+                    const auto& figs   = pane->figure_indices();
+                    const auto  widths = tab_widths(figs, hr.w);
+                    float       cx     = hr.x + 2.0f;
                     for (size_t li = 0; li < figs.size(); ++li)
                     {
                         if (figs[li] == pane_tab_drag_.dragged_figure_index)
@@ -122,9 +149,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
                             cx += 0;   // Skip the dragged tab's width
                             continue;
                         }
-                        std::string t   = fig_title(figs[li]);
-                        ImVec2      tsz = ImGui::CalcTextSize(t.c_str());
-                        float w = std::clamp(tsz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+                        const float w = widths[li];
                         if (mouse.x > cx + w * 0.5f)
                         {
                             gap_insert_after = li;
@@ -171,8 +196,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ph.pane        = pane;
         ph.header_rect = hr;
 
-        const auto& figs  = pane->figure_indices();
-        float       cur_x = hr.x + 2.0f;
+        const auto& figs   = pane->figure_indices();
+        const auto  widths = tab_widths(figs, hr.w);
+        float       cur_x  = hr.x + 2.0f;
 
         // Check if this pane has an active insertion gap
         bool pane_has_gap =
@@ -181,10 +207,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         for (size_t li = 0; li < figs.size(); ++li)
         {
             size_t      fig_idx = figs[li];
-            std::string title   = fig_title(fig_idx);
-
-            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
-            float  tw      = std::clamp(text_sz.x + TAB_PAD * 2 + CLOSE_SZ, TAB_MIN_W, TAB_MAX_W);
+            const float tw      = widths[li];
 
             // Add insertion gap before this tab if needed
             bool insert_gap_here = pane_has_gap
@@ -399,6 +422,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
             ImVec2      text_sz = ImGui::CalcTextSize(title.c_str());
             ImVec2      text_pos(tr.x + TAB_PAD, tr.y + (tr.h - text_sz.y) * 0.5f);
 
+            // A compressed tab clips its title: show the whole one on hover.
+            if (tr.is_hovered && text_pos.x + text_sz.x > tr.x + tr.w - CLOSE_SZ - 2)
+                ImGui::SetTooltip("%s", title.c_str());
             draw_list->PushClipRect(ImVec2(tr.x, tr.y),
                                     ImVec2(tr.x + tr.w - CLOSE_SZ - 2, tr.y + tr.h),
                                     true);

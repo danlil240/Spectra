@@ -136,7 +136,7 @@ class LayoutManager
     // Legacy ImGuiIntegration::draw_nav_rail fallback (no AppShell).
     static constexpr int   NAV_RAIL_FALLBACK_BUTTON_COUNT = 12;
     static constexpr float NAV_RAIL_CELL_HEIGHT           = 56.0f;
-    static constexpr float NAV_RAIL_CELL_HEIGHT_MIN       = 36.0f;
+    static constexpr float NAV_RAIL_CELL_HEIGHT_MIN = 32.0f;   // full rail fits a 720 px window
     // A rail separator is a SPACE_2 dummy above and below the hairline (2 * 8 px); keep in
     // sync with draw_separator() in draw_nav_rail() / SpectraNavRail, or the last button
     // ("Help") is clipped at the bottom of short windows.

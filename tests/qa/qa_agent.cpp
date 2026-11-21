@@ -6319,17 +6319,7 @@ class QAAgent
             {
                 ui->imgui_ui->open_transform_dialog();
                 pump_frames(10);
-                // The action row sits at the end of the scrolling body.
-                if (ImGuiContext* ctx = design_imgui())
-                {
-                    ImGuiContext* prev = ImGui::GetCurrentContext();
-                    ImGui::SetCurrentContext(ctx);
-                    for (ImGuiWindow* w : ctx->Windows)
-                        if (w && w->Name
-                            && std::string_view(w->Name).starts_with("##custom_xform/##xform_body"))
-                            ImGui::SetScrollY(w, w->ScrollMax.y);
-                    ImGui::SetCurrentContext(prev);
-                }
+                // The action row is a fixed footer: visible without scrolling.
                 pump_frames(5);
                 named_screenshot(
                     "64_transform_dialog_disabled_actions",

@@ -22,8 +22,9 @@ namespace spectra::ui
 
 void CustomTransformDialog::open(Figure* figure)
 {
-    figure_ = figure;
-    open_   = true;
+    figure_       = figure;
+    open_         = true;
+    reset_scroll_ = true;
     std::memset(formula_buf_, 0, sizeof(formula_buf_));
     std::memset(name_buf_, 0, sizeof(name_buf_));
     validation_error_.clear();
@@ -207,7 +208,17 @@ void CustomTransformDialog::draw()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,
                             ImVec2(tokens::MODAL_PADDING, tokens::SPACE_4));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(tokens::SPACE_2, tokens::SPACE_2));
-        ImGui::BeginChild("##xform_body", ImVec2(0, 0), ImGuiChildFlags_None);
+        // The buttons sit in a fixed footer below the scrolling body, so
+        // they are always visible and clear of the window's resize grip.
+        const float footer_h = ImGui::GetFrameHeight() + 2.0f * tokens::SPACE_4;
+        ImGui::BeginChild("##xform_body",
+                          ImVec2(0, -footer_h),
+                          ImGuiChildFlags_AlwaysUseWindowPadding);
+        if (reset_scroll_)
+        {
+            ImGui::SetScrollY(0.0f);
+            reset_scroll_ = false;
+        }
 
         draw_formula_input();
         ImGui::Spacing();
@@ -216,11 +227,28 @@ void CustomTransformDialog::draw()
         draw_function_reference();
         ImGui::Spacing();
         draw_preview();
-        ImGui::Spacing();
-        ImGui::Spacing();
-        draw_action_buttons();
 
         ImGui::EndChild();
+
+        // Footer: hairline, then the buttons, right-aligned short of the grip.
+        {
+            const ImVec2 fp = ImGui::GetCursorScreenPos();
+            dl->AddLine(ImVec2(win_min.x, fp.y),
+                        ImVec2(win_min.x + win_sz.x, fp.y),
+                        ImGui::ColorConvertFloat4ToU32(ImVec4(colors.border_subtle.r,
+                                                              colors.border_subtle.g,
+                                                              colors.border_subtle.b,
+                                                              0.6f)),
+                        1.0f);
+            ImGui::SetCursorScreenPos(ImVec2(win_min.x + tokens::MODAL_PADDING,
+                                             fp.y + (footer_h - ImGui::GetFrameHeight()) * 0.5f));
+            const float grip = ImGui::GetFontSize() * 1.35f;
+            ImGui::BeginGroup();
+            ImGui::PushItemWidth(win_sz.x - 2.0f * tokens::MODAL_PADDING - grip);
+            draw_action_buttons(win_sz.x - 2.0f * tokens::MODAL_PADDING - grip);
+            ImGui::PopItemWidth();
+            ImGui::EndGroup();
+        }
         ImGui::PopStyleVar(2);
 
         // Preserve ESC-to-dismiss now that the native title bar is gone.
@@ -310,17 +338,25 @@ void CustomTransformDialog::draw_formula_input()
                               "y * s1_y",
                               "exp(-x)",
                               "y > 0 ? y : 0"};
-    for (const char* snip : snippets)
+    // Wrap the chips to the dialog width instead of running off its edge.
+    const float right_edge = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+    for (size_t k = 0; k < std::size(snippets); ++k)
     {
+        const char* snip = snippets[k];
+        if (k > 0)
+        {
+            const float w = ImGui::CalcTextSize(snip).x + 2.0f * 6.0f;
+            ImGui::SameLine();
+            if (ImGui::GetCursorScreenPos().x + w > right_edge)
+                ImGui::NewLine();
+        }
         if (ImGui::SmallButton(snip))
         {
             std::strncpy(formula_buf_, snip, sizeof(formula_buf_) - 1);
             formula_buf_[sizeof(formula_buf_) - 1] = '\0';
             formula_changed_                       = true;
         }
-        ImGui::SameLine();
     }
-    ImGui::NewLine();
 
     ImGui::PopStyleColor();
     ImGui::PopStyleVar();
@@ -335,12 +371,17 @@ void CustomTransformDialog::draw_formula_input()
     if (font_heading_)
         ImGui::PopFont();
 
+    // Each label sits before its control ("Series" read as the label of the
+    // checkbox that followed it when labels trailed the combos).
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Axes");
+    ImGui::SameLine();
     // Axes selector
     {
         int axes_count = static_cast<int>(figure_->axes().size());
-        ImGui::SetNextItemWidth(140.0f);
+        ImGui::SetNextItemWidth(120.0f);
         if (ImGui::BeginCombo(
-                "Axes##xform_axes",
+                "##xform_axes",
                 target_axes_ < 0 ? "All Axes" : ("Axes " + std::to_string(target_axes_)).c_str()))
         {
             if (ImGui::Selectable("All Axes", target_axes_ < 0))
@@ -361,6 +402,8 @@ void CustomTransformDialog::draw_formula_input()
         }
     }
 
+    ImGui::SameLine(0.0f, tokens::SPACE_4);
+    ImGui::TextUnformatted("Series");
     ImGui::SameLine();
 
     // Series selector
@@ -371,8 +414,8 @@ void CustomTransformDialog::draw_formula_input()
             series_label = series_info_[target_series_].label.c_str();
         }
 
-        ImGui::SetNextItemWidth(180.0f);
-        if (ImGui::BeginCombo("Series##xform_series", series_label))
+        ImGui::SetNextItemWidth(std::clamp(ImGui::GetContentRegionAvail().x, 120.0f, 200.0f));
+        if (ImGui::BeginCombo("##xform_series", series_label))
         {
             if (ImGui::Selectable("All Visible", target_series_ < 0))
                 target_series_ = -1;
@@ -386,8 +429,9 @@ void CustomTransformDialog::draw_formula_input()
         }
     }
 
-    ImGui::SameLine();
+    // Own line: on a narrow dialog it would wrap off the right edge.
     ImGui::Checkbox("Output to X", &apply_to_x_);
+    ImGui::SameLine(0.0f, tokens::SPACE_4);
 
     {
         bool overwrite = get_overwrite_ ? get_overwrite_() : local_overwrite_;
@@ -657,11 +701,10 @@ void CustomTransformDialog::draw_preview()
     }
 }
 
-void CustomTransformDialog::draw_action_buttons()
+void CustomTransformDialog::draw_action_buttons(float avail)
 {
     const auto& colors = ui::theme();
 
-    float avail   = ImGui::GetContentRegionAvail().x;
     float btn_w   = 120.0f;
     float spacing = tokens::SPACE_2;
 

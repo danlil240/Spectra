@@ -399,11 +399,10 @@ VkDevice create_logical_device(VkPhysicalDevice          physical_device,
     create_info.enabledExtensionCount   = static_cast<uint32_t>(extensions.size());
     create_info.ppEnabledExtensionNames = extensions.data();
 
-    if (enable_validation && check_validation_layer_support())
-    {
-        create_info.enabledLayerCount   = static_cast<uint32_t>(validation_layers.size());
-        create_info.ppEnabledLayerNames = validation_layers.data();
-    }
+    // No device layers: they are ignored since Vulkan 1.0 and current
+    // validation layers reject them (VUID-VkDeviceCreateInfo-enabledLayerCount-12384).
+    // Validation is enabled on the instance.
+    (void)enable_validation;
 
     VkDevice device = VK_NULL_HANDLE;
     VkResult result = vkCreateDevice(physical_device, &create_info, nullptr, &device);

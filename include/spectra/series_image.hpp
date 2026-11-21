@@ -276,6 +276,8 @@ class ContourSeries : public Series
     const std::vector<float>& level_values() const { return level_values_; }
     float                     vmin() const;
     float                     vmax() const;
+    /// @brief True when colormap_range() set the value range (else the level range).
+    bool colormap_range_set() const { return range_set_; }
     /// @brief True when lines are coloured per level (colormap set, automatic colour).
     bool uses_colormap() const
     {

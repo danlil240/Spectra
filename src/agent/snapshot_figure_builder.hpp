@@ -180,6 +180,7 @@ inline void add_2d_series(Axes& ax, const ipc::SnapshotSeriesState& ss)
         }
         s->x_offset(ss.x_origin).y_offset(ss.y_origin);
         apply_snapshot_common(*s, ss);
+        ipc::apply_series_colormap(*s, ss);   // image / contour
         return;
     }
 

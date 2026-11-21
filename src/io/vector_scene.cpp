@@ -3443,8 +3443,14 @@ void emit_axes_3d(SceneContext& c, const Axes3D& axes, const LegendConfig& legen
             const bool vertical = axis == up_idx;
             float      last_x = 0, last_y = 0;
             bool       has_last = false;
+            // The second horizontal axis leaves the shared front corner to the
+            // first (render_geometry.cpp), so the two end labels do not read as one.
+            const double corner_v = faces.back_hi[static_cast<size_t>(axis)] ? lo[axis] : hi[axis];
+            const double corner_tol = (hi[axis] - lo[axis]) * 0.1;
             for (size_t i = 0; i < ticks.positions.size() && i < ticks.labels.size(); ++i)
             {
+                if (axis == h_b && std::fabs(ticks.positions[i] - corner_v) <= corner_tol)
+                    continue;
                 double p[3];
                 p[axis] = ticks.positions[i];
                 if (vertical)

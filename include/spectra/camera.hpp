@@ -78,6 +78,10 @@ class Camera
         update_position_from_orbit();
         return *this;
     }
+    // Orbit distance in scene units.  An Axes3D draws its box as a cube of
+    // half-size Axes3D::box_half_size() (3) whatever the data range, and
+    // frames it at a distance of 13.2; below about 10 the box overflows a
+    // typical viewport.
     Camera& set_distance(float d)
     {
         distance = d;

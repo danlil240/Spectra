@@ -892,8 +892,18 @@ void Renderer::render_plot_text(Figure& figure)
             float      last_sx  = 0.0f;
             float      last_sy  = 0.0f;
             bool       has_last = false;
+            // The two horizontal tick edges meet at the front corner, where both
+            // axes may label their end value ("2" next to "-2" read as "-2 2").
+            // The second horizontal axis leaves that corner to the first.
+            const bool  skip_corner = (axis == h_b);
+            const float corner_v =
+                faces.back_hi[static_cast<size_t>(axis)] ? lo_lim[axis] : hi_lim[axis];
+            const float corner_tol = (hi_lim[axis] - lo_lim[axis]) * 0.1f;
             for (size_t i = 0; i < ticks.positions.size(); ++i)
             {
+                if (skip_corner
+                    && std::abs(static_cast<float>(ticks.positions[i]) - corner_v) <= corner_tol)
+                    continue;
                 float      sx    = 0.0f;
                 float      sy    = 0.0f;
                 float      depth = 0.0f;

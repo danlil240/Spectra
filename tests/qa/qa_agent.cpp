@@ -4820,7 +4820,7 @@ class QAAgent
             ax.surface(xg, yg, zv).colormap(ColormapType::Plasma);
             ax.auto_fit();
             ax.title("Side View (azimuth=0, elev=15)");
-            ax.camera().set_azimuth(0.0f).set_elevation(15.0f).set_distance(7.0f);
+            ax.camera().set_azimuth(0.0f).set_elevation(15.0f);
 
             pump_frames(15);
             const FigureId fid = newest_figure_id();
@@ -4852,7 +4852,7 @@ class QAAgent
             ax.surface(xg, yg, zv).colormap(ColormapType::Inferno);
             ax.auto_fit();
             ax.title("Top-Down View (elev=85)");
-            ax.camera().set_azimuth(45.0f).set_elevation(85.0f).set_distance(6.0f);
+            ax.camera().set_azimuth(45.0f).set_elevation(85.0f);
 
             pump_frames(15);
             const FigureId fid = newest_figure_id();
@@ -4917,7 +4917,7 @@ class QAAgent
             ax.scatter3d(x2, y2, z2).label("Cluster B").color(colors::blue).size(5.5f);
             ax.auto_fit();
             ax.title("3D Scatter -- Two Clusters");
-            ax.camera().set_azimuth(35.0f).set_elevation(24.0f).set_distance(8.0f);
+            ax.camera().set_azimuth(35.0f).set_elevation(24.0f);
 
             pump_frames(15);
             const FigureId fid = newest_figure_id();

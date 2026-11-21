@@ -3661,12 +3661,21 @@ class QAAgent
         // window's end_frame — critical for multi-window screenshots.
         backend->request_framebuffer_capture(pixels.data(), w, h, target_window);
         pump_frames(1);   // triggers capture in end_frame
+        // A skipped frame (fence or acquire timeout) leaves the request
+        // pending, pointing into `pixels`: keep pumping until it runs, and
+        // never leave it behind once `pixels` goes out of scope.
+        for (int i = 0; i < 60 && backend->has_pending_capture() && !has_critical_issue(); ++i)
+            pump_frames(1);
+        const bool captured = !backend->has_pending_capture();
+        if (!captured)
+            backend->cancel_pending_capture();
 
         if (restore_window)
             backend->set_active_window(restore_window);
 
         // Semantic assertions against the frame that was just captured.
         DesignCheck check;
+        check.expect(captured, "a frame was rendered and captured");
         design_px_     = pixels.data();
         design_w_      = w;
         design_h_      = h;
@@ -4251,8 +4260,14 @@ class QAAgent
         auto* ui = app_->ui_context();
         if (!ui)
             return false;
-        const bool targeted = target_axes_by_hover(ax) == &ax;
-        before              = axes_spans(ax);
+        AxesBase*  hit      = target_axes_by_hover(ax);
+        const bool targeted = hit == &ax;
+        if (!targeted)
+            fprintf(stderr,
+                    "[QA/Design] zoom target: hover hit %s (ImGui wants mouse: %d)\n",
+                    hit ? "another axes" : "no axes",
+                    ui->imgui_ui && ui->imgui_ui->wants_capture_mouse() ? 1 : 0);
+        before = axes_spans(ax);
         for (int i = 0; i < steps; ++i)
             ui->cmd_registry.execute("view.zoom_in");
         return targeted;

@@ -851,7 +851,8 @@ TEST(TwinxTransport, TwinTravelsThroughSnapshotModelAndCache)
     op      = model.set_axis_limits(fid, 1, 7.0, 9.0, 10.0, 20.0);
     EXPECT_DOUBLE_EQ(op.f1, 2.0);   // a twin keeps its host's x
     EXPECT_DOUBLE_EQ(op.f3, 10.0);
-    const auto& m = model.snapshot().figures[0].axes;
+    const auto  msnap = model.snapshot();
+    const auto& m     = msnap.figures[0].axes;
     EXPECT_DOUBLE_EQ(m[1].x_min, 2.0);
     EXPECT_DOUBLE_EQ(m[0].y_min, 0.0);
 

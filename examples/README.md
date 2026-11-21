@@ -30,6 +30,8 @@ display (X11 or Wayland). Offscreen examples (`offscreen_export`, `easy_embed_de
 | [`plot_styles_demo.cpp`](plot_styles_demo.cpp) | MATLAB-style format strings: line styles, markers, colors. |
 | [`plot_extras_demo.cpp`](plot_extras_demo.cpp) | Step lines, dense-line rendering and annotation boxes, halos and rotation (headless). |
 | [`precision_demo.cpp`](precision_demo.cpp) | Log-log axes, `1e7 + small` and epoch-timestamp data kept exact with the double overloads (headless). |
+| [`twinx_demo.cpp`](twinx_demo.cpp) | A second y axis on the right (`twinx`) sharing the x axis. |
+| [`grid_plots_demo.cpp`](grid_plots_demo.cpp) | Grid data: `imshow`, a labelled `heatmap`, `contour` and `contourf`, with colorbars. |
 | [`next_level_scientific.cpp`](next_level_scientific.cpp) | Colormapped scatter and a native uncertainty band. |
 | [`stats_demo.cpp`](stats_demo.cpp) | Statistical series: box plots, violins, histograms and bars. |
 | [`shapes_demo.cpp`](shapes_demo.cpp) | 2D shape primitives (rectangles, circles, polygons, arrows). |

@@ -165,7 +165,7 @@ The `spectra-plot` crate is a pure-Rust client for the Spectra backend; see
 
 | Platform | Status | Notes |
 |---|---|---|
-| Linux x86_64 — Ubuntu 22.04 / 24.04 | **Supported** | X11 and Wayland. GCC 13+ or Clang 17+ to build from source. |
+| Linux x86_64 — Ubuntu 22.04 / 24.04 / 26.04 | **Supported** | X11 and Wayland. GCC 13+ or Clang 17+ to build from source. |
 | macOS (Apple Silicon, via MoltenVK) | Experimental | Builds and runs in CI; expect rough edges. |
 | Windows x64 | Experimental | C++ library and app, in-process only (no backend daemon, so no Python package; use WSL2). |
 | ROS2, PX4/ULog, Qt embed | Preview | Optional adapters, enabled at build time. |
@@ -183,7 +183,7 @@ pip install spectra-plot
 No compiler or Vulkan SDK needed — only a Vulkan-capable driver. Linux and macOS only: on
 Windows, install it inside WSL2 (its windows open through WSLg).
 
-### APT repository (Ubuntu 22.04 / 24.04)
+### APT repository (Ubuntu 22.04 / 24.04 / 26.04)
 
 ```bash
 # 1. Import the signing key

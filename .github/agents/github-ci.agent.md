@@ -86,7 +86,7 @@ When CI fails, **fix the cause**. Do not make CI green by hiding the problem.
 
 ### release / packaging
 - Triggered by `push: tags: ['v*']`
-- Produces: `.deb` (ubuntu-22.04, ubuntu-24.04), `.tar.gz`, macOS `.dmg`, Windows NSIS installer
+- Produces: `.deb` (ubuntu-22.04, ubuntu-24.04, ubuntu-26.04), `.tar.gz`, macOS `.dmg`, Windows NSIS installer
 - Permissions: `contents: write`, `id-token: write`
 
 ## CMake Feature Flags for CI

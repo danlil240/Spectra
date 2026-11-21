@@ -6082,6 +6082,13 @@ class QAAgent
                     ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, false);
                     pump_frames(1);
                 }
+                // Queued key events are trickled one per ImGui frame; wait until
+                // every press has landed and the scroll has caught up.
+                wait_until_settled("command palette selection",
+                                   [&] {
+                                       return ui->cmd_palette.selected_index() >= 15
+                                              && ui->cmd_palette.scroll_offset() > 0.0f;
+                                   });
                 pump_frames(5);   // Let scroll animation settle with scrollbar visible
 
                 named_screenshot(
@@ -6299,9 +6306,11 @@ class QAAgent
                         // rail tool, mode chip), stays readable on the
                         // half-way surfaces (3:1 floor for this transient
                         // frame; see DECISIONS-fbcontrast.md).
-                        for (const char* w :
-                             {"##navrail", "##commandbar", "##pane_tab", "##AppShellStatusBar"})
+                        for (const char* w : {"##navrail", "##commandbar", "##AppShellStatusBar"})
                             expect_text_contrast(c, w, 3.0f, 3);
+                        // With this many figures only the active tab keeps a
+                        // full title; the others show their number (< 3 glyphs).
+                        expect_text_contrast(c, "##pane_tab", 3.0f, 1);
                     });
                 ui->theme_mgr->update(duration);   // finish: switches to Light
                 ui->theme_mgr->set_theme("dark");

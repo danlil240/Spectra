@@ -6,6 +6,7 @@
     #include <format>
     #include <unordered_set>
 
+    #include "ui/figures/tab_title_fit.hpp"
     #include "ui/overlay/live_status.hpp"
     #include "ui/theme/theme_imgui.hpp"
     #include <spectra/window_defaults.hpp>
@@ -55,10 +56,11 @@ void ImGuiIntegration::draw_pane_tab_headers()
 
     // Tab widths of one pane header: the natural width (title + padding,
     // clamped), compressed evenly when they would run past the header so
-    // every tab and the "+" button stay reachable (titles are clipped and
-    // shown in full in a tooltip).
+    // every tab and the "+" button stay reachable.  The active tab keeps its
+    // natural width so its title stays readable; the others shorten to
+    // "Fig…12" or the bare number, with the full title in a tooltip.
     constexpr float TAB_FIT_MIN_W = 44.0f;
-    auto            tab_widths    = [&](const std::vector<size_t>& figs, float header_w)
+    auto tab_widths = [&](const std::vector<size_t>& figs, float header_w, size_t active_li)
     {
         std::vector<float> w(figs.size());
         float              total = 0.0f;
@@ -69,13 +71,22 @@ void ImGuiIntegration::draw_pane_tab_headers()
             total += w[i] + 1.0f;
         }
         const float avail = header_w - 2.0f - (ADD_BTN_W + 8.0f);
-        if (!figs.empty() && total > avail)
+        if (figs.empty() || total <= avail)
+            return w;
+        const size_t n          = figs.size();
+        const bool   has_active = active_li < n && n > 1;
+        float        others     = avail;
+        if (has_active)
         {
-            const float cap =
-                std::max(TAB_FIT_MIN_W, avail / static_cast<float>(figs.size()) - 1.0f);
-            for (float& x : w)
-                x = std::min(x, cap);
+            const float room = avail - static_cast<float>(n - 1) * (TAB_FIT_MIN_W + 1.0f) - 1.0f;
+            w[active_li]     = std::max(TAB_FIT_MIN_W, std::min(w[active_li], room));
+            others -= w[active_li] + 1.0f;
         }
+        const float count = static_cast<float>(has_active ? n - 1 : n);
+        const float cap   = std::max(TAB_FIT_MIN_W, others / count - 1.0f);
+        for (size_t i = 0; i < n; ++i)
+            if (!has_active || i != active_li)
+                w[i] = std::min(w[i], cap);
         return w;
     };
 
@@ -140,7 +151,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
                     has_active_gap   = true;
                     gap_insert_after = SIZE_MAX;   // Before first tab by default
                     const auto& figs   = pane->figure_indices();
-                    const auto  widths = tab_widths(figs, hr.w);
+                    const auto  widths = tab_widths(figs, hr.w, pane->active_local_index());
                     float       cx     = hr.x + 2.0f;
                     for (size_t li = 0; li < figs.size(); ++li)
                     {
@@ -197,7 +208,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
         ph.header_rect = hr;
 
         const auto& figs   = pane->figure_indices();
-        const auto  widths = tab_widths(figs, hr.w);
+        const auto  widths = tab_widths(figs, hr.w, pane->active_local_index());
         float       cur_x  = hr.x + 2.0f;
 
         // Check if this pane has an active insertion gap
@@ -417,14 +428,20 @@ void ImGuiIntegration::draw_pane_tab_headers()
                                    is_active_styled ? 2.5f : 1.5f);
             }
 
-            // Title text
-            std::string title   = fig_title(tr.figure_index);
-            ImVec2      text_sz = ImGui::CalcTextSize(title.c_str());
-            ImVec2      text_pos(tr.x + TAB_PAD, tr.y + (tr.h - text_sz.y) * 0.5f);
+            // Title text.  A compressed tab shows "Fig…12" (head and the
+            // figure number) and the whole title in a tooltip on hover.
+            const std::string full_title = fig_title(tr.figure_index);
+            const float       title_w    = tr.w - TAB_PAD - CLOSE_SZ - 2;
+            const std::string title =
+                ui::fit_tab_title(full_title,
+                                  title_w,
+                                  [](std::string_view s)
+                                  { return ImGui::CalcTextSize(s.data(), s.data() + s.size()).x; });
+            ImVec2 text_sz = ImGui::CalcTextSize(title.c_str());
+            ImVec2 text_pos(tr.x + TAB_PAD, tr.y + (tr.h - text_sz.y) * 0.5f);
 
-            // A compressed tab clips its title: show the whole one on hover.
-            if (tr.is_hovered && text_pos.x + text_sz.x > tr.x + tr.w - CLOSE_SZ - 2)
-                ImGui::SetTooltip("%s", title.c_str());
+            if (tr.is_hovered && title != full_title)
+                ImGui::SetTooltip("%s", full_title.c_str());
             draw_list->PushClipRect(ImVec2(tr.x, tr.y),
                                     ImVec2(tr.x + tr.w - CLOSE_SZ - 2, tr.y + tr.h),
                                     true);

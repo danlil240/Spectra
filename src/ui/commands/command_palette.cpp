@@ -583,7 +583,10 @@ bool CommandPalette::draw(float window_width, float window_height)
                     }
                 }
 
-                if (ImGui::IsItemHovered())
+                // Hover selects only when the mouse moves: a pointer resting over
+                // the list otherwise pinned the selection and swallowed arrow keys.
+                const ImVec2 mouse_delta = ImGui::GetIO().MouseDelta;
+                if (ImGui::IsItemHovered() && (mouse_delta.x != 0.0f || mouse_delta.y != 0.0f))
                 {
                     selected_index_ = i;
                 }

@@ -616,7 +616,7 @@ inline LegendPosition choose_best_corner(const Axes&    axes,
 // with the least data overlap (with hysteresis against `previous`); None is
 // returned unchanged (callers hide the legend).  Data overlap is only scored
 // for 2D axes: a 3D view's projection changes with the camera, so Best maps
-// to TopRight there (as in the SVG exporter).
+// to TopLeft there, clear of the view cube in the top-right corner.
 inline LegendPosition resolve_position(const AxesBase& axes,
                                        const Rect&     vp,
                                        float           w,
@@ -628,7 +628,7 @@ inline LegendPosition resolve_position(const AxesBase& axes,
         return requested;
     if (const auto* a2 = dynamic_cast<const Axes*>(&axes))
         return choose_best_corner(*a2, vp, w, h, MARGIN, previous);
-    return LegendPosition::TopRight;
+    return LegendPosition::TopLeft;
 }
 
 // Region a legend lays itself out in: the plot area for the inside

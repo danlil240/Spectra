@@ -1889,7 +1889,7 @@ void emit_legend(SceneContext&       c,
         if (auto* a2 = dynamic_cast<const Axes*>(&axes))
             pos = legend_layout::choose_best_corner(*a2, vp, w, h, margin, LegendPosition::None);
         else
-            pos = LegendPosition::TopRight;
+            pos = legend_layout::resolve_position(axes, vp, w, h, LegendPosition::Best);
     }
     const Rect r = legend_layout::place(area, pos, w, h);
 

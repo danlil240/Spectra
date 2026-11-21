@@ -192,7 +192,8 @@ TEST(LegendLayoutPlace, ResolveBestAvoidsData)
 }
 
 // Audit S02: the shared legend helpers accept 3D axes.  "Best" cannot score
-// a camera-dependent projection, so it resolves to TopRight (as in SVG).
+// a camera-dependent projection, so it resolves to TopLeft, clear of the view
+// cube in the top-right corner (QA M1).
 TEST(LegendLayoutPlace, Axes3DEntriesPositionAndSwatchColour)
 {
     Axes3D ax;
@@ -214,7 +215,7 @@ TEST(LegendLayoutPlace, Axes3DEntriesPositionAndSwatchColour)
 
     const Rect vp{0.0f, 0.0f, 400.0f, 300.0f};
     EXPECT_EQ(legend_layout::resolve_position(ax, vp, 80, 40, LegendPosition::Best),
-              LegendPosition::TopRight);
+              LegendPosition::TopLeft);
     EXPECT_EQ(legend_layout::resolve_position(ax, vp, 80, 40, LegendPosition::BottomLeft),
               LegendPosition::BottomLeft);
 

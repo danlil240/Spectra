@@ -2162,7 +2162,7 @@ def loglog(*args, **kwargs):
 
 def savefig(path, width: int = 0, height: int = 0, format: Optional[str] = None,
             theme: str = "", dpi=None):
-    """Save the current figure to a PNG or SVG file; returns the absolute path.
+    """Save the current figure to a PNG, SVG or PDF file; returns the absolute path.
 
     The backend renders it offscreen (works before or without a window).
     ``width`` / ``height`` set the PNG size in pixels (0 = figure size); the

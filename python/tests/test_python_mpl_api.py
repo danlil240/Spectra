@@ -498,8 +498,14 @@ def test_figure_savefig_request(tmp_path):
     d = codec.decode_req_export_figure(payload)
     assert d == {"figure_id": 9, "path": out, "format": "", "width": 10, "height": 20,
                  "theme": "light"}
+    sess.requests.clear()
+    fig.savefig(tmp_path / "a.pdf")
+    ((_, payload),) = sess.requests
+    assert codec.decode_req_export_figure(payload)["path"].endswith("a.pdf")
     with pytest.raises(ValueError):
-        fig.savefig("a.pdf", format="pdf")
+        fig.savefig("a.jpg")
+    with pytest.raises(ValueError):
+        fig.savefig("a.png", format="jpeg")
     with pytest.raises(ValueError):
         fig.savefig("a.png", width=-1)
 

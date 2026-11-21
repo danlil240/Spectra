@@ -217,11 +217,11 @@ class Figure:
         theme: str = "",
         dpi=None,
     ) -> str:
-        """Write this figure to a PNG or SVG file and return its absolute path.
+        """Write this figure to a PNG, SVG or PDF file and return its absolute path.
 
         The backend renders the figure offscreen (no window has to be open)
-        and replies once the file is written.  ``format`` is "png" or "svg";
-        by default it follows the file extension (PNG unless ``.svg``).
+        and replies once the file is written.  ``format`` is "png", "svg" or
+        "pdf"; by default it follows the file extension (.png, .svg or .pdf).
         ``width`` / ``height`` set the PNG size in pixels (0 = figure size);
         ``theme`` (e.g. "light") overrides the saved theme for this file.
         ``dpi`` is accepted for matplotlib compatibility and ignored.
@@ -233,8 +233,16 @@ class Figure:
 
         target = os.path.abspath(os.path.expanduser(os.fspath(path)))
         fmt = (format or "").lower()
-        if fmt not in ("", "png", "svg"):
-            raise ValueError(f"unsupported format {format!r}; use 'png' or 'svg'")
+        if not fmt:
+            ext = os.path.splitext(target)[1].lower().lstrip(".")
+            if ext and ext not in ("png", "svg", "pdf"):
+                # Never write PNG bytes under a .jpg/.eps/... name.
+                raise ValueError(
+                    f"cannot save {ext!r} files; use a .png, .svg or .pdf name "
+                    "or pass format='png'|'svg'|'pdf'"
+                )
+        if fmt not in ("", "png", "svg", "pdf"):
+            raise ValueError(f"unsupported format {format!r}; use 'png', 'svg' or 'pdf'")
         if int(width) < 0 or int(height) < 0:
             raise ValueError("width and height must be >= 0")
         payload = codec.encode_req_export_figure(

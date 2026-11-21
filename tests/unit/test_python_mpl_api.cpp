@@ -247,7 +247,10 @@ TEST(PythonMplApi, ExportFormatFromExtension)
     EXPECT_EQ(daemon::resolve_export_format("", "/a/b.SVG"), "svg");
     EXPECT_EQ(daemon::resolve_export_format("", "/a/b"), "png");
     EXPECT_EQ(daemon::resolve_export_format("SVG", "/a/b.png"), "svg");
-    EXPECT_EQ(daemon::resolve_export_format("pdf", "/a/b.pdf"), "");
+    EXPECT_EQ(daemon::resolve_export_format("", "/a/b.pdf"), "pdf");
+    EXPECT_EQ(daemon::resolve_export_format("", "/a/b.PDF"), "pdf");
+    EXPECT_EQ(daemon::resolve_export_format("pdf", "/a/b.png"), "pdf");
+    EXPECT_EQ(daemon::resolve_export_format("jpeg", "/a/b.jpg"), "");
 }
 
 TEST(PythonMplApi, ExportRequestValidation)

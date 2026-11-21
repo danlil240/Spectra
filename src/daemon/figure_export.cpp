@@ -70,9 +70,14 @@ std::string resolve_export_format(const std::string& format, const std::string& 
     if (!format.empty())
     {
         const std::string f = lower(format);
-        return (f == "png" || f == "svg") ? f : std::string{};
+        return (f == "png" || f == "svg" || f == "pdf") ? f : std::string{};
     }
-    return lower(fs::path(path).extension().string()) == ".svg" ? "svg" : "png";
+    const std::string ext = lower(fs::path(path).extension().string());
+    if (ext == ".svg")
+        return "svg";
+    if (ext == ".pdf")
+        return "pdf";
+    return "png";
 }
 
 FigureExportResult validate_export_request(const ipc::ReqExportFigurePayload& req)
@@ -85,7 +90,7 @@ FigureExportResult validate_export_request(const ipc::ReqExportFigurePayload& re
     if (!p.is_absolute())
         return fail(400, "export: path must be absolute: " + req.path);
     if (resolve_export_format(req.format, req.path).empty())
-        return fail(400, "export: unsupported format '" + req.format + "' (use png or svg)");
+        return fail(400, "export: unsupported format '" + req.format + "' (use png, svg or pdf)");
     if (req.width > MAX_EXPORT_EDGE || req.height > MAX_EXPORT_EDGE)
         return fail(400, "export: width/height must be at most " + std::to_string(MAX_EXPORT_EDGE));
 
@@ -130,8 +135,13 @@ FigureExportResult export_figure_snapshot(const ipc::SnapshotFigureState&    fig
         opts.width  = req.width;
         opts.height = req.height;
         opts.theme  = req.theme;
-        const bool queued =
-            format == "svg" ? fig->save_svg(tmp.string(), opts) : fig->save_png(tmp.string(), opts);
+        bool queued = false;
+        if (format == "svg")
+            queued = fig->save_svg(tmp.string(), opts);
+        else if (format == "pdf")
+            queued = fig->save_pdf(tmp.string(), opts);
+        else
+            queued = fig->save_png(tmp.string(), opts);
         if (!queued)
             return fail(400, "export: cannot write to '" + req.path + "'");
         app.figure_registry().register_figure(std::move(fig));

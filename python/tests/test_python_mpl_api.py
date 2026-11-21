@@ -572,7 +572,12 @@ def test_split_plot_args():
 
 
 @pytest.fixture
-def fake_plt(fake):
+def fake_plt(fake, monkeypatch):
+    ax, fig = fake
+    # plt.figure() / plt.subplots() must not start a real Session (backend
+    # process) in a unit test: route them to the fakes as well.
+    monkeypatch.setattr(easy, "figure", lambda title="", width=0, height=0: fig)
+    monkeypatch.setattr(easy, "subplot", lambda rows, cols, index: ax)
     plt._warned.clear()
     yield fake
     plt._warned.clear()

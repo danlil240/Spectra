@@ -315,6 +315,75 @@ impl Default for BarOptions {
     }
 }
 
+/// Options for [`Axes::imshow_with`].
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ImageOptions {
+    /// Outer cell edges in data space, `[x0, x1, y0, y1]` (default: cell
+    /// `(c, r)` centred on `(c, r)`).
+    pub extent: Option<[f64; 4]>,
+    /// Draw row 0 at the bottom (default: at the top, like a picture).
+    pub origin_lower: bool,
+    /// Interpolate between cells (default: flat cells).
+    pub bilinear: bool,
+    /// Legend label.
+    pub label: String,
+}
+
+/// Options for [`Axes::heatmap_with`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct HeatmapOptions {
+    /// One name per column, shown on the x axis (empty: numeric ticks).
+    pub col_names: Vec<String>,
+    /// One name per row (row 0 at the top), shown on the y axis.
+    pub row_names: Vec<String>,
+    /// Decimals of the values printed in the cells (default 2).
+    pub decimals: u32,
+    /// Legend label.
+    pub label: String,
+}
+
+impl Default for HeatmapOptions {
+    fn default() -> Self {
+        HeatmapOptions {
+            col_names: Vec::new(),
+            row_names: Vec::new(),
+            decimals: 2,
+            label: String::new(),
+        }
+    }
+}
+
+/// Options for [`Axes::contour_with`] and [`Axes::contourf_with`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContourOptions {
+    /// About this many "nice" levels (default 8), unless `level_values` is set.
+    pub levels: u32,
+    /// Explicit level values (contourf: at least 2, the band edges).
+    pub level_values: Vec<f64>,
+    /// Node x coordinates (`cols` values; default `0..cols`).  Filled contours
+    /// use the first and last value as the extent.
+    pub x: Option<Vec<f64>>,
+    /// Node y coordinates (`rows` values; default `0..rows`).
+    pub y: Option<Vec<f64>>,
+    /// Line width in pixels (contour lines only; default 1.5).
+    pub line_width: f64,
+    /// Legend label.
+    pub label: String,
+}
+
+impl Default for ContourOptions {
+    fn default() -> Self {
+        ContourOptions {
+            levels: 8,
+            level_values: Vec::new(),
+            x: None,
+            y: None,
+            line_width: 1.5,
+            label: String::new(),
+        }
+    }
+}
+
 /// Options for [`Axes::hist_with`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct HistOptions {
@@ -884,6 +953,297 @@ impl Axes {
                 self.accumulate(&pos, &ext, None, Some(sticky));
             }
         }
+        self.apply_fit()
+    }
+
+    // ─── Grid series: images, heatmaps, contours ────────────────────────
+    // Payload layouts mirror "image" / "contour" in src/ui/app/figure_snapshot.hpp.
+
+    /// Show a `cols` x `rows` grid (row-major, `values[row * cols + col]`)
+    /// as a colormapped image, row 0 at the top.  Colour it with
+    /// [`Series::set_colormap`] / [`Series::set_colormap_range`]; NaN cells
+    /// are transparent.  The axes fit the image tightly.
+    pub fn imshow(
+        &self,
+        values: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+    ) -> Result<Series> {
+        self.imshow_with(values, cols, rows, &ImageOptions::default())
+    }
+
+    /// [`Axes::imshow`] with an extent, origin and interpolation.
+    pub fn imshow_with(
+        &self,
+        values: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        opts: &ImageOptions,
+    ) -> Result<Series> {
+        let v = grid_values(&values.as_f64(), cols, rows, 1)?;
+        self.image_impl(v, cols, rows, 1, opts, None, &[], &[], None)
+    }
+
+    /// Show RGB(A) pixels (`channels` = 3 or 4 floats in 0..1 per cell,
+    /// row-major, row 0 at the top) as an image, without a colormap.
+    pub fn imshow_rgba(
+        &self,
+        pixels: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        channels: usize,
+        opts: &ImageOptions,
+    ) -> Result<Series> {
+        if channels != 3 && channels != 4 {
+            return Err(Error::invalid("channels must be 3 (RGB) or 4 (RGBA)"));
+        }
+        let px = grid_values(&pixels.as_f64(), cols, rows, channels)?;
+        let mut rgba = Vec::with_capacity(cols * rows * 4);
+        for cell in px.chunks(channels) {
+            rgba.extend(cell.iter().map(|v| v.clamp(0.0, 1.0)));
+            if channels == 3 {
+                rgba.push(1.0);
+            }
+        }
+        self.image_impl(rgba, cols, rows, 4, opts, None, &[], &[], None)
+    }
+
+    /// Heatmap: [`Axes::imshow`] with each cell's value printed in it.
+    pub fn heatmap(
+        &self,
+        values: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+    ) -> Result<Series> {
+        self.heatmap_with(values, cols, rows, &HeatmapOptions::default())
+    }
+
+    /// [`Axes::heatmap`] with column / row names and the printed precision.
+    pub fn heatmap_with(
+        &self,
+        values: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        opts: &HeatmapOptions,
+    ) -> Result<Series> {
+        let v = grid_values(&values.as_f64(), cols, rows, 1)?;
+        for (names, n, what) in [
+            (&opts.col_names, cols, "col_names"),
+            (&opts.row_names, rows, "row_names"),
+        ] {
+            if !names.is_empty() && names.len() != n {
+                return Err(Error::invalid(format!(
+                    "{what} has {} names but the grid has {n}",
+                    names.len()
+                )));
+            }
+        }
+        let image = ImageOptions {
+            label: opts.label.clone(),
+            ..Default::default()
+        };
+        let xs: Vec<&str> = opts.col_names.iter().map(String::as_str).collect();
+        let ys: Vec<&str> = opts.row_names.iter().map(String::as_str).collect();
+        self.image_impl(
+            v,
+            cols,
+            rows,
+            1,
+            &image,
+            Some(opts.decimals.min(10)),
+            &xs,
+            &ys,
+            None,
+        )
+    }
+
+    /// Contour lines of `z` (`cols` x `rows`, row-major, row 0 at the
+    /// bottom: `z[row * cols + col]` is the value at node `(col, row)`) at
+    /// about `levels` nice levels, coloured per level through the colormap.
+    pub fn contour(
+        &self,
+        z: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        levels: u32,
+    ) -> Result<Series> {
+        self.contour_with(
+            z,
+            cols,
+            rows,
+            &ContourOptions {
+                levels,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// [`Axes::contour`] with node coordinates, explicit levels and a line width.
+    pub fn contour_with(
+        &self,
+        z: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        opts: &ContourOptions,
+    ) -> Result<Series> {
+        let zv = grid_values(&z.as_f64(), cols, rows, 1)?;
+        if cols < 2 || rows < 2 {
+            return Err(Error::invalid(
+                "contour needs a grid of at least 2 x 2 values",
+            ));
+        }
+        let coords = node_coords(opts, cols, rows)?;
+        let explicit: Vec<f32> = opts
+            .level_values
+            .iter()
+            .filter(|v| v.is_finite())
+            .map(|&v| v as f32)
+            .collect();
+        let mut payload = vec![
+            opts.line_width as f32,
+            opts.levels.clamp(1, 256) as f32,
+            0.0,
+            if coords.is_some() { 1.0 } else { 0.0 },
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            explicit.len() as f32,
+        ];
+        payload.extend(&explicit);
+        payload.extend([cols as f32, rows as f32]);
+        if let Some((xs, ys)) = &coords {
+            payload.extend(xs.iter().map(|&v| v as f32));
+            payload.extend(ys.iter().map(|&v| v as f32));
+        }
+        payload.extend(&zv);
+        let s = self.stats_series(SeriesKind::Contour, &opts.label, &payload)?;
+        let (x0, x1, y0, y1) = match &coords {
+            Some((xs, ys)) => {
+                let bx = data::finite_bounds(xs).unwrap_or((0.0, 0.0, None));
+                let by = data::finite_bounds(ys).unwrap_or((0.0, 0.0, None));
+                (bx.0, bx.1, by.0, by.1)
+            }
+            None => (0.0, (cols - 1) as f64, 0.0, (rows - 1) as f64),
+        };
+        self.fit_grid(x0, x1, y0, y1)?;
+        Ok(s)
+    }
+
+    /// Filled contours of `z` (layout as [`Axes::contour`]): colour bands
+    /// between about `levels` nice levels covering the data range.
+    pub fn contourf(
+        &self,
+        z: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        levels: u32,
+    ) -> Result<Series> {
+        self.contourf_with(
+            z,
+            cols,
+            rows,
+            &ContourOptions {
+                levels,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// [`Axes::contourf`] with an extent (from `x` / `y`) or explicit band edges.
+    pub fn contourf_with(
+        &self,
+        z: &(impl Values + ?Sized),
+        cols: usize,
+        rows: usize,
+        opts: &ContourOptions,
+    ) -> Result<Series> {
+        let zv = grid_values(&z.as_f64(), cols, rows, 1)?;
+        if cols < 2 || rows < 2 {
+            return Err(Error::invalid(
+                "contourf needs a grid of at least 2 x 2 values",
+            ));
+        }
+        let mut levels: Vec<f32> = opts
+            .level_values
+            .iter()
+            .filter(|v| v.is_finite())
+            .map(|&v| v as f32)
+            .collect();
+        if !opts.level_values.is_empty() && levels.len() < 2 {
+            return Err(Error::invalid("contourf needs at least 2 finite levels"));
+        }
+        levels.sort_by(f32::total_cmp);
+        if levels.is_empty() {
+            levels.push(opts.levels.clamp(1, 256) as f32); // one value = a level count
+        }
+        let extent = node_coords(opts, cols, rows)?
+            .map(|(xs, ys)| [xs[0], xs[cols - 1], ys[0], ys[rows - 1]]);
+        let image = ImageOptions {
+            extent,
+            origin_lower: true,
+            bilinear: true,
+            label: opts.label.clone(),
+        };
+        self.image_impl(zv, cols, rows, 1, &image, None, &[], &[], Some(&levels))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn image_impl(
+        &self,
+        values: Vec<f32>,
+        cols: usize,
+        rows: usize,
+        channels: usize,
+        opts: &ImageOptions,
+        decimals: Option<u32>,
+        col_names: &[&str],
+        row_names: &[&str],
+        levels: Option<&[f32]>,
+    ) -> Result<Series> {
+        let node_aligned = levels.is_some();
+        let ext = opts.extent.unwrap_or([0.0; 4]);
+        if !ext.iter().all(|v| v.is_finite()) {
+            return Err(Error::invalid("extent must be 4 finite numbers"));
+        }
+        let levels = levels.unwrap_or(&[]);
+        let mut payload = vec![
+            if opts.bilinear { 1.0 } else { 0.0 },
+            if opts.origin_lower { 1.0 } else { 0.0 },
+            if node_aligned { 1.0 } else { 0.0 },
+            if decimals.is_some() { 1.0 } else { 0.0 },
+            decimals.unwrap_or(2) as f32,
+            if opts.extent.is_some() { 1.0 } else { 0.0 },
+            ext[0] as f32,
+            ext[1] as f32,
+            ext[2] as f32,
+            ext[3] as f32,
+            col_names.len() as f32,
+            row_names.len() as f32,
+            levels.len() as f32,
+        ];
+        payload.extend_from_slice(levels);
+        payload.extend([cols as f32, rows as f32, channels as f32]);
+        payload.extend(values);
+        let s = self.stats_series(SeriesKind::Image, &opts.label, &payload)?;
+        if !col_names.is_empty() || !row_names.is_empty() {
+            let names: Vec<&str> = col_names.iter().chain(row_names).copied().collect();
+            s.set_categories(&names)?;
+        }
+        let [x0, x1, y0, y1] = match opts.extent {
+            Some(e) => e,
+            None if node_aligned => [0.0, (cols - 1) as f64, 0.0, (rows - 1) as f64],
+            None => [-0.5, cols as f64 - 0.5, -0.5, rows as f64 - 0.5],
+        };
+        self.fit_grid(x0, x1, y0, y1)?;
+        Ok(s)
+    }
+
+    /// Fit the axes to a grid's extent, tight (its edges are sticky).
+    fn fit_grid(&self, x0: f64, x1: f64, y0: f64, y1: f64) -> Result<()> {
+        let (xa, xb) = (x0.min(x1), x0.max(x1));
+        let (ya, yb) = (y0.min(y1), y0.max(y1));
+        self.accumulate(&[xa, xb], &[ya, yb], Some((xa, xb)), Some((ya, yb)));
         self.apply_fit()
     }
 
@@ -1994,6 +2354,48 @@ fn histogram_counts(
         counts.iter_mut().for_each(|c| *c /= div);
     }
     (lo, hi, counts)
+}
+
+/// Grid values as f32, checking there are `cols * rows * per_cell` of them.
+fn grid_values(v: &[f64], cols: usize, rows: usize, per_cell: usize) -> Result<Vec<f32>> {
+    if cols == 0 || rows == 0 {
+        return Err(Error::invalid(
+            "a grid needs at least one column and one row",
+        ));
+    }
+    let want = cols
+        .checked_mul(rows)
+        .and_then(|n| n.checked_mul(per_cell))
+        .ok_or_else(|| Error::invalid("grid is too large"))?;
+    if v.len() != want {
+        return Err(Error::invalid(format!(
+            "expected {want} values for a {cols} x {rows} grid, got {}",
+            v.len()
+        )));
+    }
+    Ok(v.iter().map(|&x| x as f32).collect())
+}
+
+/// Contour node coordinates from the options, checked against the grid.
+fn node_coords(
+    opts: &ContourOptions,
+    cols: usize,
+    rows: usize,
+) -> Result<Option<(Vec<f64>, Vec<f64>)>> {
+    match (&opts.x, &opts.y) {
+        (None, None) => Ok(None),
+        (Some(x), Some(y)) => {
+            if x.len() != cols || y.len() != rows {
+                return Err(Error::invalid(format!(
+                    "expected {cols} x and {rows} y coordinates, got {} and {}",
+                    x.len(),
+                    y.len()
+                )));
+            }
+            Ok(Some((x.clone(), y.clone())))
+        }
+        _ => Err(Error::invalid("give both x and y coordinates, or neither")),
+    }
 }
 
 #[cfg(test)]

@@ -37,6 +37,10 @@ pub enum SeriesKind {
     Scatter3d,
     /// 3D surface.
     Surface,
+    /// Grid drawn as an image: imshow, heatmap or filled contours.
+    Image,
+    /// Contour lines of a grid.
+    Contour,
 }
 
 impl SeriesKind {
@@ -54,6 +58,8 @@ impl SeriesKind {
             SeriesKind::Line3d => "line3d",
             SeriesKind::Scatter3d => "scatter3d",
             SeriesKind::Surface => "surface",
+            SeriesKind::Image => "image",
+            SeriesKind::Contour => "contour",
         }
     }
 
@@ -75,6 +81,8 @@ impl SeriesKind {
                 | SeriesKind::Stem
                 | SeriesKind::Box
                 | SeriesKind::Violin
+                | SeriesKind::Image
+                | SeriesKind::Contour
         )
     }
 }
@@ -500,7 +508,7 @@ impl Series {
         self.send(self.prop("contour_projection").f(levels as f64).b(enabled))
     }
 
-    /// Surface / colormapped scatter: colour by value through a named
+    /// Surface, image, contour or colormapped scatter: colour by value through a named
     /// colormap (`"viridis"`, `"plasma"`, `"turbo"`, `"RdBu"`, ...; `"_r"`
     /// reverses; `"none"` turns colormapping off).
     pub fn set_colormap(&self, name: &str) -> Result<&Self> {

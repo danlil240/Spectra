@@ -128,6 +128,30 @@ TEST(FigureFingerprint, ChangesWithContentNotWithView)
     EXPECT_NE(before_add, figure_fingerprint(*fig));
 }
 
+TEST(FigureFingerprint, ThemeColourResolutionIsNotAnEdit)
+{
+    // A Light startup theme resolves palette and letter colours that differ
+    // from the default (dark) shades while the UI is built; that must not
+    // mark the figure modified (QA H5).
+    auto fig = figure_with_line();
+    fig->axes()[0]
+        ->line(std::vector<float>{0.0f, 1.0f}, std::vector<float>{0.0f, 1.0f})
+        .format("r--");
+    auto&          auto_line   = *fig->axes()[0]->series()[0];
+    auto&          letter_line = *fig->axes()[0]->series()[1];
+    const uint64_t base        = figure_fingerprint(*fig);
+    const uint64_t gen         = auto_line.change_generation();
+    auto_line.clear_dirty();
+    letter_line.clear_dirty();
+
+    EXPECT_TRUE(auto_line.resolve_auto_color(Color{0.1f, 0.2f, 0.3f, 1.0f}));
+    EXPECT_TRUE(letter_line.resolve_letter_color(Color{0.7f, 0.1f, 0.1f, 1.0f}));
+    EXPECT_TRUE(auto_line.is_dirty());   // still re-uploaded
+    EXPECT_TRUE(letter_line.is_dirty());
+    EXPECT_EQ(gen, auto_line.change_generation());
+    EXPECT_EQ(base, figure_fingerprint(*fig));
+}
+
 TEST(DocumentTracker, DetectFlagsUserChangesAbsorbKeepsProgramChanges)
 {
     auto            fig = figure_with_line();

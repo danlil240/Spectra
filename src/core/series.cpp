@@ -153,7 +153,8 @@ bool Series::resolve_auto_color(const Color& c)
     if (color_.r == c.r && color_.g == c.g && color_.b == c.b && color_.a == c.a)
         return false;
     color_ = c;
-    dirty_ = true;
+    // Theme-resolved, not an edit: re-upload but keep change_generation().
+    dirty_.raise_same_generation();
     return true;
 }
 
@@ -177,7 +178,8 @@ bool Series::resolve_letter_color(const Color& c)
     if (color_.r == c.r && color_.g == c.g && color_.b == c.b && color_.a == c.a)
         return false;
     color_ = c;
-    dirty_ = true;
+    // Theme-resolved, not an edit: re-upload but keep change_generation().
+    dirty_.raise_same_generation();
     return true;
 }
 

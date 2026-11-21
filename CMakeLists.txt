@@ -154,6 +154,16 @@ endif()
 option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ${_spectra_install_default})
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
+# The Python package drives the spectra-backend daemon, which is Linux/macOS
+# only.  Fail `pip install spectra-plot` on Windows with a clear reason instead
+# of producing a package that can never open a window.
+if(SPECTRA_PYTHON_WHEEL AND WIN32)
+    message(FATAL_ERROR
+        "spectra-plot (the Python package) does not support native Windows yet: "
+        "its spectra-backend daemon is Linux/macOS only. Install it inside WSL2 "
+        "instead, or use the C++ library / spectra app, which run natively on Windows.")
+endif()
+
 # SPECTRA_USE_SYSTEM_<DEP> switches (system package vs. pinned FetchContent copy)
 include(cmake/SpectraDependencyOptions.cmake)
 

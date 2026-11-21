@@ -13,6 +13,14 @@ from ._log import log
 
 _IS_WINDOWS = _platform.system() == "Windows"
 
+# The spectra-backend daemon is Linux/macOS only (src/daemon/main.cpp).
+_WINDOWS_UNSUPPORTED = (
+    "The Spectra Python package does not run natively on Windows yet: its "
+    "spectra-backend daemon is Linux/macOS only. Use it from WSL2 (windows "
+    "open through WSLg), or use the C++ library / spectra app, which run "
+    "natively on Windows."
+)
+
 
 def _runtime_socket_dir() -> str:
     """Directory the C++ side (daemon + inproc broker) places broker sockets in."""
@@ -293,6 +301,9 @@ def ensure_backend(
     if rediscovered and (not socket_path or rediscovered == socket_path):
         log.info("launcher attaching to live broker socket=%s", rediscovered)
         return rediscovered
+
+    if _IS_WINDOWS and not os.environ.get("SPECTRA_BACKEND_PATH"):
+        raise RuntimeError(_WINDOWS_UNSUPPORTED)
 
     binary = _find_backend_binary()
     if binary is None:

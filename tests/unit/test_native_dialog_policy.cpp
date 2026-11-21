@@ -69,4 +69,22 @@ TEST_F(NativeDialogPolicyTest, EnvVarDisablesDialogs)
     unset_test_env("SPECTRA_NO_NATIVE_DIALOGS");
 }
 
+TEST_F(NativeDialogPolicyTest, EnvDetectionHonoursBothVariablesAndZero)
+{
+    unset_test_env("SPECTRA_NO_NATIVE_DIALOGS");
+    unset_test_env("SPECTRA_AUTOMATION");
+    EXPECT_FALSE(spectra::native_dialogs_disabled_by_env());
+
+    set_test_env("SPECTRA_NO_NATIVE_DIALOGS", "0");
+    EXPECT_FALSE(spectra::native_dialogs_disabled_by_env());
+
+    set_test_env("SPECTRA_NO_NATIVE_DIALOGS", "1");
+    EXPECT_TRUE(spectra::native_dialogs_disabled_by_env());
+    unset_test_env("SPECTRA_NO_NATIVE_DIALOGS");
+
+    set_test_env("SPECTRA_AUTOMATION", "1");
+    EXPECT_TRUE(spectra::native_dialogs_disabled_by_env());
+    unset_test_env("SPECTRA_AUTOMATION");
+}
+
 }   // namespace

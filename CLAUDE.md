@@ -73,6 +73,7 @@ GPU / golden / xvfb / lavapipe: [`BUILD_ENVIRONMENT.md` §3](BUILD_ENVIRONMENT.m
 - Add Google Test coverage for new behavior (`tests/unit/`).
 - Label `gpu` in CMake — excluded from sanitizer CI (`ctest -LE gpu`).
 - Golden tests: headless PNG vs `tests/golden/baseline/`.
+- **QA / agent-driven runs: never let an OS file dialog open** (Save, Export, Open, Load Plugin…). It is modal, blocks the app's main loop and hangs the session. Launch every Spectra binary (app, examples, `spectra-px4`, captures) with `SPECTRA_NO_NATIVE_DIALOGS=1`; never click or `execute_command` file save/open/export to "see what happens". To test saving, call `FigureSerializer::save/load` or the export API with an explicit path. `spectra_qa_agent` and any process with the automation/MCP server on disable dialogs by themselves.
 
 ## Patterns & stack notes
 

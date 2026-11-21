@@ -35,6 +35,7 @@
 #include "qa_stats.hpp"
 #include "render/backend.hpp"
 #include "render/vulkan/vk_backend.hpp"
+#include "ui/native_dialog_policy.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -7589,6 +7590,9 @@ static void crash_handler(int sig)
 // ─── main ────────────────────────────────────────────────────────────────────
 int main(int argc, char** argv)
 {
+    // The agent runs unattended: a modal OS file dialog would block it forever.
+    spectra::set_native_dialogs_enabled(false);
+
     auto opts = parse_args(argc, argv);
     g_qa_seed = opts.seed;
     snprintf(g_output_dir, sizeof(g_output_dir), "%s", opts.output_dir.c_str());

@@ -11,8 +11,6 @@ namespace spectra
 namespace
 {
 
-std::atomic<bool> g_native_dialogs_enabled{true};
-
 bool env_truthy(const char* name)
 {
     const char* value = std::getenv(name);
@@ -21,21 +19,35 @@ bool env_truthy(const char* name)
     return value[0] != '0';
 }
 
+// Seeded from the environment on first use, so every program linking Spectra
+// (examples, embedders, the QA agent), not only those that call
+// init_native_dialog_policy(), honours SPECTRA_NO_NATIVE_DIALOGS.
+std::atomic<bool>& enabled_flag()
+{
+    static std::atomic<bool> flag{!native_dialogs_disabled_by_env()};
+    return flag;
+}
+
 }   // namespace
+
+bool native_dialogs_disabled_by_env()
+{
+    return env_truthy("SPECTRA_NO_NATIVE_DIALOGS") || env_truthy("SPECTRA_AUTOMATION");
+}
 
 bool native_dialogs_enabled()
 {
-    return g_native_dialogs_enabled.load(std::memory_order_relaxed);
+    return enabled_flag().load(std::memory_order_relaxed);
 }
 
 void set_native_dialogs_enabled(bool enabled)
 {
-    g_native_dialogs_enabled.store(enabled, std::memory_order_relaxed);
+    enabled_flag().store(enabled, std::memory_order_relaxed);
 }
 
 void init_native_dialog_policy(int& argc, char** argv)
 {
-    if (env_truthy("SPECTRA_NO_NATIVE_DIALOGS") || env_truthy("SPECTRA_AUTOMATION"))
+    if (native_dialogs_disabled_by_env())
         set_native_dialogs_enabled(false);
 
     int write_idx = 1;

@@ -57,6 +57,8 @@ summarise the main changes rather than listing every commit.
 
 ### Fixed
 
+- Agent-driven runs no longer hang on OS file dialogs. A native Save / Export / Open dialog is modal and blocks the main loop, so an agent or QA run that triggered one stalled. `SPECTRA_NO_NATIVE_DIALOGS=1` (and `SPECTRA_AUTOMATION=1`) is now honoured by every program that links Spectra, examples included, not only the `spectra` / `spectra-px4` / `spectra-ros` apps; `spectra_qa_agent` and any process with the automation/MCP server running turn native dialogs off on their own.
+
 - Animations now keep the frame rate they ask for on fast displays. The animation tick slipped a whole refresh whenever a vsync frame landed a moment before its deadline, so a 175 fps animation on a 174 Hz monitor ran at 75 to 85 fps. Ticks now keep a fixed cadence and accept a frame within a quarter period of the deadline.
 
 - Dense lines in density mode (`DenseLineMode::Density`) no longer shift hue on some GPUs: hundreds of faint overlapping segments blended in 8 bits stalled short of the line colour at a driver-dependent level (NVIDIA kept the red channel at the background). The renderer now counts per-pixel coverage on the CPU and draws one texture with alpha `1 - (1 - a)^count`, so every GPU converges to the line colour.

@@ -666,6 +666,19 @@ class Series:
         )
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
+    def set_color_values(self, values) -> None:
+        """Scatter (2D / 3D): one value per point, coloured through the
+        series colormap (see :meth:`set_colormap`); ``None`` or an empty list
+        clears them."""
+        data = [] if values is None else [float(v) for v in values]
+        payload = codec.encode_req_update_property(
+            figure_id=self._figure_id,
+            series_index=self._index,
+            prop="color_values",
+            data=data,
+        )
+        self._session._request(P.REQ_UPDATE_PROPERTY, payload)
+
     def set_colormap_range(self, vmin=None, vmax=None) -> None:
         """Values mapped onto the ends of the colormap (clamped outside).
         Without arguments the data range is used again."""

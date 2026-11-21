@@ -214,4 +214,27 @@ inline void series_colormap_from_op(const DiffOp& op, SnapshotSeriesState& ss)
         ss.colormap == static_cast<uint8_t>(ColormapType::Custom) ? op.data : std::vector<float>{};
 }
 
+// ─── SET_SERIES_COLOR_VALUES op ─────────────────────────────────────────────
+
+// The per-point values of a scatter as an op (data = the values).
+inline DiffOp series_color_values_to_op(const SnapshotSeriesState& ss)
+{
+    DiffOp op;
+    op.type = DiffOp::Type::SET_SERIES_COLOR_VALUES;
+    op.data = ss.color_values;
+    return op;
+}
+
+// Replace the per-point values of a live 2D / 3D scatter; empty clears them.
+// Other series types and oversized lists are left alone.
+inline void apply_series_color_values(Series& s, std::span<const float> values)
+{
+    if (values.size() > MAX_COLOR_VALUES)
+        return;
+    if (auto* sc = dynamic_cast<ScatterSeries*>(&s))
+        sc->color_values(values);
+    else if (auto* s3 = dynamic_cast<ScatterSeries3D*>(&s))
+        s3->color_values(values);
+}
+
 }   // namespace spectra::ipc

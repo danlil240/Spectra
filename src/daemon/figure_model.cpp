@@ -784,6 +784,28 @@ bool FigureModel::update_series_colormap(uint64_t figure_id,
     return true;
 }
 
+bool FigureModel::set_series_color_values(uint64_t           figure_id,
+                                          uint32_t           series_index,
+                                          std::vector<float> values,
+                                          ipc::DiffOp*       op_out)
+{
+    std::lock_guard lock(mu_);
+    auto            it = figures_.find(figure_id);
+    if (it == figures_.end() || series_index >= it->second.series.size())
+        return false;
+    auto& ss        = it->second.series[series_index];
+    ss.color_values = std::move(values);
+    bump_revision();
+
+    if (op_out)
+    {
+        *op_out              = ipc::series_color_values_to_op(ss);
+        op_out->figure_id    = figure_id;
+        op_out->series_index = series_index;
+    }
+    return true;
+}
+
 ipc::DiffOp FigureModel::update_axes_light_3d(
     uint64_t                                            figure_id,
     uint32_t                                            axes_index,
@@ -1360,6 +1382,13 @@ bool FigureModel::apply_diff_op(const ipc::DiffOp& op)
             if (it == figures_.end() || op.series_index >= it->second.series.size())
                 return false;
             ipc::series_colormap_from_op(op, it->second.series[op.series_index]);
+            break;
+
+        case ipc::DiffOp::Type::SET_SERIES_COLOR_VALUES:
+            if (it == figures_.end() || op.series_index >= it->second.series.size()
+                || op.data.size() > ipc::MAX_COLOR_VALUES)
+                return false;
+            it->second.series[op.series_index].color_values = op.data;
             break;
 
         case ipc::DiffOp::Type::SET_AXES_LIGHT_3D:

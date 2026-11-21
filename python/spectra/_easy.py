@@ -768,6 +768,10 @@ def scatter(
     size: Optional[float] = None,
     label: str = "",
     marker: Optional[str] = None,
+    c: Any = None,
+    cmap: Any = None,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
     **kwargs,
 ):
     """Plot scatter points.
@@ -779,6 +783,10 @@ def scatter(
         sp.scatter(x, y, color="blue")    # with color
         sp.scatter(x, y, size=5)          # marker size
         sp.scatter(x, y, marker="s")      # marker shape (also "r^" format)
+        sp.scatter(x, y, c=z, cmap="plasma")  # colour each point by value
+
+    ``c`` gives one value per point, coloured through ``cmap`` (default
+    "viridis"); ``vmin`` / ``vmax`` fix the values mapped onto its ends.
 
     Returns the Series object.
     """
@@ -790,10 +798,22 @@ def scatter(
         color = fcolor if color is None else color
         marker = fmarker if marker is None else marker
     _check_color(color)
+    if (vmin is None) != (vmax is None):
+        raise ValueError("give both vmin and vmax, or neither")
     x, y = _parse_xy_args(args, as_array=True)
+    values = None
+    if c is not None:
+        values = _to_list(c)
+        if len(values) != len(x):
+            raise ValueError(f"c has {len(values)} values but there are {len(x)} points")
     ax = _state._ensure_axes()
     series = ax.scatter(x, y, label=label)
     _apply_series_style(series, color=color, size=size, marker=marker, **kwargs)
+    if values is not None:
+        series.set_color_values(values)
+        series.set_colormap("viridis" if cmap is None else cmap)
+        if vmin is not None:
+            series.set_colormap_range(vmin, vmax)
     _mark_datetime_x(ax, _xy_args_datetime(args))
     _auto_fit_axes(ax, x, y)
     _state._show_if_pending()

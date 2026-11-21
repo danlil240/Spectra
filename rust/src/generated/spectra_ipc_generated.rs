@@ -37,10 +37,10 @@ pub mod fb {
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 pub const ENUM_MIN_DIFF_OP_TYPE: u8 = 1;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
-pub const ENUM_MAX_DIFF_OP_TYPE: u8 = 47;
+pub const ENUM_MAX_DIFF_OP_TYPE: u8 = 48;
 #[deprecated(since = "2.0.0", note = "Use associated constants instead. This will no longer be generated in 2021.")]
 #[allow(non_camel_case_types)]
-pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 37] = [
+pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 38] = [
   DiffOpType::SET_AXIS_LIMITS,
   DiffOpType::SET_SERIES_COLOR,
   DiffOpType::SET_SERIES_VISIBLE,
@@ -78,6 +78,7 @@ pub const ENUM_VALUES_DIFF_OP_TYPE: [DiffOpType; 37] = [
   DiffOpType::SET_AXES_LIGHT_3D,
   DiffOpType::SET_ANIM_PLAYBACK,
   DiffOpType::SET_SERIES_COLORMAP,
+  DiffOpType::SET_SERIES_COLOR_VALUES,
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -122,9 +123,10 @@ impl DiffOpType {
   pub const SET_AXES_LIGHT_3D: Self = Self(45);
   pub const SET_ANIM_PLAYBACK: Self = Self(46);
   pub const SET_SERIES_COLORMAP: Self = Self(47);
+  pub const SET_SERIES_COLOR_VALUES: Self = Self(48);
 
   pub const ENUM_MIN: u8 = 1;
-  pub const ENUM_MAX: u8 = 47;
+  pub const ENUM_MAX: u8 = 48;
   pub const ENUM_VALUES: &'static [Self] = &[
     Self::SET_AXIS_LIMITS,
     Self::SET_SERIES_COLOR,
@@ -163,6 +165,7 @@ impl DiffOpType {
     Self::SET_AXES_LIGHT_3D,
     Self::SET_ANIM_PLAYBACK,
     Self::SET_SERIES_COLORMAP,
+    Self::SET_SERIES_COLOR_VALUES,
   ];
   /// Returns the variant's name or "" if unknown.
   pub fn variant_name(self) -> Option<&'static str> {
@@ -204,6 +207,7 @@ impl DiffOpType {
       Self::SET_AXES_LIGHT_3D => Some("SET_AXES_LIGHT_3D"),
       Self::SET_ANIM_PLAYBACK => Some("SET_ANIM_PLAYBACK"),
       Self::SET_SERIES_COLORMAP => Some("SET_SERIES_COLORMAP"),
+      Self::SET_SERIES_COLOR_VALUES => Some("SET_SERIES_COLOR_VALUES"),
       _ => None,
     }
   }

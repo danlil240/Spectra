@@ -154,6 +154,17 @@ static bool apply_property_update(FigureModel&              fig_model,
             return false;
         diff.ops.push_back(std::move(op));
     }
+    else if (property == "color_values")
+    {
+        // Scatter per-point colormap values (scatter(c=...)): data = one
+        // value per point, empty clears them.
+        if (data.size() > ipc::MAX_COLOR_VALUES)
+            return false;
+        ipc::DiffOp op;
+        if (!fig_model.set_series_color_values(figure_id, series_index, data, &op))
+            return false;
+        diff.ops.push_back(std::move(op));
+    }
     else if (property == "light_mode")
     {
         // 3D axes light: str_val "fixed" or "headlight".
@@ -684,7 +695,8 @@ HandleResult handle_req_update_property(DaemonContext&      ctx,
                                         "light_angles",
                                         "fog",
                                         "colormap",
-                                        "colormap_range"};
+                                        "colormap_range",
+                                        "color_values"};
     bool               known         = false;
     for (const auto* p : known_props)
     {

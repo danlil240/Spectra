@@ -226,6 +226,10 @@ inline void apply_diff_op_to_cache(ipc::SnapshotFigureState& fig, const ipc::Dif
             if (op.series_index < fig.series.size())
                 ipc::series_colormap_from_op(op, fig.series[op.series_index]);
             break;
+        case ipc::DiffOp::Type::SET_SERIES_COLOR_VALUES:
+            if (op.series_index < fig.series.size() && op.data.size() <= ipc::MAX_COLOR_VALUES)
+                fig.series[op.series_index].color_values = op.data;
+            break;
         case ipc::DiffOp::Type::SET_LIVE_FPS:
             // Kept so a rebuild keeps live streaming (and its rate); a
             // disabling op (bool_val false) turns it off.

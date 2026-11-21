@@ -200,6 +200,14 @@ class FigureModel
                                 const std::function<void(ipc::SnapshotSeriesState&)>& edit,
                                 ipc::DiffOp*                                          op_out);
 
+    // Per-point colormap values of a scatter (empty clears them); returns a
+    // SET_SERIES_COLOR_VALUES op in `op_out`.  false (and no op) when the
+    // series does not exist.
+    bool set_series_color_values(uint64_t           figure_id,
+                                 uint32_t           series_index,
+                                 std::vector<float> values,
+                                 ipc::DiffOp*       op_out);
+
     // 3D light of an axes (light mode, fog, light angles), likewise; returns
     // a SET_AXES_LIGHT_3D op.
     ipc::DiffOp update_axes_light_3d(uint64_t                                            figure_id,

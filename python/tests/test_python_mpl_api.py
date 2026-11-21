@@ -61,6 +61,15 @@ class _FakeSeries:
     def set_opacity(self, o):
         self.opacity = o
 
+    def set_color_values(self, v):
+        self.color_values = list(v)
+
+    def set_colormap(self, cmap):
+        self.cmap = cmap
+
+    def set_colormap_range(self, lo, hi):
+        self.cmap_range = (lo, hi)
+
 
 class _FakeAxes:
     def __init__(self, index=0):
@@ -805,3 +814,30 @@ def test_pyplot_axes_methods_include_reference_lines(monkeypatch, fake_plt):
     assert ax.created[-1].kw["y"] == [1.0, 1.0]
     axs.cla()
     assert ax.cleared == 1
+
+
+# ─── scatter(c=values) ───────────────────────────────────────────────────────
+
+def test_pyplot_scatter_colours_points_by_value(fake_plt):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        s = plt.scatter([0, 1, 2], [0, 1, 4], c=[3.0, 1.0, 2.0], cmap="plasma")
+        d = plt.scatter([0, 1], [0, 1], c=[5, 6])
+        r = plt.scatter([0, 1], [0, 1], c=[5, 6], vmax=10)
+        k = plt.scatter([0, 1], [0, 1], c=["red", "blue"])
+    assert s.color_values == [3.0, 1.0, 2.0] and s.cmap == "plasma"
+    assert not hasattr(s, "cmap_range")
+    assert d.cmap == "viridis"
+    assert r.cmap_range == (5.0, 10)  # the missing end comes from the data
+    assert not hasattr(k, "color_values")
+    assert [str(x.message) for x in w] == [
+        "spectra.pyplot.scatter: keyword 'c (per-point colours)' is not supported and was ignored"]
+
+
+def test_easy_scatter_c_validates_length_and_range(fake):
+    with pytest.raises(ValueError, match="c has 1 values but there are 2 points"):
+        sp.scatter([0, 1], [0, 1], c=[1.0])
+    with pytest.raises(ValueError, match="both vmin and vmax"):
+        sp.scatter([0, 1], [0, 1], c=[1.0, 2.0], vmin=0)
+    s = sp.scatter([0, 1], [0, 1], c=[1.0, 2.0], cmap="turbo", vmin=0, vmax=4)
+    assert (s.color_values, s.cmap, s.cmap_range) == ([1.0, 2.0], "turbo", (0, 4))

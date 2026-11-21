@@ -340,6 +340,10 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
                 spectra::ipc::apply_series_colormap(*s, ss);
             }
             break;
+        case spectra::ipc::DiffOp::Type::SET_SERIES_COLOR_VALUES:
+            if (auto* s = find_live_series())
+                spectra::ipc::apply_series_color_values(*s, op.data);
+            break;
         case spectra::ipc::DiffOp::Type::SET_AXES_LIGHT_3D:
             if (ax3d)
             {

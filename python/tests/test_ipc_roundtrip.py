@@ -128,6 +128,8 @@ def _snapshot(session):
                     "line_style": se.LineStyle(),
                     "marker_style": se.MarkerStyle(),
                     "draw_style": (se.DrawStyle(), se.DenseMode()),
+                    "colormap": se.Colormap(),
+                    "color_values": [se.ColorValues(j) for j in range(se.ColorValuesLength())],
                 }
             )
         figures[f.FigureId()] = {
@@ -523,3 +525,38 @@ def test_topic_subscription_follows_data(session):
         assert _snapshot(session)[fig.id]["axes"][0]["ylim"] == (-1.0, 1.0)
     finally:
         pub.close()
+
+
+def test_scatter_color_values_round_trip_and_render(session, tmp_path):
+    from spectra import BackendError
+
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    xs = [float(i) for i in range(20)]
+    pts = ax.scatter(xs, xs)
+    pts.set_marker_size(14.0)
+    pts.set_color_values(xs)
+    pts.set_colormap("viridis")
+    ax.set_xlim(-1.0, 20.0)
+    ax.set_ylim(-1.0, 20.0)
+
+    se = _snapshot(session)[fig.id]["series"][0]
+    assert se["color_values"] == xs
+    assert se["colormap"] != _UNSET
+
+    try:
+        png = fig.savefig(str(tmp_path / "c.png"), width=400, height=400)
+    except BackendError as e:
+        if e.code == 503:
+            pytest.skip(f"no Vulkan device in the backend: {e}")
+        raise
+    Image = pytest.importorskip("PIL.Image")
+    img = Image.open(png).convert("RGB")
+    # Viridis runs from purple (low values, bottom left) to yellow (top right).
+    colors = img.getcolors(400 * 400)
+    yellowish = sum(n for n, (r, g, b) in colors if r > 180 and g > 180 and b < 100)
+    purplish = sum(n for n, (r, g, b) in colors if r > 50 and b > 70 and g < 40)
+    assert yellowish > 20 and purplish > 20
+
+    pts.set_color_values(None)
+    assert _snapshot(session)[fig.id]["series"][0]["color_values"] == []

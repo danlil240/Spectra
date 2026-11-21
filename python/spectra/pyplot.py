@@ -596,12 +596,34 @@ def loglog(*args, **kwargs):
     return lines
 
 
-def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
-    """Scatter plot; ``s`` is the marker area in points² (scalar only)."""
+def _color_values(c) -> Optional[List[float]]:
+    """``c`` as one number per point, or None when it is colours."""
+    try:
+        return _sp._to_list(c)
+    except (TypeError, ValueError):
+        return None
+
+
+def scatter(x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None, alpha=None,
+            **kwargs):
+    """Scatter plot; ``s`` is the marker area in points² (scalar only).
+
+    ``c`` is one colour, or one number per point coloured through ``cmap``
+    (default "viridis") with ``vmin`` / ``vmax`` as its ends.
+    """
     style = _style(kwargs)
+    extra: Dict[str, Any] = {}
     if c is not None and "color" not in style:
+        values = None if isinstance(c, (str, tuple)) else _color_values(c)
         if isinstance(c, (str, tuple)):
             style["color"] = c
+        elif values is not None:
+            if (vmin is None) != (vmax is None):
+                finite = [v for v in values if math.isfinite(v)] or [0.0, 1.0]
+                lo, hi = min(finite), max(finite)
+                vmin = lo if vmin is None else vmin
+                vmax = hi if vmax is None else vmax
+            extra = {"c": values, "cmap": cmap, "vmin": vmin, "vmax": vmax}
         else:
             _ignore("scatter", {"c (per-point colours)": True})
     size = None
@@ -612,7 +634,7 @@ def scatter(x, y, s=None, c=None, marker=None, alpha=None, **kwargs):
             _ignore("scatter", {"s (per-point sizes)": True})
     mk = _style_token("scatter", "marker", marker)
     _ignore("scatter", kwargs)
-    return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style)
+    return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style, **extra)
 
 
 def _bar_bottom(bottom):

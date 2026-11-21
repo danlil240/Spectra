@@ -594,9 +594,14 @@ inline LegendPosition choose_best_corner(const Axes&    axes,
     LegendPosition best       = BEST_CANDIDATES[0];
     size_t         best_score = static_cast<size_t>(-1);
     size_t         cur_score  = static_cast<size_t>(-1);
+    // A twinx() twin draws over the same plot area in its own y range, and its
+    // entries share this legend: its data must be avoided too.
+    const Axes* twin = axes.twin();
     for (LegendPosition pos : BEST_CANDIDATES)
     {
-        const size_t s = overlap_score(axes, vp, pos, w, h, margin);
+        size_t s = overlap_score(axes, vp, pos, w, h, margin);
+        if (twin)
+            s += overlap_score(*twin, vp, pos, w, h, margin);
         if (pos == current)
             cur_score = s;
         if (s < best_score)

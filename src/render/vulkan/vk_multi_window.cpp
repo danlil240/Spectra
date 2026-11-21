@@ -23,6 +23,8 @@
         #include <imgui_impl_sdl3.h>
     #endif
     #include <imgui_impl_vulkan.h>
+
+    #include "imgui_descriptor_pool.hpp"
 #endif
 
 namespace spectra
@@ -236,12 +238,12 @@ bool VulkanBackend::init_window_context_with_imgui(WindowContext& wctx,
 
     // Section 3F constraint 3: use per-window ImageCount
     ImGui_ImplVulkan_InitInfo ii{};
-    ii.Instance                     = ctx_.instance;
-    ii.PhysicalDevice               = ctx_.physical_device;
-    ii.Device                       = ctx_.device;
-    ii.QueueFamily                  = ctx_.queue_families.graphics.value_or(0);
-    ii.Queue                        = ctx_.graphics_queue;
-    ii.DescriptorPool               = descriptor_pool_;
+    ii.Instance       = ctx_.instance;
+    ii.PhysicalDevice = ctx_.physical_device;
+    ii.Device         = ctx_.device;
+    ii.QueueFamily    = ctx_.queue_families.graphics.value_or(0);
+    ii.Queue          = ctx_.graphics_queue;
+    use_private_imgui_descriptor_pool(ii);
     ii.MinImageCount                = 2;
     ii.ImageCount                   = static_cast<uint32_t>(wctx.swapchain.images.size());
     ii.PipelineInfoMain.RenderPass  = wctx.swapchain.render_pass;

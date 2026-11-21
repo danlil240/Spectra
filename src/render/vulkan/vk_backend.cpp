@@ -1553,7 +1553,8 @@ void VulkanBackend::create_descriptor_pool()
 
 VkDescriptorPool VulkanBackend::create_extra_descriptor_pool()
 {
-    // Overflow pool used once descriptor_pool_ (shared with ImGui) is full.
+    // Overflow pool used once descriptor_pool_ is full.  (ImGui contexts use
+    // private pools; see render/vulkan/imgui_descriptor_pool.hpp.)
     VkDescriptorPoolSize pool_sizes[] = {
         {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 64},
         {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 256},

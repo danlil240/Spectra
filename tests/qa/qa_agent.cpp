@@ -1148,6 +1148,12 @@ class QAAgent
                         clear_cached_figure_refs(app_->figure_registry().get(fid));
                     }
                     wm->request_close(windows[i]->id);
+                    // A window with unsaved changes (e.g. one opened by
+                    // app.new_window during command_exhaustion) asks first and
+                    // stays open; QA windows are throwaway: don't save.
+                    if (windows[i]->ui_ctx && windows[i]->ui_ctx->document.prompt().is_open())
+                        windows[i]->ui_ctx->document.resolve_prompt(
+                            UnsavedChangesPrompt::Choice::DontSave);
                 }
             }
             wm->process_pending_closes();

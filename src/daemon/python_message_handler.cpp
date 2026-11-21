@@ -426,12 +426,12 @@ static bool apply_property_update(FigureModel&              fig_model,
         // (their split is in the image payload): f1 = count, str_val = names
         // joined by 0x1F.
         ipc::DiffOp op;
-        op.type         = ipc::DiffOp::Type::SET_SERIES_CATEGORIES;
-        op.figure_id    = figure_id;
-        op.axes_index   = axes_index;
-        op.series_index = series_index;
-        op.f1           = f1;
-        op.str_val      = str_val;
+        op.type                = ipc::DiffOp::Type::SET_SERIES_CATEGORIES;
+        op.figure_id           = figure_id;
+        op.axes_index          = axes_index;
+        op.series_index        = series_index;
+        op.f1                  = f1;
+        op.str_val             = str_val;
         const std::string type = fig_model.series_type(figure_id, series_index);
         if ((type != "bar" && type != "image") || !fig_model.apply_diff_op(op))
             return false;

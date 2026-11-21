@@ -2072,8 +2072,31 @@ void ImGuiIntegration::render(VulkanBackend& backend) const
         return;
     ImGui::Render();
     auto* dd = ImGui::GetDrawData();
-    if (dd)
-        ImGui_ImplVulkan_RenderDrawData(dd, backend.current_command_buffer());
+    if (!dd)
+        return;
+    // ImGui counts a texture's unused frames per NewFrame(), including frames
+    // whose GPU work was skipped (begin_frame() timed out), and its Vulkan
+    // backend frees the descriptor set once that count reaches ImageCount.
+    // After skipped frames, earlier submissions sampling the texture can
+    // still be executing (VUID-vkFreeDescriptorSets-pDescriptorSets-00309,
+    // which ended in VK_ERROR_DEVICE_LOST).  Destroys are rare (font atlas
+    // growth), so wait for the GPU whenever one is pending.
+    if (dd->Textures)
+    {
+        for (const ImTextureData* tex : *dd->Textures)
+        {
+            if (tex && tex->Status == ImTextureStatus_WantDestroy)
+            {
+                SPECTRA_LOG_DEBUG("imgui",
+                                  "texture {} pending destroy (unused {} frames): waiting for GPU",
+                                  tex->UniqueID,
+                                  tex->UnusedFrames);
+                backend.wait_idle();
+                break;
+            }
+        }
+    }
+    ImGui_ImplVulkan_RenderDrawData(dd, backend.current_command_buffer());
 }
 
 void ImGuiIntegration::render_viewports()

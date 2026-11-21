@@ -1,5 +1,7 @@
 #include "codec_fb.hpp"
 
+#include <algorithm>
+
 #include <flatbuffers/flatbuffers.h>
 
 #include "annotation_state.hpp"
@@ -12,10 +14,13 @@ namespace spectra::ipc
 
 static std::vector<uint8_t> finalize(flatbuffers::FlatBufferBuilder& fbb)
 {
-    std::vector<uint8_t> out;
-    out.reserve(1 + fbb.GetSize());
-    out.push_back(static_cast<uint8_t>(PayloadFormat::FLATBUFFERS));
-    out.insert(out.end(), fbb.GetBufferPointer(), fbb.GetBufferPointer() + fbb.GetSize());
+    // Size the buffer up front instead of reserve() + push_back(): GCC 15
+    // misreads the push_back realloc path as freeing a non-heap pointer
+    // (-Wfree-nonheap-object false positive, fatal under -Werror).
+    const size_t         size = fbb.GetSize();
+    std::vector<uint8_t> out(1 + size);
+    out[0] = static_cast<uint8_t>(PayloadFormat::FLATBUFFERS);
+    std::copy_n(fbb.GetBufferPointer(), size, out.begin() + 1);
     return out;
 }
 

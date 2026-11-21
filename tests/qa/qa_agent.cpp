@@ -4237,8 +4237,18 @@ class QAAgent
         {
     #ifdef SPECTRA_USE_GLFW
             // Off the exact centre so the hover lands between data points.
-            move_pointer(std::floor(vp.x + vp.w * 0.37f) + 0.5,
-                         std::floor(vp.y + vp.h * 0.71f) + 0.5);
+            // The first move is judged against ImGui's capture state from the
+            // previous pointer position (e.g. parked over the UI chrome), so it
+            // can be dropped; a real pointer keeps moving, so move again until
+            // the hover lands (bounded).
+            const double hx = std::floor(vp.x + vp.w * 0.37f) + 0.5;
+            const double hy = std::floor(vp.y + vp.h * 0.71f) + 0.5;
+            for (int attempt = 0; attempt < 4; ++attempt)
+            {
+                move_pointer(hx, hy);
+                if (ui->input_handler.active_axes_base() == &ax)
+                    break;
+            }
     #endif
         }
         return ui->input_handler.active_axes_base();

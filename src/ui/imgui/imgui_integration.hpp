@@ -142,6 +142,9 @@ class ImGuiIntegration
 
     void shutdown();
 
+    // True once the logo texture is registered with ImGui (has a descriptor set).
+    bool logo_texture_registered() const { return welcome_logo_texture_id_ != 0; }
+
     void new_frame();
 
     // Headless new_frame: manually set display size + input state.

@@ -235,6 +235,7 @@ set(SPECTRA_UNIT_TESTS
     test_view_history
     test_live_measure
     test_ui_shell_welcome_gpu
+    test_imgui_descriptor_pool_gpu
     test_plugin_api
     test_workspace_v3
     test_layout_bindings
@@ -531,6 +532,7 @@ set(SPECTRA_GPU_TESTS
     test_cvd_preview_gpu
     test_embed_annotations_c
     test_ui_shell_welcome_gpu
+    test_imgui_descriptor_pool_gpu
     test_window_export_extent
     test_figure_export_gpu
     test_offscreen_export_gpu
@@ -584,7 +586,7 @@ foreach(_test ${SPECTRA_UNIT_TESTS})
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # UI shell follow-ups draw tooltip / status bar into a bare ImGui context.
-        if(_test MATCHES "^test_ui_shell_(fixes|welcome_gpu)$" AND DEFINED imgui_SOURCE_DIR)
+        if(_test MATCHES "^test_(ui_shell_fixes|ui_shell_welcome_gpu|imgui_descriptor_pool_gpu)$" AND DEFINED imgui_SOURCE_DIR)
             target_include_directories(unit_${_test} SYSTEM PRIVATE ${imgui_SOURCE_DIR})
         endif()
         # The resize case drives the GLFW window directly; glfw is PRIVATE to

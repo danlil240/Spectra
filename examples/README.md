@@ -28,6 +28,8 @@ display (X11 or Wayland). Offscreen examples (`offscreen_export`, `easy_embed_de
 | [`multi_subplot.cpp`](multi_subplot.cpp) | Two stacked subplots with independent data. |
 | [`comprehensive_subplot_demo.cpp`](comprehensive_subplot_demo.cpp) | Four different plot types in one figure. |
 | [`plot_styles_demo.cpp`](plot_styles_demo.cpp) | MATLAB-style format strings: line styles, markers, colors. |
+| [`plot_extras_demo.cpp`](plot_extras_demo.cpp) | Step lines, dense-line rendering and annotation boxes, halos and rotation (headless). |
+| [`precision_demo.cpp`](precision_demo.cpp) | Log-log axes, `1e7 + small` and epoch-timestamp data kept exact with the double overloads (headless). |
 | [`next_level_scientific.cpp`](next_level_scientific.cpp) | Colormapped scatter and a native uncertainty band. |
 | [`stats_demo.cpp`](stats_demo.cpp) | Statistical series: box plots, violins, histograms and bars. |
 | [`shapes_demo.cpp`](shapes_demo.cpp) | 2D shape primitives (rectangles, circles, polygons, arrows). |
@@ -86,6 +88,7 @@ See also [`README_3D.md`](README_3D.md).
 | [`mode_transition_demo.cpp`](mode_transition_demo.cpp) | Animated 2D <-> 3D view switching. |
 | [`realtime_3d_stream.cpp`](realtime_3d_stream.cpp) | Real-time 3D data stream. |
 | [`mind_blowing_3d.cpp`](mind_blowing_3d.cpp) | Animated 3D showcase with chaotic particle motion. |
+| [`depth_cues_3d.cpp`](depth_cues_3d.cpp) | Depth-shaded helix and a lit surface with edge lines and floor contours (headless). |
 
 ## Export and embedding
 
@@ -93,6 +96,7 @@ See also [`README_3D.md`](README_3D.md).
 |---|---|
 | [`offscreen_export.cpp`](offscreen_export.cpp) | Headless render to PNG without a window. |
 | [`video_record.cpp`](video_record.cpp) | Record an animation to `output.mp4` (needs `SPECTRA_USE_FFMPEG=ON`). |
+| [`readme_hero.cpp`](readme_hero.cpp) | Renders the animated README clips (2D scope, orbiting 3D surface) to MP4 (needs `SPECTRA_USE_FFMPEG=ON`). |
 | [`easy_embed_demo.cpp`](easy_embed_demo.cpp) | `spectra::easy_embed` one-liner offscreen rendering. |
 | [`embed_cpp_demo.cpp`](embed_cpp_demo.cpp) | C++ embedding API: render a plot into your own buffer. |
 

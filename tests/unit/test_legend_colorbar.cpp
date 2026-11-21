@@ -977,6 +977,70 @@ TEST(LegendAutoOutside, ExplicitPositionsAndSmallLegendsAreNotMoved)
     EXPECT_EQ(legend_layout::effective_position(ax, fig.legend()), LegendPosition::Best);
 }
 
+TEST(LegendAutoOutside, DataInEveryCornerMovesLegendOutside)
+{
+    // Five stacked sines across the full width: no corner is free of data.
+    Figure             fig({.width = 1200, .height = 700});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x(200);
+    for (size_t i = 0; i < x.size(); ++i)
+        x[i] = static_cast<float>(i) * 0.05f;
+    for (int k = 0; k < 5; ++k)
+    {
+        std::vector<float> y(x.size());
+        for (size_t i = 0; i < x.size(); ++i)
+            y[i] = std::sin(x[i]) + 1.2f * static_cast<float>(k - 2);
+        ax.line(x, y).label("Line " + std::to_string(k));
+    }
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(-3.0f, 3.0f);
+    fig.compute_layout();
+    EXPECT_GT(ax.outside_legend_area().w, 0.0f);
+    EXPECT_EQ(legend_layout::effective_position(ax, fig.legend()), LegendPosition::OutsideRight);
+
+    // Sticky: zooming to a view with a free corner keeps the strip (no jumping).
+    ax.ylim(3.0f, 20.0f);
+    fig.compute_layout();
+    EXPECT_GT(ax.outside_legend_area().w, 0.0f);
+}
+
+TEST(LegendAutoOutside, MarkersHiddenInEveryCornerMoveLegendOutside)
+{
+    Figure fig({.width = 1200, .height = 700});
+    auto&  ax = fig.subplot(1, 1, 1);
+    // Two markers near each corner: every inside placement hides data points.
+    const float cx[] = {0.3f, 9.7f, 0.3f, 9.7f};
+    const float cy[] = {0.3f, 0.3f, 9.7f, 9.7f};
+    for (int k = 0; k < 4; ++k)
+    {
+        const float              dx = k % 2 == 0 ? 0.2f : -0.2f;
+        const std::vector<float> px = {cx[k], cx[k] + dx};
+        const std::vector<float> py = {cy[k], cy[k]};
+        ax.scatter(px, py).size(14.0f).label("Corner " + std::to_string(k));
+    }
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(0.0f, 10.0f);
+    fig.compute_layout();
+    EXPECT_GT(ax.outside_legend_area().w, 0.0f);
+}
+
+TEST(LegendAutoOutside, LineGrazingACornerStaysInside)
+{
+    Figure             fig({.width = 1200, .height = 700});
+    auto&              ax = fig.subplot(1, 1, 1);
+    std::vector<float> x(200), y(200);
+    for (size_t i = 0; i < x.size(); ++i)
+    {
+        x[i] = static_cast<float>(i) * 0.05f;
+        y[i] = 0.5f * std::sin(x[i]);
+    }
+    ax.line(x, y).label("sin");
+    ax.xlim(0.0f, 10.0f);
+    ax.ylim(-2.0f, 2.0f);
+    fig.compute_layout();
+    EXPECT_EQ(ax.outside_legend_area().w, 0.0f);
+}
+
 TEST(LegendAutoOutside, NoRoomKeepsCompactSummary)
 {
     // Too narrow to give up a strip: the plot would drop below the minimum width.

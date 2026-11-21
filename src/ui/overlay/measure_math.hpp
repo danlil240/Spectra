@@ -33,6 +33,8 @@ size_t point_count(const Series& series);
 bool point_at(const Series& series, size_t index, double& x, double& y);
 
 // Central-difference dy/dx at sample @p index (one-sided at the ends).
+// Line series only, and only where x is monotonic through the sample;
+// false for scatter series, x reversals and non-finite results.
 bool point_derivative(const Series& series, size_t index, float& dy_dx);
 
 // ─── Snapping ───────────────────────────────────────────────────────────────

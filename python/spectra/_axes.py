@@ -172,6 +172,156 @@ class Axes:
                 float(len(xv))]
         return self._add_stats_series("stem", data + xv + yv, label)
 
+    # ─── Grid series: images, heatmaps, contours ────────────────────────
+    # Payload layouts mirror "image" / "contour" in src/ui/app/figure_snapshot.hpp.
+
+    def imshow(
+        self,
+        values,
+        cmap=None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        extent: Optional[Sequence[float]] = None,
+        origin: str = "upper",
+        interpolation: str = "nearest",
+        label: str = "",
+        alpha: Optional[float] = None,
+    ) -> Series:
+        """Show a 2D grid as an image: ``values[row][col]``, row 0 at the top.
+
+        A scalar grid is coloured through ``cmap`` (default "viridis") with
+        ``vmin`` / ``vmax`` as its ends (default: the data range); an
+        ``(rows, cols, 3|4)`` array is drawn as RGB(A) (floats in 0..1, or
+        integers in 0..255).  ``extent=(x0, x1, y0, y1)`` places the outer cell
+        edges in data space (default: cell (c, r) centred on (c, r)).
+        ``origin="lower"`` puts row 0 at the bottom; ``interpolation`` is
+        "nearest" (flat cells) or "bilinear".  NaN cells are transparent.
+        """
+        rows, cols, channels, flat = _grid(values, allow_rgb=True)
+        return self._add_image(flat, rows, cols, channels, cmap=cmap, vmin=vmin, vmax=vmax,
+                               extent=extent, origin=origin, interpolation=interpolation,
+                               label=label, alpha=alpha)
+
+    def heatmap(
+        self,
+        values,
+        col_names: Optional[Sequence[str]] = None,
+        row_names: Optional[Sequence[str]] = None,
+        decimals: int = 2,
+        cmap=None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        label: str = "",
+    ) -> Series:
+        """Heatmap: :meth:`imshow` with each cell's value printed in it.
+
+        ``col_names`` / ``row_names`` label the columns / rows on the axes
+        (row 0 at the top); ``decimals`` sets the printed precision.
+        """
+        rows, cols, _, flat = _grid(values, allow_rgb=False)
+        xs = [str(n) for n in col_names] if col_names is not None else []
+        ys = [str(n) for n in row_names] if row_names is not None else []
+        if xs and len(xs) != cols:
+            raise ValueError(f"col_names has {len(xs)} names but the grid has {cols} columns")
+        if ys and len(ys) != rows:
+            raise ValueError(f"row_names has {len(ys)} names but the grid has {rows} rows")
+        return self._add_image(flat, rows, cols, 1, cmap=cmap, vmin=vmin, vmax=vmax,
+                               show_values=True, decimals=decimals, x_names=xs, y_names=ys,
+                               label=label)
+
+    def contour(
+        self,
+        z,
+        x=None,
+        y=None,
+        levels: Union[int, Sequence[float]] = 8,
+        cmap=None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        linewidth: float = 1.5,
+        label: str = "",
+    ) -> Series:
+        """Contour lines of ``z[row][col]``, the value at ``(x[col], y[row])``.
+
+        Row 0 is at the bottom.  ``x`` / ``y`` are the node coordinates (1D,
+        or 2D meshgrids as from ``numpy.meshgrid``; default 0..cols-1 and
+        0..rows-1).  ``levels`` is about that many "nice" levels, or the
+        explicit level values.  Lines are coloured per level through ``cmap``
+        (default "viridis"); give the series a colour to draw them all in it.
+        """
+        rows, cols, _, flat = _grid(z, allow_rgb=False)
+        if rows < 2 or cols < 2:
+            raise ValueError("contour needs a grid of at least 2 x 2 values")
+        xs, ys = _node_coords(x, y, cols, rows)
+        count, explicit = _levels_arg(levels)
+        data = [float(linewidth), float(count), 0.0, 1.0 if xs is not None else 0.0,
+                0.0, 0.0, 0.0, 0.0, float(len(explicit))] + explicit + [float(cols), float(rows)]
+        if xs is not None:
+            data += xs + ys
+        series = self._add_stats_series("contour", data + flat, label)
+        _apply_cmap(series, cmap, vmin, vmax, flat)
+        return series
+
+    def contourf(
+        self,
+        z,
+        x=None,
+        y=None,
+        levels: Union[int, Sequence[float]] = 8,
+        cmap=None,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        label: str = "",
+    ) -> Series:
+        """Filled contours of ``z`` (same layout as :meth:`contour`): colour
+        bands between about ``levels`` nice levels, or between the given
+        level values (sorted).  ``x`` / ``y`` give the extent (their first and
+        last values; the bands are drawn on a uniform grid)."""
+        rows, cols, _, flat = _grid(z, allow_rgb=False)
+        if rows < 2 or cols < 2:
+            raise ValueError("contourf needs a grid of at least 2 x 2 values")
+        xs, ys = _node_coords(x, y, cols, rows)
+        extent = (xs[0], xs[-1], ys[0], ys[-1]) if xs is not None else None
+        count, explicit = _levels_arg(levels)
+        if explicit and len(explicit) < 2:
+            raise ValueError("contourf needs at least 2 levels")
+        lv = sorted(explicit) if explicit else [float(count)]
+        return self._add_image(flat, rows, cols, 1, cmap=cmap, vmin=vmin, vmax=vmax,
+                               extent=extent, origin="lower", interpolation="bilinear",
+                               node_aligned=True, levels=lv, label=label)
+
+    def _add_image(self, flat, rows, cols, channels, cmap=None, vmin=None, vmax=None,
+                   extent=None, origin="upper", interpolation="nearest", node_aligned=False,
+                   levels=None, show_values=False, decimals=2, x_names=(), y_names=(),
+                   label="", alpha=None) -> Series:
+        if origin not in ("upper", "lower"):
+            raise ValueError(f"origin must be 'upper' or 'lower', not {origin!r}")
+        if interpolation not in ("nearest", "bilinear"):
+            raise ValueError(
+                f"interpolation must be 'nearest' or 'bilinear', not {interpolation!r}")
+        ext = [0.0, 0.0, 0.0, 0.0]
+        if extent is not None:
+            ext = [float(v) for v in extent]
+            if len(ext) != 4 or not all(math.isfinite(v) for v in ext):
+                raise ValueError("extent must be 4 finite numbers (x0, x1, y0, y1)")
+        lv = [float(v) for v in (levels or [])]
+        data = [1.0 if interpolation == "bilinear" else 0.0,
+                1.0 if origin == "lower" else 0.0,
+                1.0 if node_aligned else 0.0,
+                1.0 if show_values else 0.0,
+                float(max(0, min(10, int(decimals)))),
+                1.0 if extent is not None else 0.0] + ext + [
+                float(len(x_names)), float(len(y_names)), float(len(lv))] + lv + [
+                float(cols), float(rows), float(channels)]
+        series = self._add_stats_series("image", data + flat, label)
+        if x_names or y_names:
+            series._set_categories(list(x_names) + list(y_names))
+        if channels == 1:
+            _apply_cmap(series, cmap, vmin, vmax, flat)
+        if alpha is not None:
+            series.set_opacity(float(alpha))
+        return series
+
     def _add_stats_series(self, series_type: str, data: List[float], label: str) -> Series:
         from ._series import Series
 
@@ -725,6 +875,83 @@ def _stat_style(fill_alpha: Optional[float], edge_width: Optional[float],
         rgba = c + [1.0] if len(c) == 3 else c
     return [_STAT_STYLE_TAG, a, w, 1.0 if edge_color is not None else 0.0] + rgba
 
+
+
+def _grid(values, allow_rgb: bool):
+    """2D grid (or RGB(A) image) -> (rows, cols, channels, row-major floats)."""
+    try:
+        import numpy as np
+    except ImportError:  # pragma: no cover - numpy is optional
+        np = None
+    if np is not None:
+        arr = np.asarray(values)
+        if arr.dtype == object:
+            raise ValueError("grid values must be numbers")
+        is_int = np.issubdtype(arr.dtype, np.integer) or arr.dtype == np.bool_
+        arr = arr.astype(np.float32)
+        if arr.ndim == 3 and allow_rgb and arr.shape[2] in (3, 4):
+            if is_int:
+                arr = arr / 255.0
+            rows, cols, ch = arr.shape
+            if ch == 3:
+                arr = np.concatenate([arr, np.ones((rows, cols, 1), dtype=np.float32)], axis=2)
+            return rows, cols, 4, np.clip(arr, 0.0, 1.0).ravel().tolist()
+        if arr.ndim != 2 or arr.shape[0] == 0 or arr.shape[1] == 0:
+            raise ValueError(f"expected a 2D grid of values, got shape {arr.shape}")
+        return arr.shape[0], arr.shape[1], 1, arr.ravel().tolist()
+    rows_list = [list(r) for r in values]
+    if not rows_list or not rows_list[0]:
+        raise ValueError("expected a non-empty 2D grid of values")
+    cols = len(rows_list[0])
+    if any(len(r) != cols for r in rows_list):
+        raise ValueError("every row of the grid must have the same length")
+    return len(rows_list), cols, 1, [float(v) for r in rows_list for v in r]
+
+
+def _node_coords(x, y, cols: int, rows: int):
+    """Contour node coordinates as 1D lists, or (None, None) for the defaults."""
+    if x is None and y is None:
+        return None, None
+    if x is None or y is None:
+        raise ValueError("give both x and y, or neither")
+
+    def axis(v, n, along_cols):
+        if hasattr(v, "ndim") and getattr(v, "ndim") == 2:
+            v = v[0, :] if along_cols else v[:, 0]
+        elif not hasattr(v, "ndim"):
+            items = list(v)
+            if items and isinstance(items[0], (list, tuple)):
+                v = items[0] if along_cols else [r[0] for r in items]
+        out = _floats(v)
+        if len(out) != n:
+            raise ValueError(f"expected {n} {'x' if along_cols else 'y'} coordinates, got {len(out)}")
+        return out
+
+    return axis(x, cols, True), axis(y, rows, False)
+
+
+def _levels_arg(levels):
+    """(approximate count, explicit values) from an int or a sequence of levels."""
+    if isinstance(levels, bool):
+        raise TypeError("levels must be an int or a sequence of numbers")
+    if isinstance(levels, int):
+        return max(1, min(256, levels)), []
+    values = [v for v in _floats(levels) if math.isfinite(v)]
+    if not values:
+        raise ValueError("levels must hold at least one finite number")
+    return len(values), values
+
+
+def _apply_cmap(series, cmap, vmin, vmax, values) -> None:
+    """Colormap and value range; a missing vmin / vmax is the data's."""
+    if cmap is not None:
+        series.set_colormap(cmap)
+    if vmin is None and vmax is None:
+        return
+    finite = [v for v in values if math.isfinite(v)] or [0.0, 1.0]
+    lo = min(finite) if vmin is None else float(vmin)
+    hi = max(finite) if vmax is None else float(vmax)
+    series.set_colormap_range(lo, hi)
 
 def _floats(data) -> List[float]:
     """Array-like (list, tuple, NumPy, pandas, datetimes) -> list of floats."""

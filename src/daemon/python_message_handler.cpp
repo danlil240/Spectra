@@ -422,7 +422,9 @@ static bool apply_property_update(FigureModel&              fig_model,
     }
     else if (property == "categories")
     {
-        // Bar category names: f1 = count, str_val = names joined by 0x1F.
+        // Bar category names, or a heatmap's column names then row names
+        // (their split is in the image payload): f1 = count, str_val = names
+        // joined by 0x1F.
         ipc::DiffOp op;
         op.type         = ipc::DiffOp::Type::SET_SERIES_CATEGORIES;
         op.figure_id    = figure_id;
@@ -430,7 +432,8 @@ static bool apply_property_update(FigureModel&              fig_model,
         op.series_index = series_index;
         op.f1           = f1;
         op.str_val      = str_val;
-        if (fig_model.series_type(figure_id, series_index) != "bar" || !fig_model.apply_diff_op(op))
+        const std::string type = fig_model.series_type(figure_id, series_index);
+        if ((type != "bar" && type != "image") || !fig_model.apply_diff_op(op))
             return false;
         diff.ops.push_back(std::move(op));
     }

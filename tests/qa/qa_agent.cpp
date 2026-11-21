@@ -4069,6 +4069,15 @@ class QAAgent
         if (!wctx || !wctx->glfw_window)
             return;
         auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        // The synthetic pointer is inside the window.  Without a cursor-enter
+        // the ImGui GLFW backend treats the mouse as outside and, while the
+        // window has focus, polls the real OS cursor every frame, overriding
+        // these positions (Windows: wherever the user's mouse is, often over
+        // ImGui chrome, so hover never reached the plot).
+        GLFWcursorenterfun enter_cb = glfwSetCursorEnterCallback(win, nullptr);
+        glfwSetCursorEnterCallback(win, enter_cb);
+        if (enter_cb)
+            enter_cb(win, GLFW_TRUE);
         glfwSetCursorPos(win, x, y);
         // GLFW drops the X11 MotionNotify that its own warp generates, so the
         // app's cursor callback (InputHandler + ImGui backend) never hears of

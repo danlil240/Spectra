@@ -133,6 +133,10 @@ class _FakeAxes:
     def legend(self, v=True):
         self.legend_on = v
 
+    def clear(self):
+        self.cleared = getattr(self, "cleared", 0) + 1
+        self.created.clear()
+
 
 class _FakeFigure:
     def __init__(self):
@@ -743,3 +747,61 @@ def test_pyplot_savefig_dpi_scales_figsize(monkeypatch, fake_plt):
         "spectra.pyplot.savefig: keyword 'transparent' is not supported and was ignored"]
     fig.savefig("p.svg")
     assert fig.spectra_figure.saved[-1][0] == "p.svg"
+
+
+# ─── Reference lines, clearing and interactive mode ──────────────────────────
+
+def test_pyplot_axhline_axvline_style(fake_plt):
+    ax, _ = fake_plt
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        h = plt.axhline(0.5, color="k", linestyle="--", lw=2, alpha=0.5, label="zero")
+        v = plt.axvline(2)
+        plt.axhline(1, xmin=0.2)
+    assert h.kw["y"] == [0.5, 0.5] and h.kw["label"] == "zero"
+    assert (h.letter, h.line_style, h.width, h.opacity) == ("k", "--", 2.0, 0.5)
+    assert v.kw["x"] == [2.0, 2.0] and v.letter is None and v.rgb is None  # auto colour
+    assert [str(x.message) for x in w] == [
+        "spectra.pyplot.axhline: keyword 'xmin/xmax' is not supported and was ignored"]
+
+
+def test_pyplot_cla_forgets_fitted_extent(fake_plt):
+    ax, _ = fake_plt
+    plt.plot([0, 100], [0, 100])
+    plt.cla()
+    assert ax.cleared == 1 and ax.created == []
+    plt.plot([0, 1], [0, 1])
+    assert ax.limits[0][1] < 2  # fits the new data only
+
+
+def test_pyplot_clf_clears_every_axes(monkeypatch, fake_plt):
+    _, fig = fake_plt
+    a, b = _FakeAxes(0), _FakeAxes(1)
+    fig.axes = [a, b]
+    plt.clf()
+    assert a.cleared == 1 and b.cleared == 1
+
+
+def test_pyplot_interactive_mode_and_pause(monkeypatch, fake_plt):
+    shown = []
+    monkeypatch.setattr(easy._state, "_show_if_pending", lambda: shown.append(1))
+    slept = []
+    import time
+
+    monkeypatch.setattr(time, "sleep", lambda t: slept.append(t))
+    plt.ion()
+    assert plt.isinteractive()
+    plt.pause(0.05)
+    plt.draw()
+    plt.ioff()
+    assert not plt.isinteractive()
+    assert shown == [1, 1] and slept == [0.05]
+
+
+def test_pyplot_axes_methods_include_reference_lines(monkeypatch, fake_plt):
+    ax, fig = fake_plt
+    _, axs = plt.subplots(1, 1)
+    axs.axhline(1.0)  # the fixture routes every axes call to `ax`
+    assert ax.created[-1].kw["y"] == [1.0, 1.0]
+    axs.cla()
+    assert ax.cleared == 1

@@ -2534,9 +2534,21 @@ def close_all():
 
 
 def clear():
-    """Clear the current axes (remove all series)."""
+    """Clear the current axes (remove all series).
+
+    The axes forgets the data extent it fitted its limits to, so the next
+    plot fits its own data only.
+    """
     ax = _state._ensure_axes()
     ax.clear()
+    _forget_axes_extent(ax)
+
+
+def _forget_axes_extent(ax) -> None:
+    ax_key = (ax._figure_id, ax._index)
+    for d in (_state._axes_bounds, _state._axes_sticky, _state._errorbar_counts,
+              _state._axes_bars):
+        d.pop(ax_key, None)
 
 
 # ─── Multi-plot helpers ──────────────────────────────────────────────────────

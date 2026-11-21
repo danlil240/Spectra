@@ -274,6 +274,8 @@ void Renderer::destroy_series_buffers(SeriesGpuData& gpu)
         backend_.destroy_texture(gpu.image_texture);
     if (gpu.lut_texture)
         backend_.destroy_texture(gpu.lut_texture);
+    if (gpu.density_texture)
+        backend_.destroy_texture(gpu.density_texture);
 
     // Clean up plugin GPU state for custom series types.
     if (gpu.type == SeriesType::Custom && gpu.plugin_gpu_state && series_type_registry_)
@@ -768,6 +770,16 @@ void Renderer::render_figure_content(Figure& figure, FigureViewModel* fig_vm)
         const auto& vp = ax.viewport();
 
         render_axes(ax, vp, w, h);
+        // twinx(): the twin's series over the same plot area, in its own y range.
+        if (Axes* twin = ax.twin())
+        {
+            // Pan / zoom of the host moves the twin's y axis along.
+            ax.sync_twin_y();
+            if (!twin->has_series_removed_callback())
+                twin->set_series_removed_callback(ax.series_removed_callback());
+            twin->sync_bar_layout();
+            render_axes(*twin, twin->viewport(), w, h);
+        }
     }
 
     // Render each 3D axes (stored in all_axes_)
@@ -1552,6 +1564,17 @@ void Renderer::render_axes(AxesBase&   axes,
             line_view_.x_min   = vis.x_min;
             line_view_.x_max   = vis.x_max;
             line_view_.columns = line_view_.valid ? static_cast<uint32_t>(cols) : 0;
+
+            const auto& agpu  = axes_gpu_data_[&axes];
+            const float rows  = std::ceil(viewport.h * std::max(backend_.pixel_scale(), 1.0f));
+            line_view_.y_min  = agpu.cached_ylim_min;
+            line_view_.y_max  = agpu.cached_ylim_max;
+            line_view_.rows   = rows >= 1.0f ? static_cast<uint32_t>(rows) : 0;
+            line_view_.xscale = xscale;
+            line_view_.yscale = yscale;
+            line_view_.density_valid =
+                line_view_.valid && line_view_.rows > 0 && std::isfinite(line_view_.y_min)
+                && std::isfinite(line_view_.y_max) && line_view_.y_max > line_view_.y_min;
         }
 
         for (auto& series_ptr : axes.series())

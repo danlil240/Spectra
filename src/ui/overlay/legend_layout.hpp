@@ -798,15 +798,23 @@ inline std::vector<int> hidden_entry_indices(int n, int first, int shown)
 // Series that get a legend entry, in axes order: labeled and not hidden from
 // the legend.  Works for 2D and 3D axes alike, so the window (ImGui) and the
 // GPU / PNG export legends list the same entries.  Hidden series stay listed
-// (dimmed) so they can be toggled back on.
+// (dimmed) so they can be toggled back on.  A twinx() twin's entries follow
+// its host's.
 inline std::vector<Series*> legend_entries(const AxesBase& axes)
 {
     std::vector<Series*> out;
-    for (const auto& s : axes.series())
+    auto                 add = [&out](const AxesBase& a)
     {
-        if (s && !s->label().empty() && s->show_in_legend())
-            out.push_back(s.get());
-    }
+        for (const auto& s : a.series())
+        {
+            if (s && !s->label().empty() && s->show_in_legend())
+                out.push_back(s.get());
+        }
+    };
+    add(axes);
+    // A twinx() twin's series join its host's legend.
+    if (const auto* a2 = dynamic_cast<const Axes*>(&axes); a2 && a2->twin())
+        add(*a2->twin());
     return out;
 }
 

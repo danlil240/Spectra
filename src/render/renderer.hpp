@@ -7,6 +7,7 @@
 #include <spectra/series_shapes3d.hpp>
 
 #include "backend.hpp"
+#include "data/line_density.hpp"
 #include "series_type_registry.hpp"
 #include "text_fit.hpp"
 #include "text_renderer.hpp"
@@ -343,8 +344,18 @@ class Renderer
         double   x_min   = 0.0;
         double   x_max   = 0.0;
         uint32_t columns = 0;
+        // Plot area rows and y limits (data space) and the axis scales, for
+        // the density raster (density_valid when they describe a real area).
+        bool      density_valid = false;
+        double    y_min         = 0.0;
+        double    y_max         = 0.0;
+        uint32_t  rows          = 0;
+        ScaleType xscale        = ScaleType::Linear;
+        ScaleType yscale        = ScaleType::Linear;
     };
-    LineView line_view_;
+    LineView              line_view_;
+    data::LineDensityGrid density_grid_;   // scratch for draw_density_line
+    std::vector<uint8_t>  density_rgba_;   // scratch for draw_density_line
 
     // True when `line` would be M4-decimated for `view` (Auto mode, sorted x,
     // no markers, far more visible points than pixel columns).
@@ -655,6 +666,22 @@ class Renderer
         BufferHandle dash_phase_buffer[FRAME_BUFFER_SLOTS];
         size_t       dash_phase_capacity[FRAME_BUFFER_SLOTS] = {};
         DashPhaseKey dash_phase_key[FRAME_BUFFER_SLOTS];
+        // DenseLineMode::Density: coverage raster of the visible line drawn as
+        // one RGBA texture (see draw_density_line), rebuilt when the key changes.
+        struct DensityKey
+        {
+            uint64_t  generation = 0;
+            double    x_min = 0.0, x_max = 0.0, y_min = 0.0, y_max = 0.0;
+            uint32_t  cols = 0, rows = 0;
+            uint32_t  first_pt = 0, pt_count = 0;
+            float     color[4]                            = {};
+            float     half_width                          = 0.0f;
+            ScaleType xscale                              = ScaleType::Linear;
+            ScaleType yscale                              = ScaleType::Linear;
+            bool      operator==(const DensityKey&) const = default;
+        };
+        TextureHandle density_texture;
+        DensityKey    density_key;
     };
     std::unordered_map<const Series*, SeriesGpuData> series_gpu_data_;
 
@@ -728,6 +755,17 @@ class Renderer
                        SeriesGpuData&      gpu,
                        uint32_t            first_seg,
                        uint32_t            seg_count);
+    // DenseLineMode::Density: draw the visible points [first_pt, first_pt +
+    // pt_count) as one texture of per-pixel coverage with alpha
+    // 1 - (1 - pc.color.a)^coverage.  False (nothing drawn) when the view or
+    // the image pipeline is unavailable; the caller then draws the polyline.
+    bool draw_density_line(const LineSeries&          line,
+                           SeriesGpuData&             gpu,
+                           const SeriesPushConstants& pc,
+                           uint32_t                   first_pt,
+                           uint32_t                   pt_count,
+                           double                     view_cx,
+                           double                     view_cy);
     // Keep (or drop) the CPU copy of a 2D line's uploaded points that dashed
     // lines need for their phase buffer.
     void store_line_points(SeriesGpuData& gpu, const Series& series, const float* xy, size_t n);

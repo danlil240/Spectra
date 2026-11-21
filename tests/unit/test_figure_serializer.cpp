@@ -234,3 +234,33 @@ TEST_F(FigureSerializerTest, OverlaySpikes3DRoundTrip)
     ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst, &loaded_on));
     EXPECT_TRUE(loaded_on.spikes3d_enabled);
 }
+
+TEST_F(FigureSerializerTest, SaveLoadRestoresTwinxAxes)
+{
+    Figure             src({800, 600});
+    auto&              ax  = src.subplot(1, 2, 1);
+    auto&              ax2 = src.subplot(1, 2, 2);
+    std::vector<float> x{0.0f, 1.0f, 2.0f};
+    std::vector<float> y{0.0f, 1.0f, 0.0f};
+    std::vector<float> y2{10.0f, 30.0f, 20.0f};
+    ax.line(x, y).label("left");
+    auto& tw = ax.twinx();
+    tw.line(x, y2).label("right");
+    tw.ylabel("right axis");
+    tw.ylim(0.0, 40.0);
+    ax2.line(x, y).label("other");
+
+    ASSERT_TRUE(FigureSerializer::save(tmp_path_, src));
+    Figure dst({640, 480});
+    ASSERT_TRUE(FigureSerializer::load(tmp_path_, dst));
+    ASSERT_EQ(dst.axes().size(), 2u);   // the twin takes no subplot slot
+    const Axes* t = dst.axes()[0]->twin();
+    ASSERT_NE(t, nullptr);
+    EXPECT_EQ(t->ylabel(), "right axis");
+    ASSERT_EQ(t->series().size(), 1u);
+    EXPECT_EQ(t->series()[0]->label(), "right");
+    EXPECT_DOUBLE_EQ(t->y_limits().max, 40.0);
+    ASSERT_EQ(dst.axes()[1]->series().size(), 1u);
+    EXPECT_EQ(dst.axes()[1]->series()[0]->label(), "other");
+    EXPECT_EQ(dst.axes()[1]->twin(), nullptr);
+}

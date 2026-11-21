@@ -115,16 +115,17 @@ using spectra::agent::apply_diff_op_to_cache;
 // ─── Apply a DiffOp directly to a live Figure object ─────────────────────────
 // `where` locates a series op's target in the live Figure (op.series_index is
 // figure-wide); without it op.axes_index / op.series_index are used as is.
-void apply_diff_op_to_figure(spectra::Figure&                       fig,
-                             const spectra::ipc::DiffOp&            op,
-                             const spectra::agent::LiveSeriesIndex* where = nullptr)
+void apply_diff_op_to_figure(spectra::Figure&                         fig,
+                             const spectra::ipc::DiffOp&              op,
+                             const spectra::agent::LiveSeriesIndex*   where  = nullptr,
+                             const spectra::ipc::SnapshotFigureState* cached = nullptr)
 {
     // Locate the live series addressed by a series-level op.
     auto find_live_series = [&]() -> spectra::Series*
     {
         const uint32_t axes_index   = where ? where->axes_index : op.axes_index;
         const uint32_t series_index = where ? where->series_index : op.series_index;
-        auto*          ax           = live_axes_at(fig, axes_index);
+        auto*          ax           = live_axes_at(fig, axes_index, cached);
         if (!ax)
             return nullptr;
         auto& series_vec = ax->series_mut();
@@ -133,7 +134,7 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
         return series_vec[series_index].get();
     };
 
-    auto* base = live_axes_at(fig, op.axes_index);
+    auto* base = live_axes_at(fig, op.axes_index, cached);
     auto* ax2d = dynamic_cast<spectra::Axes*>(base);
     auto* ax3d = dynamic_cast<spectra::Axes3D*>(base);
 
@@ -142,7 +143,8 @@ void apply_diff_op_to_figure(spectra::Figure&                       fig,
         case spectra::ipc::DiffOp::Type::SET_AXIS_LIMITS:
             if (ax2d)
             {
-                ax2d->xlim(op.f1, op.f2);
+                if (!ax2d->is_twin())   // a twin's x axis is its host's
+                    ax2d->xlim(op.f1, op.f2);
                 ax2d->ylim(op.f3, op.f4);
             }
             else if (ax3d)
@@ -1127,10 +1129,11 @@ int main(int argc, char* argv[])
                                         if (assigned_figures[mi] != op.figure_id)
                                             continue;
                                         auto* live_fig = registry.get(all_ids[mi]);
-                                        auto* live_ax =
-                                            live_fig ? dynamic_cast<spectra::Axes*>(
-                                                           live_axes_at(*live_fig, op.axes_index))
-                                                     : nullptr;
+                                        auto* live_ax  = live_fig ? dynamic_cast<spectra::Axes*>(
+                                                                       live_axes_at(*live_fig,
+                                                                                    op.axes_index,
+                                                                                    cached))
+                                                                  : nullptr;
                                         if (live_ax)
                                             spectra::agent::sync_live_annotations(
                                                 *live_ax,
@@ -1177,7 +1180,10 @@ int main(int argc, char* argv[])
                                     {
                                         auto* live_fig = registry.get(all_ids[mi]);
                                         if (live_fig)
-                                            apply_diff_op_to_figure(*live_fig, op, where_ptr);
+                                            apply_diff_op_to_figure(*live_fig,
+                                                                    op,
+                                                                    where_ptr,
+                                                                    cached);
                                         break;
                                     }
                                 }

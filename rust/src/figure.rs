@@ -196,14 +196,29 @@ impl Figure {
                 rows.max(0) * cols.max(0)
             )));
         }
-        let payload = codec::encode_create_axes(self.state.id, rows, cols, index, is_3d);
+        self.request_axes(rows, cols, index, is_3d, -1)
+    }
+
+    /// Ask the backend for an axes (`twin_of` >= 0: the twinx() twin of that
+    /// axes) and track it.
+    pub(crate) fn request_axes(
+        &self,
+        rows: i32,
+        cols: i32,
+        index: i32,
+        is_3d: bool,
+        twin_of: i32,
+    ) -> Result<Axes> {
+        let payload = codec::encode_create_axes(self.state.id, rows, cols, index, is_3d, twin_of);
         let resp = self.session.request(p::REQ_CREATE_AXES, &payload)?;
         let axes_index = codec::decode_axes_created(&resp.payload)?;
         let mut list = lock(&self.state.axes);
         if let Some(existing) = list.iter().find(|a| a.index == axes_index) {
             return Ok(Axes::from_state(self.clone(), existing.clone()));
         }
-        let state = Arc::new(AxesState::new(self.state.id, axes_index, is_3d));
+        let mut st = AxesState::new(self.state.id, axes_index, is_3d);
+        st.twin_of = twin_of;
+        let state = Arc::new(st);
         list.push(state.clone());
         drop(list);
         Ok(Axes::from_state(self.clone(), state))

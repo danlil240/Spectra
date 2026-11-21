@@ -501,6 +501,46 @@ HandleResult handle_req_create_axes(DaemonContext& ctx, ClientSlot& slot, const 
         return HandleResult::Continue;
     }
 
+    // twinx(): a second y axis on an existing 2D axes, no grid slot.
+    if (req->twin_of >= 0)
+    {
+        bool          created = false;
+        const int32_t tw      = ctx.fig_model.add_twin_axes(req->figure_id,
+                                                       static_cast<uint32_t>(req->twin_of),
+                                                       &created);
+        if (tw < 0)
+        {
+            send_resp_err(*slot.conn,
+                          ctx.graph.session_id(),
+                          msg.header.request_id,
+                          400,
+                          "twinx needs an existing 2D axes");
+            return HandleResult::Continue;
+        }
+        if (created)
+        {
+            ipc::DiffOp add_op;
+            add_op.type       = ipc::DiffOp::Type::ADD_AXES;
+            add_op.figure_id  = req->figure_id;
+            add_op.axes_index = static_cast<uint32_t>(tw);
+            add_op.f3         = static_cast<double>(req->twin_of) + 1.0;   // host + 1
+            ipc::StateDiffPayload diff;
+            diff.base_revision = ctx.fig_model.revision() - 1;
+            diff.new_revision  = ctx.fig_model.revision();
+            diff.ops.push_back(add_op);
+            broadcast_diff_to_agents(ctx, diff);
+        }
+        ipc::RespAxesCreatedPayload resp;
+        resp.request_id = msg.header.request_id;
+        resp.axes_index = static_cast<uint32_t>(tw);
+        send_python_response(*slot.conn,
+                             ipc::MessageType::RESP_AXES_CREATED,
+                             ctx.graph.session_id(),
+                             msg.header.request_id,
+                             ipc::encode_resp_axes_created(resp));
+        return HandleResult::Continue;
+    }
+
     ctx.fig_model.set_grid(req->figure_id, req->grid_rows, req->grid_cols);
 
     auto axes_idx = ctx.fig_model.add_axes(req->figure_id, 0.0f, 1.0f, 0.0f, 1.0f, req->is_3d);

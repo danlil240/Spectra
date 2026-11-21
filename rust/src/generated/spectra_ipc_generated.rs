@@ -2189,6 +2189,7 @@ impl<'a> SnapshotAxisState<'a> {
   pub const VT_YTICK_POSITIONS: flatbuffers::VOffsetT = 56;
   pub const VT_XTICK_LABELS: flatbuffers::VOffsetT = 58;
   pub const VT_YTICK_LABELS: flatbuffers::VOffsetT = 60;
+  pub const VT_TWIN_OF: flatbuffers::VOffsetT = 62;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -2206,6 +2207,7 @@ impl<'a> SnapshotAxisState<'a> {
     builder.add_y_min(args.y_min);
     builder.add_x_max(args.x_max);
     builder.add_x_min(args.x_min);
+    builder.add_twin_of(args.twin_of);
     if let Some(x) = args.ytick_labels { builder.add_ytick_labels(x); }
     if let Some(x) = args.xtick_labels { builder.add_xtick_labels(x); }
     if let Some(x) = args.ytick_positions { builder.add_ytick_positions(x); }
@@ -2436,6 +2438,13 @@ impl<'a> SnapshotAxisState<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>(SnapshotAxisState::VT_YTICK_LABELS, None)}
   }
+  #[inline]
+  pub fn twin_of(&self) -> i32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i32>(SnapshotAxisState::VT_TWIN_OF, Some(-1)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for SnapshotAxisState<'_> {
@@ -2474,6 +2483,7 @@ impl flatbuffers::Verifiable for SnapshotAxisState<'_> {
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, f64>>>("ytick_positions", Self::VT_YTICK_POSITIONS, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("xtick_labels", Self::VT_XTICK_LABELS, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>>>("ytick_labels", Self::VT_YTICK_LABELS, false)?
+     .visit_field::<i32>("twin_of", Self::VT_TWIN_OF, false)?
      .finish();
     Ok(())
   }
@@ -2508,6 +2518,7 @@ pub struct SnapshotAxisStateArgs<'a> {
     pub ytick_positions: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, f64>>>,
     pub xtick_labels: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
     pub ytick_labels: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>>,
+    pub twin_of: i32,
 }
 impl<'a> Default for SnapshotAxisStateArgs<'a> {
   #[inline]
@@ -2542,6 +2553,7 @@ impl<'a> Default for SnapshotAxisStateArgs<'a> {
       ytick_positions: None,
       xtick_labels: None,
       ytick_labels: None,
+      twin_of: -1,
     }
   }
 }
@@ -2668,6 +2680,10 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> SnapshotAxisStateBuilder<'a, 'b
     self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(SnapshotAxisState::VT_YTICK_LABELS, ytick_labels);
   }
   #[inline]
+  pub fn add_twin_of(&mut self, twin_of: i32) {
+    self.fbb_.push_slot::<i32>(SnapshotAxisState::VT_TWIN_OF, twin_of, -1);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> SnapshotAxisStateBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     SnapshotAxisStateBuilder {
@@ -2714,6 +2730,7 @@ impl core::fmt::Debug for SnapshotAxisState<'_> {
       ds.field("ytick_positions", &self.ytick_positions());
       ds.field("xtick_labels", &self.xtick_labels());
       ds.field("ytick_labels", &self.ytick_labels());
+      ds.field("twin_of", &self.twin_of());
       ds.finish()
   }
 }
@@ -5017,6 +5034,7 @@ impl<'a> ReqCreateAxesPayload<'a> {
   pub const VT_GRID_COLS: flatbuffers::VOffsetT = 8;
   pub const VT_GRID_INDEX: flatbuffers::VOffsetT = 10;
   pub const VT_IS_3D: flatbuffers::VOffsetT = 12;
+  pub const VT_TWIN_OF: flatbuffers::VOffsetT = 14;
 
   #[inline]
   pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -5029,6 +5047,7 @@ impl<'a> ReqCreateAxesPayload<'a> {
   ) -> flatbuffers::WIPOffset<ReqCreateAxesPayload<'bldr>> {
     let mut builder = ReqCreateAxesPayloadBuilder::new(_fbb);
     builder.add_figure_id(args.figure_id);
+    builder.add_twin_of(args.twin_of);
     builder.add_grid_index(args.grid_index);
     builder.add_grid_cols(args.grid_cols);
     builder.add_grid_rows(args.grid_rows);
@@ -5072,6 +5091,13 @@ impl<'a> ReqCreateAxesPayload<'a> {
     // which contains a valid value in this slot
     unsafe { self._tab.get::<bool>(ReqCreateAxesPayload::VT_IS_3D, Some(false)).unwrap()}
   }
+  #[inline]
+  pub fn twin_of(&self) -> i32 {
+    // Safety:
+    // Created from valid Table for this object
+    // which contains a valid value in this slot
+    unsafe { self._tab.get::<i32>(ReqCreateAxesPayload::VT_TWIN_OF, Some(-1)).unwrap()}
+  }
 }
 
 impl flatbuffers::Verifiable for ReqCreateAxesPayload<'_> {
@@ -5086,6 +5112,7 @@ impl flatbuffers::Verifiable for ReqCreateAxesPayload<'_> {
      .visit_field::<i32>("grid_cols", Self::VT_GRID_COLS, false)?
      .visit_field::<i32>("grid_index", Self::VT_GRID_INDEX, false)?
      .visit_field::<bool>("is_3d", Self::VT_IS_3D, false)?
+     .visit_field::<i32>("twin_of", Self::VT_TWIN_OF, false)?
      .finish();
     Ok(())
   }
@@ -5096,6 +5123,7 @@ pub struct ReqCreateAxesPayloadArgs {
     pub grid_cols: i32,
     pub grid_index: i32,
     pub is_3d: bool,
+    pub twin_of: i32,
 }
 impl<'a> Default for ReqCreateAxesPayloadArgs {
   #[inline]
@@ -5106,6 +5134,7 @@ impl<'a> Default for ReqCreateAxesPayloadArgs {
       grid_cols: 1,
       grid_index: 1,
       is_3d: false,
+      twin_of: -1,
     }
   }
 }
@@ -5136,6 +5165,10 @@ impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> ReqCreateAxesPayloadBuilder<'a,
     self.fbb_.push_slot::<bool>(ReqCreateAxesPayload::VT_IS_3D, is_3d, false);
   }
   #[inline]
+  pub fn add_twin_of(&mut self, twin_of: i32) {
+    self.fbb_.push_slot::<i32>(ReqCreateAxesPayload::VT_TWIN_OF, twin_of, -1);
+  }
+  #[inline]
   pub fn new(_fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>) -> ReqCreateAxesPayloadBuilder<'a, 'b, A> {
     let start = _fbb.start_table();
     ReqCreateAxesPayloadBuilder {
@@ -5158,6 +5191,7 @@ impl core::fmt::Debug for ReqCreateAxesPayload<'_> {
       ds.field("grid_cols", &self.grid_cols());
       ds.field("grid_index", &self.grid_index());
       ds.field("is_3d", &self.is_3d());
+      ds.field("twin_of", &self.twin_of());
       ds.finish()
   }
 }

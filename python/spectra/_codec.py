@@ -218,8 +218,10 @@ def encode_req_create_figure(
 ) -> bytes:
     return fb_codec.encode_fb_req_create_figure(title=title, width=width, height=height)
 
-def encode_req_create_axes(figure_id: int, rows: int, cols: int, index: int, is_3d: bool = False) -> bytes:
-    return fb_codec.encode_fb_req_create_axes(figure_id=figure_id, rows=rows, cols=cols, index=index, is_3d=is_3d)
+def encode_req_create_axes(figure_id: int, rows: int, cols: int, index: int, is_3d: bool = False,
+                           twin_of: int = -1) -> bytes:
+    return fb_codec.encode_fb_req_create_axes(figure_id=figure_id, rows=rows, cols=cols, index=index, is_3d=is_3d,
+                                              twin_of=twin_of)
 
 def encode_req_add_series(figure_id: int, axes_index: int, series_type: str, label: str = "") -> bytes:
     return fb_codec.encode_fb_req_add_series(figure_id=figure_id, axes_index=axes_index, series_type=series_type, label=label)

@@ -118,6 +118,7 @@ class AxesBase
         on_series_removed_ = std::move(cb);
     }
     bool has_series_removed_callback() const { return static_cast<bool>(on_series_removed_); }
+    const SeriesRemovedCallback& series_removed_callback() const { return on_series_removed_; }
 
     // ── Event system integration ──
     void         set_event_system(EventSystem* es) { event_system_ = es; }
@@ -129,8 +130,8 @@ class AxesBase
     /// @p outside_legend_width first reserves a strip of that width on the
     /// right of the cell for a LegendPosition::OutsideRight legend
     /// (see outside_legend_area()).
-    void        set_viewport(const Rect& r, float outside_legend_width = 0.0f);
-    const Rect& viewport() const { return viewport_; }
+    virtual void set_viewport(const Rect& r, float outside_legend_width = 0.0f);
+    const Rect&  viewport() const { return viewport_; }
     /// Strip reserved right of the plot area (and colorbar) for an outside
     /// legend; zero-sized when none is reserved.
     const Rect& outside_legend_area() const { return outside_legend_area_; }
@@ -441,6 +442,31 @@ class Axes : public AxesBase
     const TickResult* manual_xticks() const { return manual_xticks_ ? &*manual_xticks_ : nullptr; }
     const TickResult* manual_yticks() const { return manual_yticks_ ? &*manual_yticks_ : nullptr; }
 
+    // Twin axes (matplotlib's twinx)
+    /// @brief A second y axis on the right of this axes, sharing its x axis.
+    /// The twin is drawn in the same plot area: its series use its own y
+    /// limits, ticks, scale and label (shown on the right), while x limits,
+    /// pan and zoom follow this axes.  Its series join this axes' legend and
+    /// continue its colour cycle.  Created on the first call; later calls
+    /// return the same twin.  Calling it on a twin returns that twin.
+    Axes& twinx();
+    /// Lays out the plot area and, with a twin, keeps room on the right for
+    /// the twin's tick labels and label; the twin gets the same plot area.
+    void set_viewport(const Rect& r, float outside_legend_width = 0.0f) override;
+    /// @brief The twin made by twinx(), or nullptr.
+    Axes* twin() const { return twin_.get(); }
+    /// @brief For a twin: the axes it belongs to; nullptr otherwise.
+    Axes* twin_host() const { return twin_host_; }
+    bool  is_twin() const { return twin_host_ != nullptr; }
+    /// @brief Delete the twin and its series.
+    void remove_twin();
+    /// @brief Carry a change of this axes' y view over to its twin, so pan and
+    /// zoom move both y axes together.  Called once per frame by the renderer:
+    /// when this axes' explicit y limits changed since the last call, the
+    /// twin's y range is scaled and shifted by the same fractions of its
+    /// height.  Autoscaled limits (no explicit ylim) are only recorded.
+    void sync_twin_y();
+
     // Shared axes (matplotlib's sharex / sharey)
     /// @brief Share the x axis with @p other.  All axes of a share group show the
     /// same x limits: setting them on one (xlim(), pan, zoom) sets them on all,
@@ -584,6 +610,11 @@ class Axes : public AxesBase
     BarMode                            bar_mode_ = BarMode::Grouped;
     mutable std::mutex                 bar_layout_mutex_;
     mutable std::vector<std::uint64_t> bar_layout_key_;
+    // twinx(): the owned twin, or for a twin the axes that owns it.
+    std::unique_ptr<Axes> twin_;
+    Axes*                 twin_host_ = nullptr;
+    // sync_twin_y(): the y limits seen at the previous call.
+    std::optional<AxisLimits> twin_seen_ylim_;
     // Share groups (sharex()/sharey()); null when not shared.
     std::shared_ptr<AxesShareGroup> share_x_;
     std::shared_ptr<AxesShareGroup> share_y_;

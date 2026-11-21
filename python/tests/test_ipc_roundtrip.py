@@ -103,6 +103,7 @@ def _snapshot(session):
                     "scale": (ax.XScale(), ax.YScale()),
                     "datetime": (ax.XDatetime(), ax.YDatetime()),
                     "colorbar": ax.ColorbarVisible(),
+                    "twin_of": ax.TwinOf(),
                     "xticks": (ax.XticksSet(),
                                [ax.XtickPositions(j) for j in range(ax.XtickPositionsLength())],
                                [s(ax.XtickLabels(j)) for j in range(ax.XtickLabelsLength())]),
@@ -600,3 +601,28 @@ def test_fixed_ticks_round_trip_and_validate(session):
         figure_id=fig.id, axes_index=0, prop="ticks", f1=5.0, bool_val=True, data=[0.0])
     with pytest.raises(BackendError):
         session._request(P.REQ_UPDATE_PROPERTY, bad)
+
+
+def test_twinx_round_trip(session):
+    fig = session.figure()
+    ax = fig.subplot(1, 2, 1)
+    other = fig.subplot(1, 2, 2)
+    tw = ax.twinx()
+    assert tw.twin_host is ax and ax.twin is tw
+    assert ax.twinx() is tw and tw.twinx() is tw
+    assert tw.index not in (ax.index, other.index)
+    ax.set_xlim(2.0, 4.0)
+    tw.set_ylim(10.0, 20.0)
+    tw.set_ylabel("right")
+    tw.set_title("shared title")   # goes to the host
+    axes = _snapshot(session)[fig.id]["axes"]
+    assert axes[tw.index]["twin_of"] == ax.index
+    assert axes[ax.index]["twin_of"] == -1
+    assert axes[tw.index]["xlim"] == (2.0, 4.0)
+    assert axes[tw.index]["ylim"] == (10.0, 20.0)
+    assert axes[tw.index]["ylabel"] == "right"
+    assert axes[ax.index]["title"] == "shared title"
+    tw.set_xlim(5.0, 6.0)   # a twin's x axis is its host's
+    axes = _snapshot(session)[fig.id]["axes"]
+    assert axes[ax.index]["xlim"] == (5.0, 6.0)
+    assert axes[tw.index]["xlim"] == (5.0, 6.0)

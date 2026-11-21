@@ -28,6 +28,8 @@ class Axes:
         "_figure_axes",
         "_annotations",
         "_bar_mode",
+        "_twin",
+        "_twin_host",
     )
 
     def __init__(self, session: Session, figure_id: int, axes_index: int, is_3d: bool = False) -> None:
@@ -41,6 +43,8 @@ class Axes:
         self._figure_axes: Optional[List["Axes"]] = None
         self._annotations: List["TextAnnotation"] = []
         self._bar_mode = "grouped"
+        self._twin: Optional["Axes"] = None
+        self._twin_host: Optional["Axes"] = None
 
     @property
     def index(self) -> int:
@@ -244,7 +248,48 @@ class Axes:
     def series(self) -> List[Series]:
         return list(self._series_list)
 
+    def twinx(self) -> "Axes":
+        """A second y axis on the right of this axes, sharing its x axis.
+
+        Series added to the returned axes use its own y limits, ticks, scale
+        and label (drawn on the right), while x limits, pan and zoom follow
+        this axes.  Its series join this axes' legend and continue its colour
+        cycle.  Calling it again returns the same twin; on a twin it returns
+        that twin.
+        """
+        if self._is_3d:
+            raise ValueError("twinx() needs a 2D axes")
+        if self._twin_host is not None:
+            return self
+        if self._twin is not None:
+            return self._twin
+        payload = codec.encode_req_create_axes(
+            figure_id=self._figure_id, rows=1, cols=1, index=1, twin_of=self._index
+        )
+        resp = self._session._request(P.REQ_CREATE_AXES, payload)
+        _, axes_index = codec.decode_resp_axes_created(resp["payload"])
+        twin = Axes(self._session, self._figure_id, axes_index)
+        twin._twin_host = self
+        twin._figure_axes = self._figure_axes
+        if self._figure_axes is not None:
+            self._figure_axes.append(twin)
+        self._twin = twin
+        return twin
+
+    @property
+    def twin(self) -> Optional["Axes"]:
+        """The twin made by :meth:`twinx`, or None."""
+        return self._twin
+
+    @property
+    def twin_host(self) -> Optional["Axes"]:
+        """For a twin: the axes it belongs to; None otherwise."""
+        return self._twin_host
+
     def set_xlim(self, xmin: float, xmax: float) -> None:
+        if self._twin_host is not None:   # a twin's x axis is its host's
+            self._twin_host.set_xlim(xmin, xmax)
+            return
         payload = codec.encode_req_update_property(
             figure_id=self._figure_id,
             axes_index=self._index,
@@ -312,6 +357,9 @@ class Axes:
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
     def set_xlabel(self, label: str) -> None:
+        if self._twin_host is not None:   # the host draws the x axis and title
+            self._twin_host.set_xlabel(label)
+            return
         payload = codec.encode_req_update_property(
             figure_id=self._figure_id,
             axes_index=self._index,
@@ -330,6 +378,9 @@ class Axes:
         self._session._request(P.REQ_UPDATE_PROPERTY, payload)
 
     def set_title(self, title: str) -> None:
+        if self._twin_host is not None:   # the host draws the x axis and title
+            self._twin_host.set_title(title)
+            return
         payload = codec.encode_req_update_property(
             figure_id=self._figure_id,
             axes_index=self._index,

@@ -607,6 +607,47 @@ def gca():
     return _state._ensure_axes()
 
 
+def twinx(ax=None):
+    """A second y axis on the right of ``ax`` (default: the current axes).
+
+    The new axes shares the x axis (limits, pan and zoom) and plot area of
+    ``ax`` and becomes the current axes, so the next ``plot()`` uses the
+    right-hand y axis.  Its series join the legend of ``ax``.
+
+    Usage::
+
+        sp.plot(t, temperature, label="temperature")
+        sp.ylabel("temperature (C)")
+        sp.twinx()
+        sp.plot(t, rainfall, "--", label="rainfall")
+        sp.ylabel("rainfall (mm)")
+    """
+    host = ax if ax is not None else _state._ensure_axes()
+    if getattr(host, "_twin_host", None) is not None:
+        host = host._twin_host
+    twin = host.twinx()
+    _link_twin_x(host, twin)
+    _state._current_axes = twin
+    _state._current_axes3d = None
+    _apply_fit(host)
+    return twin
+
+
+def _link_twin_x(host, twin) -> None:
+    """Fit the x axis of a twin and its host (and the host's share group) together."""
+    host_key = (host._figure_id, host._index)
+    groups = _state._share_groups.setdefault(host_key, {})
+    gk = groups.get("x")
+    if gk is None:
+        gk = ("twin", host._figure_id, host._index)
+        groups["x"] = gk
+        _state._share_members.setdefault(gk, []).append(host)
+    members = _state._share_members.setdefault(gk, [])
+    if not any(m is twin for m in members):
+        members.append(twin)
+    _state._share_groups.setdefault((twin._figure_id, twin._index), {})["x"] = gk
+
+
 # ─── 2D Plotting ─────────────────────────────────────────────────────────────
 
 def _split_fmt(args: tuple) -> Tuple[tuple, Optional[str]]:

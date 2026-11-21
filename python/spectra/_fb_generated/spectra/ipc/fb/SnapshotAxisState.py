@@ -311,8 +311,15 @@ class SnapshotAxisState(object):
         o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(60))
         return o == 0
 
+    # SnapshotAxisState
+    def TwinOf(self):
+        o = flatbuffers.number_types.UOffsetTFlags.py_type(self._tab.Offset(62))
+        if o != 0:
+            return self._tab.Get(flatbuffers.number_types.Int32Flags, o + self._tab.Pos)
+        return -1
+
 def SnapshotAxisStateStart(builder):
-    builder.StartObject(29)
+    builder.StartObject(30)
 
 def Start(builder):
     SnapshotAxisStateStart(builder)
@@ -520,6 +527,12 @@ def SnapshotAxisStateStartYtickLabelsVector(builder, numElems):
 
 def StartYtickLabelsVector(builder, numElems):
     return SnapshotAxisStateStartYtickLabelsVector(builder, numElems)
+
+def SnapshotAxisStateAddTwinOf(builder, twinOf):
+    builder.PrependInt32Slot(29, twinOf, -1)
+
+def AddTwinOf(builder, twinOf):
+    SnapshotAxisStateAddTwinOf(builder, twinOf)
 
 def SnapshotAxisStateEnd(builder):
     return builder.EndObject()

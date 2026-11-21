@@ -39,7 +39,7 @@ __all__ = [
     "plot", "scatter", "bar", "barh", "hist", "errorbar", "fill_between", "stem",
     "semilogx", "semilogy", "loglog", "figure", "subplot", "subplots", "xlabel",
     "ylabel", "title", "suptitle", "legend", "xlim", "ylim", "xscale", "yscale",
-    "grid", "savefig", "show", "close", "gcf", "gca", "tight_layout", "style", "step",
+    "grid", "savefig", "show", "close", "gcf", "gca", "twinx", "tight_layout", "style", "step",
     "stairs", "text", "annotate", "axhline", "axvline", "cla", "clf", "ion", "ioff",
     "isinteractive", "draw", "pause", "colorbar", "xticks", "yticks",
 ]
@@ -155,6 +155,10 @@ class Axes:
             return fn(*args, **kwargs)
 
         return call
+
+    def twinx(self) -> "Axes":
+        """A second y axis on the right, sharing this axes' x axis (matplotlib's twinx)."""
+        return twinx(self)
 
     @property
     def spectra_axes(self):
@@ -305,6 +309,23 @@ def subplots(nrows: int = 1, ncols: int = 1, figsize=None, dpi=None, squeeze: bo
 
 def gcf() -> Figure:
     return _wrap_current_figure()
+
+
+def twinx(ax: Optional[Axes] = None) -> Axes:
+    """A second y axis on the right of ``ax`` (default: the current axes).
+
+    It shares the x axis and plot area of ``ax`` and becomes the current
+    axes.  Returns the new axes (the same one on later calls).
+    """
+    host = ax if ax is not None else gca()
+    host._activate()
+    twin = _sp.twinx(host._ax)
+    for w in host.figure.axes:
+        if w._ax is twin:
+            return w
+    w = Axes(host.figure, twin, host._key)
+    host.figure.axes.append(w)
+    return w
 
 
 def gca() -> Axes:

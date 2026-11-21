@@ -3039,8 +3039,13 @@ void resolve_auto_series_colors(Figure& figure, const DataPalette& palette, bool
         }
     };
     for (auto& ax : figure.axes_mut())
-        if (ax)
-            resolve_axes(*ax);
+    {
+        if (!ax)
+            continue;
+        resolve_axes(*ax);
+        if (ax->twin())
+            resolve_axes(*ax->twin());
+    }
     for (auto& ax : figure.all_axes_mut())
         if (ax)
             resolve_axes(*ax);

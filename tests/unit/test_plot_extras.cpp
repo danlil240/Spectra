@@ -17,6 +17,7 @@
 
 #include "core/annotation_layout.hpp"
 #include "data/line_decimation.hpp"
+#include "data/line_density.hpp"
 #include "ipc/annotation_state.hpp"
 #include "ipc/axes_format_state.hpp"
 #include "ipc/codec.hpp"
@@ -300,6 +301,77 @@ TEST(DensityMode, AlphaFallsWithPointsPerColumn)
     EXPECT_LT(a400, a4);
     EXPECT_GE(a400, 0.01f);
     EXPECT_EQ(data::density_alpha(100000000, 10), 0.01f);
+}
+
+TEST(DensityRaster, HorizontalSegmentCoversLineWidth)
+{
+    data::LineDensityGrid g;
+    g.reset(10, 12);
+    g.add_segment(0.0, 5.5, 10.0, 5.5, 0.75);   // rows [4.75, 6.25]
+    for (uint32_t c = 0; c < 10; ++c)
+    {
+        EXPECT_NEAR(g.coverage(c, 3), 0.0f, 1e-6f);
+        EXPECT_NEAR(g.coverage(c, 4), 0.25f, 1e-6f);
+        EXPECT_NEAR(g.coverage(c, 5), 1.0f, 1e-6f);
+        EXPECT_NEAR(g.coverage(c, 6), 0.25f, 1e-6f);
+        EXPECT_NEAR(g.coverage(c, 7), 0.0f, 1e-6f);
+    }
+}
+
+TEST(DensityRaster, VerticalSegmentStaysInItsColumn)
+{
+    data::LineDensityGrid g;
+    g.reset(8, 10);
+    g.add_segment(3.5, 8.0, 3.5, 2.0, 0.5);   // rows [1.5, 8.5] of column 3
+    EXPECT_NEAR(g.coverage(3, 0), 0.0f, 1e-6f);
+    EXPECT_NEAR(g.coverage(3, 1), 0.5f, 1e-6f);
+    for (uint32_t r = 2; r <= 7; ++r)
+        EXPECT_NEAR(g.coverage(3, r), 1.0f, 1e-6f);
+    EXPECT_NEAR(g.coverage(3, 8), 0.5f, 1e-6f);
+    for (uint32_t r = 0; r < 10; ++r)
+    {
+        EXPECT_EQ(g.coverage(2, r), 0.0f);
+        EXPECT_EQ(g.coverage(4, r), 0.0f);
+    }
+}
+
+TEST(DensityRaster, ClipsAndSkipsNonFinite)
+{
+    data::LineDensityGrid g;
+    g.reset(4, 4);
+    g.add_segment(-10.0, 1.0, -2.0, 1.0, 0.5);
+    g.add_segment(5.0, 1.0, 9.0, 3.0, 0.5);
+    g.add_segment(1.0, NaN, 2.0, 1.0, 0.5);
+    g.add_segment(-2.0, -100.0, 6.0, 100.0, 0.5);   // steep, through the grid
+    std::vector<uint8_t> rgba;
+    g.to_rgba(1.0f, 0.0f, 0.0f, 0.5f, rgba);
+    ASSERT_EQ(rgba.size(), 4u * 4u * 4u);
+    float total = 0.0f;
+    for (uint32_t c = 0; c < 4; ++c)
+        for (uint32_t r = 0; r < 4; ++r)
+            total += g.coverage(c, r);
+    EXPECT_GT(total, 0.0f);
+    EXPECT_LE(total, 16.0f);
+}
+
+// Hundreds of faint overlaps reach the line colour (an 8-bit blend chain
+// stalls ~0.5 / alpha levels short of it, at a driver-dependent level).
+TEST(DensityRaster, OverlapsConvergeToLineColour)
+{
+    data::LineDensityGrid g;
+    g.reset(1, 1);
+    const float          alpha = 5.0f / 255.0f;
+    std::vector<uint8_t> rgba;
+    g.add_segment(0.0, 0.5, 1.0, 0.5, 1.0);
+    g.to_rgba(0.12f, 0.47f, 0.71f, alpha, rgba);
+    EXPECT_EQ(rgba[3], 5);   // one overlap: the per-segment alpha
+    for (int i = 1; i < 348; ++i)
+        g.add_segment(0.0, 0.5, 1.0, 0.5, 1.0);
+    g.to_rgba(0.12f, 0.47f, 0.71f, alpha, rgba);
+    EXPECT_EQ(rgba[0], 31);
+    EXPECT_EQ(rgba[1], 120);
+    EXPECT_EQ(rgba[2], 181);
+    EXPECT_EQ(rgba[3], 255);
 }
 
 TEST(LineSeriesStyle, SettersMarkDirty)

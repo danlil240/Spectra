@@ -155,6 +155,16 @@ class _FakeAxes:
         self.cleared = getattr(self, "cleared", 0) + 1
         self.created.clear()
 
+    _twin_host = None
+
+    def twinx(self):
+        if self._twin_host is not None:
+            return self
+        if getattr(self, "_twin", None) is None:
+            self._twin = _FakeAxes(self._index + 100)
+            self._twin._twin_host = self
+        return self._twin
+
 
 class _FakeFigure:
     def __init__(self):
@@ -888,3 +898,32 @@ def test_pyplot_xticks_yticks_and_axes_methods(fake_plt):
     plt._fixed_ticks.clear()
     with pytest.raises(TypeError, match="labels need tick positions"):
         axs.set_xticklabels(["x"])
+
+
+def test_twinx_plots_on_a_right_axis_sharing_the_x_fit(fake):
+    ax, _ = fake
+    st = easy._state
+    st._share_groups.clear()
+    st._share_members.clear()
+    sp.plot([0, 1, 2], [0, 1, 0.5])
+    tw = sp.twinx()
+    assert tw._twin_host is ax and st._current_axes is tw
+    assert sp.twinx(ax) is tw
+    easy._auto_fit_axes(tw, [0, 10], [100, 300])   # what plot() does on the twin
+    # The twin fits its own y, while x fits both (the host's group).
+    assert tw.limits[1][0] < 100 and tw.limits[1][1] > 300
+    assert ax.limits[1][1] < 2
+    assert ax.limits[0][1] > 10 and tw.limits[0] == ax.limits[0]
+    st._share_groups.clear()
+    st._share_members.clear()
+
+
+def test_pyplot_twinx_returns_a_wrapper(fake_plt):
+    ax, _ = fake_plt
+    easy._state._share_groups.clear()
+    easy._state._share_members.clear()
+    t = plt.twinx()
+    assert isinstance(t, plt.Axes) and t.spectra_axes._twin_host is ax
+    assert plt.gca().twinx().spectra_axes is t.spectra_axes
+    easy._state._share_groups.clear()
+    easy._state._share_members.clear()

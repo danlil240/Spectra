@@ -41,6 +41,10 @@ inline constexpr float VERTICAL_GROWTH_MAX_FRACTION = 0.3f;
 
 struct AxisTextMetrics;
 
+/// The figure's 2D axes in order, each followed by its twinx() twin when it
+/// has one: the list the renderer, legend and exporters walk.
+std::vector<Axes*> axes_with_twins(const Figure& fig);
+
 /// Pixels a 2D axes needs left of its plot area for the tick marks, y tick
 /// labels and the rotated y axis label (as drawn by the renderer and the SVG
 /// exporter), plus LEFT_LABEL_OUTER_PAD.  Uses the current viewport height

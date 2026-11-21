@@ -301,7 +301,33 @@ struct SnapshotAxisState
     std::vector<double>      ytick_positions;
     std::vector<std::string> xtick_labels;
     std::vector<std::string> ytick_labels;
+    // twinx(): index of the 2D axes this one is the twin of (it shares that
+    // axes' plot area and x axis and takes no grid slot), -1 = a subplot.
+    int32_t twin_of = -1;
 };
+
+// Subplot grid slot (0-based) of axes @p index: twins take no slot, so it is
+// the number of non-twin axes before it.  For a twin, its host's slot.
+inline size_t axes_grid_slot(const std::vector<SnapshotAxisState>& axes, size_t index)
+{
+    if (index < axes.size() && axes[index].twin_of >= 0
+        && static_cast<size_t>(axes[index].twin_of) < index)
+        return axes_grid_slot(axes, static_cast<size_t>(axes[index].twin_of));
+    size_t slot = 0;
+    for (size_t i = 0; i < index && i < axes.size(); ++i)
+        if (axes[i].twin_of < 0)
+            ++slot;
+    return slot;
+}
+
+// Index of the twin of 2D axes @p host, or -1.
+inline int32_t twin_axes_index(const std::vector<SnapshotAxisState>& axes, size_t host)
+{
+    for (size_t i = 0; i < axes.size(); ++i)
+        if (axes[i].twin_of >= 0 && static_cast<size_t>(axes[i].twin_of) == host)
+            return static_cast<int32_t>(i);
+    return -1;
+}
 
 // SnapshotSeriesState::line_style / marker_style value meaning "not set".
 inline constexpr uint8_t SERIES_STYLE_UNSET = 0xFF;
@@ -581,6 +607,9 @@ struct ReqCreateAxesPayload
     int32_t  grid_cols  = 1;
     int32_t  grid_index = 1;   // 1-based MATLAB-style
     bool     is_3d      = false;
+    // >= 0: create (or get) the twinx() twin of that 2D axes instead of a
+    // subplot; the grid fields are then ignored.
+    int32_t twin_of = -1;
 };
 
 // Python → Backend: add a series to a figure.

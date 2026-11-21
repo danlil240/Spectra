@@ -158,6 +158,9 @@ inline void apply_diff_op_to_cache(ipc::SnapshotFigureState& fig, const ipc::Dif
                 break;
             ipc::SnapshotAxisState ax;
             ax.is_3d = op.bool_val;
+            // f3 = host index + 1 for a twinx() twin (0 = a subplot).
+            if (!op.bool_val && op.f3 >= 1.0 && op.f3 <= static_cast<double>(op.axes_index))
+                ax.twin_of = static_cast<int32_t>(op.f3) - 1;
             ipc::style_new_axes(fig.style, ax);
             // Grow axes list to accommodate the new index
             if (fig.axes.size() <= op.axes_index)

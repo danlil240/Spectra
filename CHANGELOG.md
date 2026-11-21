@@ -13,6 +13,8 @@ summarise the main changes rather than listing every commit.
 
 ### Added
 
+- Second y axis (matplotlib's `twinx`): `Axes::twinx()` adds an axes that shares the plot area and x axis (limits, pan, zoom, autoscale, share groups) and draws its own y ticks, tick labels and label on the right. Its series continue the host's colour cycle and join the host's legend; panning or zooming the plot moves both y axes together, and Home refits both. Rendered on screen, in PNG / SVG / PDF export, saved in workspaces and carried to multi-process windows (`twin_of` axes field, `REQ_CREATE_AXES` with `twin_of`). Python `Axes.twinx()`, `sp.twinx()` and pyplot `plt.twinx()` / `ax.twinx()`; Rust `Axes::twinx()`; C++ easy API `spectra::twinx()`. Example: `examples/twinx_demo.cpp`.
+
 - Fixed ticks: `Axes::xticks(positions, labels)` / `yticks()` (and `clear_xticks()`) put tick marks and labels only where given, overriding the automatic, category and date-time ticks; carried to multi-process windows (snapshot fields and `SET_AXIS_TICKS` op). Python `Axes.set_xticks()` / `set_yticks()`, `sp.xticks()` / `sp.yticks()` and pyplot `xticks` / `yticks` / `set_xticklabels`; Rust `Axes::set_xticks()` / `set_yticks()`.
 
 - Python `scatter(x, y, c=values, cmap=, vmin=, vmax=)` (easy API and `spectra.pyplot`) colours each point by value through a colormap in multi-process windows, through a new `color_values` series property and `SET_SERIES_COLOR_VALUES` diff op (Python `Series.set_color_values()`, Rust `Series::set_color_values()`). Colorbars reach multi-process windows too (`Axes.colorbar()` / `sp.colorbar()` in Python, `Axes::colorbar()` in Rust, `SET_COLORBAR_VISIBLE` op, saved in snapshots). `spectra.pyplot` also gains `colorbar`, `axhline` / `axvline`, `cla` / `clf` and `ion` / `ioff` / `draw` / `pause`.
@@ -52,6 +54,8 @@ summarise the main changes rather than listing every commit.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed
+
+- Dense lines in density mode (`DenseLineMode::Density`) no longer shift hue on some GPUs: hundreds of faint overlapping segments blended in 8 bits stalled short of the line colour at a driver-dependent level (NVIDIA kept the red channel at the background). The renderer now counts per-pixel coverage on the CPU and draws one texture with alpha `1 - (1 - a)^count`, so every GPU converges to the line colour.
 
 - Topic subscriptions: an axes fed by a topic now follows its data. Only the backend sees topic samples, so it refits those axes after each publish (5% padding, 2D and 3D) until a client sets limits or the user scrolls the axes. The view used to stay at the 0..1 default.
 

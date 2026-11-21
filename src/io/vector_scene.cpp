@@ -1834,12 +1834,12 @@ void emit_legend(SceneContext&       c,
     cfg.position                = legend_layout::effective_position(axes, requested);
     const SvgStyle&          st = c.style;
     std::vector<LegendEntry> entries;
-    for (const auto& s : axes.series())
+    // Hidden series are not drawn, so they get no legend entry either.  A
+    // twinx() twin's series follow its host's (legend_layout::legend_entries).
+    for (const Series* s : legend_layout::legend_entries(axes))
     {
-        // Hidden series are not drawn, so they get no legend entry either.
-        if (!s || !s->visible() || s->label().empty() || !s->show_in_legend())
-            continue;
-        entries.push_back(legend_entry_for(*s, st));
+        if (s->visible())
+            entries.push_back(legend_entry_for(*s, st));
     }
     if (entries.empty())
         return;
@@ -2180,6 +2180,9 @@ void emit_annotations(SceneContext& c, const Axes& axes, const DataToSvg& m, int
 void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
 {
     const Rect vp = axes.viewport();
+    // A twinx() twin: its series and its y axis on the right; the host draws
+    // the x axis, grid, border and the shared legend.
+    const bool right_y = axes.is_twin();
     if (!(vp.w >= 1.0f) || !(vp.h >= 1.0f))
         return;
     // Grouped / stacked bars: same layout as on screen (before the limits,
@@ -2231,7 +2234,9 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     // The title is fitted at sizes no larger than its own (AxisTextMetrics::title_font_px).
     const auto title_width = [&tm](const std::string& t, LabelFont f)
     { return measure_text_width(t, tm.title_font_px(f)); };
-    const auto x_ticks = axes.compute_x_ticks();
+    auto x_ticks = axes.compute_x_ticks();
+    if (right_y)
+        x_ticks = TickResult{};
     const auto y_ticks = axes.compute_y_ticks();
     // Inner axes of a shared column / row draw no tick labels (figure layout).
     const TickResult  no_ticks;
@@ -2239,6 +2244,15 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     const TickResult& y_tick_text = axes.y_tick_labels_visible() ? y_ticks : no_ticks;
     {
         std::string d;
+        if (right_y && axes.twin_host()->despined())
+        {
+            d += 'M';
+            put_num(d, vp.x + vp.w);
+            d += ' ';
+            put_num(d, vp.y);
+            d += 'V';
+            put_num(d, vp.y + vp.h);
+        }
         if (axes.border_enabled() && axes.despined())
         {
             // Left and bottom axis lines only.
@@ -2288,11 +2302,11 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
                 if (py < vp.y - 0.5 || py > vp.y + vp.h + 0.5)
                     continue;
                 d += 'M';
-                put_num(d, vp.x);
+                put_num(d, right_y ? vp.x + vp.w : vp.x);
                 d += ' ';
                 put_num(d, py);
                 d += 'h';
-                put_num(d, -len * dir);
+                put_num(d, (right_y ? len : -len) * dir);
             }
         };
         if (tl > 0.0f)
@@ -2347,11 +2361,11 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
                 continue;
             emit_text(c.w,
                       y_tick_text.labels[idx],
-                      vp.x - tl - tick_padding,
+                      right_y ? vp.x + vp.w + tl + tick_padding : vp.x - tl - tick_padding,
                       py,
                       tick_px,
                       tick_col,
-                      "end",
+                      right_y ? "start" : "end",
                       VAlign::Middle);
             last_bottom = py + tick_px * 0.5f;
             max_y_tick_width =
@@ -2383,11 +2397,11 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     if (!y_tick_text.offset_label.empty())
         emit_text(c.w,
                   y_tick_text.offset_label,
-                  vp.x,
+                  right_y ? vp.x + vp.w : vp.x,
                   vp.y - tm.px(4.0f),
                   tick_px,
                   tick_col,
-                  "start",
+                  right_y ? "end" : "start",
                   VAlign::Bottom);
     c.w.end_group();
 
@@ -2414,8 +2428,9 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
     if (!axes.get_ylabel().empty())
     {
         const FittedLabel fit = fit_axes_ylabel(axes.get_ylabel(), vp.h, axes_label_width);
-        const float       cx =
-            vp.x - tl - tick_padding - max_y_tick_width - tm.px(6.0f) - tm.font_px(fit.font) * 0.5f;
+        const float       out =
+            tl + tick_padding + max_y_tick_width + tm.px(6.0f) + tm.font_px(fit.font) * 0.5f;
+        const float cx = right_y ? vp.x + vp.w + out : vp.x - out;
         const float cy = vp.y + vp.h * 0.5f;
         emit_fitted_label(c.w,
                           fit,
@@ -2474,7 +2489,10 @@ void emit_axes_2d(SceneContext& c, const Axes& axes, const LegendConfig& legend)
         }
     }
 
-    emit_legend(c, axes, vp, legend);
+    if (const Axes* twin = axes.twin())
+        emit_axes_2d(c, *twin, legend);
+    if (!right_y)
+        emit_legend(c, axes, vp, legend);
     c.w.end_group();
 }
 

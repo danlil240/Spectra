@@ -15,6 +15,7 @@
 #include "core/colorbar_layout.hpp"
 #include "ui/camera/view_presets.hpp"
 #include "ui/commands/undo_manager.hpp"
+#include "ui/input/gesture_recognizer.hpp"
 #include "ui/input/input.hpp"
 #include "ui/overlay/legend_layout.hpp"
 #include "ui/overlay/view_cube.hpp"
@@ -299,6 +300,45 @@ TEST_F(Cube3DFixture, InputPresetIsUndoableAndOrbitLeavesAutoOrtho)
     handler.on_mouse_move(sx + 40.0, sy + 20.0);
     handler.on_mouse_button(0, 0, 0, sx + 40.0, sy + 20.0);
     EXPECT_EQ(ax->camera().projection_mode, Camera::ProjectionMode::Perspective);
+}
+
+// An orbit drag with several moves is a drag, not a click (QA 2026-11-21): the
+// orbit anchor follows the cursor, so the release used to be measured against
+// the last move and every orbit counted as a click.  That skipped the orbit's
+// undo step, sent a data-tip click, and made the next press at the same spot a
+// double-click (auto-fit) instead of another orbit.
+TEST_F(Cube3DFixture, OrbitDragIsUndoableAndRegrabOrbitsAgain)
+{
+    InputHandler      handler;
+    UndoManager       undo;
+    GestureRecognizer gesture;
+    handler.set_undo_manager(&undo);
+    handler.set_gesture_recognizer(&gesture);
+    handler.set_figure(fig.get());
+    const auto& vp = ax->viewport();
+    handler.set_viewport(vp.x, vp.y, vp.w, vp.h);
+    const double sx = vp.x + vp.w * 0.4;
+    const double sy = vp.y + vp.h * 0.6;
+
+    const float az0 = ax->camera().azimuth;
+    handler.on_mouse_button(0, 1, 0, sx, sy);
+    for (int s = 1; s <= 5; ++s)
+        handler.on_mouse_move(sx + 12.0 * s, sy + 6.0 * s);
+    handler.on_mouse_button(0, 0, 0, sx + 60.0, sy + 30.0);
+    const float az1 = ax->camera().azimuth;
+    EXPECT_GT(std::abs(az1 - az0), 1.0f);
+    EXPECT_EQ(undo.undo_count(), 1u);
+
+    // Grab again at the same spot straight away: another orbit, not a double-click.
+    handler.on_mouse_button(0, 1, 0, sx, sy);
+    for (int s = 1; s <= 5; ++s)
+        handler.on_mouse_move(sx + 12.0 * s, sy + 6.0 * s);
+    handler.on_mouse_button(0, 0, 0, sx + 60.0, sy + 30.0);
+    EXPECT_GT(std::abs(ax->camera().azimuth - az1), 1.0f);
+    EXPECT_EQ(undo.undo_count(), 2u);
+
+    undo.undo();
+    EXPECT_NEAR(ax->camera().azimuth, az1, 1e-3f);
 }
 
 TEST_F(Cube3DFixture, ExplicitOrthoSurvivesOrbitAndPresets)

@@ -60,7 +60,7 @@ void ImGuiIntegration::draw_pane_tab_headers()
     // natural width so its title stays readable; the others shorten to
     // "Fig…12" or the bare number, with the full title in a tooltip.
     constexpr float TAB_FIT_MIN_W = 44.0f;
-    auto tab_widths = [&](const std::vector<size_t>& figs, float header_w, size_t active_li)
+    auto            tab_widths    = [&](const auto& figs, float header_w, size_t active_li)
     {
         std::vector<float> w(figs.size());
         float              total = 0.0f;
@@ -147,9 +147,9 @@ void ImGuiIntegration::draw_pane_tab_headers()
                 // Mouse is over this pane's header — compute insertion index
                 if (pane->id() != pane_tab_drag_.source_pane_id || pane->figure_count() > 1)
                 {
-                    gap_pane_id      = pane->id();
-                    has_active_gap   = true;
-                    gap_insert_after = SIZE_MAX;   // Before first tab by default
+                    gap_pane_id        = pane->id();
+                    has_active_gap     = true;
+                    gap_insert_after   = SIZE_MAX;   // Before first tab by default
                     const auto& figs   = pane->figure_indices();
                     const auto  widths = tab_widths(figs, hr.w, pane->active_local_index());
                     float       cx     = hr.x + 2.0f;

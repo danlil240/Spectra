@@ -153,8 +153,8 @@ class DocumentSession
         const std::string&                  dir,
         const std::function<bool(int64_t)>& is_alive = {});
     // Parses the pid out of "autosave-<pid>-<token>.spectra" (-1 if not one).
-    static int64_t     autosave_pid(const std::string& file_name);
-    static bool        process_alive(int64_t pid);
+    static int64_t autosave_pid(const std::string& file_name);
+    static bool    process_alive(int64_t pid);
     // <config dir>/autosave/<program>: each program (spectra, spectra-px4, an
     // example, ...) recovers only its own work, never another program's.
     static std::string default_autosave_dir();

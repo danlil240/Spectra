@@ -137,8 +137,8 @@ void ImGuiIntegration::draw_empty_axes_hints(Figure& figure)
         const float text_w = ImGui::CalcTextSize(subtitle.c_str()).x + ui::tokens::SPACE_2;
         const float block_w =
             std::min({ui::tokens::EMPTY_STATE_MAX_WIDTH, vp.w - 32.0f, std::max(220.0f, text_w)});
-        const float line_h  = ImGui::GetTextLineHeightWithSpacing();
-        const float full_h  = ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
+        const float line_h = ImGui::GetTextLineHeightWithSpacing();
+        const float full_h = ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
                              + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2;
         // A short axes (e.g. a split pane) drops the button rather than
         // drawing it cut off; the subtitle still says how to add data.
@@ -154,7 +154,7 @@ void ImGuiIntegration::draw_empty_axes_hints(Figure& figure)
         const std::string name = "##empty_axes_hint"
                                  + std::to_string(reinterpret_cast<uintptr_t>(&figure)) + "_"
                                  + std::to_string(i);
-        int               clicked = -1;
+        int clicked = -1;
         if (ImGui::Begin(name.c_str(), nullptr, flags))
             clicked = ui::widgets::empty_state(
                 ui::Icon::FileText,
@@ -1163,17 +1163,17 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              // On-demand rendering makes a raw frame rate read "0 fps"; show "Idle"
              // unless frames are rendered continuously (see FpsBadgeState).
              fps_badge_.on_frame(ui::FpsBadgeState::Clock::now());
-             const bool        fps_live  = fps_badge_.is_live();
-             const std::string fps_buf   = fps_badge_.label();
+             const bool        fps_live = fps_badge_.is_live();
+             const std::string fps_buf  = fps_badge_.label();
              // Only a measured GPU time is shown (nothing feeds it yet: a
              // constant "GPU: 0.0ms" read as a broken counter).
              const bool        show_gpu = gpu_time_ms_ > 0.0f;
              const std::string gpu_buf =
                  show_gpu ? std::format("GPU: {:.1f}ms", gpu_time_ms_) : std::string();
-             const float       perf_gap  = ui::tokens::STATUS_BAR_PERF_GAP;
-             const float       fps_pad_h = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
-             const float       fps_pad_v = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
-             const float       right_w =
+             const float perf_gap  = ui::tokens::STATUS_BAR_PERF_GAP;
+             const float fps_pad_h = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
+             const float fps_pad_v = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
+             const float right_w =
                  ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f
                  + (show_gpu ? perf_gap + ImGui::CalcTextSize(gpu_buf.c_str()).x : 0.0f);
              const float right_x =

@@ -84,9 +84,9 @@ class CustomTransformDialog
     // Collect available variables from the figure's series
     void refresh_series_info();
 
-    bool    open_   = false;
+    bool    open_         = false;
     bool    reset_scroll_ = false;   // start the body at the top on (re)open
-    Figure* figure_ = nullptr;
+    Figure* figure_       = nullptr;
 
     // Formula input
     char        formula_buf_[1024] = {};

@@ -326,9 +326,11 @@ class TestAnimationModule:
         class MockSession:
             _transport = None
 
-        start = time.monotonic()
+        # perf_counter: time.monotonic() ticks every ~15.6 ms on Windows, so a
+        # 10 ms sleep could measure as 0.
+        start = time.perf_counter()
         ipc_sleep(MockSession(), 0.01)
-        elapsed = time.monotonic() - start
+        elapsed = time.perf_counter() - start
         assert elapsed >= 0.009  # at least ~10ms
 
 

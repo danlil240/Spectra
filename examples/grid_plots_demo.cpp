@@ -38,6 +38,7 @@ int main(int argc, char** argv)
     auto& lines = fig.subplot(2, 2, 3);
     lines.contour(z, C, R, 10);
     lines.title("contour");
+    lines.show_colorbar(true);
 
     auto& filled = fig.subplot(2, 2, 4);
     filled.contourf(z, C, R, 8);

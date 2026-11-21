@@ -36,6 +36,7 @@
 #include "render/backend.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/native_dialog_policy.hpp"
+#include "ui/workspace/document_session.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -3997,6 +3998,20 @@ class QAAgent
         }
     }
 
+    // Size a window ends up at after a resize request: the app enforces a
+    // minimum (command bar + status bar + smallest canvas), so a request below
+    // it is raised to it.
+    static std::pair<uint32_t, uint32_t> clamped_to_min_size(const WindowContext* wctx,
+                                                             uint32_t             w,
+                                                             uint32_t             h)
+    {
+        if (!wctx || !wctx->ui_ctx)
+            return {w, h};
+        const auto min_w = static_cast<uint32_t>(std::ceil(wctx->ui_ctx->applied_min_window_w_));
+        const auto min_h = static_cast<uint32_t>(std::ceil(wctx->ui_ctx->applied_min_window_h_));
+        return {std::max(w, min_w), std::max(h, min_h)};
+    }
+
     void expect_swapchain(DesignCheck& c, WindowContext* wctx, uint32_t w, uint32_t h)
     {
         c.expect(wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h,
@@ -4566,7 +4581,9 @@ class QAAgent
                                      // Small rail labels (incl. the active
                                      // accent label) and status readouts.
                                      expect_text_contrast(c, "##navrail", 4.5f, 10);
-                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 4);
+                                     // Cursor readout, mode and fps (the GPU
+                                     // time readout is hidden without timing).
+                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 3);
                                  });
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
@@ -5572,11 +5589,14 @@ class QAAgent
                 {
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(2);
+                    // 240 px is below the app's minimum window height.
+                    const auto     tiny = clamped_to_min_size(wctx, 320, 240);
+                    const uint32_t tw   = tiny.first;
+                    const uint32_t th   = tiny.second;
                     wait_until_settled("44 320x240 swapchain recreation",
-                                       [&]
-                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
+                                       [&] { return swapchain_is(wctx, tw, th) && ui_settled(); });
                     named_screenshot("44_window_resized_tiny_320x240",
-                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, 320, 240); });
+                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, tw, th); });
 
                     // Restore
                     glfwSetWindowSize(glfw_win, 1280, 720);
@@ -6199,14 +6219,16 @@ class QAAgent
                     // Shrink to 320×240
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(2);
+                    const auto     tiny = clamped_to_min_size(wctx, 320, 240);
+                    const uint32_t tw   = tiny.first;
+                    const uint32_t th   = tiny.second;
                     wait_until_settled("56 tiny window swapchain",
-                                       [&]
-                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
+                                       [&] { return swapchain_is(wctx, tw, th) && ui_settled(); });
                     named_screenshot(
                         "56_tiny_window_all_panels_open",
                         [&](DesignCheck& c)
                         {
-                            expect_swapchain(c, wctx, 320, 240);
+                            expect_swapchain(c, wctx, tw, th);
                             c.expect(lm.is_inspector_visible(), "inspector requested open");
                             c.expect(lm.is_nav_rail_expanded(), "nav rail expanded");
                             c.expect(ui->imgui_ui->is_timeline_visible()
@@ -7622,6 +7644,22 @@ int main(int argc, char** argv)
 {
     // The agent runs unattended: a modal OS file dialog would block it forever.
     spectra::set_native_dialogs_enabled(false);
+
+    // A crashed or killed earlier run leaves autosaves in the agent's own
+    // folder, and the next run would open behind a "Restore unsaved work?"
+    // modal that spoils every capture.  QA workspaces are throwaway: drop them.
+    {
+        const std::string dir = spectra::DocumentSession::default_autosave_dir();
+        size_t            n   = 0;
+        for (const auto& f : spectra::DocumentSession::find_orphan_autosaves(dir))
+        {
+            std::error_code ec;
+            if (std::filesystem::remove(f, ec))
+                ++n;
+        }
+        if (n > 0)
+            fprintf(stderr, "[QA] Removed %zu autosave(s) left by an earlier run\n", n);
+    }
 
     auto opts = parse_args(argc, argv);
     g_qa_seed = opts.seed;

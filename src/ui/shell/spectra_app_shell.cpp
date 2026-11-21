@@ -978,6 +978,15 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
         return action;
     };
 
+    // Same, greyed out while no figure is open (welcome screen): there is
+    // nothing to save, export or close.
+    auto figure_command = [imgui, &command](const char* label, const char* command_id)
+    {
+        MenuAction action = command(label, command_id);
+        action.enabled    = [imgui]() { return imgui->current_figure_ != nullptr; };
+        return action;
+    };
+
     auto panel_visible = [hooks](std::string_view id)
     { return hooks.panel_visible && hooks.panel_visible(id); };
 
@@ -996,26 +1005,26 @@ void SpectraAppShell::populate_core_menus(MenuBar&                   bar,
         file.add(std::move(recent));
     }
     file.add_separator();
-    file.add(command("Save", "file.save"));
-    file.add(command("Save As...", "file.save_as"));
+    file.add(figure_command("Save", "file.save"));
+    file.add(figure_command("Save As...", "file.save_as"));
     {
         MenuAction exp;
         exp.label   = EXPORT_MENU;
         exp.icon    = static_cast<uint16_t>(Icon::Export);
         exp.cascade = true;
-        exp.submenu.push_back(command("PNG Image...", "file.export_png"));
-        exp.submenu.push_back(command("SVG Image...", "file.export_svg"));
-        exp.submenu.push_back(command("PDF Document...", "file.export_pdf"));
-        exp.submenu.push_back(command("CSV Data...", "file.export_csv"));
+        exp.submenu.push_back(figure_command("PNG Image...", "file.export_png"));
+        exp.submenu.push_back(figure_command("SVG Image...", "file.export_svg"));
+        exp.submenu.push_back(figure_command("PDF Document...", "file.export_pdf"));
+        exp.submenu.push_back(figure_command("CSV Data...", "file.export_csv"));
         exp.submenu.push_back({.separator = true});
         exp.submenu.push_back(command("Layout (bindings only)...", "file.save_layout"));
         file.add(std::move(exp));
     }
-    file.add(command("Copy as Image", "file.copy_to_clipboard"));
+    file.add(figure_command("Copy as Image", "file.copy_to_clipboard"));
     file.add_separator();
     file.add(command("Data Bindings", "file.data_bindings"));
     file.add_separator();
-    file.add(command("Close Figure", "figure.close"));
+    file.add(figure_command("Close Figure", "figure.close"));
     file.add(command("Exit", "app.quit"));
 
     auto& edit = bar.menu("Edit");

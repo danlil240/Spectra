@@ -541,3 +541,83 @@ fn twinx_shares_x_and_has_its_own_y() {
         assert!(a3.twinx().is_err());
     }
 }
+
+#[test]
+fn grid_series_render_and_check_their_shapes() {
+    let Some((s, _g)) = session() else { return };
+    let fig = s.figure("grids").unwrap();
+    let (cols, rows) = (40usize, 30usize);
+    let z: Vec<f64> = (0..rows)
+        .flat_map(|r| (0..cols).map(move |c| ((c as f64) * 0.2).sin() * ((r as f64) * 0.2).cos()))
+        .collect();
+
+    let a = fig.subplot(2, 2, 1).unwrap();
+    a.imshow(&z, cols, rows)
+        .unwrap()
+        .set_colormap("magma")
+        .unwrap();
+    a.colorbar(true).unwrap();
+    let b = fig.subplot(2, 2, 2).unwrap();
+    b.heatmap_with(
+        &[1.0, 2.0, 3.0, 4.0],
+        2,
+        2,
+        &HeatmapOptions {
+            col_names: vec!["a".into(), "b".into()],
+            row_names: vec!["x".into(), "y".into()],
+            decimals: 1,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let c = fig.subplot(2, 2, 3).unwrap();
+    let xs = linspace(-2.0, 2.0, cols);
+    let ys = linspace(0.0, 3.0, rows);
+    c.contour_with(
+        &z,
+        cols,
+        rows,
+        &ContourOptions {
+            x: Some(xs.clone()),
+            y: Some(ys.clone()),
+            levels: 6,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let d = fig.subplot(2, 2, 4).unwrap();
+    d.contourf(&z, cols, rows, 8)
+        .unwrap()
+        .set_colormap("RdBu_r")
+        .unwrap();
+    d.imshow_rgba(
+        &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        2,
+        1,
+        3,
+        &ImageOptions::default(),
+    )
+    .unwrap();
+
+    let path = out_dir().join("grids.png");
+    fig.savefig(&path).unwrap();
+    assert_png(&path);
+
+    // Shape checks happen before anything is sent.
+    assert!(a.imshow(&[1.0, 2.0, 3.0], 2, 2).is_err());
+    assert!(a.contour(&[1.0, 2.0], 2, 1, 4).is_err());
+    assert!(b
+        .heatmap_with(
+            &[1.0, 2.0],
+            2,
+            1,
+            &HeatmapOptions {
+                col_names: vec!["only".into()],
+                ..Default::default()
+            }
+        )
+        .is_err());
+    assert!(a
+        .imshow_rgba(&[0.0; 4], 2, 1, 2, &ImageOptions::default())
+        .is_err());
+}

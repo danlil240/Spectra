@@ -626,3 +626,58 @@ def test_twinx_round_trip(session):
     axes = _snapshot(session)[fig.id]["axes"]
     assert axes[ax.index]["xlim"] == (5.0, 6.0)
     assert axes[tw.index]["xlim"] == (5.0, 6.0)
+
+
+def test_grid_series_round_trip(session):
+    """imshow / heatmap / contour / contourf reach the model as native payloads
+    (layouts in src/ui/app/figure_snapshot.hpp)."""
+    fig = session.figure()
+    ax = fig.subplot(1, 1, 1)
+    img = ax.imshow([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], cmap="magma", vmin=0.0)
+    heat = ax.heatmap([[1, 2], [3, 4]], col_names=["a", "b"], row_names=["x", "y"],
+                      decimals=1)
+    xs, ys = [0.0, 1.0, 2.0], [10.0, 20.0]
+    con = ax.contour([[0, 1, 2], [1, 2, 3]], xs, ys, levels=[0.5, 1.5])
+    filled = ax.contourf([[0, 1], [2, 3]], levels=4)
+    rgb = ax.imshow([[[255, 0, 0], [0, 255, 0]]])
+
+    series = _snapshot(session)[fig.id]["series"]
+    by_index = {s.index: series[s.index] for s in (img, heat, con, filled, rgb)}
+
+    d = by_index[img.index]
+    assert d["type"] == "image"
+    assert d["data"][13:16] == [3.0, 2.0, 1.0]           # cols, rows, channels
+    assert d["data"][16:] == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+    assert d["colormap"] != 255                           # set (magma)
+
+    h = by_index[heat.index]
+    assert h["data"][3] == 1.0 and h["data"][4] == 1.0   # show_values, decimals
+    assert h["data"][10:12] == [2.0, 2.0]                 # n col names, n row names
+    assert h["categories"] == ["a", "b", "x", "y"]
+
+    c = by_index[con.index]
+    assert c["type"] == "contour"
+    assert c["data"][3] == 1.0                            # node coordinates follow
+    assert c["data"][8:11] == [2.0, 0.5, 1.5]             # explicit levels
+    assert c["data"][11:13] == [3.0, 2.0]
+    assert c["data"][13:18] == xs + ys
+
+    f = by_index[filled.index]
+    assert f["data"][2] == 1.0                            # node aligned
+    assert f["data"][12:14] == [1.0, 4.0]                 # one value = a level count
+
+    r = by_index[rgb.index]
+    assert r["data"][13:16] == [2.0, 1.0, 4.0]
+    assert r["data"][16:20] == [1.0, 0.0, 0.0, 1.0]
+
+
+def test_grid_series_reject_bad_shapes(session):
+    ax = session.figure().subplot(1, 1, 1)
+    with pytest.raises(ValueError):
+        ax.imshow([1.0, 2.0])
+    with pytest.raises(ValueError):
+        ax.heatmap([[1, 2]], col_names=["only one"])
+    with pytest.raises(ValueError):
+        ax.contour([[1, 2, 3]])
+    with pytest.raises(ValueError):
+        ax.contour([[1, 2], [3, 4]], x=[0, 1])

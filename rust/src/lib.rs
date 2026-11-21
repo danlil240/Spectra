@@ -47,8 +47,9 @@ mod transport;
 pub use animation::{Animator, FramePacer};
 pub use annotation::{Halo, TextAnnotation, TextBox, TextOptions};
 pub use axes::{
-    Axes, AxesBatch, BandOptions, BarOptions, BoxOptions, ErrorBar, ErrorBarOptions, ErrorBarStyle,
-    ErrorSpec, FillStyle, HistOptions, StemOptions, ViolinOptions,
+    Axes, AxesBatch, BandOptions, BarOptions, BoxOptions, ContourOptions, ErrorBar,
+    ErrorBarOptions, ErrorBarStyle, ErrorSpec, FillStyle, HeatmapOptions, HistOptions,
+    ImageOptions, StemOptions, ViolinOptions,
 };
 pub use codec::TopicInfo;
 pub use color::{Color, ColorSpec, IntoColor};

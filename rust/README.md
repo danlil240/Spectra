@@ -51,6 +51,7 @@ The API mirrors the Python client.
 - Lines, scatter, MATLAB format strings (`"r--o"`), step and stairs, `fplot`, reference lines.
 - Bars (grouped, stacked, horizontal, categorical), histograms, box plots, violins, bands,
   stems and error bars.
+- Images (colormapped or RGB), heatmaps with labelled cells, contour lines and filled contours.
 - 3D lines, scatter and surfaces with colormaps, lighting, fog and contour projection.
 - Text and arrow annotations with boxes, halos and rotation.
 - Axis limits, log scales, datetime axes, labels, grid and legend, with autoscaling done on the

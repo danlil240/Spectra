@@ -661,6 +661,68 @@ def scatter(x, y, s=None, c=None, marker=None, cmap=None, vmin=None, vmax=None, 
     return _sp.scatter(x, y, size=size, opacity=alpha, marker=mk, **style, **extra)
 
 
+def imshow(X, cmap=None, norm=None, aspect=None, interpolation=None, alpha=None, vmin=None,
+           vmax=None, origin=None, extent=None, **kwargs):
+    """Image of a 2D array (or an RGB(A) array); row 0 at the top unless
+    ``origin="lower"``.  ``interpolation`` other than "bilinear" draws flat
+    cells (matplotlib's "nearest")."""
+    if norm is not None:
+        _ignore("imshow", {"norm": True})
+    if aspect not in (None, "auto"):   # cells stretch to the axes, like "auto"
+        _ignore("imshow", {"aspect": aspect})
+    label = kwargs.pop("label", "")
+    _ignore("imshow", kwargs)
+    interp = "bilinear" if interpolation in ("bilinear", "bicubic", "antialiased") else "nearest"
+    return _sp.imshow(X, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent,
+                      origin=origin or "upper", interpolation=interp, label=label, alpha=alpha)
+
+
+def _contour_style(name, kwargs):
+    out: Dict[str, Any] = {}
+    colors = kwargs.pop("colors", None)
+    if colors is not None:
+        if isinstance(colors, (list, tuple)) and len(colors) > 1 \
+                and not all(isinstance(c, (int, float)) for c in colors):
+            _ignore(name, {"colors (one per level)": True})
+            colors = colors[0]
+        out["color"] = colors
+    width = _pop_alias(kwargs, "linewidths", "linewidth", "lw")
+    if width is not None:
+        if isinstance(width, (list, tuple)):
+            width = width[0] if width else None
+        if width is not None:
+            out["linewidth"] = float(width)
+    return out
+
+
+def contour(*args, levels=None, cmap=None, vmin=None, vmax=None, **kwargs):
+    """Contour lines: ``contour(Z)`` or ``contour(X, Y, Z)``; an int or
+    sequence ``levels`` (also as the last positional argument)."""
+    args, levels = _contour_levels(args, levels)
+    style = _contour_style("contour", kwargs)
+    label = kwargs.pop("label", "")
+    _ignore("contour", kwargs)
+    return _sp.contour(*args, levels=8 if levels is None else levels, cmap=cmap, vmin=vmin,
+                       vmax=vmax, label=label, **style)
+
+
+def contourf(*args, levels=None, cmap=None, vmin=None, vmax=None, **kwargs):
+    """Filled contours: ``contourf(Z)`` or ``contourf(X, Y, Z)``."""
+    args, levels = _contour_levels(args, levels)
+    label = kwargs.pop("label", "")
+    kwargs.pop("alpha", None)
+    _ignore("contourf", kwargs)
+    return _sp.contourf(*args, levels=8 if levels is None else levels, cmap=cmap, vmin=vmin,
+                        vmax=vmax, label=label)
+
+
+def _contour_levels(args, levels):
+    """matplotlib allows the levels as a trailing positional argument."""
+    if len(args) in (2, 4) and levels is None:
+        return args[:-1], args[-1]
+    return args, levels
+
+
 def _bar_bottom(bottom):
     """(scalar bottom, stacked) for matplotlib's ``bottom=`` / ``left=``.
 
@@ -947,6 +1009,9 @@ def _set_title(label, **kw):
 _AXES_METHODS = {
     "plot": plot,
     "scatter": scatter,
+    "imshow": imshow,
+    "contour": contour,
+    "contourf": contourf,
     "bar": bar,
     "barh": barh,
     "hist": hist,

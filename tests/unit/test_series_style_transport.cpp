@@ -867,3 +867,106 @@ TEST(TwinxTransport, TwinTravelsThroughSnapshotModelAndCache)
     ASSERT_EQ(cache.axes.size(), 2u);
     EXPECT_EQ(cache.axes[1].twin_of, 0);
 }
+
+TEST(GridSeriesTransport, ImageHeatmapAndContoursSurviveSnapshotAndRebuild)
+{
+    Figure fig;
+    auto&  ax = fig.subplot(1, 1, 1);
+
+    const std::vector<float> v    = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    auto&                    heat = ax.heatmap(v, 3, 2, {"a", "b", "c"}, {"top", "bottom"});
+    heat.colormap("RdBu_r").colormap_range(0.0f, 10.0f).show_values(true, 1);
+    heat.extent(0.0, 3.0, 0.0, 2.0).origin(ImageOrigin::Lower);
+
+    const std::vector<float> z   = {0.0f, 1.0f, 2.0f, 1.0f, 2.0f, 3.0f, 2.0f, 3.0f, 4.0f};
+    auto&                    con = ax.contour(z, 3, 3, 4);
+    con.colormap("magma").width(2.5f);
+    auto& filled = ax.contourf(z, 3, 3, 4);
+
+    const std::vector<float> rgba(2 * 2 * 4, 0.5f);
+    auto&                    pic = ax.imshow({}, 0, 0);
+    pic.set_rgba(rgba, 2, 2, 4);
+    pic.interpolation(ImageInterpolation::Bilinear);
+
+    auto snap = round_trip(figure_to_snapshot(fig, 1));
+    ASSERT_EQ(snap.series.size(), 4u);
+    EXPECT_EQ(snap.series[0].type, "image");
+    EXPECT_EQ(snap.series[1].type, "contour");
+    EXPECT_EQ(snap.series[0].categories.size(), 5u);
+
+    auto  built = agent::build_figure_from_snapshot(snap);
+    auto& bax   = *built->axes()[0];
+    ASSERT_EQ(bax.series().size(), 4u);
+
+    auto* bh = dynamic_cast<ImageSeries*>(bax.series()[0].get());
+    ASSERT_NE(bh, nullptr);
+    EXPECT_EQ(bh->cols(), 3u);
+    EXPECT_EQ(bh->rows(), 2u);
+    EXPECT_EQ(std::vector<float>(bh->data().begin(), bh->data().end()), v);
+    EXPECT_TRUE(bh->show_values());
+    EXPECT_EQ(bh->value_decimals(), 1);
+    EXPECT_EQ(bh->origin(), ImageOrigin::Lower);
+    EXPECT_DOUBLE_EQ(bh->x1(), 3.0);
+    EXPECT_EQ(bh->x_categories(), (std::vector<std::string>{"a", "b", "c"}));
+    EXPECT_EQ(bh->y_categories(), (std::vector<std::string>{"top", "bottom"}));
+    EXPECT_TRUE(bh->cmap() == heat.cmap());
+    EXPECT_TRUE(bh->colormap_range_set());
+    EXPECT_FLOAT_EQ(bh->vmax(), 10.0f);
+
+    auto* bc = dynamic_cast<ContourSeries*>(bax.series()[1].get());
+    ASSERT_NE(bc, nullptr);
+    EXPECT_EQ(bc->level_values(), con.level_values());
+    EXPECT_EQ(bc->point_count(), con.point_count());
+    EXPECT_FLOAT_EQ(bc->width(), 2.5f);
+    EXPECT_TRUE(bc->cmap() == con.cmap());
+
+    auto* bf = dynamic_cast<ImageSeries*>(bax.series()[2].get());
+    ASSERT_NE(bf, nullptr);
+    EXPECT_EQ(bf->levels(), filled.levels());
+    EXPECT_TRUE(bf->node_aligned());
+    EXPECT_DOUBLE_EQ(bf->x0(), filled.x0());
+    EXPECT_DOUBLE_EQ(bf->y1(), filled.y1());
+
+    auto* bp = dynamic_cast<ImageSeries*>(bax.series()[3].get());
+    ASSERT_NE(bp, nullptr);
+    EXPECT_TRUE(bp->is_rgba());
+    EXPECT_EQ(bp->interpolation(), ImageInterpolation::Bilinear);
+}
+
+TEST(GridSeriesTransport, ClientPayloadWithoutExtentOrCoordinatesUsesTheDefaults)
+{
+    // What the Python / Rust clients send: imshow without extent, contour by
+    // level count without node coordinates.
+    ipc::SnapshotFigureState snap;
+    snap.axes.resize(1);
+    ipc::SnapshotSeriesState img;
+    img.type = "image";
+    img.data = {0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 1, 7, 8};
+    ipc::SnapshotSeriesState con;
+    con.type = "contour";
+    con.data = {1.5f, 5, 1, 0, 10, 20, 0, 1, 0, 2, 2, 0, 1, 2, 3};
+    ipc::SnapshotSeriesState filled;   // contourf: one level value = a level count
+    filled.type                  = "image";
+    filled.data                  = {1, 1, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 4, 2, 2, 1, 0, 1, 2, 3};
+    ipc::SnapshotSeriesState bad = img;
+    bad.data.pop_back();   // one value short: dropped, slot kept
+    snap.series = {img, con, bad, filled};
+
+    auto  built = agent::build_figure_from_snapshot(snap);
+    auto& bax   = *built->axes()[0];
+    ASSERT_EQ(bax.series().size(), 4u);
+    auto* bi = dynamic_cast<ImageSeries*>(bax.series()[0].get());
+    ASSERT_NE(bi, nullptr);
+    EXPECT_DOUBLE_EQ(bi->x0(), -0.5);
+    EXPECT_DOUBLE_EQ(bi->x1(), 1.5);
+    auto* bc = dynamic_cast<ContourSeries*>(bax.series()[1].get());
+    ASSERT_NE(bc, nullptr);
+    EXPECT_FLOAT_EQ(bc->x_coords().back(), 20.0f);
+    EXPECT_FALSE(bc->level_values().empty());
+    EXPECT_FALSE(bax.series()[2]->visible());
+    auto* bf = dynamic_cast<ImageSeries*>(bax.series()[3].get());
+    ASSERT_NE(bf, nullptr);
+    const std::vector<float> z = {0, 1, 2, 3};
+    Axes                     ref;
+    EXPECT_EQ(bf->levels(), ref.contourf(z, 2, 2, 4).levels());
+}

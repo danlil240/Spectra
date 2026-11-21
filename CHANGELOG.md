@@ -13,6 +13,8 @@ summarise the main changes rather than listing every commit.
 
 ### Added
 
+- Images, heatmaps and contours from Python and Rust, and in multi-process windows: `ImageSeries` and `ContourSeries` now travel in snapshots as native payloads (`"image"` / `"contour"`, layouts in `figure_snapshot.hpp`) with their colormap. Python `Axes.imshow()` / `heatmap()` / `contour()` / `contourf()`, `sp.imshow()` / `sp.heatmap()` / `sp.contour()` / `sp.contourf()` and pyplot `plt.imshow()` / `contour()` / `contourf()` (RGB(A) arrays, extent, origin, levels, meshgrid coordinates); Rust `Axes::imshow()` / `imshow_rgba()` / `heatmap()` / `contour()` / `contourf()` with `ImageOptions`, `HeatmapOptions` and `ContourOptions`. The axes fit the grid tightly.
+
 - Second y axis (matplotlib's `twinx`): `Axes::twinx()` adds an axes that shares the plot area and x axis (limits, pan, zoom, autoscale, share groups) and draws its own y ticks, tick labels and label on the right. Its series continue the host's colour cycle and join the host's legend; panning or zooming the plot moves both y axes together, and Home refits both. Rendered on screen, in PNG / SVG / PDF export, saved in workspaces and carried to multi-process windows (`twin_of` axes field, `REQ_CREATE_AXES` with `twin_of`). Python `Axes.twinx()`, `sp.twinx()` and pyplot `plt.twinx()` / `ax.twinx()`; Rust `Axes::twinx()`; C++ easy API `spectra::twinx()`. Example: `examples/twinx_demo.cpp`.
 
 - Fixed ticks: `Axes::xticks(positions, labels)` / `yticks()` (and `clear_xticks()`) put tick marks and labels only where given, overriding the automatic, category and date-time ticks; carried to multi-process windows (snapshot fields and `SET_AXIS_TICKS` op). Python `Axes.set_xticks()` / `set_yticks()`, `sp.xticks()` / `sp.yticks()` and pyplot `xticks` / `yticks` / `set_xticklabels`; Rust `Axes::set_xticks()` / `set_yticks()`.
@@ -54,6 +56,8 @@ summarise the main changes rather than listing every commit.
 - The browser (WebGPU) demo fills its page, follows resizes and renders at the display's full resolution (devicePixelRatio), so it is no longer small and blurry on HiDPI screens. It also uses the theme's data palette like the native app.
 
 ### Fixed
+
+- Animations now keep the frame rate they ask for on fast displays. The animation tick slipped a whole refresh whenever a vsync frame landed a moment before its deadline, so a 175 fps animation on a 174 Hz monitor ran at 75 to 85 fps. Ticks now keep a fixed cadence and accept a frame within a quarter period of the deadline.
 
 - Dense lines in density mode (`DenseLineMode::Density`) no longer shift hue on some GPUs: hundreds of faint overlapping segments blended in 8 bits stalled short of the line colour at a driver-dependent level (NVIDIA kept the red channel at the background). The renderer now counts per-pixel coverage on the CPU and draws one texture with alpha `1 - (1 - a)^count`, so every GPU converges to the line colour.
 

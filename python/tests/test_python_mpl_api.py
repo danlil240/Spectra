@@ -112,6 +112,18 @@ class _FakeAxes:
     def stem(self, x, y, baseline=0.0, stem_width=1.5, show_heads=True, label=""):
         return self._add("stem", x=list(x), y=list(y), baseline=baseline, label=label)
 
+    def imshow(self, values, **kw):
+        return self._add("imshow", values=values, **kw)
+
+    def heatmap(self, values, **kw):
+        return self._add("heatmap", values=values, **kw)
+
+    def contour(self, z, x=None, y=None, **kw):
+        return self._add("contour", z=z, xs=x, ys=y, **kw)
+
+    def contourf(self, z, x=None, y=None, **kw):
+        return self._add("contourf", z=z, xs=x, ys=y, **kw)
+
     def set_xlim(self, a, b):
         self.limits[0] = (a, b)
 
@@ -719,7 +731,7 @@ def test_pyplot_subplots_shapes_and_axes_methods(monkeypatch, fake_plt):
     axs[0, 1].set_title("top right")
     assert axs[0, 1].spectra_axes.title == "top right"
     with pytest.raises(AttributeError):
-        axs[0, 0].imshow
+        axs[0, 0].pcolormesh
     fig.suptitle("S")
     assert fig.spectra_figure.sup == "S"
     fig.tight_layout()
@@ -927,3 +939,39 @@ def test_pyplot_twinx_returns_a_wrapper(fake_plt):
     assert plt.gca().twinx().spectra_axes is t.spectra_axes
     easy._state._share_groups.clear()
     easy._state._share_members.clear()
+
+
+def test_grid_plots_fit_their_extent_tightly(fake):
+    ax, _ = fake
+    easy._state._axes_bounds.clear()
+    easy._state._axes_sticky.clear()
+    sp.imshow([[1, 2, 3], [4, 5, 6]], cmap="magma")
+    assert ax.created[-1].kind == "imshow" and ax.created[-1].kw["cmap"] == "magma"
+    assert ax.limits == [(-0.5, 2.5), (-0.5, 1.5)]
+    easy._state._axes_bounds.clear()
+    easy._state._axes_sticky.clear()
+    sp.contourf([0, 1, 2], [10, 20], [[0, 1, 2], [1, 2, 3]], levels=5)
+    assert ax.created[-1].kind == "contourf" and ax.created[-1].kw["levels"] == 5
+    assert ax.limits == [(0.0, 2.0), (10.0, 20.0)]
+    with pytest.raises(TypeError):
+        sp.contour([0, 1], [[0, 1], [1, 2]])
+    easy._state._axes_bounds.clear()
+    easy._state._axes_sticky.clear()
+
+
+def test_pyplot_grid_plots_map_matplotlib_arguments(fake_plt):
+    ax, _ = fake_plt
+    plt.imshow([[1, 2], [3, 4]], cmap="gray", vmin=0, vmax=5, origin="lower",
+               interpolation="bilinear", aspect="auto")
+    img = ax.created[-1]
+    kw = img.kw
+    assert (img.kind, kw["cmap"], kw["vmin"], kw["vmax"]) == ("imshow", "gray", 0, 5)
+    assert kw["origin"] == "lower" and kw["interpolation"] == "bilinear"
+    plt.contour([[0, 1], [1, 2]], 4, colors="k", linewidths=2)
+    con = ax.created[-1]
+    assert con.kind == "contour" and con.kw["levels"] == 4 and con.kw["linewidth"] == 2.0
+    assert con.letter == "k"
+    plt.gca().contourf([[0, 1], [1, 2]], levels=[0, 1, 2])
+    assert ax.created[-1].kind == "contourf" and ax.created[-1].kw["levels"] == [0, 1, 2]
+    easy._state._axes_bounds.clear()
+    easy._state._axes_sticky.clear()

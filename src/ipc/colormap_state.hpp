@@ -11,6 +11,7 @@
 #include <spectra/colormap.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 
 #include <cmath>
 #include <cstddef>
@@ -140,6 +141,16 @@ inline void series_colormap_to_state(const Series& s, SnapshotSeriesState& ss)
         const auto v = s3->color_values_data();
         ss.color_values.assign(v.begin(), v.end());
     }
+    else if (auto* img = dynamic_cast<const ImageSeries*>(&s))
+    {
+        colormap_to_state(img->cmap(), ss);
+        store_range(img->colormap_range_set(), img->vmin(), img->vmax());
+    }
+    else if (auto* con = dynamic_cast<const ContourSeries*>(&s))
+    {
+        colormap_to_state(con->cmap(), ss);
+        store_range(con->colormap_range_set(), con->vmin(), con->vmax());
+    }
 }
 
 // Snapshot / op colormap fields -> a live surface or scatter.  An unset
@@ -182,6 +193,23 @@ inline void apply_series_colormap(Series& s, const SnapshotSeriesState& ss)
             s3->colormap_range(ss.colormap_min, ss.colormap_max);
         else if (s3->colormap_range_set())
             s3->clear_colormap_range();
+    }
+    else if (auto* img = dynamic_cast<ImageSeries*>(&s))
+    {
+        if (has_cm && !(img->cmap() == cm))
+            img->colormap(cm);
+        if (has_range)
+            img->colormap_range(ss.colormap_min, ss.colormap_max);
+        else if (img->colormap_range_set())
+            img->clear_colormap_range();
+    }
+    else if (auto* con = dynamic_cast<ContourSeries*>(&s))
+    {
+        // A contour range cannot be cleared again; it follows the levels until set.
+        if (has_cm && !(con->cmap() == cm))
+            con->colormap(cm);
+        if (has_range)
+            con->colormap_range(ss.colormap_min, ss.colormap_max);
     }
 }
 

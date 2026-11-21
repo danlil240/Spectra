@@ -2156,6 +2156,123 @@ def yticks(ticks=None, labels=None):
     _state._ensure_axes().set_yticks(ticks, labels)
 
 
+def _fit_grid(ax, x0: float, x1: float, y0: float, y1: float) -> None:
+    """Fit the axes to a grid's extent, tight (the extent edges are sticky)."""
+    xs, ys = [min(x0, x1), max(x0, x1)], [min(y0, y1), max(y0, y1)]
+    _auto_fit_axes(ax, xs, ys, sticky_x=xs, sticky_y=ys)
+
+
+def imshow(values: Any, cmap: Any = None, vmin: Optional[float] = None,
+           vmax: Optional[float] = None, extent: Optional[Sequence[float]] = None,
+           origin: str = "upper", interpolation: str = "nearest", label: str = "",
+           alpha: Optional[float] = None):
+    """Show a 2D grid as an image (``values[row][col]``, row 0 at the top).
+
+    Scalar grids are coloured through ``cmap`` (default "viridis"; ``vmin`` /
+    ``vmax`` fix its ends); ``(rows, cols, 3|4)`` arrays are drawn as RGB(A).
+    ``extent=(x0, x1, y0, y1)`` places the outer cell edges.  The axes fit the
+    image tightly; :func:`colorbar` adds its colour scale.
+
+    Usage::
+
+        sp.imshow(np.random.rand(32, 48), cmap="magma")
+        sp.colorbar()
+    """
+    ax = _state._ensure_axes()
+    series = ax.imshow(values, cmap=cmap, vmin=vmin, vmax=vmax, extent=extent, origin=origin,
+                       interpolation=interpolation, label=label, alpha=alpha)
+    rows, cols, _, _ = _grid_shape(values)
+    x0, x1, y0, y1 = extent if extent is not None else (-0.5, cols - 0.5, -0.5, rows - 0.5)
+    _fit_grid(ax, float(x0), float(x1), float(y0), float(y1))
+    _state._show_if_pending()
+    return series
+
+
+def heatmap(values: Any, col_names: Optional[Sequence[str]] = None,
+            row_names: Optional[Sequence[str]] = None, decimals: int = 2, cmap: Any = None,
+            vmin: Optional[float] = None, vmax: Optional[float] = None, label: str = ""):
+    """Heatmap: :func:`imshow` with each cell's value printed in it.
+
+    ``col_names`` / ``row_names`` label the columns / rows (row 0 at the top).
+
+    Usage::
+
+        sp.heatmap([[1, 2], [3, 4]], col_names=["a", "b"], row_names=["x", "y"])
+    """
+    ax = _state._ensure_axes()
+    series = ax.heatmap(values, col_names=col_names, row_names=row_names, decimals=decimals,
+                        cmap=cmap, vmin=vmin, vmax=vmax, label=label)
+    rows, cols, _, _ = _grid_shape(values)
+    _fit_grid(ax, -0.5, cols - 0.5, -0.5, rows - 0.5)
+    _state._show_if_pending()
+    return series
+
+
+def _contour_extent(x: Any, y: Any, values: Any):
+    from ._axes import _node_coords
+
+    rows, cols, _, _ = _grid_shape(values)
+    xs, ys = _node_coords(x, y, cols, rows)
+    if xs is None:
+        return 0.0, float(cols - 1), 0.0, float(rows - 1)
+    fx = [v for v in xs if math.isfinite(v)] or [0.0]
+    fy = [v for v in ys if math.isfinite(v)] or [0.0]
+    return min(fx), max(fx), min(fy), max(fy)
+
+
+def contour(*args: Any, levels: Any = 8, cmap: Any = None, vmin: Optional[float] = None,
+            vmax: Optional[float] = None, color: Union[str, Tuple, List, None] = None,
+            linewidth: float = 1.5, label: str = ""):
+    """Contour lines: ``contour(Z)`` or ``contour(X, Y, Z)``.
+
+    ``Z[row][col]`` is the value at ``(X[col], Y[row])`` (row 0 at the
+    bottom; ``X`` / ``Y`` 1D or meshgrids).  ``levels`` is about that many nice
+    levels or the level values.  Lines are coloured per level through
+    ``cmap`` unless ``color`` draws them all in one colour.
+
+    Usage::
+
+        X, Y = np.meshgrid(x, y)
+        sp.contour(X, Y, np.sin(X) * np.cos(Y), levels=10)
+    """
+    _check_color(color)
+    x, y, z = _contour_args("contour", args)
+    ax = _state._ensure_axes()
+    series = ax.contour(z, x, y, levels=levels, cmap=cmap, vmin=vmin, vmax=vmax,
+                        linewidth=linewidth, label=label)
+    _apply_color(series, color)
+    _fit_grid(ax, *_contour_extent(x, y, z))
+    _state._show_if_pending()
+    return series
+
+
+def contourf(*args: Any, levels: Any = 8, cmap: Any = None, vmin: Optional[float] = None,
+             vmax: Optional[float] = None, label: str = ""):
+    """Filled contours: ``contourf(Z)`` or ``contourf(X, Y, Z)`` (layout as
+    :func:`contour`), colour bands between about ``levels`` nice levels or
+    between the given level values."""
+    x, y, z = _contour_args("contourf", args)
+    ax = _state._ensure_axes()
+    series = ax.contourf(z, x, y, levels=levels, cmap=cmap, vmin=vmin, vmax=vmax, label=label)
+    _fit_grid(ax, *_contour_extent(x, y, z))
+    _state._show_if_pending()
+    return series
+
+
+def _contour_args(name: str, args: Tuple[Any, ...]):
+    if len(args) == 1:
+        return None, None, args[0]
+    if len(args) == 3:
+        return args[0], args[1], args[2]
+    raise TypeError(f"{name}() takes Z or X, Y, Z ({len(args)} positional arguments given)")
+
+
+def _grid_shape(values: Any):
+    from ._axes import _grid
+
+    return _grid(values, allow_rgb=True)
+
+
 def colorbar(visible: bool = True):
     """Show (or hide) a colorbar for the current axes' colormapped series,
     e.g. after ``scatter(x, y, c=z)`` or ``surf(..., cmap=...)``."""

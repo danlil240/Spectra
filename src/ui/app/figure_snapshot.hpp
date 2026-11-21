@@ -15,17 +15,20 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <spectra/axes.hpp>
 #include <spectra/axes3d.hpp>
 #include <spectra/figure.hpp>
 #include <spectra/series.hpp>
 #include <spectra/series3d.hpp>
+#include <spectra/series_image.hpp>
 #include <spectra/series_stats.hpp>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "core/contour.hpp"
 #include "ipc/annotation_state.hpp"
 #include "ipc/axes_format_state.hpp"
 #include "ipc/colormap_state.hpp"
@@ -70,6 +73,18 @@ inline const AxesBase* snapshot_axes_at(const Figure& fig, size_t slot)
 //                per violin: x, n, values[n]]
 //   "band"      [fill_opacity, edge_width, show_edges, 0, n, x[n], lower[n], upper[n]]
 //   "stem"      [baseline, stem_width, show_heads, 0, n, x[n], y[n]]
+//   "image"     [interpolation(0 nearest/1 bilinear), origin(0 upper/1 lower), node_aligned,
+//                show_values, value_decimals, has_extent, x0, x1, y0, y1,
+//                n_xcat, n_ycat, n_levels, levels[n_levels] (one value = a level count:
+//                about that many nice bands covering the data range, as contourf),
+//                cols, rows, channels(1 scalar/4 RGBA), values[cols*rows*channels]]
+//                categories = x category names then y category names
+//   "contour"   [width, level_count, has_extent, has_coords, x0, x1, y0, y1,
+//                n_levels, levels[n_levels], cols, rows,
+//                (has_coords: x[cols], y[rows]), z[cols*rows]]
+//                n_levels > 0 gives explicit levels, else about level_count nice ones
+//
+// Image and contour colormaps travel in the colormap fields (colormap_state.hpp).
 //
 // Bar, histogram, box and violin payloads may end with an optional fill-style
 // trailer (StatFillStyle); a payload without it keeps the default style, and
@@ -170,6 +185,123 @@ inline void read_fill_style(PayloadReader& rd, StatFillStyle& st)
                               std::clamp(v[7], 0.0f, 1.0f)};
 }
 
+// Read `n` floats that must all be finite.
+inline bool read_finite(PayloadReader& rd, float* out, size_t n)
+{
+    for (size_t i = 0; i < n; ++i)
+    {
+        if (!rd.read(out[i]) || !std::isfinite(out[i]))
+            return false;
+    }
+    return true;
+}
+
+// "image" payload (see the layout above); p holds its first four floats.
+inline Series* add_image_from_payload(Axes&                           ax,
+                                      const ipc::SnapshotSeriesState& ss,
+                                      const float                     p[4],
+                                      PayloadReader&                  rd)
+{
+    float h[8]{};   // decimals, has_extent, x0, x1, y0, y1, n_xcat, n_ycat
+    if (!read_finite(rd, h, 8))
+        return nullptr;
+    size_t                 n_levels = 0;
+    std::span<const float> levels;
+    if (!rd.read_count(n_levels, 1) || !rd.read_span(n_levels, levels))
+        return nullptr;
+    size_t cols = 0, rows = 0;
+    float  channels_f = 0.0f;
+    if (!rd.read_count(cols, 0) || !rd.read_count(rows, 0) || cols == 0 || rows == 0
+        || !rd.read(channels_f) || (channels_f != 1.0f && channels_f != 3.0f && channels_f != 4.0f))
+        return nullptr;
+    const auto             channels = static_cast<size_t>(channels_f);
+    std::span<const float> values;
+    if (cols * rows * channels > rd.remaining() || !rd.read_span(cols * rows * channels, values))
+        return nullptr;
+
+    // Placement first: the default extent depends on node_aligned.
+    auto& s = ax.imshow({}, 0, 0);
+    s.interpolation(p[0] != 0.0f ? ImageInterpolation::Bilinear : ImageInterpolation::Nearest);
+    s.origin(p[1] != 0.0f ? ImageOrigin::Lower : ImageOrigin::Upper);
+    s.node_aligned(p[2] != 0.0f);
+    if (channels == 1)
+        s.set_data(values, cols, rows);
+    else
+        s.set_rgba(values, cols, rows, static_cast<int>(channels));
+    if (h[1] != 0.0f)
+        s.extent(h[2], h[3], h[4], h[5]);
+    if (n_levels == 1 && channels == 1 && std::isfinite(levels[0]))
+    {
+        float lo = std::numeric_limits<float>::max(), hi = std::numeric_limits<float>::lowest();
+        for (float v : values)
+        {
+            if (std::isfinite(v))
+            {
+                lo = std::min(lo, v);
+                hi = std::max(hi, v);
+            }
+        }
+        if (lo <= hi)
+            s.levels(contour::auto_levels(lo,
+                                          hi,
+                                          static_cast<int>(std::clamp(levels[0], 1.0f, 256.0f)),
+                                          true));
+    }
+    else if (n_levels >= 2)
+    {
+        std::vector<float> lv(levels.begin(), levels.end());
+        if (std::all_of(lv.begin(), lv.end(), [](float v) { return std::isfinite(v); })
+            && std::is_sorted(lv.begin(), lv.end()))
+            s.levels(std::move(lv));
+    }
+    s.show_values(p[3] != 0.0f, static_cast<int>(std::clamp(h[0], 0.0f, 10.0f)));
+    const bool cats_ok =
+        h[6] >= 0.0f && h[7] >= 0.0f
+        && static_cast<size_t>(h[6]) + static_cast<size_t>(h[7]) == ss.categories.size();
+    if (cats_ok && !ss.categories.empty())
+    {
+        const auto nx = static_cast<std::ptrdiff_t>(h[6]);
+        if (nx > 0)
+            s.x_categories({ss.categories.begin(), ss.categories.begin() + nx});
+        if (static_cast<size_t>(nx) < ss.categories.size())
+            s.y_categories({ss.categories.begin() + nx, ss.categories.end()});
+    }
+    return &s;
+}
+
+// "contour" payload (see the layout above); p holds its first four floats.
+inline Series* add_contour_from_payload(Axes& ax, const float p[4], PayloadReader& rd)
+{
+    float e[4]{};   // x0, x1, y0, y1
+    if (!read_finite(rd, e, 4))
+        return nullptr;
+    size_t                 n_levels = 0;
+    std::span<const float> levels;
+    if (!rd.read_count(n_levels, 1) || !rd.read_span(n_levels, levels))
+        return nullptr;
+    const bool has_coords = p[3] != 0.0f;
+    size_t     cols = 0, rows = 0;
+    if (!rd.read_count(cols, 0) || !rd.read_count(rows, 0) || cols < 2 || rows < 2)
+        return nullptr;
+    std::span<const float> xs, ys, z;
+    if (has_coords && (!rd.read_span(cols, xs) || !rd.read_span(rows, ys)))
+        return nullptr;
+    if (cols * rows > rd.remaining() || !rd.read_span(cols * rows, z))
+        return nullptr;
+
+    const int count = static_cast<int>(std::clamp(p[1], 1.0f, 256.0f));
+    auto&     s     = ax.contour(z, cols, rows, count);
+    s.width(std::clamp(p[0], 0.1f, 50.0f));
+    if (has_coords)
+        s.set_coordinates(xs, ys);
+    else if (p[2] != 0.0f)
+        s.extent(e[0], e[1], e[2], e[3]);
+    if (n_levels > 0
+        && std::all_of(levels.begin(), levels.end(), [](float v) { return std::isfinite(v); }))
+        s.levels(std::vector<float>(levels.begin(), levels.end()));
+    return &s;
+}
+
 }   // namespace snapshot_detail
 
 // Series type name used on the wire, or "" for a series the snapshot does not
@@ -198,13 +330,17 @@ inline const char* snapshot_series_type(const Series& s)
         return "scatter3d";
     if (dynamic_cast<const SurfaceSeries*>(&s))
         return "surface";
+    if (dynamic_cast<const ImageSeries*>(&s))
+        return "image";
+    if (dynamic_cast<const ContourSeries*>(&s))
+        return "contour";
     return "";
 }
 
 inline bool is_stats_series_type(const std::string& t)
 {
     return t == "box" || t == "violin" || t == "histogram" || t == "bar" || t == "band"
-           || t == "stem";
+           || t == "stem" || t == "image" || t == "contour";
 }
 
 // Fill ss.data / ss.point_count for `s`.  Returns false for an unsupported type.
@@ -370,6 +506,65 @@ inline bool encode_snapshot_series_data(const Series& s, ipc::SnapshotSeriesStat
         interleave3(s3->x_data(), s3->y_data(), s3->z_data());
         return true;
     }
+    if (auto* img = dynamic_cast<const ImageSeries*>(&s))
+    {
+        const auto& lv = img->levels();
+        ss.data        = {img->interpolation() == ImageInterpolation::Bilinear ? 1.0f : 0.0f,
+                   img->origin() == ImageOrigin::Lower ? 1.0f : 0.0f,
+                   flag(img->node_aligned()),
+                   flag(img->show_values()),
+                   static_cast<float>(img->value_decimals()),
+                   1.0f,
+                   static_cast<float>(img->x0()),
+                   static_cast<float>(img->x1()),
+                   static_cast<float>(img->y0()),
+                   static_cast<float>(img->y1()),
+                   static_cast<float>(img->x_categories().size()),
+                   static_cast<float>(img->y_categories().size()),
+                   static_cast<float>(lv.size())};
+        ss.data.insert(ss.data.end(), lv.begin(), lv.end());
+        const auto values = img->data();
+        ss.data.insert(ss.data.end(),
+                       {static_cast<float>(img->cols()),
+                        static_cast<float>(img->rows()),
+                        static_cast<float>(img->channels())});
+        ss.data.insert(ss.data.end(), values.begin(), values.end());
+        ss.point_count = static_cast<uint32_t>(img->cols() * img->rows());
+        return true;
+    }
+    if (auto* con = dynamic_cast<const ContourSeries*>(&s))
+    {
+        // The levels actually contoured and the node coordinates, so the
+        // window draws the same lines whatever produced them.
+        const auto& lv     = con->level_values();
+        const auto  xs     = con->x_coords();
+        const auto  ys     = con->y_coords();
+        const auto  z      = con->z_data();
+        const bool  coords = xs.size() == con->cols() && ys.size() == con->rows()
+                            && z.size() == xs.size() * ys.size();
+        ss.data = {con->width(),
+                   static_cast<float>(lv.size()),
+                   0.0f,
+                   flag(coords),
+                   0.0f,
+                   0.0f,
+                   0.0f,
+                   0.0f,
+                   static_cast<float>(lv.size())};
+        ss.data.insert(ss.data.end(), lv.begin(), lv.end());
+        if (!coords)
+        {
+            ss.data.insert(ss.data.end(), {0.0f, 0.0f});
+            return true;
+        }
+        ss.data.insert(ss.data.end(),
+                       {static_cast<float>(con->cols()), static_cast<float>(con->rows())});
+        ss.data.insert(ss.data.end(), xs.begin(), xs.end());
+        ss.data.insert(ss.data.end(), ys.begin(), ys.end());
+        ss.data.insert(ss.data.end(), z.begin(), z.end());
+        ss.point_count = static_cast<uint32_t>(z.size());
+        return true;
+    }
     if (auto* surf = dynamic_cast<const SurfaceSeries*>(&s))
     {
         // Raveled meshgrid: one (x, y, z) triple per grid node, row-major in y,
@@ -472,6 +667,10 @@ inline Series* add_stats_series_from_snapshot(Axes& ax, const ipc::SnapshotSerie
         s.baseline(p[0]).stem_width(std::max(p[1], 0.0f)).show_heads(b2);
         return &s;
     }
+    if (ss.type == "image")
+        return snapshot_detail::add_image_from_payload(ax, ss, p, rd);
+    if (ss.type == "contour")
+        return snapshot_detail::add_contour_from_payload(ax, p, rd);
     if (ss.type == "box")
     {
         size_t n = 0;
@@ -717,6 +916,13 @@ inline ipc::SnapshotFigureState figure_to_snapshot(const Figure& fig, uint64_t f
             encode_snapshot_series_data(s, ss);
             if (auto* bar = dynamic_cast<const BarSeries*>(&s))
                 ss.categories = bar->categories();
+            else if (auto* img = dynamic_cast<const ImageSeries*>(&s))
+            {
+                ss.categories = img->x_categories();
+                ss.categories.insert(ss.categories.end(),
+                                     img->y_categories().begin(),
+                                     img->y_categories().end());
+            }
             snap.series.push_back(std::move(ss));
         });
 

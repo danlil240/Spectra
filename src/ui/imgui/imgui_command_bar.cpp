@@ -1574,11 +1574,11 @@ void ImGuiIntegration::draw_nav_rail()
     if (bounds.w < 1.0f || bounds.h < 1.0f)
         return;
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove
-                             | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoSavedSettings
-                             | ImGuiWindowFlags_NoBringToFrontOnFocus
-                             | ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoScrollbar
-                             | ImGuiWindowFlags_NoBackground;
+    // Wheel-scrollable (no scrollbar) so short windows can reach every item.
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+        | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoFocusOnAppearing
+        | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoBackground;
 
     float rail_w = bounds.w;
 

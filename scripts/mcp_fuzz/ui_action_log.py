@@ -50,6 +50,21 @@ def parse_action_line(line: str) -> dict[str, str] | None:
     }
 
 
+DEBUG_LOG_HINT = (
+    "no [ui.action] lines in the Spectra log: start Spectra with SPECTRA_LOG_LEVEL=debug "
+    "(the hunts launch it that way themselves), otherwise every click looks unanswered"
+)
+
+
+def log_has_actions(path: str | Path) -> bool:
+    """True once the Spectra stderr file holds at least one [ui.action] debug line."""
+    p = Path(path)
+    if not p.exists():
+        return False
+    text = strip_ansi(p.read_text(encoding="utf-8", errors="replace"))
+    return any(parse_action_line(line) for line in text.splitlines())
+
+
 class StderrActionTracker:
     """Track new [ui.action] log lines appended to a Spectra stderr file."""
 

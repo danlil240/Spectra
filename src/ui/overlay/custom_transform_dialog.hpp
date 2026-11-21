@@ -77,15 +77,16 @@ class CustomTransformDialog
     void draw_variable_reference();
     void draw_function_reference();
     void draw_preview();
-    void draw_action_buttons();
+    void draw_action_buttons(float avail);
     void validate_formula();
     void apply_transform();
 
     // Collect available variables from the figure's series
     void refresh_series_info();
 
-    bool    open_   = false;
-    Figure* figure_ = nullptr;
+    bool    open_         = false;
+    bool    reset_scroll_ = false;   // start the body at the top on (re)open
+    Figure* figure_       = nullptr;
 
     // Formula input
     char        formula_buf_[1024] = {};

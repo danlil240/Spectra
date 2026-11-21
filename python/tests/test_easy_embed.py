@@ -142,6 +142,14 @@ class TestRenderMulti:
         ])
         assert img
 
+    def test_fmt_and_label(self):
+        from spectra.embed import render_multi
+        img = render_multi([
+            ([0, 1, 2, 3], [0, 1, 4, 9], "b-", "quadratic"),
+            ([0, 1, 2, 3], [0, 1, 2, 3], "r--o", "linear"),
+        ])
+        assert img
+
     def test_no_labels(self):
         from spectra.embed import render_multi
         img = render_multi([
@@ -149,6 +157,51 @@ class TestRenderMulti:
             ([0, 1, 2], [4, 1, 0]),
         ])
         assert img
+
+
+class TestFormatStrings:
+    """Format strings reach the series (QA M9: a 4-tuple's fmt became the label)."""
+
+    class _Rec:
+        def __init__(self):
+            self.calls = []
+
+        def __getattr__(self, name):
+            return lambda *a: self.calls.append((name, a))
+
+    def test_split_entries(self):
+        from spectra.embed import _split_multi_entry
+        assert _split_multi_entry(([1], [2])) == ([1], [2], None, None)
+        assert _split_multi_entry(([1], [2], "lbl")) == ([1], [2], None, "lbl")
+        assert _split_multi_entry(([1], [2], "r--", "lbl")) == ([1], [2], "r--", "lbl")
+        with pytest.raises(ValueError):
+            _split_multi_entry(([1],))
+
+    def test_apply_fmt(self):
+        from spectra.embed import _apply_fmt
+        rec = self._Rec()
+        _apply_fmt(rec, "r--")
+        assert rec.calls == [("set_color", (1.0, 0.2, 0.2, 1.0)), ("set_line_style", ("dashed",))]
+        rec = self._Rec()
+        _apply_fmt(rec, "bo")
+        assert ("set_marker_style", ("o",)) in rec.calls
+        assert ("set_line_style", ("none",)) in rec.calls
+        rec = self._Rec()
+        _apply_fmt(rec, "g:")
+        assert ("set_line_style", ("dotted",)) in rec.calls
+        rec = self._Rec()
+        _apply_fmt(rec, "m-.")
+        assert ("set_line_style", ("dashdot",)) in rec.calls
+        from spectra._embed import _LINE_STYLES, LINE_DASH_DOT
+
+        # The C API maps these to spectra::LineStyle::DashDot / DashDotDot.
+        assert _LINE_STYLES["dashdot"] == LINE_DASH_DOT == 4
+        assert _LINE_STYLES["dashdotdot"] == 5
+        rec = self._Rec()
+        _apply_fmt(rec, "-")
+        assert rec.calls == []
+        with pytest.raises(ValueError):
+            _apply_fmt(self._Rec(), "sin(x)")
 
 
 @_skip_embed

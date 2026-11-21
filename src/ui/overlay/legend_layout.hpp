@@ -456,15 +456,17 @@ inline size_t overlap_score(const Axes&    axes,
                             float          w,
                             float          h,
                             float          margin,
-                            size_t         max_samples_per_series = 4096)
+                            size_t         max_samples_per_series = 4096,
+                            float          clearance              = CLEARANCE,
+                            size_t         marker_weight          = 1)
 {
     // Score a slightly inflated box so data that merely grazes the legend's
     // edge (a whisker tip, a violin's tail) also counts as crowding it.
     Rect r = detail::corner_rect(pos, vp, w, h, margin);
-    r.x -= CLEARANCE;
-    r.y -= CLEARANCE;
-    r.w += 2.0f * CLEARANCE;
-    r.h += 2.0f * CLEARANCE;
+    r.x -= clearance;
+    r.y -= clearance;
+    r.w += 2.0f * clearance;
+    r.h += 2.0f * clearance;
 
     const AxisLimits xl = axes.x_limits();
     const AxisLimits yl = axes.y_limits();
@@ -546,7 +548,7 @@ inline size_t overlap_score(const Axes&    axes,
         xoff   = sp->x_offset();
         yoff   = sp->y_offset();
         radius = g.radius;
-        count += count_points(g.xs, g.ys);
+        count += count_points(g.xs, g.ys) * (g.connected ? 1 : marker_weight);
         radius = 0.0f;
         count += count_points(g.extra_xs, g.extra_ys);
         if (g.connected)
@@ -616,7 +618,7 @@ inline LegendPosition choose_best_corner(const Axes&    axes,
 // with the least data overlap (with hysteresis against `previous`); None is
 // returned unchanged (callers hide the legend).  Data overlap is only scored
 // for 2D axes: a 3D view's projection changes with the camera, so Best maps
-// to TopRight there (as in the SVG exporter).
+// to TopLeft there, clear of the view cube in the top-right corner.
 inline LegendPosition resolve_position(const AxesBase& axes,
                                        const Rect&     vp,
                                        float           w,
@@ -628,7 +630,7 @@ inline LegendPosition resolve_position(const AxesBase& axes,
         return requested;
     if (const auto* a2 = dynamic_cast<const Axes*>(&axes))
         return choose_best_corner(*a2, vp, w, h, MARGIN, previous);
-    return LegendPosition::TopRight;
+    return LegendPosition::TopLeft;
 }
 
 // Region a legend lays itself out in: the plot area for the inside
@@ -879,7 +881,8 @@ inline float outside_reserved_width(const AxesBase& axes, const LegendConfig& cf
 
 // ── Automatic outside placement for LegendPosition::Best ────────────────────
 // A Best legend whose compact (inside) layout would cover more than
-// AUTO_OUTSIDE_COVERAGE of its plot area moves to the OutsideRight strip when
+// AUTO_OUTSIDE_COVERAGE of its plot area, or would cover data in every
+// corner, moves to the OutsideRight strip when
 // the cell has room for it: the plot keeps at least AUTO_OUTSIDE_MIN_PLOT_W
 // pixels and the strip can show a swatch plus AUTO_OUTSIDE_MIN_LABEL_W of
 // label.  Otherwise the compact (possibly "+N more") inside legend is kept.
@@ -887,6 +890,11 @@ inline float outside_reserved_width(const AxesBase& axes, const LegendConfig& cf
 inline constexpr float AUTO_OUTSIDE_COVERAGE    = 0.4f;
 inline constexpr float AUTO_OUTSIDE_MIN_PLOT_W  = 200.0f;
 inline constexpr float AUTO_OUTSIDE_MIN_LABEL_W = 48.0f;
+// ...and likewise when even its clearest inside corner scores at least this
+// much data overlap (best_inside_overlap units: 4 px of line or a tenth of
+// a hidden marker each).
+inline constexpr size_t AUTO_OUTSIDE_CROWDED  = 20;
+inline constexpr size_t CROWDED_MARKER_WEIGHT = 10;
 
 // Fraction of @p plot an inside legend of @p entries would cover, using the
 // static (non-scrolling) grid every legend path sizes itself with and the
@@ -894,13 +902,17 @@ inline constexpr float AUTO_OUTSIDE_MIN_LABEL_W = 48.0f;
 // would be omitted), 0 for no entries / an empty plot.  Deliberately measured
 // before the INSIDE_MAX_COVERAGE cap (compute_legend_grid): it is how much
 // the full legend would need, which decides whether Best moves it outside.
-inline float inside_coverage(std::span<Series* const> entries,
-                             const LegendConfig&      cfg,
-                             const Rect&              plot)
+// Size of the static inside legend grid for @p entries in @p plot (see
+// inside_coverage).  False when not even one row fits.
+inline bool inside_box_size(std::span<Series* const> entries,
+                            const LegendConfig&      cfg,
+                            const Rect&              plot,
+                            float&                   w,
+                            float&                   h)
 {
     const int n = static_cast<int>(entries.size());
     if (n <= 0 || !(plot.w > 0.0f) || !(plot.h > 0.0f))
-        return 0.0f;
+        return false;
     const float font_px = layout_font_px(cfg);
     const float pad_x   = cfg.padding + 2.0f;
     const float pad_y   = cfg.padding;
@@ -915,13 +927,52 @@ inline float inside_coverage(std::span<Series* const> entries,
                                        max_box_w(plot, LegendPosition::TopRight),
                                        max_box_h(plot, LegendPosition::TopRight));
     if (g.rows <= 0 || !fits(plot, g.width, g.height))
+        return false;
+    w = g.width;
+    h = g.height;
+    return true;
+}
+
+inline float inside_coverage(std::span<Series* const> entries,
+                             const LegendConfig&      cfg,
+                             const Rect&              plot)
+{
+    if (entries.empty() || !(plot.w > 0.0f) || !(plot.h > 0.0f))
+        return 0.0f;
+    float w = 0.0f;
+    float h = 0.0f;
+    if (!inside_box_size(entries, cfg, plot, w, h))
         return 1.0f;
-    return std::min(1.0f, (g.width * g.height) / (plot.w * plot.h));
+    return std::min(1.0f, (w * h) / (plot.w * plot.h));
+}
+
+// Overlap score of the clearest inside corner for a Best legend of 2D @p axes
+// in @p plot; 0 for 3D axes or when nothing is plotted.  Unlike corner
+// choice it scores the legend box itself (no clearance: grazing is fine) and
+// counts each hidden scatter marker as CROWDED_MARKER_WEIGHT, since a marker
+// under the legend is a data point lost while a line stays readable.
+inline size_t best_inside_overlap(const AxesBase& axes, const LegendConfig& cfg, const Rect& plot)
+{
+    const auto* a2 = dynamic_cast<const Axes*>(&axes);
+    if (!a2)
+        return 0;
+    const auto entries = legend_entries(axes);
+    float      w       = 0.0f;
+    float      h       = 0.0f;
+    if (!inside_box_size(entries, cfg, plot, w, h))
+        return 0;
+    size_t best = static_cast<size_t>(-1);
+    for (LegendPosition pos : BEST_CANDIDATES)
+        best = std::min(
+            best,
+            overlap_score(*a2, plot, pos, w, h, MARGIN, 4096, 0.0f, CROWDED_MARKER_WEIGHT));
+    return best;
 }
 
 // True when a Best legend of @p axes in layout cell @p cell should be placed
 // outside (see AUTO_OUTSIDE_COVERAGE).  Pure function of the cell, the
-// entries and the config, so it does not oscillate between frames.
+// entries and the config (plus, for the data test, the previous layout), so
+// it does not oscillate between frames.
 inline bool auto_outside(const AxesBase& axes, const LegendConfig& cfg, const Rect& cell)
 {
     if (!cfg.visible || cfg.position != LegendPosition::Best || !(cell.w > 0.0f)
@@ -930,7 +981,14 @@ inline bool auto_outside(const AxesBase& axes, const LegendConfig& cfg, const Re
     const auto entries = legend_entries(axes);
     if (entries.empty())
         return false;
-    if (inside_coverage(entries, cfg, cell) <= AUTO_OUTSIDE_COVERAGE)
+    // Outside when the legend is large, or when every inside corner would
+    // cover data.  The data test is sticky (an axes already given an outside
+    // strip keeps it) so panning and zooming do not make the plot jump.
+    const bool large   = inside_coverage(entries, cfg, cell) > AUTO_OUTSIDE_COVERAGE;
+    const bool crowded = !large
+                         && (axes.outside_legend_area().w > 0.0f
+                             || best_inside_overlap(axes, cfg, cell) >= AUTO_OUTSIDE_CROWDED);
+    if (!large && !crowded)
         return false;
     const float label_w = max_label_width(entries, layout_font_px(cfg));
     const float strip =

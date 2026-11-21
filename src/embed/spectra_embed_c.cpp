@@ -124,6 +124,10 @@ static spectra::LineStyle to_line_style(int v)
             return spectra::LineStyle::Dashed;
         case SPECTRA_LINE_DOTTED:
             return spectra::LineStyle::Dotted;
+        case SPECTRA_LINE_DASH_DOT:
+            return spectra::LineStyle::DashDot;
+        case SPECTRA_LINE_DASH_DOT_DOT:
+            return spectra::LineStyle::DashDotDot;
         default:
             return spectra::LineStyle::Solid;
     }

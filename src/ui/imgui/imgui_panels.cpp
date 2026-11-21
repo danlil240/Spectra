@@ -4,6 +4,7 @@
 
     #include <array>
     #include <algorithm>
+    #include <cstdint>
     #include <format>
 
     #include "../data_sidebar/data_sidebar.hpp"
@@ -136,22 +137,31 @@ void ImGuiIntegration::draw_empty_axes_hints(Figure& figure)
         const float text_w = ImGui::CalcTextSize(subtitle.c_str()).x + ui::tokens::SPACE_2;
         const float block_w =
             std::min({ui::tokens::EMPTY_STATE_MAX_WIDTH, vp.w - 32.0f, std::max(220.0f, text_w)});
-        const float line_h  = ImGui::GetTextLineHeightWithSpacing();
-        const float block_h = std::min(vp.h - 16.0f,
-                                       ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
-                                           + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2);
+        const float line_h = ImGui::GetTextLineHeightWithSpacing();
+        const float full_h = ui::tokens::EMPTY_STATE_ICON_SIZE + 3.0f * line_h
+                             + ImGui::GetFrameHeight() + 4.0f * ui::tokens::SPACE_2;
+        // A short axes (e.g. a split pane) drops the button rather than
+        // drawing it cut off; the subtitle still says how to add data.
+        const bool  with_button = full_h <= vp.h - 16.0f;
+        const float block_h =
+            std::min(vp.h - 16.0f, with_button ? full_h : full_h - ImGui::GetFrameHeight());
         ImGui::SetNextWindowPos(
             ImVec2(std::floor(mid_x - block_w * 0.5f), std::floor(mid_y - block_h * 0.5f)));
         ImGui::SetNextWindowSize(ImVec2(block_w, block_h));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        const std::string name    = "##empty_axes_hint" + std::to_string(i);
-        int               clicked = -1;
+        // Unique per figure: split panes show the hints of several figures.
+        const std::string name = "##empty_axes_hint"
+                                 + std::to_string(reinterpret_cast<uintptr_t>(&figure)) + "_"
+                                 + std::to_string(i);
+        int clicked = -1;
         if (ImGui::Begin(name.c_str(), nullptr, flags))
-            clicked = ui::widgets::empty_state(ui::Icon::FileText,
-                                               "No data yet",
-                                               subtitle.c_str(),
-                                               actions);
+            clicked = ui::widgets::empty_state(
+                ui::Icon::FileText,
+                "No data yet",
+                subtitle.c_str(),
+                with_button ? std::span<const ui::widgets::EmptyStateAction>(actions)
+                            : std::span<const ui::widgets::EmptyStateAction>());
         ImGui::End();
         ImGui::PopStyleVar(2);
         if (clicked == 0)
@@ -1153,14 +1163,19 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
              // On-demand rendering makes a raw frame rate read "0 fps"; show "Idle"
              // unless frames are rendered continuously (see FpsBadgeState).
              fps_badge_.on_frame(ui::FpsBadgeState::Clock::now());
-             const bool        fps_live  = fps_badge_.is_live();
-             const std::string fps_buf   = fps_badge_.label();
-             const std::string gpu_buf   = std::format("GPU: {:.1f}ms", gpu_time_ms_);
-             const float       perf_gap  = ui::tokens::STATUS_BAR_PERF_GAP;
-             const float       fps_pad_h = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
-             const float       fps_pad_v = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
-             const float       right_w   = ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f
-                                   + perf_gap + ImGui::CalcTextSize(gpu_buf.c_str()).x;
+             const bool        fps_live = fps_badge_.is_live();
+             const std::string fps_buf  = fps_badge_.label();
+             // Only a measured GPU time is shown (nothing feeds it yet: a
+             // constant "GPU: 0.0ms" read as a broken counter).
+             const bool        show_gpu = gpu_time_ms_ > 0.0f;
+             const std::string gpu_buf =
+                 show_gpu ? std::format("GPU: {:.1f}ms", gpu_time_ms_) : std::string();
+             const float perf_gap  = ui::tokens::STATUS_BAR_PERF_GAP;
+             const float fps_pad_h = ui::tokens::STATUS_BAR_FPS_PILL_PAD_H;
+             const float fps_pad_v = ui::tokens::STATUS_BAR_FPS_PILL_PAD_V;
+             const float right_w =
+                 ImGui::CalcTextSize(fps_buf.c_str()).x + fps_pad_h * 2.0f
+                 + (show_gpu ? perf_gap + ImGui::CalcTextSize(gpu_buf.c_str()).x : 0.0f);
              const float right_x =
                  ImGui::GetWindowWidth() - right_w - ui::tokens::STATUS_BAR_PADDING_H;
              const float center_end = ImGui::GetCursorPosX();
@@ -1217,14 +1232,18 @@ void ImGuiIntegration::populate_status_bar(ui::shell::StatusBar& bar)
                  ImGui::PopStyleColor();
              }
 
-             ImGui::SameLine(0.0f, perf_gap);
-             // SameLine returns to the line's top (the fps text was placed with
-             // SetCursorPosY inside a SameLine), so centre the GPU readout again.
-             ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
-             const ui::Color& gpu_text = perf.gpu_text;
-             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
-             ImGui::TextUnformatted(gpu_buf.c_str());
-             ImGui::PopStyleColor();
+             if (show_gpu)
+             {
+                 ImGui::SameLine(0.0f, perf_gap);
+                 // SameLine returns to the line's top (the fps text was placed with
+                 // SetCursorPosY inside a SameLine), so centre the GPU readout again.
+                 ImGui::SetCursorPosY((bar_h - text_h) * 0.5f);
+                 const ui::Color& gpu_text = perf.gpu_text;
+                 ImGui::PushStyleColor(ImGuiCol_Text,
+                                       ImVec4(gpu_text.r, gpu_text.g, gpu_text.b, 1.0f));
+                 ImGui::TextUnformatted(gpu_buf.c_str());
+                 ImGui::PopStyleColor();
+             }
 
              ImGui::PopFont();
          }});

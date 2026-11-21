@@ -727,6 +727,8 @@ LINE_NONE = 0
 LINE_SOLID = 1
 LINE_DASHED = 2
 LINE_DOTTED = 3
+LINE_DASH_DOT = 4
+LINE_DASH_DOT_DOT = 5
 _LINE_STYLES = {
     "none": 0,
     "solid": 1,
@@ -735,6 +737,10 @@ _LINE_STYLES = {
     "--": 2,
     "dotted": 3,
     ":": 3,
+    "dashdot": 4,
+    "-.": 4,
+    "dashdotdot": 5,
+    "-..": 5,
 }
 
 # Marker styles (spectra::MarkerStyle)

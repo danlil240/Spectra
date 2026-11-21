@@ -4820,7 +4820,7 @@ class QAAgent
             ax.surface(xg, yg, zv).colormap(ColormapType::Plasma);
             ax.auto_fit();
             ax.title("Side View (azimuth=0, elev=15)");
-            ax.camera().set_azimuth(0.0f).set_elevation(15.0f).set_distance(7.0f);
+            ax.camera().set_azimuth(0.0f).set_elevation(15.0f);
 
             pump_frames(15);
             const FigureId fid = newest_figure_id();
@@ -4852,7 +4852,7 @@ class QAAgent
             ax.surface(xg, yg, zv).colormap(ColormapType::Inferno);
             ax.auto_fit();
             ax.title("Top-Down View (elev=85)");
-            ax.camera().set_azimuth(45.0f).set_elevation(85.0f).set_distance(6.0f);
+            ax.camera().set_azimuth(45.0f).set_elevation(85.0f);
 
             pump_frames(15);
             const FigureId fid = newest_figure_id();
@@ -4917,7 +4917,7 @@ class QAAgent
             ax.scatter3d(x2, y2, z2).label("Cluster B").color(colors::blue).size(5.5f);
             ax.auto_fit();
             ax.title("3D Scatter -- Two Clusters");
-            ax.camera().set_azimuth(35.0f).set_elevation(24.0f).set_distance(8.0f);
+            ax.camera().set_azimuth(35.0f).set_elevation(24.0f);
 
             pump_frames(15);
             const FigureId fid = newest_figure_id();
@@ -6082,6 +6082,13 @@ class QAAgent
                     ImGui::GetIO().AddKeyEvent(ImGuiKey_DownArrow, false);
                     pump_frames(1);
                 }
+                // Queued key events are trickled one per ImGui frame; wait until
+                // every press has landed and the scroll has caught up.
+                wait_until_settled("command palette selection",
+                                   [&] {
+                                       return ui->cmd_palette.selected_index() >= 15
+                                              && ui->cmd_palette.scroll_offset() > 0.0f;
+                                   });
                 pump_frames(5);   // Let scroll animation settle with scrollbar visible
 
                 named_screenshot(
@@ -6299,9 +6306,11 @@ class QAAgent
                         // rail tool, mode chip), stays readable on the
                         // half-way surfaces (3:1 floor for this transient
                         // frame; see DECISIONS-fbcontrast.md).
-                        for (const char* w :
-                             {"##navrail", "##commandbar", "##pane_tab", "##AppShellStatusBar"})
+                        for (const char* w : {"##navrail", "##commandbar", "##AppShellStatusBar"})
                             expect_text_contrast(c, w, 3.0f, 3);
+                        // With this many figures only the active tab keeps a
+                        // full title; the others show their number (< 3 glyphs).
+                        expect_text_contrast(c, "##pane_tab", 3.0f, 1);
                     });
                 ui->theme_mgr->update(duration);   // finish: switches to Light
                 ui->theme_mgr->set_theme("dark");
@@ -6319,17 +6328,7 @@ class QAAgent
             {
                 ui->imgui_ui->open_transform_dialog();
                 pump_frames(10);
-                // The action row sits at the end of the scrolling body.
-                if (ImGuiContext* ctx = design_imgui())
-                {
-                    ImGuiContext* prev = ImGui::GetCurrentContext();
-                    ImGui::SetCurrentContext(ctx);
-                    for (ImGuiWindow* w : ctx->Windows)
-                        if (w && w->Name
-                            && std::string_view(w->Name).starts_with("##custom_xform/##xform_body"))
-                            ImGui::SetScrollY(w, w->ScrollMax.y);
-                    ImGui::SetCurrentContext(prev);
-                }
+                // The action row is a fixed footer: visible without scrolling.
                 pump_frames(5);
                 named_screenshot(
                     "64_transform_dialog_disabled_actions",

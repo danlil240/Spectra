@@ -348,6 +348,7 @@ set(SPECTRA_UNIT_TESTS
     test_text_annotation_ipc
     test_text_annotation_persist
     test_window_placement
+    test_tab_title_fit
     test_embed_annotations_c
 )
 

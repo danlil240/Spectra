@@ -2,7 +2,7 @@
   <img src="icons/spectra_banner.png" alt="Spectra" width="600">
 </p>
 
-<h3 align="center">GPU-accelerated scientific plotting for C++20 and Python</h3>
+<h3 align="center">GPU-accelerated scientific plotting for C++20, Python and Rust</h3>
 
 <p align="center">
   <a href="https://github.com/danlil240/Spectra/actions/workflows/ci.yml"><img src="https://github.com/danlil240/Spectra/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
@@ -60,7 +60,7 @@ Qt or ROS2 tools.
   multi-tab workspaces.
 - **C++, Python and Rust** — a native C++20 library, plus Python and Rust clients that start the
   Spectra backend for you.
-- **Headless export** — render PNG, SVG, GIF or MP4 without a window, for CI and batch jobs.
+- **Headless export** — render PNG, SVG, PDF, GIF or MP4 without a window, for CI and batch jobs.
 
 ## Why Spectra?
 
@@ -72,12 +72,12 @@ pure-Python install.
 | | Spectra | matplotlib | ImPlot | VisPy | pyqtgraph | PlotJuggler |
 |---|---|---|---|---|---|---|
 | Rendering | GPU (Vulkan) | CPU | GPU (via your ImGui backend) | GPU (OpenGL) | CPU, optional OpenGL | CPU / OpenGL (Qt) |
-| Use from | C++20 and Python | Python | C++ (inside Dear ImGui) | Python | Python | Desktop app + plugins |
+| Use from | C++20, Python and Rust | Python | C++ (inside Dear ImGui) | Python | Python | Desktop app + plugins |
 | Live streaming | Yes | Limited | Yes | Yes | Yes | Yes |
 | 3D | Yes (surfaces, meshes, lighting) | Basic (mplot3d) | Separate project (ImPlot3D) | Yes | Yes (OpenGL) | No |
 | Ready-made app UI | Yes (inspector, timeline, workspaces) | No | No (you build it) | No | No | Yes |
 | ROS2 / PX4 | Built-in adapters (preview) | No | No | No | No | Yes, mature |
-| Publication output | PNG, SVG, GIF, MP4 | Excellent (PDF, SVG, PGF, ...) | Screenshots | PNG | PNG, SVG | Limited |
+| Publication output | PNG, SVG, PDF, GIF, MP4 | Excellent (PDF, SVG, PGF, ...) | Screenshots | PNG | PNG, SVG | Limited |
 | Maturity and ecosystem | New (0.x) | Decades, huge | Mature | Mature | Mature | Mature in robotics |
 | Install | pip wheel or apt, needs a Vulkan driver | Pure pip | Compile into your app | pip + OpenGL | pip + Qt | apt / snap / AppImage |
 
@@ -167,7 +167,7 @@ The `spectra-plot` crate is a pure-Rust client for the Spectra backend; see
 |---|---|---|
 | Linux x86_64 — Ubuntu 22.04 / 24.04 | **Supported** | X11 and Wayland. GCC 13+ or Clang 17+ to build from source. |
 | macOS (Apple Silicon, via MoltenVK) | Experimental | Builds and runs in CI; expect rough edges. |
-| Windows x64 | Experimental | In-process mode only (no backend daemon). |
+| Windows x64 | Experimental | C++ library and app, in-process only (no backend daemon, so no Python package; use WSL2). |
 | ROS2, PX4/ULog, Qt embed | Preview | Optional adapters, enabled at build time. |
 | WebGPU / WebAssembly | Preview | 2D only. |
 
@@ -180,7 +180,8 @@ macOS).
 pip install spectra-plot
 ```
 
-No compiler or Vulkan SDK needed — only a Vulkan-capable driver.
+No compiler or Vulkan SDK needed — only a Vulkan-capable driver. Linux and macOS only: on
+Windows, install it inside WSL2 (its windows open through WSLg).
 
 ### APT repository (Ubuntu 22.04 / 24.04)
 
@@ -245,7 +246,7 @@ target_link_libraries(my_app PRIVATE spectra::spectra)
 | **Data interaction** | Tooltips, crosshair, markers, linked axes, shared cursor, data transforms, CSV import |
 | **Multi-window** | Independent OS windows, tab tear-off, workspaces you can save and reload |
 | **Python** | `spectra.plot()` one-liners, NumPy fast path, live streaming, automatic backend launch |
-| **Export** | Headless PNG/SVG/GIF/MP4, plugin API, CMake `find_package` |
+| **Export** | Headless PNG/SVG/PDF/GIF/MP4, plugin API, CMake `find_package` |
 | **ROS2** (preview) | Topic monitor, live plotter, bag player/recorder, TF tree, node graph, service caller |
 | **PX4 / ULog** (preview) | ULog file reader, flight-log plotting, live MAVLink bridge |
 | **Qt embed** (preview) | Spectra canvas inside Qt6 widgets (C++), plus PyQt/PySide integration |

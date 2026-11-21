@@ -384,16 +384,16 @@ float LayoutManager::min_window_height(bool nav_rail_visible,
                                        bool command_bar_visible,
                                        bool status_bar_visible)
 {
+    // The nav rail scrolls when it does not fit (even at its smallest cells),
+    // so it no longer sets the floor: a full rail needed ~760 px, more than a
+    // 768 px laptop screen with a taskbar offers.
+    (void)nav_rail_visible;
     float h = 0.0f;
     if (command_bar_visible)
         h += COMMAND_BAR_HEIGHT;
     if (status_bar_visible)
         h += STATUS_BAR_HEIGHT;
-    if (nav_rail_visible)
-        h += nav_rail_min_content_height();
-    else
-        h = std::max(h, WINDOW_MIN_HEIGHT_NO_NAV);
-    return h;
+    return h + WINDOW_MIN_HEIGHT_NO_NAV;
 }
 
 float LayoutManager::plot_margin_right(float figure_margin_right)

@@ -85,6 +85,31 @@ inline std::pair<int, int> fit_window_to_work_area(int            win_w,
             std::max(1, static_cast<int>(win_h * scale))};
 }
 
+// Client-area position that keeps a window (client @p win_w x @p win_h plus
+// its decorations: @p frame_left/top/right/bottom px) inside @p work.  A window
+// larger than the work area keeps its title bar on screen (top-left pinned).
+// An unknown work area leaves the position unchanged.
+inline std::pair<int, int> keep_window_in_work_area(int            x,
+                                                    int            y,
+                                                    int            win_w,
+                                                    int            win_h,
+                                                    int            frame_left,
+                                                    int            frame_top,
+                                                    int            frame_right,
+                                                    int            frame_bottom,
+                                                    ScreenWorkArea work)
+{
+    if (work.w <= 0 || work.h <= 0)
+        return {x, y};
+    const int outer_w = win_w + frame_left + frame_right;
+    const int outer_h = win_h + frame_top + frame_bottom;
+    const int min_x   = work.x + frame_left;
+    const int min_y   = work.y + frame_top;
+    const int max_x   = std::max(min_x, work.x + work.w - outer_w + frame_left);
+    const int max_y   = std::max(min_y, work.y + work.h - outer_h + frame_top);
+    return {std::clamp(x, min_x, max_x), std::clamp(y, min_y, max_y)};
+}
+
 // Top-left position of the @p index-th cascaded window (index 0 = @p base).
 // Each window is offset by @p step px right and down from the previous one.
 // When the next offset would push a @p win_w x @p win_h window past the work

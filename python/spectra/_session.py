@@ -1,5 +1,6 @@
 """Session class — manages a single connection to the spectra-backend."""
 
+import os
 import threading
 from typing import Optional, List, TYPE_CHECKING
 
@@ -70,6 +71,7 @@ class Session:
         self._socket_path = resolve_socket_path(socket)
         self._transport: Optional[Transport] = None
         self._session_id: int = 0
+        self._backend_mode: str = ""
         self._next_request_id: int = 0
         self._lock = threading.Lock()
         self._figures: List["Figure"] = []
@@ -92,12 +94,36 @@ class Session:
         backoff = 0.25
         last_err: Optional[Exception] = None
 
+        # Sockets found by discovery that turned out to be an in-process app's
+        # topic broker. Those only relay topics and never answer figure
+        # requests, so the session must not attach to them.
+        rejected: set = set()
+        pinned = bool(socket) or bool(os.environ.get("SPECTRA_SOCKET"))
+
         for attempt in range(1, max_attempts + 1):
             try:
-                if auto_launch:
-                    self._socket_path = ensure_backend(self._socket_path)
-                self._connect()
-                return  # success
+                while True:
+                    if auto_launch:
+                        self._socket_path = ensure_backend(
+                            self._socket_path, exclude=rejected
+                        )
+                    self._connect()
+                    if self._backend_mode != "inproc" or pinned:
+                        return  # success
+                    log.info(
+                        "socket %s is an in-process app's topic broker; "
+                        "starting a dedicated backend instead",
+                        self._socket_path,
+                    )
+                    rejected.add(self._socket_path)
+                    self._disconnect_quietly()
+                    self._socket_path = ""
+                    if not auto_launch:
+                        raise ConnectionError(
+                            "Only an in-process Spectra app is running, and it "
+                            "cannot host figures from Python. Start "
+                            "spectra-backend or allow auto_launch."
+                        )
             except (ConnectionError, OSError) as exc:
                 last_err = exc
                 log.warning("startup attempt %d/%d failed: %s",
@@ -138,6 +164,7 @@ class Session:
 
             welcome = codec.decode_welcome(msg["payload"])
             self._session_id = welcome["session_id"]
+            self._backend_mode = welcome.get("mode", "") or ""
             log.info("connected, session_id=%d", self._session_id)
         except Exception:
             # Clean up failed transport so retry starts fresh
@@ -148,6 +175,15 @@ class Session:
                     pass
                 self._transport = None
             raise
+
+    def _disconnect_quietly(self) -> None:
+        """Drop the current transport without sending anything."""
+        if self._transport is not None:
+            try:
+                self._transport.close()
+            except Exception:
+                pass
+            self._transport = None
 
     def _next_req_id_unlocked(self) -> int:
         """Increment and return next request ID. Caller must hold self._lock."""

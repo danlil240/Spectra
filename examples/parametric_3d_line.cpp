@@ -35,7 +35,7 @@ int main()
     ax.zlabel("Z Axis");
 
     // Configure camera
-    ax.camera().set_azimuth(45.0f).set_elevation(30.0f).set_distance(8.0f);
+    ax.camera().set_azimuth(45.0f).set_elevation(30.0f);
 
     // Show all grid planes
     ax.grid_planes(Axes3D::GridPlane::All);

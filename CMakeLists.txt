@@ -154,6 +154,16 @@ endif()
 option(SPECTRA_INSTALL        "Generate install rules and the spectra CMake package" ${_spectra_install_default})
 option(SPECTRA_PYTHON_WHEEL  "Install backend into Python package _bin/" OFF)
 
+# The Python package drives the spectra-backend daemon, which is Linux/macOS
+# only.  Fail `pip install spectra-plot` on Windows with a clear reason instead
+# of producing a package that can never open a window.
+if(SPECTRA_PYTHON_WHEEL AND WIN32)
+    message(FATAL_ERROR
+        "spectra-plot (the Python package) does not support native Windows yet: "
+        "its spectra-backend daemon is Linux/macOS only. Install it inside WSL2 "
+        "instead, or use the C++ library / spectra app, which run natively on Windows.")
+endif()
+
 # SPECTRA_USE_SYSTEM_<DEP> switches (system package vs. pinned FetchContent copy)
 include(cmake/SpectraDependencyOptions.cmake)
 
@@ -163,6 +173,12 @@ if(SPECTRA_PYTHON_WHEEL
    AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
     add_compile_options(-march=x86-64 -mtune=generic)
     message(STATUS "SPECTRA_PYTHON_WHEEL: forcing portable x86_64 ISA (-march=x86-64 -mtune=generic)")
+endif()
+
+# MSVC reads sources in the system code page unless told otherwise, which
+# mangles UTF-8 literals in the UI ("Zoom 0.59\u00d7" rendered a box).
+if(MSVC)
+    add_compile_options("$<$<COMPILE_LANGUAGE:C,CXX>:/utf-8>")
 endif()
 
 # Runtime mode: inproc (single-process, all windows in one process)
@@ -572,7 +588,7 @@ elseif(SPECTRA_USE_GLFW)
     target_compile_definitions(spectra PUBLIC SPECTRA_USE_GLFW)
     if(WIN32)
         target_sources(spectra PRIVATE src/platform/window_system/win32_glfw_hook.cpp)
-        target_link_libraries(spectra PRIVATE comctl32)
+        target_link_libraries(spectra PRIVATE comctl32 dwmapi)
     endif()
 endif()
 

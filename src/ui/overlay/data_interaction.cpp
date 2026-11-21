@@ -107,40 +107,9 @@ bool DataInteraction::select_point(const Series* series, size_t point_index)
         }
     }
 
-    // Compute dy/dx at the selected point
-    float dy_dx       = 0.0f;
-    bool  dy_dx_valid = false;
-    if (count >= 2)
-    {
-        size_t i = point_index;
-        if (i > 0 && i + 1 < count)
-        {
-            float dx = x_data[i + 1] - x_data[i - 1];
-            if (std::abs(dx) > 1e-30f)
-            {
-                dy_dx       = (y_data[i + 1] - y_data[i - 1]) / dx;
-                dy_dx_valid = true;
-            }
-        }
-        else if (i == 0)
-        {
-            float dx = x_data[1] - x_data[0];
-            if (std::abs(dx) > 1e-30f)
-            {
-                dy_dx       = (y_data[1] - y_data[0]) / dx;
-                dy_dx_valid = true;
-            }
-        }
-        else if (i == count - 1)
-        {
-            float dx = x_data[count - 1] - x_data[count - 2];
-            if (std::abs(dx) > 1e-30f)
-            {
-                dy_dx       = (y_data[count - 1] - y_data[count - 2]) / dx;
-                dy_dx_valid = true;
-            }
-        }
-    }
+    // dy/dx at the selected point (line series with monotonic x only).
+    float      dy_dx       = 0.0f;
+    const bool dy_dx_valid = measure::point_derivative(*series, point_index, dy_dx);
 
     // Absolute x/y = series x_offset/y_offset + stored relative float.
     const double abs_x = static_cast<double>(x_data[point_index]) + series->x_offset();
@@ -1787,60 +1756,9 @@ NearestPointResult DataInteraction::find_nearest(const CursorReadout& cursor, Fi
         }
     }
 
-    // Compute dy/dx at the nearest point via finite difference (2D samples only)
+    // dy/dx at the nearest point (2D line samples with monotonic x only).
     if (best.found && !best.is_3d && best.series && best.kind == HoverHitKind::Vertex)
-    {
-        const float* xd    = nullptr;
-        const float* yd    = nullptr;
-        size_t       count = 0;
-        if (auto* ls = dynamic_cast<const LineSeries*>(best.series))
-        {
-            xd    = ls->x_data().data();
-            yd    = ls->y_data().data();
-            count = ls->point_count();
-        }
-        else if (auto* sc = dynamic_cast<const ScatterSeries*>(best.series))
-        {
-            xd    = sc->x_data().data();
-            yd    = sc->y_data().data();
-            count = sc->point_count();
-        }
-
-        if (xd && yd && count >= 2)
-        {
-            size_t i = best.point_index;
-            if (i > 0 && i + 1 < count)
-            {
-                // Central difference
-                float dx = xd[i + 1] - xd[i - 1];
-                if (std::abs(dx) > 1e-30f)
-                {
-                    best.dy_dx       = (yd[i + 1] - yd[i - 1]) / dx;
-                    best.dy_dx_valid = true;
-                }
-            }
-            else if (i == 0 && count >= 2)
-            {
-                // Forward difference
-                float dx = xd[1] - xd[0];
-                if (std::abs(dx) > 1e-30f)
-                {
-                    best.dy_dx       = (yd[1] - yd[0]) / dx;
-                    best.dy_dx_valid = true;
-                }
-            }
-            else if (i == count - 1 && count >= 2)
-            {
-                // Backward difference
-                float dx = xd[count - 1] - xd[count - 2];
-                if (std::abs(dx) > 1e-30f)
-                {
-                    best.dy_dx       = (yd[count - 1] - yd[count - 2]) / dx;
-                    best.dy_dx_valid = true;
-                }
-            }
-        }
-    }
+        best.dy_dx_valid = measure::point_derivative(*best.series, best.point_index, best.dy_dx);
 
     return best;
 }

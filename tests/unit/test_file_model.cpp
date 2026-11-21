@@ -128,6 +128,30 @@ TEST(FigureFingerprint, ChangesWithContentNotWithView)
     EXPECT_NE(before_add, figure_fingerprint(*fig));
 }
 
+TEST(FigureFingerprint, ThemeColourResolutionIsNotAnEdit)
+{
+    // A Light startup theme resolves palette and letter colours that differ
+    // from the default (dark) shades while the UI is built; that must not
+    // mark the figure modified (QA H5).
+    auto fig = figure_with_line();
+    fig->axes()[0]
+        ->line(std::vector<float>{0.0f, 1.0f}, std::vector<float>{0.0f, 1.0f})
+        .format("r--");
+    auto&          auto_line   = *fig->axes()[0]->series()[0];
+    auto&          letter_line = *fig->axes()[0]->series()[1];
+    const uint64_t base        = figure_fingerprint(*fig);
+    const uint64_t gen         = auto_line.change_generation();
+    auto_line.clear_dirty();
+    letter_line.clear_dirty();
+
+    EXPECT_TRUE(auto_line.resolve_auto_color(Color{0.1f, 0.2f, 0.3f, 1.0f}));
+    EXPECT_TRUE(letter_line.resolve_letter_color(Color{0.7f, 0.1f, 0.1f, 1.0f}));
+    EXPECT_TRUE(auto_line.is_dirty());   // still re-uploaded
+    EXPECT_TRUE(letter_line.is_dirty());
+    EXPECT_EQ(gen, auto_line.change_generation());
+    EXPECT_EQ(base, figure_fingerprint(*fig));
+}
+
 TEST(DocumentTracker, DetectFlagsUserChangesAbsorbKeepsProgramChanges)
 {
     auto            fig = figure_with_line();
@@ -387,6 +411,24 @@ TEST(DocumentSession, CloseWindowAsksOnlyWhenModified)
     EXPECT_TRUE(doc.resolve_prompt(UnsavedChangesPrompt::Choice::DontSave));
     EXPECT_EQ(closes, 1);
     EXPECT_TRUE(doc.confirm_close_window([&]() { ++closes; }));
+}
+
+TEST(DocumentSession, AutosaveFolderIsPerProgram)
+{
+    // One program's crash must not make an unrelated program offer to
+    // restore its work (QA H4): each program autosaves into its own folder.
+    const fs::path a = DocumentSession::autosave_dir_for("basic_line");
+    const fs::path b = DocumentSession::autosave_dir_for("spectra-px4");
+    EXPECT_NE(a, b);
+    EXPECT_EQ(a.parent_path(), b.parent_path());
+    EXPECT_EQ(a.filename(), "basic_line");
+    EXPECT_EQ(a.parent_path().filename(), "autosave");
+    EXPECT_EQ(fs::path(DocumentSession::autosave_dir_for("a/b:c")).filename(), "a_b_c");
+    EXPECT_EQ(fs::path(DocumentSession::autosave_dir_for("..")).filename(), "spectra");
+    EXPECT_EQ(fs::path(DocumentSession::autosave_dir_for("")).filename(), "spectra");
+    EXPECT_EQ(fs::path(DocumentSession::default_autosave_dir()).filename(),
+              DocumentSession::current_program_name());
+    EXPECT_EQ(DocumentSession::current_program_name(), "unit_test_file_model");
 }
 
 TEST(DocumentSession, AutosaveWritesWhileModifiedAndCleansUp)

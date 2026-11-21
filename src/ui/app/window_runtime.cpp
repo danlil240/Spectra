@@ -25,6 +25,7 @@
 
 #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
     #include "ui/window/window_manager.hpp"
+    #include "platform/window_system/win32_glfw_hook.hpp"
 #endif
 
 #ifdef SPECTRA_USE_IMGUI
@@ -87,6 +88,20 @@ void apply_window_size_limits(WindowUIContext& ui_ctx, ImGuiIntegration& imgui_u
         SDL_SetWindowSize(win, std::max(ww, min_wi), std::max(wh, min_hi));
     #endif
 }
+
+    #if defined(SPECTRA_USE_GLFW) && defined(SPECTRA_USE_IMGUI)
+// Windows draws the caption: keep it dark under a dark theme (no-op elsewhere).
+void apply_title_bar_theme(WindowUIContext& ui_ctx)
+{
+    if (!ui_ctx.glfw_window)
+        return;
+    const int dark = ui::theme().bg_primary.luminance() < 0.5f ? 1 : 0;
+    if (dark == ui_ctx.applied_dark_title_bar_)
+        return;
+    ui_ctx.applied_dark_title_bar_ = dark;
+    win32_set_dark_title_bar(static_cast<GLFWwindow*>(ui_ctx.glfw_window), dark != 0);
+}
+    #endif
 
 }   // namespace
 #endif
@@ -549,6 +564,9 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
         apply_window_size_limits(ui_ctx, *imgui_ui);
     #endif
+    #if defined(SPECTRA_USE_GLFW) && defined(SPECTRA_USE_IMGUI)
+        apply_title_bar_theme(ui_ctx);
+    #endif
 
         // Old TabBar is replaced by unified pane tab headers
         // (drawn by draw_pane_tab_headers in ImGuiIntegration)
@@ -871,7 +889,14 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                         pane_margins.top =
                             std::min(fs_style.margin_top * plot_scale, pinfo.bounds.h * 0.2f);
 
-                        const float min_sub_h = fs_style.min_subplot_height;
+                        // A pane is a fraction of the window: let a subplot
+                        // grid shrink to fit it instead of keeping the
+                        // full-window minimum row height and cutting off the
+                        // bottom rows.
+                        const float rows = static_cast<float>(std::max(1, fig->grid_rows()));
+                        const float min_sub_h =
+                            std::min(fs_style.min_subplot_height,
+                                     std::max(60.0f * plot_scale, pinfo.bounds.h / rows * 0.5f));
                         const float origin_y  = pinfo.bounds.y - fig->scroll_offset_y();
                         const float content_h = layout_figure(
                             *fig,

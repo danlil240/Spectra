@@ -240,10 +240,28 @@ fn current_brokers() -> HashSet<String> {
 
 /// Make sure a backend is listening. Returns the socket path in use.
 pub(crate) fn ensure_backend(socket_path: &str, timeout: Duration) -> Result<String> {
+    ensure_backend_excluding(socket_path, timeout, &HashSet::new())
+}
+
+/// [`ensure_backend`], never reusing a socket in `exclude` (for example an
+/// in-process app's topic broker, which cannot host figures).
+pub(crate) fn ensure_backend_excluding(
+    socket_path: &str,
+    timeout: Duration,
+    exclude: &HashSet<String>,
+) -> Result<String> {
+    let socket_path = if exclude.contains(socket_path) {
+        ""
+    } else {
+        socket_path
+    };
     if !socket_path.is_empty() && can_connect(socket_path) {
         return Ok(socket_path.to_string());
     }
-    if let Some(found) = discover_live_brokers().into_iter().next() {
+    if let Some(found) = discover_live_brokers()
+        .into_iter()
+        .find(|p| !exclude.contains(p))
+    {
         if socket_path.is_empty() || found == socket_path {
             return Ok(found);
         }

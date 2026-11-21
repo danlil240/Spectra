@@ -73,12 +73,25 @@ bool point_at(const Series& series, size_t index, double& x, double& y)
 
 bool point_derivative(const Series& series, size_t index, float& dy_dx)
 {
+    // A slope only means something along a drawn curve: scatter points are
+    // unordered samples, so their neighbours in memory are arbitrary.
+    if (dynamic_cast<const LineSeries*>(&series) == nullptr)
+        return false;
     const SeriesSamples s = samples_of(series);
     if (s.count < 2 || index >= s.count)
         return false;
     const size_t lo = index > 0 ? index - 1 : 0;
     const size_t hi = index + 1 < s.count ? index + 1 : s.count - 1;
-    const float  dx = s.x[hi] - s.x[lo];
+    // ...and only where x runs one way through the sample (a line that
+    // doubles back in x, e.g. a circle or a trajectory, has no dy/dx there).
+    if (lo < index && index < hi)
+    {
+        const float a = s.x[index] - s.x[lo];
+        const float b = s.x[hi] - s.x[index];
+        if (!((a > 0.0f && b > 0.0f) || (a < 0.0f && b < 0.0f)))
+            return false;
+    }
+    const float dx = s.x[hi] - s.x[lo];
     if (!(std::abs(dx) > 1e-30f))
         return false;
     dy_dx = (s.y[hi] - s.y[lo]) / dx;

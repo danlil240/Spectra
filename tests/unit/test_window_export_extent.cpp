@@ -97,8 +97,8 @@ class WindowExportExtent : public ::testing::Test
 
         app_ = std::make_unique<App>(
             AppConfig{.headless = false, .socket_path = "", .theme = "light"});
-        // 800x600 is smaller than the window's minimum height.
-        fig_                        = &app_->figure({.width = 800, .height = 600});
+        // 800x240 is smaller than the window's minimum height.
+        fig_                        = &app_->figure({.width = 800, .height = 240});
         auto&                    ax = fig_->subplot(1, 1, 1);
         const std::vector<float> x{0.0f, 1.0f, 2.0f};
         const std::vector<float> y{0.0f, 1.0f, 0.0f};
@@ -158,13 +158,13 @@ TEST_F(WindowExportExtent, EarlyDefaultExportMatchesSettledFrame)
     ASSERT_TRUE(load(early, a));
     ASSERT_TRUE(load(settled, b));
 
-    // Both have the size of the frame that was rendered, not the 800x600 the
+    // Both have the size of the frame that was rendered, not the 800x240 the
     // figure had when the early request was made.
     EXPECT_EQ(static_cast<uint32_t>(b.w), fb_w());
     EXPECT_EQ(static_cast<uint32_t>(b.h), fb_h());
     ASSERT_EQ(a.w, b.w);
     ASSERT_EQ(a.h, b.h);
-    EXPECT_GT(a.h, 600) << "window minimum height no longer exceeds the figure height";
+    EXPECT_GT(a.h, 240) << "window minimum height no longer exceeds the figure height";
 
     // The bottom of the frame (x ticks, xlabel, status bar) is present in the
     // early export exactly as in the settled one.

@@ -49,13 +49,16 @@ impl FigureState {
 /// Image format for [`Figure::savefig_with`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ImageFormat {
-    /// Pick from the file extension (PNG unless `.svg`).
+    /// Pick from the file extension (`.png`, `.svg` or `.pdf`; PNG when
+    /// there is none).
     #[default]
     Auto,
     /// PNG raster image.
     Png,
     /// SVG vector image.
     Svg,
+    /// PDF document.
+    Pdf,
 }
 
 /// Options for [`Figure::savefig_with`].
@@ -288,7 +291,7 @@ impl Figure {
         Ok(self)
     }
 
-    /// Write the figure to a PNG or SVG file (by extension) and return its
+    /// Write the figure to a PNG, SVG or PDF file (by extension) and return its
     /// absolute path. The backend renders offscreen; no window is needed.
     pub fn savefig(&self, path: impl AsRef<Path>) -> Result<PathBuf> {
         self.savefig_with(path, &ExportOptions::default())
@@ -303,9 +306,22 @@ impl Figure {
             std::env::current_dir()?.join(path)
         };
         let format = match opts.format {
-            ImageFormat::Auto => "",
+            ImageFormat::Auto => {
+                let ext = target
+                    .extension()
+                    .map(|e| e.to_string_lossy().to_ascii_lowercase())
+                    .unwrap_or_default();
+                if !ext.is_empty() && !matches!(ext.as_str(), "png" | "svg" | "pdf") {
+                    // Never write PNG bytes under a .jpg/.eps/... name.
+                    return Err(Error::invalid(format!(
+                        "cannot save .{ext} files; use a .png, .svg or .pdf name or set ExportOptions::format"
+                    )));
+                }
+                ""
+            }
             ImageFormat::Png => "png",
             ImageFormat::Svg => "svg",
+            ImageFormat::Pdf => "pdf",
         };
         let target_str = target.to_str().ok_or_else(|| {
             Error::invalid(format!("path is not valid UTF-8: {}", target.display()))

@@ -305,6 +305,21 @@ TEST(DataTipNav, PointDerivative)
     EXPECT_FLOAT_EQ(d, 2.0f);
 }
 
+TEST(DataTipNav, PointDerivativeNeedsACurveWithMonotonicX)
+{
+    float d = 0.0f;
+    // Scatter samples are unordered: no slope (QA M11).
+    ScatterSeries sc(std::vector<float>{0, 1, 2}, std::vector<float>{0, 2, 6});
+    EXPECT_FALSE(measure::point_derivative(sc, 1, d));
+    // A line that turns back in x at the sample has no dy/dx there...
+    LineSeries loop(std::vector<float>{0, 2, 1}, std::vector<float>{0, 1, 2});
+    EXPECT_FALSE(measure::point_derivative(loop, 1, d));
+    // ...but decreasing x throughout is fine.
+    LineSeries rev(std::vector<float>{2, 1, 0}, std::vector<float>{6, 2, 0});
+    ASSERT_TRUE(measure::point_derivative(rev, 1, d));
+    EXPECT_FLOAT_EQ(d, 3.0f);
+}
+
 #ifdef SPECTRA_USE_IMGUI
 TEST(DataTipNav, MarkerSelectionAndMove)
 {

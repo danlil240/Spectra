@@ -18,7 +18,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
-from ui_action_log import StderrActionTracker  # noqa: E402
+from ui_action_log import DEBUG_LOG_HINT, StderrActionTracker, log_has_actions  # noqa: E402
 from mcp_auth import mcp_headers  # noqa: E402
 
 MCP = os.environ.get("SPECTRA_MCP_URL", "http://127.0.0.1:8765/mcp")
@@ -128,6 +128,10 @@ def main() -> int:
     pump(5)
     mcp("add_series", {"n_points": 200})
     pump(10)
+    if tracker and not log_has_actions(FUZZ_LOG):
+        # Without debug logging every interaction check would be a false error.
+        print(f"bug_hunt: {DEBUG_LOG_HINT}; action-log checks disabled", file=sys.stderr)
+        tracker = None
 
     for step in range(1, FUZZ_STEPS + 1):
         if tracker:

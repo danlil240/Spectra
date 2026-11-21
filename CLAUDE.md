@@ -18,7 +18,7 @@ GPU-accelerated **C++20** plotting (Vulkan 1.2+): 2D/3D charts, animation, ImGui
 | Tests | `build/tests/unit_*` |
 | Examples | `build/examples/*` |
 
-**Runtime:** `SPECTRA_RUNTIME_MODE` — `multiproc` (default) or `inproc`. IPC: TLV (legacy) + FlatBuffers.
+**Runtime:** apps run in-process unless given a backend socket (`SPECTRA_SOCKET` / `AppConfig::socket_path`); Python and Rust clients use the multi-process `spectra-backend`. The CMake option `SPECTRA_RUNTIME_MODE` (`multiproc` default, or `inproc`) only decides whether the multiproc binaries are built. IPC: TLV (legacy) + FlatBuffers.
 
 ## Build & verify (summary)
 

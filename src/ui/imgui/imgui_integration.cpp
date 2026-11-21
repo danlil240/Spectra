@@ -615,8 +615,9 @@ void draw_view_cubes(Figure& figure, ImDrawList* dl, ImFont* font)
                 dl->AddText(f,
                             size,
                             ImVec2(face.center_x - ts.x * 0.5f, face.center_y - ts.y * 0.5f),
-                            ui::to_imu32(hovered ? c.text_primary : c.text_secondary,
-                                         0.35f + 0.65f * face.facing),
+                            // Primary ink, at most slightly faded on oblique faces, so the
+                            // labels stay readable (secondary ink at facing alpha was ~3:1).
+                            ui::to_imu32(c.text_primary, 0.8f + 0.2f * face.facing),
                             face.label);
             }
         }
@@ -899,6 +900,8 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
                 {
                     data_interaction_->draw_legend_for_figure(*fig);
                     draw_view_cubes(*fig, overlay_dl, font_heading_);
+                    // An empty figure keeps its "No data yet" hint in any pane.
+                    draw_empty_axes_hints(*fig);
                 }
             }
         }

@@ -5,6 +5,7 @@
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #include <spectra/logger.hpp>
@@ -32,6 +33,7 @@ inline void fd_close(int fd)
 }   // namespace
 #else
     #include <cerrno>
+    #include <csignal>
     #include <fcntl.h>
     #include <poll.h>
     #include <sys/socket.h>
@@ -491,6 +493,50 @@ std::string runtime_dir()
 std::string default_socket_path()
 {
     return runtime_dir() + "/spectra-" + std::to_string(::getpid()) + ".sock";
+}
+
+size_t remove_stale_sockets(const std::string& dir)
+{
+#ifndef _WIN32
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    if (dir.empty() || !fs::is_directory(dir, ec))
+        return 0;
+    size_t removed = 0;
+    for (const auto& entry : fs::directory_iterator(dir, ec))
+    {
+        const std::string name = entry.path().filename().string();
+        // Exactly "spectra-<pid>.sock".
+        constexpr std::string_view prefix = "spectra-";
+        constexpr std::string_view suffix = ".sock";
+        if (name.size() <= prefix.size() + suffix.size() || name.rfind(prefix, 0) != 0
+            || name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0)
+            continue;
+        const std::string digits =
+            name.substr(prefix.size(), name.size() - prefix.size() - suffix.size());
+        if (digits.size() > 9 || digits.find_first_not_of("0123456789") != std::string::npos)
+            continue;
+        const pid_t pid = static_cast<pid_t>(std::stol(digits));
+        if (pid <= 0 || pid == ::getpid())
+            continue;
+        // Only a socket whose owner is gone and that nobody answers on.
+        if (::kill(pid, 0) == 0 || errno != ESRCH)
+            continue;
+        struct stat st
+        {
+        };
+        if (::lstat(entry.path().c_str(), &st) != 0 || !S_ISSOCK(st.st_mode))
+            continue;
+        if (Client::connect(entry.path().string()))
+            continue;
+        if (::unlink(entry.path().c_str()) == 0)
+            ++removed;
+    }
+    return removed;
+#else
+    (void)dir;
+    return 0;
+#endif
 }
 
 size_t max_socket_path_length()

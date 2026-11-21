@@ -94,6 +94,9 @@ def test_long_xdg_pins_short_socket(tmp_path, monkeypatch):
         f'open({str(argv_file)!r}, "w").write("\\n".join(sys.argv[1:])); sys.exit(1)',
     )
     monkeypatch.setenv("SPECTRA_BACKEND_PATH", backend)
+    # /tmp is shared: a Spectra app running on this machine must not be
+    # discovered in place of the fake backend.
+    monkeypatch.setattr(_launcher, "_discover_live_brokers", lambda exclude=None: [])
     with pytest.raises(RuntimeError):
         _launcher.ensure_backend("", timeout=5.0)
     args = argv_file.read_text().splitlines()
@@ -122,4 +125,19 @@ def test_missing_binary_suggests_verified_download(isolated_runtime, monkeypatch
 
     monkeypatch.setattr(dl, "download_backend", _no_network)
     with pytest.raises(RuntimeError, match="spectra-backend --download"):
+        _launcher.ensure_backend("", timeout=1.0)
+
+
+def test_windows_says_unsupported_instead_of_searching(isolated_runtime, monkeypatch):
+    # QA H2: on native Windows the launcher must say why nothing can start,
+    # not look for (or download) a backend that refuses to run there.
+    monkeypatch.delenv("SPECTRA_BACKEND_PATH", raising=False)
+    monkeypatch.setattr(_launcher, "_IS_WINDOWS", True)
+    monkeypatch.setattr(_launcher, "_discover_live_broker", lambda *_a, **_k: None)
+
+    def _no_search():
+        raise AssertionError("must not look for a backend on Windows")
+
+    monkeypatch.setattr(_launcher, "_find_backend_binary", _no_search)
+    with pytest.raises(RuntimeError, match="WSL2"):
         _launcher.ensure_backend("", timeout=1.0)

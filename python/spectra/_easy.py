@@ -1874,10 +1874,10 @@ def tight_layout():
 
 
 def _finite_bounds(values: Any):
-    """(min, max, smallest positive or None) of the finite values below 1e11, or None.
+    """(min, max, smallest positive or None) of the finite values, or None.
 
-    NaN/inf and the huge sentinel values of hline/vline are skipped.  Uses
-    NumPy (nan-aware, vectorised) when installed.
+    NaN and +/-inf are skipped; any finite magnitude counts (hline/vline do not
+    feed their +/-1e12 spans into the fit).  Uses NumPy (vectorised) when installed.
     """
     try:
         import numpy as np
@@ -1885,13 +1885,12 @@ def _finite_bounds(values: Any):
         np = None
     if np is not None:
         arr = np.asarray(values, dtype=np.float64).ravel()
-        with np.errstate(invalid="ignore"):
-            arr = arr[np.abs(arr) < 1e11]  # NaN compares False: dropped too
+        arr = arr[np.isfinite(arr)]
         if arr.size == 0:
             return None
         pos = arr[arr > 0]
         return float(arr.min()), float(arr.max()), (float(pos.min()) if pos.size else None)
-    finite = [v for v in values if v == v and abs(v) < 1e11]
+    finite = [float(v) for v in values if math.isfinite(v)]
     if not finite:
         return None
     pos = [v for v in finite if v > 0]
@@ -1913,7 +1912,7 @@ def _auto_fit_axes(ax, x: Any, y: Any,
     if sticky_x or sticky_y:
         st = _state._axes_sticky.setdefault(ax_key, [None, None, None, None])
         for vals, i in ((sticky_x, 0), (sticky_y, 2)):
-            vals = [float(v) for v in (vals or []) if v == v and abs(v) < 1e11]
+            vals = [float(v) for v in (vals or []) if math.isfinite(v)]
             if vals:
                 st[i] = min(vals) if st[i] is None else min(st[i], min(vals))
                 st[i + 1] = max(vals) if st[i + 1] is None else max(st[i + 1], max(vals))
@@ -2162,7 +2161,7 @@ def loglog(*args, **kwargs):
 
 def savefig(path, width: int = 0, height: int = 0, format: Optional[str] = None,
             theme: str = "", dpi=None):
-    """Save the current figure to a PNG or SVG file; returns the absolute path.
+    """Save the current figure to a PNG, SVG or PDF file; returns the absolute path.
 
     The backend renders it offscreen (works before or without a window).
     ``width`` / ``height`` set the PNG size in pixels (0 = figure size); the

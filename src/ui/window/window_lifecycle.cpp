@@ -176,6 +176,29 @@ WindowContext* WindowManager::create_window(uint32_t           width,
 
     set_window_icon(glfw_win);
 
+    // The OS picks the first position; on Windows it can leave the bottom of
+    // the window under the taskbar.  Pull it fully into the work area.
+    {
+        ScreenWorkArea wa;
+        if (primary_work_area(wa))
+        {
+            int x = 0, y = 0, fl = 0, ft = 0, fr = 0, fb = 0;
+            glfwGetWindowPos(glfw_win, &x, &y);
+            glfwGetWindowFrameSize(glfw_win, &fl, &ft, &fr, &fb);
+            const auto pos = keep_window_in_work_area(x,
+                                                      y,
+                                                      static_cast<int>(width),
+                                                      static_cast<int>(height),
+                                                      fl,
+                                                      ft,
+                                                      fr,
+                                                      fb,
+                                                      wa);
+            if (pos.first != x || pos.second != y)
+                glfwSetWindowPos(glfw_win, pos.first, pos.second);
+        }
+    }
+
     glfwSetWindowUserPointer(glfw_win, this);
     install_glfw_lifecycle_callbacks(glfw_win);
     glfwSetDropCallback(glfw_win, glfw_drop_callback);

@@ -319,7 +319,8 @@ def render_multi(
     """Render multiple series on a single plot.
 
     Args:
-        series_list: List of (x, y) or (x, y, label) tuples.
+        series_list: List of (x, y), (x, y, label) or (x, y, fmt, label)
+            tuples; fmt is a format string such as "r--" or "bo".
         width: Image width.
         height: Image height.
         save: Save path (PNG).
@@ -428,7 +429,7 @@ def _render_with_options(
     if scatter:
         ax.scatter(x, y)
     else:
-        ax.line(x, y)
+        _apply_fmt(ax.line(x, y), fmt)
 
     if title:
         ax.set_title(title)
@@ -448,6 +449,67 @@ def _render_with_options(
     return img
 
 
+_FMT_LINE_STYLES = (
+    ("--", "dashed"),
+    ("-..", "dashdotdot"),
+    ("-.", "dashdot"),
+    ("-", "solid"),
+    (":", "dotted"),
+)
+_FMT_COLOR_CHARS = "bgrcmykw"
+
+
+def _apply_fmt(series, fmt: Optional[str]) -> None:
+    """Apply a MATLAB/matplotlib format string ("r--o") to an embed series."""
+    if not fmt or fmt == "-":
+        return
+    from ._colors import SPECTRA_NAMED
+    from ._embed import _MARKER_STYLES
+
+    color = marker = line = None
+    rest = fmt
+    while rest:
+        for token, style in _FMT_LINE_STYLES:
+            if rest.startswith(token):
+                if line is not None:
+                    raise ValueError(f"unrecognised format string {fmt!r}")
+                line, rest = style, rest[len(token):]
+                break
+        else:
+            ch, rest = rest[0], rest[1:]
+            if ch in _FMT_COLOR_CHARS and color is None:
+                color = ch
+            elif ch.lower() in _MARKER_STYLES and marker is None:
+                marker = ch
+            else:
+                raise ValueError(f"unrecognised format string {fmt!r}")
+    if color is not None:
+        series.set_color(*SPECTRA_NAMED[color])
+    if marker is not None:
+        series.set_marker_style(marker)
+    if line is not None:
+        series.set_line_style(line)
+    elif marker is not None:
+        series.set_line_style("none")   # "o" alone: markers only, as in matplotlib
+
+
+def _split_multi_entry(entry):
+    """render_multi entry -> (x, y, fmt, label).
+
+    Accepts (x, y), (x, y, label) and (x, y, fmt, label).
+    """
+    n = len(entry)
+    if n == 2:
+        return entry[0], entry[1], None, None
+    if n == 3:
+        return entry[0], entry[1], None, entry[2]
+    if n == 4:
+        return entry[0], entry[1], entry[2], entry[3]
+    raise ValueError(
+        f"render_multi entries are (x, y), (x, y, label) or (x, y, fmt, label); got {n} items"
+    )
+
+
 def _render_with_options_multi(
     series_list, *, width, height, save, title, xlabel, ylabel, theme=None, grid=True
 ) -> Image:
@@ -459,12 +521,8 @@ def _render_with_options_multi(
     ax = fig.subplot(1, 1, 1)
 
     for entry in series_list:
-        if len(entry) >= 3:
-            x, y, label = entry[0], entry[1], entry[2]
-            ax.line(x, y, label=label)
-        else:
-            x, y = entry[0], entry[1]
-            ax.line(x, y)
+        x, y, fmt, label = _split_multi_entry(entry)
+        _apply_fmt(ax.line(x, y, label=label), fmt)
 
     if title:
         ax.set_title(title)

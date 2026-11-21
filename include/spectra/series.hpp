@@ -87,6 +87,9 @@ class SeriesDirtyFlag
         flag_.store(v, order);
     }
     std::uint64_t generation() const { return generation_.load(std::memory_order_relaxed); }
+    /// Raises the flag but keeps the generation: for changes derived from the
+    /// environment (theme colours resolved while drawing), not from the content.
+    void raise_same_generation() { flag_.store(true); }
 
    private:
     // Process-wide counter: a generation is never reused, even by a new

@@ -1,6 +1,7 @@
 #include "document_session.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <random>
 #include <system_error>
@@ -262,10 +263,47 @@ bool DocumentSession::resolve_prompt(UnsavedChangesPrompt::Choice choice)
 
 std::string DocumentSession::default_autosave_dir()
 {
+    return autosave_dir_for(current_program_name());
+}
+
+std::string DocumentSession::autosave_dir_for(std::string_view program)
+{
     fs::path dir = user_config_dir();
     if (dir.empty())
         dir = fs::path(".") / ".config" / "spectra";
-    return (dir / "autosave").string();
+    std::string clean;
+    for (char c : program)
+    {
+        const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                        || c == '.' || c == '_' || c == '-';
+        clean += ok ? c : '_';
+    }
+    if (clean.empty() || clean.find_first_not_of('.') == std::string::npos)
+        clean = "spectra";
+    return (dir / "autosave" / clean).string();
+}
+
+std::string DocumentSession::current_program_name()
+{
+    fs::path exe;
+#ifdef _WIN32
+    wchar_t     buf[MAX_PATH];
+    const DWORD n = GetModuleFileNameW(nullptr, buf, MAX_PATH);
+    if (n > 0 && n < MAX_PATH)
+        exe = fs::path(std::wstring(buf, n));
+#elif defined(__linux__)
+    std::error_code ec;
+    exe = fs::read_symlink("/proc/self/exe", ec);
+#endif
+    std::string name = exe.stem().string();
+#if defined(__APPLE__)
+    if (name.empty())
+    {
+        if (const char* prog = getprogname())
+            name = prog;
+    }
+#endif
+    return name.empty() ? std::string("spectra") : name;
 }
 
 void DocumentSession::enable_autosave(const std::string& dir)

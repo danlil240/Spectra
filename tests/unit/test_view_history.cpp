@@ -10,6 +10,7 @@
 #include <spectra/axes.hpp>
 #include <spectra/figure.hpp>
 
+#include "ui/animation/animation_controller.hpp"
 #include "ui/commands/undo_manager.hpp"
 #include "ui/data/axis_link.hpp"
 #include "ui/input/input.hpp"
@@ -814,3 +815,27 @@ TEST_F(ViewUiFixture, ResetAndAutofitAreRecorded)
 }
 
 #endif   // SPECTRA_USE_IMGUI
+
+// A figure that is destroyed while not shown by the handler must still lose
+// its in-flight limit animations: they hold raw Axes* pointers, and
+// AnimationController::update() wrote limits into the freed axes (QA fuzz
+// SIGSEGV in Axes::xlim, 2026-11-22).
+TEST(InputHandlerFigureCache, ClearingAnotherFigureCancelsItsAnimations)
+{
+    Figure a({320, 240});
+    Figure b({320, 240});
+    auto&  ax_a = a.subplot(1, 1, 1);
+    b.subplot(1, 1, 1);
+
+    AnimationController anim;
+    InputHandler        handler;
+    handler.set_animation_controller(&anim);
+    handler.set_figure(&a);
+    anim.animate_axis_limits(ax_a, {0.0, 1.0}, {0.0, 1.0}, 1.0f, ease::ease_out);
+    ASSERT_TRUE(anim.has_active_animations());
+
+    handler.set_figure(&b);           // the handler moved on to another figure
+    handler.clear_figure_cache(&a);   // figure a is about to be destroyed
+    anim.update(0.016f);              // drop finished entries
+    EXPECT_FALSE(anim.has_active_animations());
+}

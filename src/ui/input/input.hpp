@@ -387,8 +387,12 @@ class InputHandler
     ToolMode        tool_mode_ = ToolMode::Pan;   // Default tool mode
 
     // Pan drag state
-    double drag_start_x_        = 0.0;
-    double drag_start_y_        = 0.0;
+    double drag_start_x_ = 0.0;
+    double drag_start_y_ = 0.0;
+    // Where a 3D orbit drag was pressed (drag_start_* follows the cursor for
+    // incremental orbiting, so it cannot tell a click from a drag on release).
+    double orbit_press_x_       = 0.0;
+    double orbit_press_y_       = 0.0;
     double drag_start_xlim_min_ = 0.0;
     double drag_start_xlim_max_ = 0.0;
     double drag_start_ylim_min_ = 0.0;

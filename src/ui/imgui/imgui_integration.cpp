@@ -36,6 +36,7 @@
     #include "ui/overlay/toast_queue.hpp"
     #include "ui/overlay/view_cube.hpp"
     #include "ui/ui_interaction_log.hpp"
+    #include "render/vulkan/imgui_descriptor_pool.hpp"
 
     #include "../../../third_party/tinyfiledialogs.h"
     #include "../dialog_env_guard.hpp"
@@ -70,6 +71,8 @@ static bool register_backend_texture(spectra::VulkanBackend& backend,
 
     VkDescriptorSet ds =
         ImGui_ImplVulkan_AddTexture(sampler, view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    if (ds == VK_NULL_HANDLE)
+        return false;
     if (out_id)
         *out_id = vk_rp_to_u64(ds);
     return true;
@@ -209,12 +212,12 @@ bool ImGuiIntegration::init(VulkanBackend& backend, GLFWwindow* window, bool ins
     }
 
     ImGui_ImplVulkan_InitInfo ii{};
-    ii.Instance                     = backend.instance();
-    ii.PhysicalDevice               = backend.physical_device();
-    ii.Device                       = backend.device();
-    ii.QueueFamily                  = backend.graphics_queue_family();
-    ii.Queue                        = backend.graphics_queue();
-    ii.DescriptorPool               = backend.descriptor_pool();
+    ii.Instance       = backend.instance();
+    ii.PhysicalDevice = backend.physical_device();
+    ii.Device         = backend.device();
+    ii.QueueFamily    = backend.graphics_queue_family();
+    ii.Queue          = backend.graphics_queue();
+    use_private_imgui_descriptor_pool(ii);
     ii.MinImageCount                = backend.min_image_count();
     ii.ImageCount                   = backend.image_count();
     ii.PipelineInfoMain.RenderPass  = backend.render_pass();
@@ -261,12 +264,12 @@ bool ImGuiIntegration::init_sdl3(VulkanBackend& backend, SDL_Window* window)
     ImGui_ImplSDL3_InitForVulkan(window);
 
     ImGui_ImplVulkan_InitInfo ii{};
-    ii.Instance                     = backend.instance();
-    ii.PhysicalDevice               = backend.physical_device();
-    ii.Device                       = backend.device();
-    ii.QueueFamily                  = backend.graphics_queue_family();
-    ii.Queue                        = backend.graphics_queue();
-    ii.DescriptorPool               = backend.descriptor_pool();
+    ii.Instance       = backend.instance();
+    ii.PhysicalDevice = backend.physical_device();
+    ii.Device         = backend.device();
+    ii.QueueFamily    = backend.graphics_queue_family();
+    ii.Queue          = backend.graphics_queue();
+    use_private_imgui_descriptor_pool(ii);
     ii.MinImageCount                = backend.min_image_count();
     ii.ImageCount                   = backend.image_count();
     ii.PipelineInfoMain.RenderPass  = backend.render_pass();
@@ -328,7 +331,7 @@ bool ImGuiIntegration::init_headless(VulkanBackend& backend, uint32_t width, uin
     ii.Device         = backend.device();
     ii.QueueFamily    = backend.graphics_queue_family();
     ii.Queue          = backend.graphics_queue();
-    ii.DescriptorPool = backend.descriptor_pool();
+    use_private_imgui_descriptor_pool(ii);
     // ImGui Vulkan backend asserts MinImageCount >= 2. The headless backend
     // uses a single offscreen framebuffer (image_count=1), so clamp to 2.
     ii.MinImageCount                = std::max(backend.min_image_count(), 2u);
@@ -435,12 +438,12 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
         ImGui_ImplVulkan_Shutdown();
 
         ImGui_ImplVulkan_InitInfo ii{};
-        ii.Instance                     = backend.instance();
-        ii.PhysicalDevice               = backend.physical_device();
-        ii.Device                       = backend.device();
-        ii.QueueFamily                  = backend.graphics_queue_family();
-        ii.Queue                        = backend.graphics_queue();
-        ii.DescriptorPool               = backend.descriptor_pool();
+        ii.Instance       = backend.instance();
+        ii.PhysicalDevice = backend.physical_device();
+        ii.Device         = backend.device();
+        ii.QueueFamily    = backend.graphics_queue_family();
+        ii.Queue          = backend.graphics_queue();
+        use_private_imgui_descriptor_pool(ii);
         ii.MinImageCount                = backend.min_image_count();
         ii.ImageCount                   = backend.image_count();
         ii.PipelineInfoMain.RenderPass  = current_rp;
@@ -449,11 +452,9 @@ void ImGuiIntegration::on_swapchain_recreated(VulkanBackend& backend)
         ImGui_ImplVulkan_Init(&ii);
 
         // Re-register the single shared logo texture after ImGui reinit
-        // (corner is an alias — no separate remove/register needed)
-        if (welcome_logo_texture_id_ != 0)
-            ImGui_ImplVulkan_RemoveTexture(
-                u64_to_handle<VkDescriptorSet>(welcome_logo_texture_id_));
-
+        // (corner is an alias — no separate remove/register needed).  Its old
+        // descriptor set went away with the backend's private pool in
+        // ImGui_ImplVulkan_Shutdown(), so there is nothing to free here.
         welcome_logo_texture_id_ = 0;
         corner_logo_texture_id_  = 0;
         register_backend_texture(backend, welcome_logo_texture_, &welcome_logo_texture_id_);
@@ -2071,8 +2072,31 @@ void ImGuiIntegration::render(VulkanBackend& backend) const
         return;
     ImGui::Render();
     auto* dd = ImGui::GetDrawData();
-    if (dd)
-        ImGui_ImplVulkan_RenderDrawData(dd, backend.current_command_buffer());
+    if (!dd)
+        return;
+    // ImGui counts a texture's unused frames per NewFrame(), including frames
+    // whose GPU work was skipped (begin_frame() timed out), and its Vulkan
+    // backend frees the descriptor set once that count reaches ImageCount.
+    // After skipped frames, earlier submissions sampling the texture can
+    // still be executing (VUID-vkFreeDescriptorSets-pDescriptorSets-00309,
+    // which ended in VK_ERROR_DEVICE_LOST).  Destroys are rare (font atlas
+    // growth), so wait for the GPU whenever one is pending.
+    if (dd->Textures)
+    {
+        for (const ImTextureData* tex : *dd->Textures)
+        {
+            if (tex && tex->Status == ImTextureStatus_WantDestroy)
+            {
+                SPECTRA_LOG_DEBUG("imgui",
+                                  "texture {} pending destroy (unused {} frames): waiting for GPU",
+                                  tex->UniqueID,
+                                  tex->UnusedFrames);
+                backend.wait_idle();
+                break;
+            }
+        }
+    }
+    ImGui_ImplVulkan_RenderDrawData(dd, backend.current_command_buffer());
 }
 
 void ImGuiIntegration::render_viewports()

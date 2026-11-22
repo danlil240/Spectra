@@ -11,6 +11,8 @@
 
 #include "core/layout.hpp"
 #include "px4_recent_files.hpp"
+#include "core/config_paths.hpp"
+#include "env_guard.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include "ui/commands/command_registry.hpp"
@@ -644,10 +646,22 @@ TEST(Px4RecentFilesTest, DefaultsToTenEntriesInSpectraConfigDir)
 {
     Px4RecentFiles recent;
     EXPECT_EQ(recent.max_entries(), 10u);
+    // Follows the user config dir, which SPECTRA_CONFIG_DIR may redirect
+    // (QA runs set it to keep the real config untouched).
     const std::filesystem::path p(Px4RecentFiles::default_path());
-    EXPECT_EQ(p.filename(), "px4_recent.json");
-    EXPECT_EQ(p.parent_path().filename(), "spectra");
-    EXPECT_EQ(p.parent_path().parent_path().filename(), ".config");
+    EXPECT_EQ(p, spectra::user_config_dir() / "px4_recent.json");
+
+    // Without overrides that is <home>/.config/spectra.
+    spectra::test::EnvGuard spectra_dir{"SPECTRA_CONFIG_DIR"};
+    spectra::test::EnvGuard xdg{"XDG_CONFIG_HOME"};
+    spectra::test::EnvGuard home{"HOME"};
+    spectra_dir.unset();
+    xdg.unset();
+    home.set((std::filesystem::temp_directory_path() / "px4_recent_home").string());
+    const std::filesystem::path d(Px4RecentFiles::default_path());
+    EXPECT_EQ(d.filename(), "px4_recent.json");
+    EXPECT_EQ(d.parent_path().filename(), "spectra");
+    EXPECT_EQ(d.parent_path().parent_path().filename(), ".config");
 }
 
 TEST(Px4RecentFilesTest, RelativePathsAreStoredAbsolute)

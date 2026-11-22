@@ -91,10 +91,16 @@ class TestResolveSocketPath:
     @mock.patch("spectra._launcher._discover_live_brokers", return_value=[])
     def test_linux_tmp_fallback(self, _mock_discover):
         env = {"USER": "testuser"}
+        # Also drop the temp-dir variables a Windows host always sets, and
+        # pretend /tmp exists, so the POSIX fallback is exercised anywhere.
         env_clean = {k: v for k, v in os.environ.items()
-                     if k not in ("SPECTRA_SOCKET", "XDG_RUNTIME_DIR")}
+                     if k not in ("SPECTRA_SOCKET", "XDG_RUNTIME_DIR",
+                                  "TMPDIR", "TMP", "TEMP", "TEMPDIR")}
         env_clean.update(env)
-        with mock.patch.dict(os.environ, env_clean, clear=True):
+        real_isdir = os.path.isdir
+        isdir = mock.patch("spectra._launcher.os.path.isdir",
+                           side_effect=lambda p: p == "/tmp" or real_isdir(p))
+        with mock.patch.dict(os.environ, env_clean, clear=True), isdir:
             path = resolve_socket_path()
             assert path == ""
             dir_ = _runtime_socket_dir()

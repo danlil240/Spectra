@@ -36,6 +36,7 @@
 #include "render/backend.hpp"
 #include "render/vulkan/vk_backend.hpp"
 #include "ui/native_dialog_policy.hpp"
+#include "ui/workspace/document_session.hpp"
 
 #ifdef SPECTRA_USE_IMGUI
     #include <imgui.h>
@@ -961,6 +962,7 @@ class QAAgent
             try
             {
                 auto result = app_->step();
+                flush_pending_screenshot();
                 total_frames_++;
                 frame_stats_.record(result.frame_time_ms);
                 check_frame(result);
@@ -1146,6 +1148,12 @@ class QAAgent
                         clear_cached_figure_refs(app_->figure_registry().get(fid));
                     }
                     wm->request_close(windows[i]->id);
+                    // A window with unsaved changes (e.g. one opened by
+                    // app.new_window during command_exhaustion) asks first and
+                    // stays open; QA windows are throwaway: don't save.
+                    if (windows[i]->ui_ctx && windows[i]->ui_ctx->document.prompt().is_open())
+                        windows[i]->ui_ctx->document.resolve_prompt(
+                            UnsavedChangesPrompt::Choice::DontSave);
                 }
             }
             wm->process_pending_closes();
@@ -3659,12 +3667,21 @@ class QAAgent
         // window's end_frame — critical for multi-window screenshots.
         backend->request_framebuffer_capture(pixels.data(), w, h, target_window);
         pump_frames(1);   // triggers capture in end_frame
+        // A skipped frame (fence or acquire timeout) leaves the request
+        // pending, pointing into `pixels`: keep pumping until it runs, and
+        // never leave it behind once `pixels` goes out of scope.
+        for (int i = 0; i < 60 && backend->has_pending_capture() && !has_critical_issue(); ++i)
+            pump_frames(1);
+        const bool captured = !backend->has_pending_capture();
+        if (!captured)
+            backend->cancel_pending_capture();
 
         if (restore_window)
             backend->set_active_window(restore_window);
 
         // Semantic assertions against the frame that was just captured.
         DesignCheck check;
+        check.expect(captured, "a frame was rendered and captured");
         design_px_     = pixels.data();
         design_w_      = w;
         design_h_      = h;
@@ -3996,6 +4013,44 @@ class QAAgent
         }
     }
 
+    // Size a window ends up at after a resize request: the app enforces a
+    // minimum (command bar + status bar + smallest canvas), so a request below
+    // it is raised to it.
+    static std::pair<uint32_t, uint32_t> clamped_to_min_size(const WindowContext* wctx,
+                                                             uint32_t             w,
+                                                             uint32_t             h)
+    {
+        if (!wctx || !wctx->ui_ctx)
+            return {w, h};
+        const auto min_w = static_cast<uint32_t>(std::ceil(wctx->ui_ctx->applied_min_window_w_));
+        const auto min_h = static_cast<uint32_t>(std::ceil(wctx->ui_ctx->applied_min_window_h_));
+        return {std::max(w, min_w), std::max(h, min_h)};
+    }
+
+    // A resize below the app's minimum size: window systems that enforce
+    // size limits (Windows, desktop WMs) give the minimum, a bare X server
+    // without a WM (xvfb in CI) gives the requested size.  Either is correct.
+    static bool swapchain_is_requested_or_min(const WindowContext* wctx, uint32_t w, uint32_t h)
+    {
+        const auto m = clamped_to_min_size(wctx, w, h);
+        return swapchain_is(wctx, w, h) || swapchain_is(wctx, m.first, m.second);
+    }
+
+    void expect_swapchain_requested_or_min(DesignCheck&   c,
+                                           WindowContext* wctx,
+                                           uint32_t       w,
+                                           uint32_t       h)
+    {
+        const auto m = clamped_to_min_size(wctx, w, h);
+        c.expect(swapchain_is_requested_or_min(wctx, w, h),
+                 "swapchain is " + std::to_string(w) + "x" + std::to_string(h) + " or the minimum "
+                     + std::to_string(m.first) + "x" + std::to_string(m.second) + " (actual "
+                     + (wctx ? std::to_string(wctx->swapchain.extent.width) + "x"
+                                   + std::to_string(wctx->swapchain.extent.height)
+                             : std::string("none"))
+                     + ")");
+    }
+
     void expect_swapchain(DesignCheck& c, WindowContext* wctx, uint32_t w, uint32_t h)
     {
         c.expect(wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h,
@@ -4053,6 +4108,15 @@ class QAAgent
         if (!wctx || !wctx->glfw_window)
             return;
         auto* win = static_cast<GLFWwindow*>(wctx->glfw_window);
+        // The synthetic pointer is inside the window.  Without a cursor-enter
+        // the ImGui GLFW backend treats the mouse as outside and, while the
+        // window has focus, polls the real OS cursor every frame, overriding
+        // these positions (Windows: wherever the user's mouse is, often over
+        // ImGui chrome, so hover never reached the plot).
+        GLFWcursorenterfun enter_cb = glfwSetCursorEnterCallback(win, nullptr);
+        glfwSetCursorEnterCallback(win, enter_cb);
+        if (enter_cb)
+            enter_cb(win, GLFW_TRUE);
         glfwSetCursorPos(win, x, y);
         // GLFW drops the X11 MotionNotify that its own warp generates, so the
         // app's cursor callback (InputHandler + ImGui backend) never hears of
@@ -4203,8 +4267,18 @@ class QAAgent
         {
     #ifdef SPECTRA_USE_GLFW
             // Off the exact centre so the hover lands between data points.
-            move_pointer(std::floor(vp.x + vp.w * 0.37f) + 0.5,
-                         std::floor(vp.y + vp.h * 0.71f) + 0.5);
+            // The first move is judged against ImGui's capture state from the
+            // previous pointer position (e.g. parked over the UI chrome), so it
+            // can be dropped; a real pointer keeps moving, so move again until
+            // the hover lands (bounded).
+            const double hx = std::floor(vp.x + vp.w * 0.37f) + 0.5;
+            const double hy = std::floor(vp.y + vp.h * 0.71f) + 0.5;
+            for (int attempt = 0; attempt < 4; ++attempt)
+            {
+                move_pointer(hx, hy);
+                if (ui->input_handler.active_axes_base() == &ax)
+                    break;
+            }
     #endif
         }
         return ui->input_handler.active_axes_base();
@@ -4226,8 +4300,14 @@ class QAAgent
         auto* ui = app_->ui_context();
         if (!ui)
             return false;
-        const bool targeted = target_axes_by_hover(ax) == &ax;
-        before              = axes_spans(ax);
+        AxesBase*  hit      = target_axes_by_hover(ax);
+        const bool targeted = hit == &ax;
+        if (!targeted)
+            fprintf(stderr,
+                    "[QA/Design] zoom target: hover hit %s (ImGui wants mouse: %d)\n",
+                    hit ? "another axes" : "no axes",
+                    ui->imgui_ui && ui->imgui_ui->wants_capture_mouse() ? 1 : 0);
+        before = axes_spans(ax);
         for (int i = 0; i < steps; ++i)
             ui->cmd_registry.execute("view.zoom_in");
         return targeted;
@@ -4565,7 +4645,9 @@ class QAAgent
                                      // Small rail labels (incl. the active
                                      // accent label) and status readouts.
                                      expect_text_contrast(c, "##navrail", 4.5f, 10);
-                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 4);
+                                     // Cursor readout, mode and fps (the GPU
+                                     // time readout is hidden without timing).
+                                     expect_text_contrast(c, "##AppShellStatusBar", 4.5f, 3);
                                  });
                 // Switch back to dark
                 ui->cmd_registry.execute("theme.dark");
@@ -5571,11 +5653,14 @@ class QAAgent
                 {
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(2);
-                    wait_until_settled("44 320x240 swapchain recreation",
-                                       [&]
-                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
+                    // 240 px is below the app's minimum window height.
+                    wait_until_settled(
+                        "44 320x240 swapchain recreation",
+                        [&]
+                        { return swapchain_is_requested_or_min(wctx, 320, 240) && ui_settled(); });
                     named_screenshot("44_window_resized_tiny_320x240",
-                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, 320, 240); });
+                                     [&](DesignCheck& c)
+                                     { expect_swapchain_requested_or_min(c, wctx, 320, 240); });
 
                     // Restore
                     glfwSetWindowSize(glfw_win, 1280, 720);
@@ -6198,14 +6283,15 @@ class QAAgent
                     // Shrink to 320×240
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(2);
-                    wait_until_settled("56 tiny window swapchain",
-                                       [&]
-                                       { return swapchain_is(wctx, 320, 240) && ui_settled(); });
+                    wait_until_settled(
+                        "56 tiny window swapchain",
+                        [&]
+                        { return swapchain_is_requested_or_min(wctx, 320, 240) && ui_settled(); });
                     named_screenshot(
                         "56_tiny_window_all_panels_open",
                         [&](DesignCheck& c)
                         {
-                            expect_swapchain(c, wctx, 320, 240);
+                            expect_swapchain_requested_or_min(c, wctx, 320, 240);
                             c.expect(lm.is_inspector_visible(), "inspector requested open");
                             c.expect(lm.is_nav_rail_expanded(), "nav rail expanded");
                             c.expect(ui->imgui_ui->is_timeline_visible()
@@ -6990,19 +7076,20 @@ class QAAgent
     }
 
     // ── Screenshot capture ───────────────────────────────────────────────
+    // Evidence screenshots are requested here and written after the next
+    // frame: the backend copies the swapchain image during that frame's
+    // end_frame(), between submit and present.  Reading back an image that
+    // was already presented (readback_framebuffer between frames) uses a
+    // swapchain image the app no longer owns
+    // (UNASSIGNED-non-acquired-swapchain-image-used).  Returns the path the
+    // PNG will be written to, or "" when no capture could be requested.
     std::string capture_screenshot(const std::string& reason)
     {
-        auto* backend = app_->backend();
-        if (!backend)
+        auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
+        if (!backend || backend->swapchain_width() == 0 || backend->swapchain_height() == 0)
             return "";
-
-        uint32_t w = backend->swapchain_width();
-        uint32_t h = backend->swapchain_height();
-        if (w == 0 || h == 0)
-            return "";
-
-        std::vector<uint8_t> pixels(static_cast<size_t>(w) * h * 4);
-        if (!backend->readback_framebuffer(pixels.data(), w, h))
+        // One capture at a time; never displace a design-review capture.
+        if (!pending_screenshot_path_.empty() || backend->has_pending_capture())
             return "";
 
         // Sanitize reason for filename
@@ -7015,8 +7102,35 @@ class QAAgent
 
         std::string path = opts_.output_dir + "/screenshot_frame" + std::to_string(total_frames_)
                            + "_" + safe_reason + ".png";
-        ImageExporter::write_png(path, pixels.data(), w, h);
+        backend->request_surface_capture();
+        pending_screenshot_path_ = path;
         return path;
+    }
+
+    // Write the evidence screenshot requested by capture_screenshot() once a
+    // frame has captured it; give up if the capture was cancelled or failed.
+    void flush_pending_screenshot()
+    {
+        if (pending_screenshot_path_.empty())
+            return;
+        auto* backend = dynamic_cast<VulkanBackend*>(app_->backend());
+        if (!backend)
+        {
+            pending_screenshot_path_.clear();
+            return;
+        }
+        std::vector<uint8_t> pixels;
+        uint32_t             w = 0;
+        uint32_t             h = 0;
+        if (backend->take_surface_capture(pixels, w, h))
+        {
+            ImageExporter::write_png(pending_screenshot_path_, pixels.data(), w, h);
+            pending_screenshot_path_.clear();
+        }
+        else if (!backend->has_pending_capture())
+        {
+            pending_screenshot_path_.clear();
+        }
     }
 
     // ── Wall clock check ─────────────────────────────────────────────────
@@ -7497,6 +7611,7 @@ class QAAgent
 
     // P0 fix: screenshot rate limiting per category
     std::unordered_map<std::string, uint64_t> last_screenshot_frame_;
+    std::string pending_screenshot_path_;   // capture requested, PNG not yet written
     std::unordered_map<std::string, uint32_t> validation_message_hits_;
 
     // Design review
@@ -7592,6 +7707,22 @@ int main(int argc, char** argv)
 {
     // The agent runs unattended: a modal OS file dialog would block it forever.
     spectra::set_native_dialogs_enabled(false);
+
+    // A crashed or killed earlier run leaves autosaves in the agent's own
+    // folder, and the next run would open behind a "Restore unsaved work?"
+    // modal that spoils every capture.  QA workspaces are throwaway: drop them.
+    {
+        const std::string dir = spectra::DocumentSession::default_autosave_dir();
+        size_t            n   = 0;
+        for (const auto& f : spectra::DocumentSession::find_orphan_autosaves(dir))
+        {
+            std::error_code ec;
+            if (std::filesystem::remove(f, ec))
+                ++n;
+        }
+        if (n > 0)
+            fprintf(stderr, "[QA] Removed %zu autosave(s) left by an earlier run\n", n);
+    }
 
     auto opts = parse_args(argc, argv);
     g_qa_seed = opts.seed;

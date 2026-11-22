@@ -236,6 +236,8 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
         is_3d_orbit_drag_ = true;
         drag_start_x_     = x;
         drag_start_y_     = y;
+        orbit_press_x_    = x;
+        orbit_press_y_    = y;
         mode_             = InteractionMode::Dragging;
         // Capture state for undo
         drag3d_axes_         = axes3d;
@@ -247,8 +249,8 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
     }
     if (button == MOUSE_BUTTON_LEFT && action == ACTION_RELEASE && is_3d_orbit_drag_)
     {
-        const double dx_click = x - drag_start_x_;
-        const double dy_click = y - drag_start_y_;
+        const double dx_click = x - orbit_press_x_;
+        const double dy_click = y - orbit_press_y_;
         const float  move_dist =
             static_cast<float>(std::sqrt(dx_click * dx_click + dy_click * dy_click));
         constexpr float CLICK_THRESHOLD_PX = 5.0f;
@@ -256,6 +258,11 @@ void InputHandler::handle_mouse_button_3d(Axes3D* axes3d,
 
         is_3d_orbit_drag_ = false;
         mode_             = InteractionMode::Idle;
+        // An orbit drag is not the first click of a double-click: re-grabbing
+        // at the same spot right after it must orbit again, not auto-fit.
+        SPECTRA_LOG_DEBUG("input", "3D orbit drag released ({})", was_click ? "click" : "drag");
+        if (!was_click && gesture_)
+            gesture_->cancel_click();
 
         if (was_click && data_interaction_)
         {
@@ -745,6 +752,9 @@ void InputHandler::handle_mouse_button_pan(int action, int mods, double x, doubl
                 return;
             }
         }
+        // A pan drag is not the first click of a double-click (see the 3D orbit).
+        if (gesture_)
+            gesture_->cancel_click();
 
         // Compute release velocity for inertial pan
         if ((transition_engine_ || anim_ctrl_) && active_axes_)

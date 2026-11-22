@@ -39,6 +39,10 @@ class GestureRecognizer
     // Reset pinch state (call when pinch gesture ends).
     void end_pinch();
 
+    // Forget the last click: a press that became a drag is not the first click
+    // of a double-click, so pressing again at the same spot starts a new drag.
+    void cancel_click() { last_click_time_ = {}; }
+
     // Configuration
     void set_double_click_time_ms(int ms) { double_click_time_ms_ = ms; }
     void set_double_click_distance(float px) { double_click_dist_ = px; }

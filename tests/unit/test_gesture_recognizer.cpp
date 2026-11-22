@@ -109,3 +109,16 @@ TEST(GestureRecognizer, CustomDoubleClickDistance)
     bool result = gr.on_click(103.0, 100.0);
     EXPECT_FALSE(result);
 }
+
+// A press that became an orbit / pan drag must not pair with the next press
+// into a double-click (QA 2026-11-21: re-grabbing a 3D view to keep orbiting
+// auto-fitted it instead).
+TEST(GestureRecognizer, CancelClickPreventsDoubleClick)
+{
+    GestureRecognizer g;
+    EXPECT_FALSE(g.on_click(100.0, 100.0));
+    g.cancel_click();   // the press turned into a drag
+    EXPECT_FALSE(g.on_click(100.0, 100.0));
+    // Without a drag in between, the second press still is a double-click.
+    EXPECT_TRUE(g.on_click(100.0, 100.0));
+}

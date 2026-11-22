@@ -151,3 +151,26 @@ TEST(WindowPlacement, KeepWindowInWorkArea)
     EXPECT_EQ(keep_window_in_work_area(-50, 900, 800, 500, 8, 31, 8, 8, ScreenWorkArea{}),
               (std::pair<int, int>{-50, 900}));
 }
+
+// The clamp uses the monitor a window is on, not the primary one: a window
+// the OS placed on a secondary display must stay there (PR #211 review).
+TEST(WindowPlacement, WorkAreaWithMostOverlap)
+{
+    const ScreenWorkArea areas[] = {
+        {0, 0, 1920, 1040},      // primary, taskbar at the bottom
+        {1920, 0, 2560, 1400},   // secondary to the right
+    };
+    // Entirely on the secondary monitor.
+    EXPECT_EQ(work_area_with_most_overlap(2100, 100, 1200, 800, areas), 1);
+    // Straddling both: the larger share wins.
+    EXPECT_EQ(work_area_with_most_overlap(1500, 100, 1200, 800, areas), 1);
+    EXPECT_EQ(work_area_with_most_overlap(1000, 100, 1200, 800, areas), 0);
+    // Off every monitor, or no monitors known.
+    EXPECT_EQ(work_area_with_most_overlap(-5000, -5000, 100, 100, areas), -1);
+    EXPECT_EQ(work_area_with_most_overlap(0, 0, 100, 100, std::span<const ScreenWorkArea>{}), -1);
+
+    // The secondary monitor's work area keeps the window where it is.
+    const ScreenWorkArea& wa = areas[work_area_with_most_overlap(2100, 100, 1200, 800, areas)];
+    EXPECT_EQ(keep_window_in_work_area(2108, 131, 1184, 761, 8, 31, 8, 8, wa),
+              (std::pair<int, int>{2108, 131}));
+}

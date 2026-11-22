@@ -158,6 +158,7 @@ def test_download_refuses_checksum_mismatch(cache_root, fake_release):
     assert not os.path.exists(os.path.join(str(cache_root), "9.9.9"))
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="tar.gz assets on POSIX")
 def test_download_refuses_missing_checksum_entry(cache_root, fake_release):
     assets, _ = fake_release
     _, archive = _asset_url("9.9.9", _detect_platform())
@@ -168,6 +169,7 @@ def test_download_refuses_missing_checksum_entry(cache_root, fake_release):
     assert find_cached_backend("9.9.9") is None
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="tar.gz assets on POSIX")
 def test_download_refuses_without_sha256sums(cache_root, fake_release):
     assets, _ = fake_release
     _, archive = _asset_url("9.9.9", _detect_platform())

@@ -177,10 +177,12 @@ WindowContext* WindowManager::create_window(uint32_t           width,
     set_window_icon(glfw_win);
 
     // The OS picks the first position; on Windows it can leave the bottom of
-    // the window under the taskbar.  Pull it fully into the work area.
+    // the window under the taskbar.  Pull it fully into the work area of the
+    // monitor it is on (not the primary one: that would move it off a
+    // secondary display).
     {
         ScreenWorkArea wa;
-        if (primary_work_area(wa))
+        if (work_area_for_window(glfw_win, wa))
         {
             int x = 0, y = 0, fl = 0, ft = 0, fr = 0, fb = 0;
             glfwGetWindowPos(glfw_win, &x, &y);

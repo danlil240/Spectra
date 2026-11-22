@@ -7,6 +7,7 @@
 #pragma once
 
 #include <algorithm>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -83,6 +84,36 @@ inline std::pair<int, int> fit_window_to_work_area(int            win_w,
         return {win_w, win_h};
     return {std::max(1, static_cast<int>(win_w * scale)),
             std::max(1, static_cast<int>(win_h * scale))};
+}
+
+// Index of the work area that overlaps the window rectangle (screen
+// coordinates, decorations included) the most, or -1 if it overlaps none.
+// Used to clamp a window against the monitor it is on rather than the
+// primary monitor, which would move it off a secondary display.
+inline int work_area_with_most_overlap(int                             x,
+                                       int                             y,
+                                       int                             w,
+                                       int                             h,
+                                       std::span<const ScreenWorkArea> areas)
+{
+    int       best      = -1;
+    long long best_area = 0;
+    for (size_t i = 0; i < areas.size(); ++i)
+    {
+        const ScreenWorkArea& a = areas[i];
+        if (a.w <= 0 || a.h <= 0)
+            continue;
+        const long long ow = std::min(x + w, a.x + a.w) - std::max(x, a.x);
+        const long long oh = std::min(y + h, a.y + a.h) - std::max(y, a.y);
+        if (ow <= 0 || oh <= 0)
+            continue;
+        if (ow * oh > best_area)
+        {
+            best_area = ow * oh;
+            best      = static_cast<int>(i);
+        }
+    }
+    return best;
 }
 
 // Client-area position that keeps a window (client @p win_w x @p win_h plus

@@ -12,6 +12,7 @@
     #include <vector>
 
     #include "glfw_platform_policy.hpp"
+    #include "window_placement.hpp"
 
     #if __has_include("spectra_icon_embedded.hpp")
         #include "spectra_icon_embedded.hpp"
@@ -203,6 +204,36 @@ inline void set_window_icon(GLFWwindow* window)
     }
 
     SPECTRA_LOG_WARN("glfw", "Could not load window icon (spectra_icon.png)");
+}
+
+// Work area of the monitor showing most of @p win (its outer frame), or of
+// the primary monitor when it overlaps none.  Clamping against the window's
+// own monitor keeps a window the OS placed on a secondary display there.
+inline bool work_area_for_window(GLFWwindow* win, ScreenWorkArea& out)
+{
+    int           count    = 0;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    if (win && monitors && count > 0)
+    {
+        std::vector<ScreenWorkArea> areas(static_cast<size_t>(count));
+        for (int i = 0; i < count; ++i)
+            glfwGetMonitorWorkarea(monitors[i], &areas[i].x, &areas[i].y, &areas[i].w, &areas[i].h);
+        int x = 0, y = 0, w = 0, h = 0, fl = 0, ft = 0, fr = 0, fb = 0;
+        glfwGetWindowPos(win, &x, &y);
+        glfwGetWindowSize(win, &w, &h);
+        glfwGetWindowFrameSize(win, &fl, &ft, &fr, &fb);
+        const int i = work_area_with_most_overlap(x - fl, y - ft, w + fl + fr, h + ft + fb, areas);
+        if (i >= 0)
+        {
+            out = areas[static_cast<size_t>(i)];
+            return true;
+        }
+    }
+    GLFWmonitor* primary = glfwGetPrimaryMonitor();
+    if (!primary)
+        return false;
+    glfwGetMonitorWorkarea(primary, &out.x, &out.y, &out.w, &out.h);
+    return out.w > 0 && out.h > 0;
 }
 
 }   // namespace spectra

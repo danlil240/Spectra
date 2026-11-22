@@ -90,10 +90,9 @@ bool GlfwAdapter::init(uint32_t width, uint32_t height, const std::string& title
     // window on its monitor, not inside the work area, so a tall window in a
     // late cascade slot ended under the taskbar.  Pull it into the work area,
     // as WindowManager::create_window() does for every later window.
-    if (GLFWmonitor* mon = glfwGetPrimaryMonitor())
+    // Use the work area of the monitor the OS put it on, not the primary one.
+    if (ScreenWorkArea wa; work_area_for_window(window_, wa))
     {
-        ScreenWorkArea wa;
-        glfwGetMonitorWorkarea(mon, &wa.x, &wa.y, &wa.w, &wa.h);
         int x = 0, y = 0, cw = 0, ch = 0, fl = 0, ft = 0, fr = 0, fb = 0;
         glfwGetWindowPos(window_, &x, &y);
         glfwGetWindowSize(window_, &cw, &ch);

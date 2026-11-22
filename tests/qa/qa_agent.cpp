@@ -4027,6 +4027,30 @@ class QAAgent
         return {std::max(w, min_w), std::max(h, min_h)};
     }
 
+    // A resize below the app's minimum size: window systems that enforce
+    // size limits (Windows, desktop WMs) give the minimum, a bare X server
+    // without a WM (xvfb in CI) gives the requested size.  Either is correct.
+    static bool swapchain_is_requested_or_min(const WindowContext* wctx, uint32_t w, uint32_t h)
+    {
+        const auto m = clamped_to_min_size(wctx, w, h);
+        return swapchain_is(wctx, w, h) || swapchain_is(wctx, m.first, m.second);
+    }
+
+    void expect_swapchain_requested_or_min(DesignCheck&   c,
+                                           WindowContext* wctx,
+                                           uint32_t       w,
+                                           uint32_t       h)
+    {
+        const auto m = clamped_to_min_size(wctx, w, h);
+        c.expect(swapchain_is_requested_or_min(wctx, w, h),
+                 "swapchain is " + std::to_string(w) + "x" + std::to_string(h) + " or the minimum "
+                     + std::to_string(m.first) + "x" + std::to_string(m.second) + " (actual "
+                     + (wctx ? std::to_string(wctx->swapchain.extent.width) + "x"
+                                   + std::to_string(wctx->swapchain.extent.height)
+                             : std::string("none"))
+                     + ")");
+    }
+
     void expect_swapchain(DesignCheck& c, WindowContext* wctx, uint32_t w, uint32_t h)
     {
         c.expect(wctx && wctx->swapchain.extent.width == w && wctx->swapchain.extent.height == h,
@@ -5630,13 +5654,13 @@ class QAAgent
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(2);
                     // 240 px is below the app's minimum window height.
-                    const auto     tiny = clamped_to_min_size(wctx, 320, 240);
-                    const uint32_t tw   = tiny.first;
-                    const uint32_t th   = tiny.second;
-                    wait_until_settled("44 320x240 swapchain recreation",
-                                       [&] { return swapchain_is(wctx, tw, th) && ui_settled(); });
+                    wait_until_settled(
+                        "44 320x240 swapchain recreation",
+                        [&]
+                        { return swapchain_is_requested_or_min(wctx, 320, 240) && ui_settled(); });
                     named_screenshot("44_window_resized_tiny_320x240",
-                                     [&](DesignCheck& c) { expect_swapchain(c, wctx, tw, th); });
+                                     [&](DesignCheck& c)
+                                     { expect_swapchain_requested_or_min(c, wctx, 320, 240); });
 
                     // Restore
                     glfwSetWindowSize(glfw_win, 1280, 720);
@@ -6259,16 +6283,15 @@ class QAAgent
                     // Shrink to 320×240
                     glfwSetWindowSize(glfw_win, 320, 240);
                     pump_frames(2);
-                    const auto     tiny = clamped_to_min_size(wctx, 320, 240);
-                    const uint32_t tw   = tiny.first;
-                    const uint32_t th   = tiny.second;
-                    wait_until_settled("56 tiny window swapchain",
-                                       [&] { return swapchain_is(wctx, tw, th) && ui_settled(); });
+                    wait_until_settled(
+                        "56 tiny window swapchain",
+                        [&]
+                        { return swapchain_is_requested_or_min(wctx, 320, 240) && ui_settled(); });
                     named_screenshot(
                         "56_tiny_window_all_panels_open",
                         [&](DesignCheck& c)
                         {
-                            expect_swapchain(c, wctx, tw, th);
+                            expect_swapchain_requested_or_min(c, wctx, 320, 240);
                             c.expect(lm.is_inspector_visible(), "inspector requested open");
                             c.expect(lm.is_nav_rail_expanded(), "nav rail expanded");
                             c.expect(ui->imgui_ui->is_timeline_visible()

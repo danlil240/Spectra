@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <string>
@@ -611,17 +612,30 @@ TEST(UdpJsonBridge, ShortSoak)
     ASSERT_TRUE(bridge.start(queue, OWNER, nullptr));
     const uint16_t port = bridge.bound_port();
     constexpr int  N    = 300;
+    // The sender stays at most this many datagrams ahead of the bridge thread.
+    // UDP has no flow control: an unpaced burst overflows the socket's receive
+    // buffer whenever the receiver is slow (sanitizers, a loaded CI runner) and
+    // the kernel drops the excess silently.
+    constexpr uint64_t WINDOW = 32;
 
-    std::thread sender(
-        [port]()
+    std::atomic<bool> bridge_kept_up{true};
+    std::thread       sender(
+        [port, &bridge, &bridge_kept_up]()
         {
+            uint64_t sent = 0;
             for (int i = 0; i < N; ++i)
             {
-                send_udp(port,
-                         "{\"t\": " + std::to_string(i) + ", \"a\": " + std::to_string(i)
-                             + ", \"b\": [" + std::to_string(-i) + "]}");
-                if (i % 50 == 0)
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                // Bounded: a bridge that stops handling datagrams ends the
+                // sender instead of hanging it, and fails the test below.
+                if (sent >= WINDOW && !wait_for_messages(bridge, sent - WINDOW + 1))
+                {
+                    bridge_kept_up.store(false);
+                    return;
+                }
+                if (send_udp(port,
+                             "{\"t\": " + std::to_string(i) + ", \"a\": " + std::to_string(i)
+                                 + ", \"b\": [" + std::to_string(-i) + "]}"))
+                    ++sent;
             }
         });
 
@@ -638,6 +652,7 @@ TEST(UdpJsonBridge, ShortSoak)
     sender.join();
     total += apply_ingest_batches(reg, queue.drain()).samples_published;
 
+    EXPECT_TRUE(bridge_kept_up.load()) << "bridge stopped handling datagrams mid-soak";
     // Loopback UDP can drop under extreme load; it must not here, but allow
     // the kernel a little slack rather than flaking.
     EXPECT_GE(total, 2u * N * 9 / 10);

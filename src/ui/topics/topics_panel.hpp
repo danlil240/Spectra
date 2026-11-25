@@ -1,7 +1,5 @@
 // topics_panel.hpp — Spectra Topics discovery panel.
 //
-// Phase 2 of plans/SPECTRA_TOPICS_PLAN.md.
-//
 // A dockable ImGui panel that lists every topic currently known to the
 // daemon's TopicRegistry. Users can:
 //   - See live Hz, sample count and publisher-online status per topic

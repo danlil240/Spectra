@@ -16,7 +16,7 @@ using namespace spectra;
 // Phase 2+: Multi-window benchmarks (behind SPECTRA_HAS_WINDOW_MANAGER guard).
 //
 // These benchmarks establish frame-time baselines before the multi-window
-// refactor and will measure per-window overhead after Agent B merges.
+// refactor and measure per-window overhead.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── Data Helpers ────────────────────────────────────────────────────────────
@@ -236,7 +236,7 @@ static void BM_SingleWindow_Readback(benchmark::State& state)
 BENCHMARK(BM_SingleWindow_Readback)->Unit(benchmark::kMicrosecond);
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Phase 2 — Multi-Window Benchmarks (after Agent B merge)
+// Phase 2 — Multi-Window Benchmarks
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #ifdef SPECTRA_HAS_WINDOW_MANAGER

@@ -295,7 +295,7 @@ AxesBase* InputHandler::hit_test_all_axes(double screen_x, double screen_y) cons
 InputHandler::InputHandler()  = default;
 InputHandler::~InputHandler() = default;
 
-// Phase 2 (LT-5): Route limit mutations through AxesViewModel when available.
+// Route limit mutations through AxesViewModel when available.
 void InputHandler::set_axes_xlim(Axes* ax, double min, double max)
 {
     if (!ax)

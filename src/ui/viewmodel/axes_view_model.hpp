@@ -13,7 +13,7 @@ class UndoManager;
 /**
  * AxesViewModel — View-layer state for a single Axes.
  *
- * Part of the Model/ViewModel separation (LT-5 in ARCHITECTURE_REVIEW_V2.md).
+ * Part of the Model/ViewModel separation.
  *
  * The core Axes class is the *model*: it owns data (series collection, axis
  * labels, autoscale config, presented-buffer settings).  AxesViewModel is the

@@ -28,7 +28,7 @@ from typing import Optional, Tuple
 
 _lib: Optional[ctypes.CDLL] = None
 
-# Callback prototypes (Phase 4). Keep references to installed callbacks alive
+# Callback prototypes. Keep references to installed callbacks alive
 # on the owning Python object so they are not garbage-collected while the C
 # side still holds the function pointer.
 SpectraFrameCb = ctypes.CFUNCTYPE(
@@ -36,7 +36,7 @@ SpectraFrameCb = ctypes.CFUNCTYPE(
 )
 SpectraRedrawCb = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
 
-# Interactive event callback prototypes (Phase 3).
+# Interactive event callback prototypes.
 SpectraPointSelectedCb = ctypes.CFUNCTYPE(
     None,
     ctypes.c_int,
@@ -442,7 +442,7 @@ def _load_lib() -> ctypes.CDLL:
     ]
     _lib.spectra_axes_stem.restype = ctypes.c_void_p
 
-    # ── Phase 7B: stem ──────────────────────────────────────────────────────
+    # ── Stem ────────────────────────────────────────────────────────────────
     _lib.spectra_axes_stem.argtypes = [
         ctypes.c_void_p,  # ax
         ctypes.POINTER(ctypes.c_float),  # x
@@ -452,7 +452,7 @@ def _load_lib() -> ctypes.CDLL:
     ]
     _lib.spectra_axes_stem.restype = ctypes.c_void_p
 
-    # ── Phase 7C: scatter colormap ─────────────────────────────────────────
+    # ── Scatter colormap ───────────────────────────────────────────────────
     _lib.spectra_series_set_scatter_colors.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_float),
@@ -472,7 +472,7 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_figure_set_title.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_figure_set_title.restype = None
 
-    # ── Phase 1A: Series styling ──────────────────────────────────────────
+    # ── Series styling ────────────────────────────────────────────────────
     _lib.spectra_series_set_color.argtypes = [
         ctypes.c_void_p,
         ctypes.c_float,
@@ -494,7 +494,7 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_series_set_label.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_series_set_label.restype = None
 
-    # ── Phase 1G: Series streaming ────────────────────────────────────────
+    # ── Series streaming ──────────────────────────────────────────────────
     _lib.spectra_series_append_xy.argtypes = [
         ctypes.c_void_p,
         ctypes.c_float,
@@ -513,7 +513,7 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_series_clear.argtypes = [ctypes.c_void_p]
     _lib.spectra_series_clear.restype = None
 
-    # ── Phase 1B: Bar options ─────────────────────────────────────────────
+    # ── Bar options ───────────────────────────────────────────────────────
     _lib.spectra_series_set_bar_width.argtypes = [ctypes.c_void_p, ctypes.c_float]
     _lib.spectra_series_set_bar_width.restype = None
     _lib.spectra_series_set_bar_baseline.argtypes = [ctypes.c_void_p, ctypes.c_float]
@@ -523,7 +523,7 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_series_set_bar_gradient.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_bar_gradient.restype = None
 
-    # ── Phase 1C: Histogram options ───────────────────────────────────────
+    # ── Histogram options ─────────────────────────────────────────────────
     _lib.spectra_series_set_histogram_bins.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_histogram_bins.restype = None
     _lib.spectra_series_set_histogram_cumulative.argtypes = [
@@ -539,7 +539,7 @@ def _load_lib() -> ctypes.CDLL:
     ]
     _lib.spectra_series_set_histogram_gradient.restype = None
 
-    # ── Phase 1D: 3D series ───────────────────────────────────────────────
+    # ── 3D series ─────────────────────────────────────────────────────────
     _lib.spectra_axes3d_line.argtypes = [
         ctypes.c_void_p,
         ctypes.POINTER(ctypes.c_float),
@@ -587,23 +587,23 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_series_set_colormap_reversed.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_series_set_colormap_reversed.restype = None
 
-    # ── Phase 1E: Legend control ──────────────────────────────────────────
+    # ── Legend control ────────────────────────────────────────────────────
     _lib.spectra_axes_show_legend.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_show_legend.restype = None
     _lib.spectra_axes_set_legend_position.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_set_legend_position.restype = None
 
-    # ── Phase 7A: Axis scale ──────────────────────────────────────────────
+    # ── Axis scale ────────────────────────────────────────────────────────
     _lib.spectra_axes_set_xscale.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_set_xscale.restype = None
     _lib.spectra_axes_set_yscale.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_axes_set_yscale.restype = None
 
-    # ── Phase 1F: PNG render ──────────────────────────────────────────────
+    # ── PNG render ────────────────────────────────────────────────────────
     _lib.spectra_embed_render_png.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     _lib.spectra_embed_render_png.restype = ctypes.c_int
 
-    # ── Phase 2: Extra chrome setters + getters ───────────────────────────
+    # ── Extra chrome setters + getters ────────────────────────────────────
     _lib.spectra_embed_set_show_legend.argtypes = [ctypes.c_void_p, ctypes.c_int]
     _lib.spectra_embed_set_show_legend.restype = None
     _lib.spectra_embed_set_show_crosshair.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -620,7 +620,7 @@ def _load_lib() -> ctypes.CDLL:
         fn.argtypes = [ctypes.c_void_p]
         fn.restype = ctypes.c_int
 
-    # ── Phase 4: Animation & frame callbacks ──────────────────────────────
+    # ── Animation & frame callbacks ───────────────────────────────────────
     _lib.spectra_embed_set_on_frame.argtypes = [
         ctypes.c_void_p,
         SpectraFrameCb,
@@ -644,7 +644,7 @@ def _load_lib() -> ctypes.CDLL:
     _lib.spectra_embed_animation_stop.argtypes = [ctypes.c_void_p]
     _lib.spectra_embed_animation_stop.restype = None
 
-    # ── Phase 3: Interactive event callbacks ──────────────────────────────
+    # ── Interactive event callbacks ───────────────────────────────────────
     _lib.spectra_embed_set_on_point_selected.argtypes = [
         ctypes.c_void_p,
         SpectraPointSelectedCb,
@@ -876,7 +876,7 @@ class EmbedSeries:
         assert xn == yn, f"x and y must have same length ({xn} vs {yn})"
         self._lib.spectra_series_set_data(self._handle, xp, yp, xn)
 
-    # ── Phase 1A: styling ────────────────────────────────────────────────
+    # ── Styling ──────────────────────────────────────────────────────────
 
     def set_color(self, r: float, g: float, b: float, a: float = 1.0) -> "EmbedSeries":
         """Set the series color (RGBA components in [0, 1])."""
@@ -917,7 +917,7 @@ class EmbedSeries:
         self._lib.spectra_series_set_label(self._handle, label.encode("utf-8"))
         return self
 
-    # ── Phase 1G: streaming ──────────────────────────────────────────────
+    # ── Streaming ────────────────────────────────────────────────────────
 
     def append_xy(self, x: float, y: float) -> None:
         """Append a single (x, y) sample to the series."""
@@ -938,7 +938,7 @@ class EmbedSeries:
         """Remove all data points from the series."""
         self._lib.spectra_series_clear(self._handle)
 
-    # ── Phase 1B: bar options ────────────────────────────────────────────
+    # ── Bar options ──────────────────────────────────────────────────────
 
     def set_bar_width(self, width: float) -> "EmbedSeries":
         """Set the bar width (bar series only)."""
@@ -965,7 +965,7 @@ class EmbedSeries:
         self._lib.spectra_series_set_bar_gradient(self._handle, 1 if enabled else 0)
         return self
 
-    # ── Phase 1C: histogram options ──────────────────────────────────────
+    # ── Histogram options ────────────────────────────────────────────────
 
     def set_histogram_bins(self, bins: int) -> "EmbedSeries":
         """Set the number of histogram bins."""
@@ -993,7 +993,7 @@ class EmbedSeries:
         )
         return self
 
-    # ── Phase 1D: 3D / colormap ──────────────────────────────────────────
+    # ── 3D / colormap ────────────────────────────────────────────────────
 
     def set_z(self, z) -> None:
         """Update the Z data for a 3D line/scatter series."""
@@ -1025,7 +1025,7 @@ class EmbedSeries:
         self._lib.spectra_series_set_colormap_range(self._handle, min_val, max_val)
         return self
 
-    # ── Phase 7C: scatter colormap ────────────────────────────────────────
+    # ── Scatter colormap ──────────────────────────────────────────────────
 
     def set_scatter_colors(self, values) -> "EmbedSeries":
         """Set per-point color values for a scatter series.
@@ -1228,7 +1228,7 @@ class EmbedAxes:
             raise RuntimeError("Failed to create bar series")
         return EmbedSeries(h, self._surface)
 
-    # ── Phase 7B: stem ────────────────────────────────────────────────────
+    # ── Stem ──────────────────────────────────────────────────────────────
 
     def stem(self, x, y, label: Optional[str] = None) -> EmbedSeries:
         """Add a stem series — vertical lines from baseline to each point with
@@ -1251,7 +1251,7 @@ class EmbedAxes:
             raise RuntimeError("Failed to create stem series")
         return EmbedSeries(h, self._surface)
 
-    # ── Phase 1D: 3D series ──────────────────────────────────────────────
+    # ── 3D series ────────────────────────────────────────────────────────
 
     def line3d(self, x, y, z, label: Optional[str] = None) -> EmbedSeries:
         """Add a 3D line series (requires a 3D subplot)."""
@@ -1294,7 +1294,7 @@ class EmbedAxes:
             raise RuntimeError("Failed to create 3D surface series")
         return EmbedSeries(h, self._surface)
 
-    # ── Phase 1E: legend control ─────────────────────────────────────────
+    # ── Legend control ───────────────────────────────────────────────────
 
     def show_legend(self, visible: bool = True) -> None:
         """Show or hide the legend for this axes' figure."""
@@ -1306,7 +1306,7 @@ class EmbedAxes:
             self._handle, _resolve(position, _LEGEND_POSITIONS, "legend position")
         )
 
-    # ── Phase 7A: axis scale ─────────────────────────────────────────────
+    # ── Axis scale ───────────────────────────────────────────────────────
 
     def xscale(self, scale) -> None:
         """Set the X-axis scale ('linear', 'log10'/'log', 'log2', 'sqrt')."""
@@ -1444,7 +1444,7 @@ class EmbedSurface:
         self._height = height
         # Pre-allocate pixel buffer
         self._buf = (ctypes.c_uint8 * (width * height * 4))()
-        # Keep installed C callbacks alive (Phase 4 & Phase 3).
+        # Keep installed C callbacks alive.
         self._frame_cb = None
         self._redraw_cb = None
         self._point_cb = None
@@ -1518,7 +1518,7 @@ class EmbedSurface:
         """Render directly into a pre-allocated ctypes buffer (zero-copy)."""
         return bool(self._lib.spectra_embed_render(self._handle, buf))
 
-    # ── Phase 5C: rich output helpers ────────────────────────────────────
+    # ── Rich output helpers ──────────────────────────────────────────────
 
     def render_numpy(self):
         """Render one frame and return an (H, W, 4) uint8 RGBA numpy array."""
@@ -1743,7 +1743,7 @@ class EmbedSurface:
     def crosshair_visible(self) -> bool:
         return bool(self._lib.spectra_embed_is_crosshair_visible(self._handle))
 
-    # ── Phase 4: animation & frame callbacks ─────────────────────────────
+    # ── Animation & frame callbacks ──────────────────────────────────────
 
     def set_on_frame(self, callback) -> None:
         """Register a per-frame callback ``callback(surface, time_sec, dt_sec)``.
@@ -1793,7 +1793,7 @@ class EmbedSurface:
         """Stop the animation loop and reset the elapsed timeline."""
         self._lib.spectra_embed_animation_stop(self._handle)
 
-    # ── Phase 3: interactive event callbacks ─────────────────────────────
+    # ── Interactive event callbacks ──────────────────────────────────────
 
     def set_on_point_selected(self, callback) -> None:
         """Register ``callback(axes_index, series_index, point_index, x, y)``.
@@ -1875,7 +1875,7 @@ class EmbedSurface:
         self._view_cb = SpectraViewChangedCb(_trampoline)
         self._lib.spectra_embed_set_on_view_changed(self._handle, self._view_cb, None)
 
-    # ── Phase 5E: builder ────────────────────────────────────────────────
+    # ── Builder ──────────────────────────────────────────────────────────
 
     @staticmethod
     def builder() -> "EmbedSurfaceBuilder":

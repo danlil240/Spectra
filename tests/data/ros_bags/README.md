@@ -9,7 +9,7 @@ Small synthetic bags for CI, `spectra-ros-analyze`, and bag-replay tutorials.
 | `nav_snippet/` | `/cmd_vel`, `/odom` | 4 s | 5 Hz |
 | `nav2_debug/` | `/tf`, `/tf_static`, `/scan`, `/plan`, `/odom`, `/cmd_vel` | 5 s | 5 Hz |
 
-Workshop: [`docs/workshops/nav-debug-30min.md`](../../docs/workshops/nav-debug-30min.md)
+Workshop: [`docs/workshops/nav-debug-30min.md`](../../../docs/workshops/nav-debug-30min.md)
 
 ## Regenerate
 

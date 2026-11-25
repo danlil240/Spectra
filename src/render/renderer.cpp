@@ -1143,7 +1143,7 @@ void Renderer::render_axes(AxesBase&   axes,
         // and the small gap between origin and view center is bridged
         // by the data_offset push constants.
 
-        // Phase 2 (LT-5): read limits via AxesViewModel when available,
+        // Read limits via AxesViewModel when available,
         // enabling per-view overrides and validation.
         AxisLimits xlim;
         AxisLimits ylim;
@@ -1281,7 +1281,7 @@ void Renderer::render_axes(AxesBase&   axes,
             if (!series_ptr)
                 continue;
 
-            // Phase 2 (LT-5): check visibility via SeriesViewModel when available.
+            // Check visibility via SeriesViewModel when available.
             bool             visible = false;
             SeriesViewModel* svm_ptr = nullptr;
             if (figure_vm_)
@@ -1340,7 +1340,7 @@ void Renderer::render_axes(AxesBase&   axes,
             vec3 world_pos = {world_c.x, world_c.y, world_c.z};
             auto dist      = static_cast<float>(vec3_length(world_pos - cam_pos));
 
-            // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available.
+            // Read color/opacity via SeriesViewModel when available.
             float effective_alpha = NAN;
             if (svm_ptr)
             {
@@ -1582,7 +1582,7 @@ void Renderer::render_axes(AxesBase&   axes,
             if (!series_ptr)
                 continue;
 
-            // Phase 2 (LT-5): check visibility via SeriesViewModel when available
+            // Check visibility via SeriesViewModel when available
             bool visible = false;
             if (figure_vm_)
             {

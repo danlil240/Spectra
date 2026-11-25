@@ -25,7 +25,7 @@ namespace spectra
 // ─── Icon sidebar ───────────────────────────────────────────────────────────
 
 // Helper: draw a clickable icon + label button for the Vision nav rail.
-// Matches Vision.png: icon centered above a tiny label, subtle pill bg on active,
+// Icon centered above a tiny label, subtle pill bg on active,
 // very muted inactive state, generous vertical cell height.
 static bool icon_label_button(const char* icon_codepoint,
                               const char* label,
@@ -269,7 +269,7 @@ void ImGuiIntegration::draw_fallback_menus()
 
 // ─── Legacy Methods (removed — use SpectraAppShell / draw_command_bar) ────────
 
-// ─── Legacy Panel Drawing Methods (To be removed after Agent C migration) ───
+// ─── Legacy Panel Drawing Methods ──────────────────────────────────────────
 
 // Helper for drawing dropdown menus — modern 2026 style with:
 //   • auto-close on mouse leave
@@ -936,7 +936,7 @@ void ImGuiIntegration::draw_command_bar()
 
         ImGui::SameLine();
 
-        // Home button — Vision.png: dark glass tile, soft cyan halo, single icon (no double-draw).
+        // Home button: dark glass tile, soft cyan halo, single icon (no double-draw).
         {
             const auto& header_colors = theme_colors();
             const float glow          = theme_mgr_ ? theme_mgr_->effective_glow_intensity() : 0.0f;
@@ -962,7 +962,7 @@ void ImGuiIntegration::draw_command_bar()
             ImVec2      ctr((mn.x + mx.x) * 0.5f, (mn.y + mx.y) * 0.5f);
             const bool  hovered = ImGui::IsItemHovered();
 
-            // Vision.png: soft light house, faint glow, no tile/border/halo.
+            // Soft light house, faint glow, no tile/border/halo.
             // Only a subtle hover background tile appears on interaction.
             if (hovered)
             {
@@ -1486,7 +1486,7 @@ void ImGuiIntegration::draw_chrome_backdrops()
     const ui::ThemeGlassSettings& glass = theme_mgr_->glass();
     const float                   glow  = theme_mgr_->effective_glow_intensity();
 
-    // Vision.png outer halo + shell frame (strokes only — never fill the canvas rect).
+    // Outer halo + shell frame (strokes only — never fill the canvas rect).
     if (ImGuiViewport* vp = ImGui::GetMainViewport())
     {
         ImVec2 vp_min = vp->Pos;

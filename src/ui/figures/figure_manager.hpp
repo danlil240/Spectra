@@ -18,7 +18,7 @@ namespace spectra
 class TabBar;
 
 // Backward-compatible alias.  FigureState was a plain struct holding
-// per-figure UI state.  It is now FigureViewModel (LT-1 migration).
+// per-figure UI state.  It is now FigureViewModel.
 // Existing code that uses FigureState continues to compile unchanged.
 using FigureState = FigureViewModel;
 

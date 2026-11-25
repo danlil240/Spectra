@@ -155,7 +155,7 @@ TEST_F(SingleWindowFixture, OffscreenFramebufferCreation)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PHASE 1 — WindowContext Extraction (after Agent A merge)
+// PHASE 1 — WindowContext Extraction
 // Tests that WindowContext struct exists and single-window behavior is preserved.
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -163,7 +163,7 @@ TEST_F(SingleWindowFixture, OffscreenFramebufferCreation)
 
 TEST(WindowContextPhase1, SingleWindowUnchanged)
 {
-    // After Agent A refactor, single window must still work identically
+    // Single window must still work identically
     App                app({.headless = true, .socket_path = ""});
     auto&              fig = app.figure({.width = 640, .height = 480});
     auto&              ax  = fig.subplot(1, 1, 1);
@@ -253,7 +253,7 @@ TEST_F(MultiWindowFixture, StubNoHangMultipleWindows)
 #endif   // !SPECTRA_HAS_WINDOW_MANAGER
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PHASE 4 — Tab Tear-Off (after Agent D merge)
+// PHASE 4 — Tab Tear-Off
 // Tests for drag-to-detach UX.  These test the WindowManager::detach_figure()
 // API and related edge cases in headless mode.
 // ═══════════════════════════════════════════════════════════════════════════════

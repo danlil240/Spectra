@@ -203,7 +203,7 @@ void color_swatch(const spectra::Color& color, float size = 14.0f);
 void small_spacing();
 void section_spacing();
 
-// ─── New Widgets (Week 6) ────────────────────────────────────────────────────
+// ─── New Widgets ─────────────────────────────────────────────────────────────
 
 // Sparkline: inline mini line chart for data preview
 void sparkline(const char*            id,

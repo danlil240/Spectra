@@ -586,7 +586,7 @@ extern "C"
         c_guard_void(body);
     }
 
-    // ── Series styling (Phase 1A) ────────────────────────────────────────────
+    // ── Series styling ───────────────────────────────────────────────────────
 
     void spectra_series_set_color(SpectraSeries* s, float r, float g, float b, float a)
     {
@@ -665,7 +665,7 @@ extern "C"
         c_guard_void(body);
     }
 
-    // ── Series streaming helpers (Phase 1G) ──────────────────────────────────
+    // ── Series streaming helpers ─────────────────────────────────────────────
 
     void spectra_series_append_xy(SpectraSeries* s, float x, float y)
     {
@@ -728,7 +728,7 @@ extern "C"
         c_guard_void(body);
     }
 
-    // ── Bar series options (Phase 1B) ────────────────────────────────────────
+    // ── Bar series options ───────────────────────────────────────────────────
 
     void spectra_series_set_bar_width(SpectraSeries* s, float width)
     {
@@ -772,7 +772,7 @@ extern "C"
         c_guard_void(body);
     }
 
-    // ── Histogram series options (Phase 1C) ──────────────────────────────────
+    // ── Histogram series options ─────────────────────────────────────────────
 
     void spectra_series_set_histogram_bins(SpectraSeries* s, int bins)
     {
@@ -826,7 +826,7 @@ extern "C"
         c_guard_void(body);
     }
 
-    // ── 3D series (Phase 1D) ─────────────────────────────────────────────────
+    // ── 3D series ────────────────────────────────────────────────────────────
 
     SpectraSeries* spectra_axes3d_line(SpectraAxes* ax,
                                        const float* x,
@@ -1218,7 +1218,7 @@ extern "C"
         return c_guard<int>(0, body);
     }
 
-    // ── Animation & live data (Phase 4) ──────────────────────────────────────
+    // ── Animation & live data ────────────────────────────────────────────────
 
     void spectra_embed_set_on_frame(SpectraEmbed* s, SpectraFrameCb cb, void* user_data)
     {
@@ -1303,7 +1303,7 @@ extern "C"
         c_guard_void(body);
     }
 
-    // ── Interactive event callbacks (Phase 3) ────────────────────────────────────
+    // ── Interactive event callbacks ──────────────────────────────────────────────
 
     void spectra_embed_set_on_point_selected(SpectraEmbed*          s,
                                              SpectraPointSelectedCb cb,
@@ -1718,7 +1718,7 @@ extern "C"
         return c_guard<SpectraSeries*>(nullptr, body);
     }
 
-    // ── Scatter colormap (Phase 7C) ────────────────────────────────────────
+    // ── Scatter colormap ───────────────────────────────────────────────────
 
     void spectra_series_set_scatter_colors(SpectraSeries* s, const float* values, uint32_t count)
     {

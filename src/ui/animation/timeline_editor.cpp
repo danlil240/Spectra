@@ -831,7 +831,7 @@ KeyframeMarker* TimelineEditor::find_keyframe(uint32_t track_id, float time, flo
     return nullptr;
 }
 
-// ─── KeyframeInterpolator integration (Week 11) ─────────────────────────────
+// ─── KeyframeInterpolator integration ───────────────────────────────────────
 
 void TimelineEditor::set_interpolator(KeyframeInterpolator* interp)
 {

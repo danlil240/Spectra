@@ -20,8 +20,6 @@ screenshots
 !README.md
 !LICENSE
 !BUILD_ENVIRONMENT.md
-!CLAUDE.md
-!AGENTS.md
 
 # Exclude stale build artifacts but allow the topic_publisher binary
 build/CMakeCache.txt

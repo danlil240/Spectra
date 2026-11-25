@@ -1,8 +1,8 @@
 # Spectra — Build Environment Reference
 
-> **Purpose:** This document is the authoritative reference for all agents (spectra-builder,
-> spectra-coder, spectra-dev, QA_*, github-ci, etc.) on how to reproduce a complete, working
-> Spectra build environment. Follow these instructions exactly — do **not** iterate or guess.
+> **Purpose:** This document is the authoritative reference on how to reproduce a complete,
+> working Spectra build environment. Follow these instructions exactly rather than guessing
+> dependencies.
 >
 > **Verified on:** Ubuntu 24.04 LTS (Noble) · GCC 13.3 · CMake 3.31 · Ninja 1.13
 
@@ -83,7 +83,7 @@ sudo apt-get install -y \
 
 ## 2. Standard Build (All Core Features)
 
-This is the canonical build used by all agents. It enables every core feature, examples, and
+This is the canonical build, also used by CI. It enables every core feature, examples, and
 tests. ROS2 and WebGPU are excluded (they require extra setup — see sections 4 and 5).
 
 ```bash
@@ -629,14 +629,14 @@ Expected: **0 tests failed** on `ctest -LE gpu`.
 
 ---
 
-## 17. Agent-Specific Notes
+## 17. Workflow Notes
 
-### spectra-builder
+### Compile validation
 Use the **Standard Build** (Section 2) for all compile validation tasks. Always pass
 `-DSPECTRA_BUILD_TESTS=ON` and check for zero errors. The build takes ~5–8 minutes on a
 4-core machine (first run downloads FetchContent deps; subsequent runs are ~1–2 minutes).
 
-### spectra-coder / spectra-dev
+### Incremental rebuilds
 After editing source files, rebuild with:
 ```bash
 cmake --build build -j$(nproc)
@@ -644,7 +644,7 @@ cmake --build build -j$(nproc)
 CMake's incremental build only recompiles changed files. No need to reconfigure unless
 CMakeLists.txt or feature flags change.
 
-### QA_Regression / QA_Design
+### Golden images and design review
 Golden image tests require lavapipe and xvfb (Section 14). Baseline and output directories
 default to `tests/golden/baseline` and `tests/golden/output` in the source tree (absolute paths
 compiled in); override them with:
@@ -665,7 +665,7 @@ ctest --test-dir build -R qa_design_review --output-on-failure      # label gpu;
 tests/qa/run_design_review.sh build/tests/spectra_qa_agent /tmp/design   # same, keeps output
 ```
 
-### QA_Performance
+### Performance
 Use Release builds only. Enable benchmarks with:
 ```bash
 cmake -B build -DSPECTRA_BUILD_BENCHMARKS=ON
@@ -673,7 +673,7 @@ cmake --build build -j$(nproc)
 ./build/tests/bench_*
 ```
 
-### QA_Memory
+### Memory
 Build with AddressSanitizer (Section 8). Run non-GPU tests only (`-LE gpu`).
 For Valgrind Massif: `valgrind --tool=massif ./build/tests/unit_test_<name>`.
 
@@ -687,7 +687,7 @@ the last 300 frames stays > 100MB above start (transient multi-window peaks do n
 counts per cycle. Frame-time spikes in a declared first-use window (a figure's or series type's
 first frames, a new window or swapchain size) are counted as warm-up, not reported.
 
-### github-ci
+### CI
 The CI workflow (`.github/workflows/ci.yml`) mirrors this document exactly. The `build-linux`
 job uses GCC 13 and Clang 17 on Ubuntu 24.04. The `build-ros2` job uses `ros:humble-ros-base`.
 The `golden-tests` job uses lavapipe + xvfb.

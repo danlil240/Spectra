@@ -1,5 +1,5 @@
 // vk_frame.cpp — Frame lifecycle (begin/end frame), render pass, bind, draw, queries.
-// Split from vk_backend.cpp (MR-2) for focused module ownership.
+// Split from vk_backend.cpp for focused module ownership.
 
 #include "vk_backend.hpp"
 

@@ -49,7 +49,7 @@ struct EmbedSurface::Impl
     FrameCallback        frame_cb;
     float                frame_time = 0.0f;
 
-    // Interactive event callbacks (Phase 3)
+    // Interactive event callbacks
     PointSelectedCallback  point_selected_cb;
     SeriesSelectedCallback series_selected_cb;
     HoverCallback          hover_cb;
@@ -269,7 +269,7 @@ struct EmbedSurface::Impl
                 imgui_ui->set_input_handler(&input);
                 input.set_data_interaction(data_interaction.get());
 
-                // Phase 3: route DataInteraction selection callbacks to the
+                // Route DataInteraction selection callbacks to the
                 // EmbedSurface-level callbacks (read dynamically so the host can
                 // (re)register them at any time).
                 data_interaction->set_on_point_selected(
@@ -491,7 +491,7 @@ struct EmbedSurface::Impl
             active_fig->compute_layout();
         }
 
-        // Phase 3: fire hover / view-changed callbacks for the active figure.
+        // Fire hover / view-changed callbacks for the active figure.
         dispatch_interaction_events(active_fig);
 
         // Series data is uploaded by render_figure_content(), only when a
@@ -771,7 +771,7 @@ void EmbedSurface::update(float dt)
     impl_->make_theme_current();
     impl_->input.update(dt);
 
-    // Phase 4: drive the per-frame callback for live data / animation.
+    // Drive the per-frame callback for live data / animation.
     if (impl_->frame_cb)
     {
         impl_->frame_time += dt;

@@ -1,5 +1,5 @@
 // Figure operations: detach, move, preview windows, cross-window drop zones.
-// Split from window_manager.cpp — see QW-5 in ARCHITECTURE_REVIEW_V2.md.
+// Split from window_manager.cpp.
 
 #include "window_manager.hpp"
 

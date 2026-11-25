@@ -415,7 +415,7 @@ class Renderer
     std::vector<TruncatedTextRegion> truncated_text_regions_;
 
     // Active FigureViewModel for the current render pass (set by render_figure_content).
-    // Enables Phase 2 ViewModel-based rendering: axes limits read via AxesViewModel,
+    // Enables ViewModel-based rendering: axes limits read via AxesViewModel,
     // series properties (visible, color, opacity) read via SeriesViewModel.
     FigureViewModel* figure_vm_ = nullptr;
 

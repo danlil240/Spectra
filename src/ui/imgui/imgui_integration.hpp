@@ -290,11 +290,11 @@ class ImGuiIntegration
         truncated_text_regions_ = std::move(regions);
     }
 
-    // Box zoom overlay (Agent B Week 7, owned externally by App)
+    // Box zoom overlay (owned externally by App)
     void            set_box_zoom_overlay(BoxZoomOverlay* bzo) { box_zoom_overlay_ = bzo; }
     BoxZoomOverlay* box_zoom_overlay() const { return box_zoom_overlay_; }
 
-    // Command palette & productivity (Agent F, owned externally by App)
+    // Command palette & productivity (owned externally by App)
     void set_command_palette(CommandPalette* cp) { command_palette_ = cp; }
     void set_command_registry(CommandRegistry* cr) { command_registry_ = cr; }
     void set_shortcut_manager(ShortcutManager* sm) { shortcut_manager_ = sm; }
@@ -308,11 +308,11 @@ class ImGuiIntegration
     ShortcutManager* shortcut_manager() const { return shortcut_manager_; }
     UndoManager*     undo_manager() const { return undo_manager_; }
 
-    // Dock system (Agent A Week 9, owned externally by App)
+    // Dock system (owned externally by App)
     void        set_dock_system(DockSystem* ds) { dock_system_ = ds; }
     DockSystem* dock_system() const { return dock_system_; }
 
-    // Axis link manager (Agent B Week 10, owned externally by App)
+    // Axis link manager (owned externally by App)
     void             set_axis_link_manager(AxisLinkManager* alm) { axis_link_mgr_ = alm; }
     AxisLinkManager* axis_link_manager() const { return axis_link_mgr_; }
 
@@ -352,15 +352,15 @@ class ImGuiIntegration
         pane_ctx_menu_close_requested_ = true;
     }
 
-    // Timeline editor (Agent G, owned externally by App)
+    // Timeline editor (owned externally by App)
     void            set_timeline_editor(TimelineEditor* te) { timeline_editor_ = te; }
     TimelineEditor* timeline_editor() const { return timeline_editor_; }
 
-    // Keyframe interpolator (Agent G, owned externally by App)
+    // Keyframe interpolator (owned externally by App)
     void set_keyframe_interpolator(KeyframeInterpolator* ki) { keyframe_interpolator_ = ki; }
     KeyframeInterpolator* keyframe_interpolator() const { return keyframe_interpolator_; }
 
-    // Animation curve editor (Agent G, owned externally by App)
+    // Animation curve editor (owned externally by App)
     void                  set_curve_editor(AnimationCurveEditor* ce) { curve_editor_ = ce; }
     AnimationCurveEditor* curve_editor() const { return curve_editor_; }
 
@@ -374,7 +374,7 @@ class ImGuiIntegration
     }
     SeriesClipboard* series_clipboard() const { return series_clipboard_; }
 
-    // Mode transition (Agent 6 Week 11, owned externally by App)
+    // Mode transition (owned externally by App)
     void            set_mode_transition(ModeTransition* mt) { mode_transition_ = mt; }
     ModeTransition* mode_transition() const { return mode_transition_; }
 
@@ -400,7 +400,7 @@ class ImGuiIntegration
     bool is_plugins_panel_visible() const { return show_plugins_panel_; }
     void set_plugins_panel_visible(bool v) { show_plugins_panel_ = v; }
 
-    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md).
+    // Topics panel.
     // The panel is owned externally (WindowUIContext); ImGuiIntegration only
     // calls draw() on it during the UI pass.  May be nullptr when no
     // transport is wired (e.g. in-process mode for now).
@@ -685,7 +685,7 @@ class ImGuiIntegration
 
     bool has_pending_series_removals() const { return !pending_series_removals_.empty(); }
 
-    // Shared shell framework (Phase 3 core unification).
+    // Shared shell framework.
     void populate_status_bar(ui::shell::StatusBar& bar);
     void render_menubar_menu(const char* label, const std::vector<MenuItem>& items);
 
@@ -786,7 +786,7 @@ class ImGuiIntegration
     uint64_t cached_render_pass_ = 0;       // Opaque VkRenderPass handle for change detection
     std::unique_ptr<LayoutManager> layout_manager_;
 
-    // Inspector system (Agent C)
+    // Inspector system
     ui::Inspector        inspector_;
     ui::SelectionContext selection_ctx_;
 
@@ -878,19 +878,19 @@ class ImGuiIntegration
     // Data interaction layer (not owned)
     DataInteraction* data_interaction_ = nullptr;
 
-    // Box zoom overlay (Agent B Week 7, not owned)
+    // Box zoom overlay (not owned)
     BoxZoomOverlay* box_zoom_overlay_ = nullptr;
 
-    // Command palette & productivity (Agent F, not owned)
+    // Command palette & productivity (not owned)
     CommandPalette*  command_palette_  = nullptr;
     CommandRegistry* command_registry_ = nullptr;
     ShortcutManager* shortcut_manager_ = nullptr;
     UndoManager*     undo_manager_     = nullptr;
 
-    // Dock system (Agent A Week 9, not owned)
+    // Dock system (not owned)
     DockSystem* dock_system_ = nullptr;
 
-    // Axis link manager (Agent B Week 10, not owned)
+    // Axis link manager (not owned)
     AxisLinkManager* axis_link_mgr_ = nullptr;
 
     // Input handler (not owned)
@@ -930,7 +930,7 @@ class ImGuiIntegration
     char                     plugin_scan_dir_buf_[512] = {};
     std::string              plugin_panel_status_;
 
-    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md) — not owned.
+    // Topics panel — not owned.
     ui::topics::TopicsPanel* topics_panel_   = nullptr;
     LayoutSession*           layout_session_ = nullptr;
 

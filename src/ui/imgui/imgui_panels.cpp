@@ -797,7 +797,7 @@ void ImGuiIntegration::draw_inspector_toggle()
         const auto& colors = theme_colors();
         ImDrawList* dl     = ImGui::GetWindowDrawList();
 
-        // Chevron tab — always visible (Vision.png right-edge collapse control).
+        // Chevron tab — always visible (right-edge collapse control).
         const ImDrawFlags tab_corners = ImDrawFlags_RoundCornersLeft;
         {
             const uint8_t bg_alpha = hovered ? 230 : 175;

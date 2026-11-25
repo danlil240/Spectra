@@ -1,13 +1,8 @@
 // Multi-window demo for Spectra.
 //
-// Day 0 scaffolding: This demo currently runs in single-window mode with
-// multiple figures. As Agents A–D merge their work, this demo will be
-// updated to showcase true multi-OS-window rendering.
-//
-// Phase 0 (current):  Multiple figures in one headless App
-// Phase 2 (Agent B):  Multiple OS windows via WindowManager
-// Phase 3 (Agent C):  Move figures between windows
-// Phase 4 (Agent D):  Tab tear-off UX
+// Runs in single-window mode with multiple figures in one App. The TODOs
+// below sketch the WindowManager calls for multiple OS windows, moving
+// figures between windows and programmatic tab detach.
 
 #include <cmath>
 #include <spectra/spectra.hpp>
@@ -65,15 +60,15 @@ int main()
         ax2.title("Scatter: cos(t)");
     }
 
-    // TODO(Agent B): Replace with WindowManager-based multi-window:
+    // TODO: Replace with WindowManager-based multi-window:
     //   auto* win1 = window_mgr.create_window(800, 600, "Trig Functions");
     //   auto* win2 = window_mgr.create_window(800, 600, "Damped Oscillation");
     //   auto* win3 = window_mgr.create_window(1000, 500, "Scatter Plots");
 
-    // TODO(Agent C): Demonstrate figure move:
+    // TODO: Demonstrate figure move:
     //   window_mgr.move_figure(fig2_id, win1->id, win2->id);
 
-    // TODO(Agent D): Demonstrate programmatic detach:
+    // TODO: Demonstrate programmatic detach:
     //   window_mgr.detach_figure(fig3_id, win1->id, screen_x, screen_y);
 
     app.run();

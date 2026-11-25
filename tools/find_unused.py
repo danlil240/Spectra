@@ -15,7 +15,7 @@ REPORT_FILE = PROJECT_ROOT / "docs" / "unused_code_report.md"
 # Ignored directories/files
 IGNORE_DIRS = {
     ".git", ".vscode", "build", "third_party", "generated", 
-    "cmake", "__pycache__", ".windsurf", "plans", "docs"
+    "cmake", "__pycache__", "docs"
 }
 IGNORE_EXTENSIONS = {
     ".txt", ".md", ".json", ".xml", ".yml", ".yaml", 

@@ -254,7 +254,7 @@ TEST(StylePresets, UndoKeepsTheFigureLayout)
     EXPECT_EQ(fig.style().margin_left, 123.0f);
 }
 
-// Codex P1: undo must not touch a series deleted after the style was applied
+// Undo must not touch a series deleted after the style was applied
 // (Inspector trash -> deferred Axes::remove_series), nor a closed figure.
 TEST(StylePresets, UndoSkipsSeriesRemovedAfterwards)
 {
@@ -295,7 +295,7 @@ TEST(StylePresets, UndoIsANoOpOnceTheFigureIsClosed)
     EXPECT_TRUE(undo.redo());
 }
 
-// Codex P2: scatter points are drawn at ScatterSeries::size().
+// Scatter points are drawn at ScatterSeries::size().
 TEST(StylePresets, ScatterSizeFollowsTheStyleAndUndo)
 {
     Figure      fig;
@@ -492,7 +492,7 @@ TEST(StylePresetsPersistence, SerializerRoundTrip)
     EXPECT_TRUE(loaded.style().background_override);
 }
 
-// Codex P2: the Export dialog copies the figure through FigureSerializer, so
+// The Export dialog copies the figure through FigureSerializer, so
 // image / heatmap / contourf / contour series must survive it.
 TEST(StylePresetsPersistence, ImageAndContourSeriesRoundTrip)
 {

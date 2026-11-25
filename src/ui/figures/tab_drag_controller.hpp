@@ -14,10 +14,9 @@ class DockSystem;
 class WindowManager;
 
 // ─── TabDragController ───────────────────────────────────────────────────────
-// Implements the drag state machine for tab tear-off (Phase 4 of the
-// multi-window plan).  Manages the lifecycle of a tab drag from initial
-// mouse-down through threshold detection, ghost overlay, drop resolution,
-// and cancellation.
+// Implements the drag state machine for tab tear-off.  Manages the lifecycle
+// of a tab drag from initial mouse-down through threshold detection, ghost
+// overlay, drop resolution, and cancellation.
 //
 // State machine:
 //

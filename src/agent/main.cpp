@@ -966,7 +966,7 @@ int main(int argc, char* argv[])
 
     SPECTRA_LOG_INFO("window", "Full UI initialized, entering main loop");
 
-    // ── Wire the Topics panel to IPC (Phase 2 of SPECTRA_TOPICS_PLAN). ──
+    // ── Wire the Topics panel to IPC. ──
 #ifdef SPECTRA_USE_IMGUI
     std::mutex                                         pending_topic_subs_mu;
     std::vector<spectra::ui::topics::SubscribeRequest> pending_topic_subs;

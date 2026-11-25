@@ -445,7 +445,7 @@ void Tooltip::draw(const NearestPointResult& nearest,
             }
         }
 
-        // Night theme: series-colored glow halo around snap dot (Vision.png style)
+        // Night theme: series-colored glow halo around snap dot
         if (colors.glow_intensity > 0.01f)
         {
             // Outer soft bloom — large, very faint

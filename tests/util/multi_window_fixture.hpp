@@ -31,13 +31,13 @@ namespace spectra::test
 // specific test code.  They are OFF by default so the scaffolding compiles
 // against the current single-window codebase.
 //
-//   SPECTRA_HAS_WINDOW_CONTEXT   — Agent A merged (WindowContext exists)
-//   SPECTRA_HAS_WINDOW_MANAGER   — Agent B merged (WindowManager exists)
-//   SPECTRA_HAS_FIGURE_REGISTRY  — Agent C merged (FigureRegistry exists)
-//   SPECTRA_HAS_TEAR_OFF         — Agent D merged (tab tear-off works)
+//   SPECTRA_HAS_WINDOW_CONTEXT   — WindowContext exists
+//   SPECTRA_HAS_WINDOW_MANAGER   — WindowManager exists
+//   SPECTRA_HAS_FIGURE_REGISTRY  — FigureRegistry exists
+//   SPECTRA_HAS_TEAR_OFF         — tab tear-off works
 
 // ─── Single-Window Headless Fixture ──────────────────────────────────────────
-// Always available. Used for regression testing after each agent merge.
+// Always available. Used for regression testing.
 
 class SingleWindowFixture : public ::testing::Test
 {
@@ -98,13 +98,13 @@ class SingleWindowFixture : public ::testing::Test
 };
 
 // ─── Multi-Window Fixture (Phase 2+) ────────────────────────────────────────
-// Enabled after Agent B merges WindowManager.
-// Until then, this is a stub that creates N headless single-window Apps
+// Enabled when WindowManager is available.
+// Otherwise this is a stub that creates N headless single-window Apps
 // as a stand-in.
 
 #ifdef SPECTRA_HAS_WINDOW_MANAGER
 
-// Forward declarations — these types will exist after Agent A/B merge
+// Forward declarations
 // #include "render/vulkan/window_context.hpp"
 // #include "ui/window/window_manager.hpp"
 
@@ -220,7 +220,7 @@ class MultiWindowFixture : public ::testing::Test
 #endif   // SPECTRA_HAS_WINDOW_MANAGER
 
 // ─── Figure Registry Fixture (Phase 3+) ─────────────────────────────────────
-// Enabled after Agent C merges FigureRegistry.
+// Enabled when FigureRegistry is available.
 
 #ifdef SPECTRA_HAS_FIGURE_REGISTRY
 

@@ -1,7 +1,7 @@
 # Spectra Plugin Developer Guide
 
 > **API version covered**: v2.2 (current stable)  
-> **Phase D — Custom Series Types** is available in API v2.0 via the `custom_series` registry.
+> **Custom Series Types** are available in API v2.0 via the `custom_series` registry.
 
 ---
 
@@ -531,9 +531,9 @@ spectra_unregister_data_source(ctx->data_source_registry, "Sine Generator");
 
 ---
 
-## Phase D: Custom Series Types (deferred)
+## Custom Series Types
 
-Custom series type registration requires **API v2.0** and depends on renderer decoupling work (QW-2/QW-3/QW-4 from `ARCHITECTURE_REVIEW.md`). The design document is at `docs/plans/CUSTOM_SERIES_DESIGN.md`. This section will be expanded when Phase D lands. A major version bump (`SPECTRA_PLUGIN_API_VERSION_MAJOR` → 2) will accompany the breaking `SpectraPluginContext` layout change.
+Custom series type registration requires **API v2.0** and depends on renderer decoupling work. A major version bump (`SPECTRA_PLUGIN_API_VERSION_MAJOR` → 2) will accompany the breaking `SpectraPluginContext` layout change.
 
 ### Vector (SVG) export of custom series (v2.2)
 

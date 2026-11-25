@@ -103,7 +103,7 @@ void AnimationBuilder::play()
     figure_.anim_.duration = duration_;
     figure_.anim_.loop     = loop_;
     figure_.anim_.on_frame = on_frame_;
-    // Actual playback is driven by App (Agent 4).
+    // Actual playback is driven by App.
 }
 
 void AnimationBuilder::record(const std::string& output_path)
@@ -249,7 +249,7 @@ Axes3D& Figure::subplot3d(int rows, int cols, int index)
 
 void Figure::show()
 {
-    // Driven by App (Agent 4). This is a placeholder that computes layout.
+    // Driven by App. This is a placeholder that computes layout.
     compute_layout();
 }
 

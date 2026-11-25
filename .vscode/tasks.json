@@ -91,7 +91,7 @@
 			"problemMatcher": [
 				"$gcc"
 			],
-			"detail": "CI/agent-style configure per BUILD_ENVIRONMENT.md (overwrites build/)",
+			"detail": "CI-style configure per BUILD_ENVIRONMENT.md (overwrites build/)",
 			"presentation": {
 				"reveal": "always",
 				"panel": "shared"

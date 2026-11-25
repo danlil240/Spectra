@@ -311,7 +311,7 @@ Publisher reconnects, declares again
 - In-process runtime mode (`SPECTRA_RUNTIME_MODE=inproc`) does not yet
   expose `Publisher`; multi-process mode required.
 - Workspace v3 does not yet persist subscriptions across save/load
-  (planned, see plan §7 Phase 3).
+  (planned).
 - Multi-zone drop target (overlay vs. new subplot vs. new figure) is
   planned but not implemented; current drop overlay subscribes to the
   hovered axes only.

@@ -1,5 +1,5 @@
 // render_geometry.cpp — Grid, border, tick marks, screen-space overlay, plot text.
-// Split from renderer.cpp (MR-1) for focused module ownership.
+// Split from renderer.cpp for focused module ownership.
 
 #include "renderer.hpp"
 
@@ -182,7 +182,7 @@ void Renderer::render_plot_text(Figure& figure)
         if (vp.y + vp.h < 0.0f || vp.y > static_cast<float>(fig_h))
             continue;
 
-        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        // Read limits via AxesViewModel when available
         AxisLimits xlim;
         AxisLimits ylim;
         {
@@ -1203,7 +1203,7 @@ void Renderer::render_grid_2d(Figure& figure)
         if (!(sc_x1 > sc_x0) || !(sc_y1 > sc_y0))
             continue;
 
-        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        // Read limits via AxesViewModel when available
         AxisLimits xlim;
         AxisLimits ylim;
         if (figure_vm_)
@@ -1573,7 +1573,7 @@ void Renderer::render_plot_geometry(Figure& figure)
             }
         }
 
-        // Phase 2 (LT-5): read limits via AxesViewModel when available
+        // Read limits via AxesViewModel when available
         AxisLimits xlim;
         AxisLimits ylim;
         {
@@ -2143,7 +2143,7 @@ void Renderer::render_axis_border(AxesBase& axes,
     if (!axes2d)
         return;   // Border only for 2D axes
 
-    // Phase 2 (LT-5): read limits via AxesViewModel when available
+    // Read limits via AxesViewModel when available
     AxisLimits xlim;
     AxisLimits ylim;
     if (figure_vm_)

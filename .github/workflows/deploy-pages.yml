@@ -93,10 +93,9 @@ jobs:
           mv wasm-demo/webgpu_demo.html wasm-demo/index.html
           ls -la wasm-demo
 
-      # Explicit allow-list: docs/ also holds internal material (plans/, archive/,
-      # marketing/, workshops/, dev/, scripts/, review notes, dated walkthroughs,
-      # SVG/.mjs diagram sources) that must not be published. Anything not listed
-      # here stays off the public site.
+      # Explicit allow-list: docs/ also holds internal material (marketing/,
+      # workshops/, dev/, scripts/, SVG/.mjs diagram sources) that must not be
+      # published. Anything not listed here stays off the public site.
       - name: Assemble site (allow-list)
         run: |
           set -euo pipefail
@@ -136,9 +135,9 @@ jobs:
         run: |
           set -euo pipefail
           leaked="$(find _site \( -path '_site/apt' -o -path '_site/api' \) -prune -o \( \
-            -path '*/plans/*' -o -path '*/archive/*' -o -path '*/marketing/*' \
+            -path '*/marketing/*' \
             -o -path '*/workshops/*' -o -path '*/dev/*' -o -path '*/scripts/*' \
-            -o -name 'ARCHITECTURE_REVIEW_V3.md' -o -name '2026-04-04-*' -o -name 'Doxyfile' \
+            -o -name 'Doxyfile' \
             -o -name 'api-mainpage.md' -o -name '*.mjs' -o -name '*.svg' \) -print)"
           if [ -n "$leaked" ]; then
             echo "::error::Internal docs would be published:"

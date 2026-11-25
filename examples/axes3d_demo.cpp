@@ -61,7 +61,7 @@ int main()
 
         std::cout << "✅ Axes3D demo completed successfully!\n";
         std::cout << "\nNote: This demo tests the Axes3D infrastructure.\n";
-        std::cout << "Full rendering requires Agent 4 (3D pipelines) and Agent 5 (3D series).\n";
+        std::cout << "Full rendering requires the 3D pipelines and 3D series.\n";
 
         return 0;
     }

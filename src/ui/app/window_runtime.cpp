@@ -200,7 +200,7 @@ void WindowRuntime::update(WindowUIContext& ui_ctx,
                 has_animation = active_figure->has_animation();
     #if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
                 input_handler.set_figure(active_figure);
-                // Phase 2 (LT-5): wire FigureViewModel for ViewModel-based limit mutations
+                // Wire FigureViewModel for ViewModel-based limit mutations
                 if (ui_ctx.fig_mgr)
                     input_handler.set_figure_view_model(&fig_mgr.active_state());
                 else
@@ -1169,7 +1169,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
                     // to be clipped (title flicker during zoom).
                     pfig->config_.width  = sw_u;
                     pfig->config_.height = sh_u;
-                    // Phase 2 (LT-5): pass FigureViewModel for ViewModel-based rendering
+                    // Pass FigureViewModel for ViewModel-based rendering
                     FigureViewModel* pane_vm = nullptr;
                     if (ui_ctx.fig_mgr)
                         pane_vm = &ui_ctx.fig_mgr->state(pinfo.figure_index);
@@ -1189,7 +1189,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
         {
             active_figure->config_.width  = backend_.swapchain_width();
             active_figure->config_.height = backend_.swapchain_height();
-            // Phase 2 (LT-5): pass FigureViewModel for ViewModel-based rendering
+            // Pass FigureViewModel for ViewModel-based rendering
             FigureViewModel* active_vm = nullptr;
             if (ui_ctx.fig_mgr)
                 active_vm = &ui_ctx.fig_mgr->active_state();
@@ -1198,7 +1198,7 @@ bool WindowRuntime::render(WindowUIContext& ui_ctx, FrameState& fs, FrameProfile
 #else
         if (active_figure)
         {
-            // Phase 2 (LT-5): pass FigureViewModel when available
+            // Pass FigureViewModel when available
             FigureViewModel* active_vm = nullptr;
             if (ui_ctx.fig_mgr)
                 active_vm = &ui_ctx.fig_mgr->active_state();

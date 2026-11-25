@@ -18,7 +18,7 @@ class UndoManager;
 /**
  * FigureViewModel — View-layer state for a single Figure.
  *
- * Part of the Model/ViewModel separation (LT-1 in ARCHITECTURE_REVIEW.md).
+ * Part of the Model/ViewModel separation.
  *
  * The core Figure class is the *model*: it owns pure data (axes, series,
  * style, legend, config).  FigureViewModel is the *view-model*: it owns
@@ -120,7 +120,7 @@ class FigureViewModel
     void   set_zoom_cache(float data_min, float data_max, size_t series_count);
     void   invalidate_zoom_cache();
 
-    // ── Sub-ViewModels (LT-5) ────────────────────────────────────────
+    // ── Sub-ViewModels ───────────────────────────────────────────────
     // Lazy-created per-axes and per-series view-models.  Callers use
     // get_or_create to obtain a ViewModel that inherits this VM's
     // UndoManager automatically.
@@ -160,7 +160,7 @@ class FigureViewModel
     size_t cached_zoom_series_count_ = 0;
     bool   zoom_cache_valid_         = false;
 
-    // Sub-ViewModels (LT-5) — keyed by raw model pointer
+    // Sub-ViewModels — keyed by raw model pointer
     std::unordered_map<Axes*, AxesViewModel>     axes_vms_;
     std::unordered_map<Series*, SeriesViewModel> series_vms_;
 

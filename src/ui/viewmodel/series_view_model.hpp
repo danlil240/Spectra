@@ -14,7 +14,7 @@ class UndoManager;
 /**
  * SeriesViewModel — View-layer state for a single Series.
  *
- * Part of the Model/ViewModel separation (LT-5 in ARCHITECTURE_REVIEW_V2.md).
+ * Part of the Model/ViewModel separation.
  *
  * The core Series class is the *model*: it owns data arrays (x, y, z),
  * dirty tracking, and thread-safe pending buffers.  SeriesViewModel is the

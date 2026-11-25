@@ -82,21 +82,6 @@ docs/.playwright-verify/
 
 uv.lock
 
-# graphify
-graphify-out/.graphify_python
-graphify-out/.graphify_root
-graphify-out/.graphify_cache/
-graphify-out/cost.json
-graphify-out/.graphify_*.json
-graphify-out/.needs_update
-graphify-out/cache
-
-
-.playwright-mcp/
-graphify-out/
-python/graphify-out/
-
-
 .ccls-cache/
 # Python packaging outputs
 *.egg-info/
@@ -107,7 +92,6 @@ python/spectra/_bin/
 # Local / personal files (never commit)
 Testing/
 *.deb
-.live-agents
 docker/.env
 .vscode/settings.json
 .vscode/c_cpp_properties.json
@@ -119,9 +103,33 @@ docker/.env
 rust/target/
 rust/Cargo.lock
 
-# Claude Code agent worktrees and local QA audit evidence (screenshots, logs, ~190 MB)
-.claude/worktrees/
+# Local QA audit evidence (screenshots, logs, ~190 MB)
 docs/qa/
 
 # Local Python virtualenvs (e.g. benchmark runs)
 .venv*/
+
+# Local assistant tooling, working notes and plans (kept on developer machines only)
+/AGENTS.md
+/CLAUDE.md
+/CODEBASE_MAP.md
+/.claude/
+/.cursor/
+/.devin/
+/.windsurf/
+/.serena/
+/.codex/
+/.github/agents/
+/.github/copilot-instructions.md
+/.graphifyignore
+/.vscode/mcp.json
+/.live-agents
+/.playwright-mcp/
+/skills/
+/plans/
+/docs/plans/
+/tools/run_simplifier_loop.py
+/tools/run_simplifier_loop.sh
+/tools/list_github_models.sh
+/scripts/optimize_cursor_skills.py
+graphify-out/

@@ -209,7 +209,7 @@ extern "C"
     /* Update both X and Y data atomically (no intermediate mismatch). */
     void spectra_series_set_data(SpectraSeries* s, const float* x, const float* y, uint32_t count);
 
-    /* ── Series styling (Phase 1A) ─────────────────────────────────────────── */
+    /* ── Series styling ─────────────────────────────────────────── */
 
     /* Set series RGBA color (components in [0,1]). */
     void spectra_series_set_color(SpectraSeries* s, float r, float g, float b, float a);
@@ -226,7 +226,7 @@ extern "C"
     /* Set series legend label. */
     void spectra_series_set_label(SpectraSeries* s, const char* label);
 
-    /* ── Series streaming helpers (Phase 1G) ──────────────────────────────── */
+    /* ── Series streaming helpers ──────────────────────────────── */
 
     /* Append a single (x,y) point to a line/scatter series. */
     void spectra_series_append_xy(SpectraSeries* s, float x, float y);
@@ -241,21 +241,21 @@ extern "C"
     /* Remove all data points from a line/scatter series. */
     void spectra_series_clear(SpectraSeries* s);
 
-    /* ── Bar series options (Phase 1B) ────────────────────────────────────── */
+    /* ── Bar series options ────────────────────────────────────── */
 
     void spectra_series_set_bar_width(SpectraSeries* s, float width);
     void spectra_series_set_bar_baseline(SpectraSeries* s, float baseline);
     void spectra_series_set_bar_orientation(SpectraSeries* s, int orientation);
     void spectra_series_set_bar_gradient(SpectraSeries* s, int enabled);
 
-    /* ── Histogram series options (Phase 1C) ──────────────────────────────── */
+    /* ── Histogram series options ──────────────────────────────── */
 
     void spectra_series_set_histogram_bins(SpectraSeries* s, int bins);
     void spectra_series_set_histogram_cumulative(SpectraSeries* s, int enabled);
     void spectra_series_set_histogram_density(SpectraSeries* s, int enabled);
     void spectra_series_set_histogram_gradient(SpectraSeries* s, int enabled);
 
-    /* ── 3D series (Phase 1D) ─────────────────────────────────────────────── */
+    /* ── 3D series ─────────────────────────────────────────────── */
 
     /* Add a 3D line series to a 3D axes. label can be NULL. */
     SpectraSeries* spectra_axes3d_line(SpectraAxes* ax,
@@ -373,7 +373,7 @@ extern "C"
     int spectra_embed_is_legend_visible(const SpectraEmbed* s);
     int spectra_embed_is_crosshair_visible(const SpectraEmbed* s);
 
-    /* ── Animation & live data (Phase 4) ──────────────────────────────────── */
+    /* ── Animation & live data ──────────────────────────────────── */
 
     /* Frame callback invoked inside spectra_embed_update(dt) with the elapsed
      * time and the delta of the current step. user_data is passed through. */
@@ -392,7 +392,7 @@ extern "C"
     /* Stop a running animation loop and clear the elapsed timeline. */
     void spectra_embed_animation_stop(SpectraEmbed* s);
 
-    /* ── Interactive event callbacks (Phase 3) ────────────────────────────── */
+    /* ── Interactive event callbacks ────────────────────────────── */
 
     /* Fired when the user selects a concrete data point (left-click near it). */
     typedef void (*SpectraPointSelectedCb)(int    axes_index,
@@ -501,7 +501,7 @@ extern "C"
     /* Remove every text annotation from the axes. */
     void spectra_axes_clear_annotations(SpectraAxes* ax);
 
-    /* ── Legend control (Phase 1E) ─────────────────────────────────────────── */
+    /* ── Legend control ─────────────────────────────────────────── */
 
     /* Show/hide the legend on the figure that owns these axes. */
     void spectra_axes_show_legend(SpectraAxes* ax, int visible);
@@ -528,7 +528,7 @@ extern "C"
                                      const float* y,
                                      uint32_t     count,
                                      const char*  label);
-    /* ── Scatter colormap (Phase 7C) ──────────────────────────────────────── */
+    /* ── Scatter colormap ──────────────────────────────────────── */
 
     /* Set per-point color values for a scatter series.  Each value is mapped
      * through the active colormap (default: Viridis) to produce per-point colors. */

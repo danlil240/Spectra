@@ -1,6 +1,6 @@
-# Spectra Architecture (graphify bridge)
+# Spectra Architecture
 
-This document names the **cross-module contracts** graphify should link. It is written for humans and for semantic extraction — explicit symbol names create `conceptually_related_to` and `rationale_for` edges between communities.
+This document names the **cross-module contracts** that tie Spectra's subsystems together, with the symbol and file each one lives in.
 
 > **Visual maps:** Full-size diagrams in [`diagrams.html`](diagrams.html).
 
@@ -129,8 +129,6 @@ token on every request (`$SPECTRA_MCP_TOKEN`, or the one in
 `$XDG_RUNTIME_DIR/spectra-mcp-<pid>.json`). Screenshot paths are confined to
 `$SPECTRA_CAPTURE_DIR`. See [`SECURITY.md`](../SECURITY.md#automation-and-mcp-server).
 
-## God-node dependency sketch
+## Dependency sketch
 
 See the full-size diagrams in [`architecture.html`](architecture.html#visual-overview) and [`diagrams.html`](diagrams.html): data model hierarchy, render pipeline, inproc vs multiproc topology, and Python IPC sequence.
-
-When tracing paths in graphify, prefer **file-qualified labels** (e.g. `vk_backend.hpp VulkanBackend`) because symbol names repeat across reference nodes.

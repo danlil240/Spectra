@@ -55,7 +55,7 @@ struct PendingMove
 // Session-level orchestration.
 // Owns the per-frame loop body: poll events, process pending closes,
 // iterate windows (via WindowRuntime), and check exit condition.
-// Extracted from App::run() (Phase 2) so the same code can be used
+// Extracted from App::run() so the same code can be used
 // by both the in-process runtime and a future standalone backend process.
 class SessionRuntime
 {

@@ -1,5 +1,5 @@
 // render_2d.cpp — 2D series rendering (line, scatter, stat fill) and selection highlight.
-// Split from renderer.cpp (MR-1) for focused module ownership.
+// Split from renderer.cpp for focused module ownership.
 
 #include "renderer.hpp"
 
@@ -271,7 +271,7 @@ void Renderer::render_series(Series&             series,
 
     SeriesPushConstants pc{};
 
-    // Phase 2 (LT-5): read color/opacity via SeriesViewModel when available,
+    // Read color/opacity via SeriesViewModel when available,
     // enabling per-view color/opacity overrides.
     Color eff_color;
     float eff_opacity = NAN;

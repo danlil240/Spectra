@@ -52,7 +52,7 @@ struct RecordingConfig
     std::string pix_fmt = "yuv420p";
     int         crf     = 23;   // Constant rate factor (lower = better quality)
 
-    // Multi-pane recording (Week 11 enhancement)
+    // Multi-pane recording
     // When pane_count > 1, the render callback is called once per pane per frame.
     // Panes are composited into the final frame buffer according to the layout.
     uint32_t pane_count = 1;

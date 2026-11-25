@@ -908,7 +908,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
         }
     }
 
-    // Draw box zoom overlay (Agent B Week 7) — on top of data overlays
+    // Draw box zoom overlay — on top of data overlays
     if (box_zoom_overlay_)
     {
         box_zoom_overlay_->update(dt);
@@ -1125,7 +1125,7 @@ void ImGuiIntegration::build_ui(Figure& figure, FigureViewModel* vm)
     // Toasts, unsaved-changes and recovery prompts (imgui_file_model.cpp).
     draw_file_model_overlays();
 
-    // Draw command palette overlay (Agent F) — must be last to render on top
+    // Draw command palette overlay — must be last to render on top
     if (command_palette_)
     {
         ImGuiIO& io = ImGui::GetIO();

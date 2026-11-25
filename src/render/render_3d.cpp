@@ -1,5 +1,5 @@
 // render_3d.cpp — 3D series rendering: bounding box, tick marks, axis arrows.
-// Split from renderer.cpp (MR-1) for focused module ownership.
+// Split from renderer.cpp for focused module ownership.
 
 #include "renderer.hpp"
 

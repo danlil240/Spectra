@@ -2182,7 +2182,7 @@ void ThemeManager::initialize_default_themes()
     dark.glass_defaults   = ThemeGlassSettings::dark_defaults();
     register_theme("dark", dark);
 
-    // Night Glass — premium dark glassmorphism (Vision.png target)
+    // Night Glass — premium dark glassmorphism
     Theme night;
     night.name             = "night";
     night.display_name     = "Night";

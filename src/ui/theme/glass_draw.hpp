@@ -125,7 +125,7 @@ inline void draw_ambient_gradient(ImDrawList*        dl,
                                 IM_COL32(0, 0, 0, 0));
 }
 
-// Vision.png outer window halo — drawn once behind all chrome.
+// Outer window halo — drawn once behind all chrome.
 inline void draw_window_edge_glow(ImDrawList* dl, ImVec2 p0, ImVec2 p1, float glow_strength)
 {
     const float g = std::clamp(glow_strength, 0.0f, 1.0f);

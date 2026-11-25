@@ -345,7 +345,7 @@ A: Check that you're using `subplot3d()` not `subplot()`. Verify camera distance
 A: Ensure the window has focus. Check that you're left-dragging (not right-dragging).
 
 **Q: Surface looks faceted/blocky**  
-A: Increase grid resolution (nx, ny). Lighting (Phase 3) will add smooth shading.
+A: Increase grid resolution (nx, ny). Lighting will add smooth shading.
 
 **Q: Performance is slow**  
 A: Reduce point count, use decimation, or lower surface resolution. Check GPU drivers.
@@ -355,11 +355,10 @@ A: Reduce point count, use decimation, or lower surface resolution. Check GPU dr
 ## Next Steps
 
 - Explore camera animation with `KeyframeInterpolator`
-- Try custom colormaps for surfaces (coming in Phase 2)
-- Add lighting for realistic surface rendering (Phase 3)
+- Try custom colormaps for surfaces (coming later)
+- Add lighting for realistic surface rendering
 - Combine with 2D plots for multi-view analysis
 
 For more information, see:
-- `plans/3D_ARCHITECTURE_PLAN.md` — Full 3D design specification
 - `tests/golden/golden_test_3d.cpp` — Visual regression tests
 - `tests/bench/bench_3d.cpp` — Performance benchmarks

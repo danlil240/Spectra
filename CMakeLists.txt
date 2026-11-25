@@ -276,7 +276,7 @@ file(GLOB SPECTRA_DAEMON_SOURCES
     src/daemon/bridges/udp_json_bridge.cpp
 )
 
-# UI sources (non-ImGui) — guarded so parallel agents don't break each other's builds.
+# UI sources (non-ImGui) — guarded so a missing optional file doesn't break the build.
 # app.cpp is always present; others are included only if they exist on disk.
 file(GLOB SPECTRA_UI_SOURCES src/ui/app/app.cpp src/ui/app/app_inproc.cpp src/ui/app/app_multiproc.cpp src/ui/app/app_step.cpp)
 foreach(_ui_src
@@ -732,7 +732,7 @@ if(SPECTRA_USE_IMGUI AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3))
         )
     endif()
 
-    # ImGui-dependent UI sources — guarded so parallel agents don't break the build.
+    # ImGui-dependent UI sources — guarded so a missing optional file doesn't break the build.
     # When adding a new .cpp that depends on ImGui, add an if(EXISTS) block here.
     foreach(_imgui_src
         src/ui/theme/theme.cpp
@@ -1033,7 +1033,7 @@ if(SPECTRA_BUILD_APPS AND (SPECTRA_USE_GLFW OR SPECTRA_USE_SDL3)
     set_target_properties(spectra-app PROPERTIES OUTPUT_NAME spectra)
 endif()
 
-# Multi-process daemon + agent binaries (Phase 4 & 5)
+# Multi-process daemon + window agent binaries
 if(SPECTRA_BUILD_APPS AND SPECTRA_RUNTIME_MODE STREQUAL "multiproc")
     # spectra-backend daemon
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/src/daemon/main.cpp)

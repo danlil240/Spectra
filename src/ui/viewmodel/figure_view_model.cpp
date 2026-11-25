@@ -149,7 +149,7 @@ void FigureViewModel::notify_changed(ChangeField field)
         on_changed_(*this, field);
 }
 
-// ── Sub-ViewModel management (LT-5) ─────────────────────────────────────────
+// ── Sub-ViewModel management ────────────────────────────────────────────────
 
 AxesViewModel& FigureViewModel::get_or_create_axes_vm(Axes* ax)
 {

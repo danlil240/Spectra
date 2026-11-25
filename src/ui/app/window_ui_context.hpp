@@ -57,9 +57,7 @@ class PluginManager;
 // Per-window UI subsystem bundle.
 // Groups all UI objects that were previously stack-local in App::run()
 // so they can be instantiated per-window in multi-window mode.
-//
-// Phase 1 (PR1): Single instance used by App::run() — zero behavior change.
-// Phase 2+: One instance per WindowContext for full multi-window support.
+// One instance per WindowContext.
 struct WindowUIContext
 {
     // Injected ThemeManager (not owned).  Set by WindowManager::init_window_ui()
@@ -94,7 +92,7 @@ struct WindowUIContext
     ModeTransition mode_transition;
     // NOTE: per-figure home_limits live on FigureViewModel
     // to FigureViewModel (per-figure state).  Access via fig_mgr->state(id)
-    // or fig_mgr->active_state().  See LT-1 in ARCHITECTURE_REVIEW.md.
+    // or fig_mgr->active_state().
 
     CommandRegistry cmd_registry;
     ShortcutManager shortcut_mgr;
@@ -105,7 +103,7 @@ struct WindowUIContext
 
     KnobManager knob_manager;
 
-    // Topics panel (Phase 2 of plans/SPECTRA_TOPICS_PLAN.md).
+    // Topics panel.
     // Owned by the per-window UI bundle.  Wiring of IPC callbacks is done
     // externally (by the agent or app shell).
     ui::topics::TopicsPanel topics_panel;

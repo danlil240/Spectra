@@ -1,4 +1,4 @@
-// test_plugin_guard.cpp — Unit tests for plugin crash isolation (MR-7).
+// test_plugin_guard.cpp — Unit tests for plugin crash isolation.
 
 #include <gtest/gtest.h>
 

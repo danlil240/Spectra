@@ -72,7 +72,6 @@ wheel.exclude = ["**/__pycache__", "**/*.pyc", "spectra/_bin/.gitignore"]
 # Keep the sdist small: these trees are not needed to build the wheel.
 sdist.exclude = [
     "tests/golden/baseline",
-    "plans",
     "python/spectra_plot.egg-info",
     "build*",
     "dist",

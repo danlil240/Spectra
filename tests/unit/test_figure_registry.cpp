@@ -17,15 +17,13 @@ using namespace spectra::test;
 // ═══════════════════════════════════════════════════════════════════════════════
 // FigureRegistry Test Scaffolding
 //
-// Agent C will create FigureRegistry (src/ui/figure_registry.hpp/.cpp).
-// These tests are structured and ready to be filled in once the type exists.
-// Until then, the Phase 3+ tests are behind SPECTRA_HAS_FIGURE_REGISTRY guard
-// and the Phase 0 tests validate current figure management behavior.
+// The Phase 3+ tests are behind the SPECTRA_HAS_FIGURE_REGISTRY guard and the
+// Phase 0 tests validate baseline figure management behavior.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // ─── Phase 0: Current Figure Behavior (always runs) ─────────────────────────
 // Validates the current vector<unique_ptr<Figure>> ownership model so we have
-// a regression baseline before Agent C refactors it.
+// a regression baseline.
 
 TEST(FigureBaseline, CreateSingleFigure)
 {
@@ -108,8 +106,7 @@ TEST(FigureBaseline, FigureRenderAndReadback)
 TEST(FigureBaseline, SeriesGpuDataKeyedByPointer)
 {
     // Verify that series GPU data is keyed by Series* pointer.
-    // This is important because Agent C must preserve this invariant
-    // when moving figures between windows.
+    // This invariant must be preserved when moving figures between windows.
     App                app({.headless = true, .socket_path = ""});
     auto&              fig    = app.figure({.width = 320, .height = 240});
     auto&              ax     = fig.subplot(1, 1, 1);
@@ -145,7 +142,7 @@ TEST(FigureBaseline, MultipleAppsSequential)
     }
 }
 
-// ─── Phase 3: FigureRegistry (Agent C) ──────────────────────────────────────
+// ─── Phase 3: FigureRegistry ────────────────────────────────────────────────
 
 #ifdef SPECTRA_HAS_FIGURE_REGISTRY
 

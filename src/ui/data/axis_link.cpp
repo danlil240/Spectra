@@ -713,7 +713,7 @@ void AxisLinkManager::propagate_from_3d(Axes3D* source)
     propagating_ = false;
 }
 
-// ─── Shared cursor (Agent E — Week 10) ───────────────────────────────────────
+// ─── Shared cursor ───────────────────────────────────────────────────────────
 
 void AxisLinkManager::update_shared_cursor(const SharedCursor& cursor)
 {

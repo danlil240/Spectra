@@ -206,7 +206,7 @@ class AxisLinkManager
 
     void set_on_change(LinkChangeCallback cb) { on_change_ = std::move(cb); }
 
-    // ── Shared cursor (Agent E — Week 10) ────────────────────────────
+    // ── Shared cursor ────────────────────────────────────────────────
 
     // Update the shared cursor from a source axes.
     // Broadcasts to all groups containing the source.

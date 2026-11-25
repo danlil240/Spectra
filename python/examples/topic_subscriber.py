@@ -24,7 +24,7 @@ def main() -> None:
     ax = fig.subplot(1, 1, 1)
     fig.show()
 
-    # Subscribe via raw request (no high-level API yet — Phase 1).
+    # Subscribe via raw request (no high-level API yet).
     # Sentinel series_index=0xFFFFFFFF asks the daemon to auto-create a series.
     payload = codec.encode_req_subscribe_topic(topic_name, fig._id, 0)
     reply = sess._request(P.REQ_SUBSCRIBE_TOPIC, payload)

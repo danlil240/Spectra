@@ -1,5 +1,5 @@
 // vk_texture.cpp — Texture create/destroy and Vulkan handle queries.
-// Split from vk_backend.cpp (MR-2) for focused module ownership.
+// Split from vk_backend.cpp for focused module ownership.
 
 #include "vk_backend.hpp"
 

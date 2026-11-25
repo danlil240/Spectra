@@ -161,7 +161,7 @@ class InputHandler
     void         set_undo_manager(UndoManager* um) { undo_mgr_ = um; }
     UndoManager* undo_manager() const { return undo_mgr_; }
 
-    // Set the figure view model (Phase 2 LT-5: ViewModel-based limit mutations)
+    // Set the figure view model (ViewModel-based limit mutations)
     void             set_figure_view_model(FigureViewModel* vm) { figure_vm_ = vm; }
     FigureViewModel* figure_view_model() const { return figure_vm_; }
 
@@ -303,7 +303,7 @@ class InputHandler
     // Get viewport for a given axes (from figure layout)
     const Rect& viewport_for_axes(const AxesBase* axes) const;
 
-    // Phase 2 (LT-5): Route limit mutations through AxesViewModel when available.
+    // Route limit mutations through AxesViewModel when available.
     // Falls back to direct Axes::xlim/ylim when no FigureViewModel is set.
     void set_axes_xlim(Axes* ax, double min, double max);
     void set_axes_ylim(Axes* ax, double min, double max);

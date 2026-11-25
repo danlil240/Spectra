@@ -146,7 +146,7 @@ struct FrameUBO
     // 3D-specific fields (std140 aligned)
     float camera_pos[3]{};   // Eye position (for lighting)
     float near_plane = 0.01f;
-    float light_dir[3]{};   // Directional light (Phase 3)
+    float light_dir[3]{};   // Directional light
     float far_plane = 1000.0f;
     // Viewport origin (logical px, framebuffer top-left) and framebuffer px per
     // logical px: lets the 2D line shader map gl_FragCoord to viewport space.

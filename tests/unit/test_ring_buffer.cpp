@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 
 // Minimal SPSC ring buffer for testing.
-// Agent 4 owns the real CommandQueue in src/ui/, but we test the pattern here.
+// The real CommandQueue lives in src/ui/, but we test the pattern here.
 // This is a standalone implementation to verify the lock-free SPSC ring buffer algorithm.
 
 template <typename T, size_t Capacity>

@@ -195,7 +195,7 @@ class RosPlotManager
     void   set_pruning_enabled(bool enabled);
     bool   pruning_enabled() const;
 
-    // ---------- chunked series (LT-8) ------------------------------------
+    // ---------- chunked series ------------------------------------
 
     // Enable chunked series mode for new plots.  When enabled, new plots
     // use ChunkedLineSeries instead of LineSeries — storing data in fixed-size
@@ -327,7 +327,7 @@ class RosPlotManager
     double   prune_buffer_s_       = DEFAULT_PRUNE_BUFFER_S;
     bool     pruning_enabled_      = true;
 
-    // Chunked series configuration (LT-8).
+    // Chunked series configuration.
     bool   use_chunked_           = false;
     size_t chunked_memory_budget_ = 0;   // 0 = unlimited
     bool   chunked_lod_           = true;

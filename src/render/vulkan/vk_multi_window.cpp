@@ -1,5 +1,5 @@
 // vk_multi_window.cpp — Multi-window context init, destroy, swapchain recreation.
-// Split from vk_backend.cpp (MR-2) for focused module ownership.
+// Split from vk_backend.cpp for focused module ownership.
 
 #include "vk_backend.hpp"
 

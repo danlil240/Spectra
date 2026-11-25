@@ -15,7 +15,7 @@
 using namespace spectra;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// WindowManager Unit Tests — Phase 2 Agent B
+// WindowManager Unit Tests
 // Tests WindowManager lifecycle, window creation/destruction, and query methods.
 // These tests run headless (no GLFW windows) to validate logic paths.
 // ═══════════════════════════════════════════════════════════════════════════════

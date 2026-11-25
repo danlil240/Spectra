@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Basic line plot example — Phase 1 verification.
+"""Basic line plot example.
 
 Usage:
     # With backend already running:

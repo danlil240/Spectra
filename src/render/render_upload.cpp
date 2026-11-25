@@ -1,5 +1,5 @@
 // render_upload.cpp — Series GPU data upload and dirty tracking.
-// Split from renderer.cpp (MR-1) for focused module ownership.
+// Split from renderer.cpp for focused module ownership.
 
 #include "renderer.hpp"
 

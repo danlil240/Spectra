@@ -30,7 +30,7 @@ struct FrameState
 
 // Per-window event loop body.
 // Wraps the update + render cycle for a single window.
-// Extracted from App::run() (Phase 2) so the same logic can be
+// Extracted from App::run() so the same logic can be
 // reused by both the in-process runtime and a future window-agent.
 class WindowRuntime
 {

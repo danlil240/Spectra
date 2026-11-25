@@ -825,4 +825,4 @@ jobs:
 
       # GUI spectra_ros_qa_agent scenarios (nav_spatiotemporal, design_review) are
       # validated locally with Xvfb — lavapipe CI runners cannot complete them in
-      # reasonable time.  See tests/qa/ros_qa_agent.cpp and AGENTS.md.
+      # reasonable time.  See tests/qa/ros_qa_agent.cpp.

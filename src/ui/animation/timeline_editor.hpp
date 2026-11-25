@@ -224,7 +224,7 @@ class TimelineEditor
     void set_on_keyframe_removed(KeyframeCallback cb);
     void set_on_selection_change(SelectionCallback cb);
 
-    // ─── KeyframeInterpolator integration (Week 11) ────────────────────
+    // ─── KeyframeInterpolator integration ──────────────────────────────
 
     // Set the KeyframeInterpolator to drive property animation.
     // When set, advance() will also evaluate the interpolator at the playhead.

@@ -1,5 +1,5 @@
 // GLFW callback trampolines and input callback implementations for WindowManager.
-// Extracted from window_manager.cpp (QW-8) — these are pure event-routing functions
+// Extracted from window_manager.cpp — these are pure event-routing functions
 // with no dependency on window lifecycle state.
 
 #include "window_manager.hpp"

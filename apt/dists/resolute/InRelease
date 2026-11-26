@@ -1,0 +1,57 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: Spectra
+Label: Spectra
+Suite: stable
+Codename: resolute
+Date: Thu, 26 Nov 2026 23:53:45 UTC
+Architectures: amd64 arm64
+Components: main
+Description: Spectra plotting library APT repository (Ubuntu 26.04 Resolute)
+MD5Sum:
+ b59041ed560c5d4a496c82107a1762a0 565 main/binary-amd64/Packages
+ 088be4056bf37a78971497df8cf86573 403 main/binary-amd64/Packages.gz
+ f49087077b1bd9143541f89ba5454bb0 160 main/binary-amd64/Release
+ d41d8cd98f00b204e9800998ecf8427e 0 main/binary-arm64/Packages
+ 7029066c27ac6f5ef18d660d5741979a 20 main/binary-arm64/Packages.gz
+ 3cac2f08932bae836176d1091b01b541 160 main/binary-arm64/Release
+ d41d8cd98f00b204e9800998ecf8427e 0 main/source/Sources
+ 7029066c27ac6f5ef18d660d5741979a 20 main/source/Sources.gz
+ 5e673fe4c6feb0d2f2fe23997a6e3056 161 main/source/Release
+SHA1:
+ b56d98146b2ed9a1a2c0811d96c73c56fadae342 565 main/binary-amd64/Packages
+ 61110c46bd367077f4615a88487ba9d872e98396 403 main/binary-amd64/Packages.gz
+ 7c7b97f62f71b21b5c461f55d1d59037ec0ac1ef 160 main/binary-amd64/Release
+ da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/binary-arm64/Packages
+ 46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/binary-arm64/Packages.gz
+ 920318fd13ea3534071662cfc44231b0922fc054 160 main/binary-arm64/Release
+ da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/source/Sources
+ 46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/source/Sources.gz
+ bf9100423fe0a2c11bb44a90c8043afa6ed7b937 161 main/source/Release
+SHA256:
+ 4ed3d204cff147105b6aeefcf31b57c1c5c4471c56a2ef20d83cbcc628ed79f8 565 main/binary-amd64/Packages
+ f4b1b0cfec8c7850583db8cc4adfdebd848f4c5005f6fa073c408ebb1fc393b8 403 main/binary-amd64/Packages.gz
+ ac0bebcdb15465e568e52039eafbf8949e0ffef7e8c15dddcfe60eddc146b3e0 160 main/binary-amd64/Release
+ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/binary-arm64/Packages
+ 59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/binary-arm64/Packages.gz
+ d0eef25a40e8bb3a7c3bd6a46ee00942257d495135e528d93a62f70314c326d9 160 main/binary-arm64/Release
+ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/source/Sources
+ 59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/source/Sources.gz
+ 23b26cd9c47b9a99d8d3a81ac29aa0fbb8ec787a189df8459c4765ed65789359 161 main/source/Release
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEER/B9JVIhPFpLhGW8yx9fvRjrrsoFAmsIxooACgkQyx9fvRjr
+rsrBcQ//TPvJnvcpjYtht/0DI6WQ73GSeoxAzvcVGf682qZnlNUHVdZiCes6zlg3
+0na1vi6bO/LVa3sOqygi/g/WXKVW4go/WgaWm88jYXoU1Fcd8pifCqEpRH9Smw3T
+u8pm4FzeW4H7fZRJM2nAVPTMz17RSl82L/2BOmUGORKJSxHywANBn+vN/BefX5D1
+D7PjcDsKexOCMMuN6pIZEWjBBF0fAO63gM+/vSc4o3hp+jt/Y/gGqmwsfhTergey
+3TTiC7RhzxaXp6gc3MEZrZrxL3Lj419rj5AxfgZ/1i1TVrC0TYWp8I5rdt2nW8Bj
+omK9UavtSh+/s9v8cOuTCVa6SRdjXMaEOIiFq6eCjVcEkJrX+JILXpMI1kftsXv9
+yDzFvfsUplRXGF9Uh/buUUomGZWAlvwUpFBb8kiHkzBSv+meyXNoi3fD2S94TM5N
+H4+4JCc1tzbDqM7xKtp3jJZZ1vxwbiBFBdcEQdP08XNusVSMQeEv1jVXf4hqZ4xo
+B+L+KC4Km4iRqQVd7HGf0Kp1jQKjQR3PMfYHFmO1HWVIIJtWbTW9G9Dd6XkSzMvC
+fXFhlorPYExXRieOtkSnk5zdlBt5hS0T+6G2LpJ4/2SyUutakh4bB05eqRuaIHPw
+PZctyxirOf4KBjbzm1+QCnbhCxDUO4/ektzqdtbm7Y8tlIziQ18=
+=255W
+-----END PGP SIGNATURE-----

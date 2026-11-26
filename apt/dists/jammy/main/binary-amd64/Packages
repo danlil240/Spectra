@@ -3,14 +3,14 @@ Architecture: amd64
 Depends: libvulkan1 (>= 1.3.204.0), libc6 (>= 2.35), libvulkan1 (>= 1.3.204.0)
 Priority: optional
 Section: science
-Filename: pool/main/s/spectra/spectra_0.4.0-1~jammy_amd64.deb
-Size: 61285292
-SHA256: 68ce67d8f01d338c4d4b7f2a2121babb45fc7fad9ef49fd8c9a44f5a64f02159
-SHA1: 4c212c6863f4bbf983cfb35d012f73b34e6ff785
-MD5sum: 3b6799c3c454e04c708be6230de2bed3
+Filename: pool/main/s/spectra/spectra_0.4.1-1~jammy_amd64.deb
+Size: 61449098
+SHA256: 0e0bb16349a6996339df93717cdd8a5ed915d6b799286fc977406b83b6fcbf80
+SHA1: 230a027e57a7739991b878ff8eabafaf01d99a7a
+MD5sum: abb1055867a60b570a7c6985a6bc6fa1
 Description: GPU-accelerated scientific plotting library
 Maintainer: danlil240
 Suggests: libvulkan-dev, pkg-config, cmake
-Version: 0.4.0-1~jammy
-Installed-Size: 113930
+Version: 0.4.1-1~jammy
+Installed-Size: 114298
 

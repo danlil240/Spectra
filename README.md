@@ -93,15 +93,19 @@ y data before each redraw, as live data does.
 
 | Points | Spectra | matplotlib | pyqtgraph | Spectra, stream | matplotlib, stream | pyqtgraph, stream |
 |---:|---:|---:|---:|---:|---:|---:|
-| 10k | **1.2 ms** | 13.7 ms | 8.6 ms | **1.3 ms** | 12.8 ms | 12.9 ms |
-| 100k | **1.8 ms** | 23.0 ms | 11.8 ms | **2.7 ms** | 19.4 ms | 16.1 ms |
-| 1M | **7.4 ms** | 45.8 ms | 38.2 ms | **16.0 ms** | 45.2 ms | 49.6 ms |
-| 10M | **64.9 ms** | 229.2 ms | 220.0 ms | **143.9 ms** | 267.6 ms | 326.6 ms |
+| 10k | **1.3 ms** | 13.2 ms | 7.2 ms | **1.4 ms** | 12.9 ms | 11.0 ms |
+| 100k | **1.2 ms** | 23.5 ms | 10.7 ms | **2.4 ms** | 19.6 ms | 14.4 ms |
+| 1M | **1.2 ms** | 46.3 ms | 36.6 ms | **10.6 ms** | 46.5 ms | 48.5 ms |
+| 10M | **1.2 ms** | 230.2 ms | 219.7 ms | **84.5 ms** | 273.9 ms | 332.8 ms |
 
-One machine: NVIDIA RTX 5080, Ryzen 9 9950X3D, Windows 11, Python 3.12; matplotlib on Agg and
-pyqtgraph on Qt's raster engine. Run it on your own hardware with
-[`tools/bench_compare/bench_compare.py`](tools/bench_compare/bench_compare.py); results from other
-GPUs are very welcome in an issue.
+Dense lines are reduced to what the screen can show (the first, last, lowest and highest point in
+each pixel column), so a redraw costs about the same at 10k and 10M points without losing a
+single spike. The stream columns include that pass on every update.
+
+One machine: NVIDIA RTX 5080 (driver 621.40), Ryzen 9 9950X3D, Windows 11, Python 3.12, Spectra
+0.4.1, average of two runs; matplotlib on Agg and pyqtgraph on Qt's raster engine. Run it on your
+own hardware with [`tools/bench_compare/bench_compare.py`](tools/bench_compare/bench_compare.py);
+results from other GPUs are very welcome in an issue.
 
 ---
 

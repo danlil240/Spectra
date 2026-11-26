@@ -20,8 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero/stream.gif" alt="Live multi-signal stream rendered by Spectra" width="49%">
-  <img src="docs/images/hero/surface.gif" alt="Orbiting lit 3D surface rendered by Spectra" width="49%">
+  <img src="docs/images/hero/wall.gif" alt="One Spectra window with six live plots: a sensor stream, a Lorenz attractor, a lit 3D surface, a reaction-diffusion heatmap, a particle flow and a histogram" width="100%">
 </p>
 
 <p align="center">

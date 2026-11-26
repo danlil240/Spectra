@@ -20,8 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/hero/stream.gif" alt="Live multi-signal stream rendered by Spectra" width="49%">
-  <img src="docs/images/hero/surface.gif" alt="Orbiting lit 3D surface rendered by Spectra" width="49%">
+  <img src="docs/images/hero/wall.gif" alt="One Spectra window with six live plots: a sensor stream, a Lorenz attractor, a lit 3D surface, a reaction-diffusion heatmap, a particle flow and a histogram" width="100%">
 </p>
 
 <p align="center">
@@ -65,9 +64,8 @@ Qt or ROS2 tools.
 ## Why Spectra?
 
 There are many good plotting tools. This is how Spectra compares with the ones people ask about
-most. The short version: pick Spectra when you want GPU speed, live data and 3D from both C++ and
-Python, especially in robotics. Pick something else when you need a mature ecosystem or a
-pure-Python install.
+most. The short version: pick Spectra when you want GPU speed, live data and 3D from C++, Python or
+Rust. Pick something else when you need a mature ecosystem or a pure-Python install.
 
 | | Spectra | matplotlib | ImPlot | VisPy | pyqtgraph | PlotJuggler |
 |---|---|---|---|---|---|---|
@@ -85,6 +83,28 @@ Where others are clearly better today: **matplotlib** for publication figures, d
 third-party packages; **ImPlot** if you already have a Dear ImGui app; **pyqtgraph** for a
 pure-Python Qt stack with no GPU driver requirements; **PlotJuggler** for a battle-tested ROS
 log viewer.
+
+### How fast?
+
+Time to redraw one 1600x900 frame of a line plot, rendered offscreen and read back to the CPU so
+every library does the same work (median of 30 frames, lower is better). "Stream" replaces the
+y data before each redraw, as live data does.
+
+| Points | Spectra | matplotlib | pyqtgraph | Spectra, stream | matplotlib, stream | pyqtgraph, stream |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10k | **1.3 ms** | 13.2 ms | 7.2 ms | **1.4 ms** | 12.9 ms | 11.0 ms |
+| 100k | **1.2 ms** | 23.5 ms | 10.7 ms | **2.4 ms** | 19.6 ms | 14.4 ms |
+| 1M | **1.2 ms** | 46.3 ms | 36.6 ms | **10.6 ms** | 46.5 ms | 48.5 ms |
+| 10M | **1.2 ms** | 230.2 ms | 219.7 ms | **84.5 ms** | 273.9 ms | 332.8 ms |
+
+Dense lines are reduced to what the screen can show (the first, last, lowest and highest point in
+each pixel column), so a redraw costs about the same at 10k and 10M points without losing a
+single spike. The stream columns include that pass on every update.
+
+One machine: NVIDIA RTX 5080 (driver 621.40), Ryzen 9 9950X3D, Windows 11, Python 3.12, Spectra
+0.4.1, average of two runs; matplotlib on Agg and pyqtgraph on Qt's raster engine. Run it on your
+own hardware with [`tools/bench_compare/bench_compare.py`](tools/bench_compare/bench_compare.py);
+results from other GPUs are very welcome in an issue.
 
 ---
 

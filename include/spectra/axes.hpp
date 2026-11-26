@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <cstdint>
 #include <memory>
@@ -549,7 +550,45 @@ class Axes : public AxesBase
     bool topic_auto_zoom() const { return topic_auto_zoom_; }
     void topic_auto_zoom_tick();
 
+    /// Layout hold (internal; maintained by layout_figure()).  While the view
+    /// is in motion (limits changing quickly), the room reserved for tick
+    /// labels and offset labels never shrinks, so the plot area keeps its size
+    /// instead of twitching by a pixel or two as labels scroll.  The hold is
+    /// released once the view has been at rest for a moment.
+    struct LayoutHold
+    {
+        bool                                  have_limits = false;
+        double                                x0 = 0.0, x1 = 0.0, y0 = 0.0, y1 = 0.0;
+        bool                                  have_change = false;
+        std::chrono::steady_clock::time_point last_change{};
+        bool                                  moving = false;
+        // Held measurements (only meaningful while moving).
+        float y_tick_w     = 0.0f;    // widest y tick label
+        float over_l       = 0.0f;    // x tick label overhang reserved on the left
+        float over_r       = 0.0f;    // ... and on the right
+        bool  x_offset_row = false;   // row for the x tick offset label
+        bool  y_offset_row = false;   // row for the y tick offset label
+        // What the hold was measured for; a change resets it.
+        float text_scale = 0.0f;
+        float cell_w     = 0.0f;
+        float cell_h     = 0.0f;
+
+        void release()
+        {
+            moving       = false;
+            have_change  = false;
+            y_tick_w     = 0.0f;
+            over_l       = 0.0f;
+            over_r       = 0.0f;
+            x_offset_row = false;
+            y_offset_row = false;
+        }
+    };
+    LayoutHold& layout_hold() const { return layout_hold_; }
+
    private:
+    mutable LayoutHold layout_hold_;
+
     LineSeries&    line_f64(std::span<const double> x, std::span<const double> y);
     ScatterSeries& scatter_f64(std::span<const double> x, std::span<const double> y);
 

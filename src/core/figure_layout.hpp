@@ -22,6 +22,7 @@
 // the grid spacing (FigureStyle margins / gaps, constrained layout) and the
 // suptitle band.
 
+#include <chrono>
 #include <spectra/axes.hpp>
 #include <spectra/fwd.hpp>
 #include <vector>
@@ -141,5 +142,17 @@ float layout_figure(Figure&        fig,
                     const Margins& outer,
                     float          min_subplot_height = 0.0f,
                     float          text_scale         = 1.0f);
+/// Same, with the time used by the layout hold (Axes::LayoutHold) given
+/// explicitly (the overload above passes steady_clock::now()).  While an axes'
+/// limits keep changing (two changes less than 0.4 s apart) its tick label,
+/// overhang and offset label room never shrinks, so the plot area does not
+/// resize as a view scrolls or zooms; 0.4 s after the last change the layout
+/// is the plain one again.  A first layout and layouts at rest are unaffected.
+float layout_figure(Figure&                               fig,
+                    const Rect&                           content,
+                    const Margins&                        outer,
+                    float                                 min_subplot_height,
+                    float                                 text_scale,
+                    std::chrono::steady_clock::time_point now);
 
 }   // namespace spectra

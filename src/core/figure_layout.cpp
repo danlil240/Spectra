@@ -1,6 +1,7 @@
 #include "core/figure_layout.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <spectra/figure.hpp>
 
@@ -41,6 +42,61 @@ AxisTextMetrics default_metrics(const Axes& axes)
     return axis_text_metrics(base, 1.0f);
 }
 
+// A view counts as "in motion" while its limits change again within this
+// time of the previous change; the layout hold is released once the limits
+// have been still for this long.
+constexpr std::chrono::duration<double> HOLD_SETTLE{0.4};
+
+// Track `axes`' limits for the layout hold (Axes::LayoutHold): start holding
+// on the second change within HOLD_SETTLE, release HOLD_SETTLE after the last
+// change, reset when the text scale or the figure size changes.
+void update_layout_hold(const Axes&                           axes,
+                        float                                 text_scale,
+                        float                                 cell_w,
+                        float                                 cell_h,
+                        std::chrono::steady_clock::time_point now)
+{
+    Axes::LayoutHold& h = axes.layout_hold();
+    if (h.text_scale != text_scale || h.cell_w != cell_w || h.cell_h != cell_h)
+    {
+        h.release();
+        h.text_scale = text_scale;
+        h.cell_w     = cell_w;
+        h.cell_h     = cell_h;
+    }
+    const AxisLimits xl = axes.x_limits();
+    const AxisLimits yl = axes.y_limits();
+    if (!h.have_limits)
+    {
+        h.have_limits = true;
+        h.x0          = xl.min;
+        h.x1          = xl.max;
+        h.y0          = yl.min;
+        h.y1          = yl.max;
+        return;
+    }
+    const bool changed = xl.min != h.x0 || xl.max != h.x1 || yl.min != h.y0 || yl.max != h.y1;
+    if (changed)
+    {
+        // A change after a pause starts a new motion: drop what an earlier one
+        // held (no layout may have run while the view was at rest).
+        if (h.have_change && now - h.last_change >= HOLD_SETTLE)
+            h.release();
+        else if (h.have_change)
+            h.moving = true;
+        h.have_change = true;
+        h.last_change = now;
+        h.x0          = xl.min;
+        h.x1          = xl.max;
+        h.y0          = yl.min;
+        h.y1          = yl.max;
+    }
+    else if (h.have_change && now - h.last_change >= HOLD_SETTLE)
+    {
+        h.release();   // at rest: back to the plain layout
+    }
+}
+
 // Suptitle line height at text scale `s`.
 float suptitle_line_height(float s)
 {
@@ -74,6 +130,11 @@ float left_label_extent(const Axes& axes)
         for (const auto& l : ticks.labels)
             tick_w = std::max(tick_w, inter_text_width(l, m.tick_px));
     }
+    if (Axes::LayoutHold& h = axes.layout_hold(); h.moving)
+    {
+        tick_w     = std::max(tick_w, h.y_tick_w);   // never shrinks while moving
+        h.y_tick_w = tick_w;
+    }
     float need = m.tick_length + m.px(TICK_PADDING) + tick_w;
     if (!axes.ylabel().empty())
         need += m.px(YLABEL_GAP) + m.label_px * PLOT_TEXT_LINE_FACTOR;
@@ -94,7 +155,13 @@ float bottom_label_extent(const Axes& axes, const AxisTextMetrics& m)
     float row_h = 0.0f;
     if (!axes.xlabel().empty())
         row_h = m.label_px * PLOT_TEXT_LINE_FACTOR;
-    if (show_x && !axes.compute_x_ticks().offset_label.empty())
+    bool offset_row = show_x && !axes.compute_x_ticks().offset_label.empty();
+    if (Axes::LayoutHold& h = axes.layout_hold(); h.moving && show_x)
+    {
+        offset_row     = offset_row || h.x_offset_row;   // stays once reserved
+        h.x_offset_row = offset_row;
+    }
+    if (offset_row)
         row_h = std::max(row_h, tick_h);
     if (row_h > 0.0f)
         need = m.tick_length + m.px(TICK_PADDING) + tick_h + m.px(XLABEL_ROW_GAP) + row_h;
@@ -107,7 +174,14 @@ float top_label_extent(const Axes& axes, const AxisTextMetrics& m)
     float need = 0.0f;
     if (!axes.title().empty())
         need = m.title_px * PLOT_TEXT_LINE_FACTOR + m.px(TITLE_PADDING);
-    if (axes.y_tick_labels_visible() && !axes.compute_y_ticks().offset_label.empty())
+    const bool show_y     = axes.y_tick_labels_visible();
+    bool       offset_row = show_y && !axes.compute_y_ticks().offset_label.empty();
+    if (Axes::LayoutHold& h = axes.layout_hold(); h.moving && show_y)
+    {
+        offset_row     = offset_row || h.y_offset_row;   // stays once reserved
+        h.y_offset_row = offset_row;
+    }
+    if (offset_row)
         need = std::max(need, m.tick_px * PLOT_TEXT_LINE_FACTOR + m.px(OFFSET_ROW_GAP));
     return need > 0.0f ? need + m.px(VERTICAL_OUTER) : 0.0f;
 }
@@ -132,6 +206,7 @@ AxesDecorations measure_decorations(const Axes& axes)
         const double     range  = a1 - a0 != 0.0 ? a1 - a0 : 1.0;
         float            over_l = 0.0f;
         float            over_r = 0.0f;
+        float            widest = 0.0f;   // half the widest visible label
         for (size_t i = 0; i < xt.positions.size() && i < xt.labels.size(); ++i)
         {
             const float px =
@@ -141,6 +216,19 @@ AxesDecorations measure_decorations(const Axes& axes)
             const float half = inter_text_width(xt.labels[i], m.tick_px) * 0.5f;
             over_l           = std::max(over_l, vp.x - (px - half));
             over_r           = std::max(over_r, px + half - (vp.x + vp.w));
+            widest           = std::max(widest, half);
+        }
+        if (Axes::LayoutHold& h = axes.layout_hold(); h.moving)
+        {
+            // While the view moves, an overhang reservation does not creep with
+            // the tick positions: once needed it takes the position-independent
+            // bound (an overhang never exceeds half a label) and never shrinks.
+            if (over_l > 0.0f || h.over_l > 0.0f)
+                over_l = std::max(widest, h.over_l);
+            if (over_r > 0.0f || h.over_r > 0.0f)
+                over_r = std::max(widest, h.over_r);
+            h.over_l = over_l;
+            h.over_r = over_r;
         }
         if (over_l > 0.0f)
             d.left = std::max(d.left, over_l + m.px(EDGE_TICK_PAD));
@@ -426,6 +514,21 @@ float layout_figure(Figure&        fig,
                     float          min_subplot_height,
                     float          text_scale)
 {
+    return layout_figure(fig,
+                         content,
+                         outer,
+                         min_subplot_height,
+                         text_scale,
+                         std::chrono::steady_clock::now());
+}
+
+float layout_figure(Figure&                               fig,
+                    const Rect&                           content,
+                    const Margins&                        outer,
+                    float                                 min_subplot_height,
+                    float                                 text_scale,
+                    std::chrono::steady_clock::time_point now)
+{
     if (!(text_scale > 0.0f))
         text_scale = 1.0f;
     const int    rows  = std::max(1, fig.grid_rows());
@@ -436,6 +539,8 @@ float layout_figure(Figure&        fig,
     // The text scale first: every measurement below depends on it.
     set_text_scale(fig, text_scale);
     update_shared_tick_labels(fig);
+    for (Axes* a : axes_with_twins(fig))
+        update_layout_hold(*a, text_scale, content.w, content.h, now);
 
     // Manual spacing first: the final one when constrained layout is off, the
     // provisional viewports the labels are measured at otherwise.

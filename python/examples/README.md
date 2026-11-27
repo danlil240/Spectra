@@ -6,13 +6,37 @@ Scripts that use the `spectra` Python package. C++ examples live in
 ## Setup and run
 
 ```bash
-pip install spectra-plot          # or, from a source checkout: pip install -e python/
+pip install spectra-plot          # or, from a source checkout: pip install -e .
 python python/examples/easy_minimal.py
 ```
 
 The package talks to the `spectra-backend` process over IPC and launches it automatically when it
 is not already running. A Vulkan driver and a display are needed for windowed examples;
 `easy_embed_demo.py` renders offscreen and works headless.
+
+Wheels are published for Linux and macOS (Python 3.9–3.13). On Windows, install the package
+inside WSL2; WSLg shows the windows.
+
+## Coming from matplotlib
+
+`spectra.pyplot` follows matplotlib's names, so common plotting code runs with only the import
+changed:
+
+```python
+import numpy as np
+import spectra.pyplot as plt
+
+x = np.linspace(0, 10, 200)
+fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
+ax1.plot(x, np.sin(x), "r--", label="sin")
+ax1.legend()
+ax2.errorbar(x[::10], np.cos(x[::10]), yerr=0.1, fmt="o")
+plt.savefig("waves.pdf")   # PNG, SVG or PDF, rendered offscreen
+plt.show()
+```
+
+`sp.plot(df)` also takes a pandas DataFrame (one line per numeric column against the index) or
+Series, and datetime data becomes a date-time axis.
 
 ## Jupyter
 

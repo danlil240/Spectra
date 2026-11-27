@@ -38,8 +38,11 @@ ctest --test-dir build -LE gpu --output-on-failure -j$(nproc)
 # One test binary
 ./build/tests/unit_test_easy_api
 
-# Python package tests
-cd python && pip install -e ".[dev]" && pytest tests/ -v
+# Python package tests (pure-Python install from the repository root; uses ./build/ for the backend)
+pip install -e ".[dev]" -Cwheel.cmake=false && (cd python && pytest tests/ -v)
+
+# Rust client tests (end-to-end tests need a display; xvfb-run works)
+SPECTRA_BACKEND_PATH=$PWD/build/spectra-backend xvfb-run -a cargo test --manifest-path rust/Cargo.toml
 ```
 
 ### GPU and golden-image tests with lavapipe
@@ -154,8 +157,9 @@ Keep PRs focused: one logical change per PR is much easier to review.
 | IPC, backend daemon, window agent | `src/ipc/`, `src/daemon/`, `src/agent/` |
 | ROS2 / PX4 / Qt adapters | `src/adapters/` |
 | Python package | `python/spectra/` |
+| Rust client (`spectra-plot` crate) | `rust/` |
 | Tests and golden baselines | `tests/unit/`, `tests/golden/baseline/` |
-| Examples | `examples/`, `python/examples/` |
+| Examples | `examples/`, `python/examples/`, `rust/examples/` |
 | Docs site | `docs/` |
 
 ## License

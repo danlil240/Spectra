@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Spectra — GPU-accelerated scientific plotting for C++20 and Python</title>
+    <title>Spectra — GPU-accelerated plotting for C++, Python and Rust</title>
     <meta
       name="description"
-      content="Spectra documentation dashboard for GPU-accelerated plotting, C++20 and Python APIs, architecture, examples, adapters, and WebGPU."
+      content="Spectra is a GPU-accelerated 2D and 3D plotting library and desktop app for C++20, Python and Rust: live data, millions of points, Jupyter, headless export."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -35,83 +35,35 @@
     <header class="docs-hero">
       <div class="container docs-hero-grid">
         <div>
-          <p class="eyebrow">Spectra Documentation</p>
-          <h1>GPU-accelerated scientific plotting for C++20 and Python</h1>
+          <p class="eyebrow">Spectra 0.4.1 · open source, MIT</p>
+          <h1>GPU-accelerated plotting for C++, Python and Rust</h1>
           <p class="lead">
-            Build, embed, automate, and inspect Spectra: a C++20 and Python plotting
-            system with Vulkan rendering, interactive tools, adapters, and an
-            experimental WebGPU path.
+            Spectra draws 2D and 3D plots on the GPU with Vulkan. Plot ten million
+            points and still redraw in about a millisecond, stream live data at
+            display rate, and explore it in a desktop app with linked axes,
+            an inspector and drag-and-drop data files.
           </p>
           <div class="pill-row" aria-label="project highlights">
             <span class="pill">Vulkan 1.2+</span>
             <span class="pill">2D + 3D</span>
-            <span class="pill">C++20 + Python</span>
+            <span class="pill">C++20 · Python · Rust</span>
             <span class="pill">Interactive + headless</span>
           </div>
           <div class="hero-cta">
             <a class="btn btn-primary" href="getting-started.html">Start Building</a>
-            <a class="btn btn-ghost" href="#subpages">Browse Docs</a>
+            <a class="btn btn-ghost" href="https://github.com/danlil240/Spectra">View on GitHub</a>
           </div>
           <div class="metric-strip" aria-label="Documentation coverage">
             <div class="metric-tile"><strong>Core</strong><span>plotting, UI, export</span></div>
-            <div class="metric-tile"><strong>Adapters</strong><span>ROS2, PX4, Qt</span></div>
-            <div class="metric-tile"><strong>Runtime</strong><span>inproc + IPC</span></div>
-            <div class="metric-tile"><strong>WebGPU</strong><span>experimental 2D</span></div>
+            <div class="metric-tile"><strong>1.2 ms</strong><span>redraw at 10M points</span></div>
+            <div class="metric-tile"><strong>APIs</strong><span>C++, Python, Rust</span></div>
+            <div class="metric-tile"><strong>Files</strong><span>CSV, ULog, MCAP</span></div>
           </div>
         </div>
 
-        <div class="doc-workbench" aria-label="Static Spectra documentation workbench preview">
-          <div class="doc-workbench-titlebar">
-            <span></span><span></span><span></span>
-            <strong>Spectra Docs Workbench</strong>
-            <em>plot stack online</em>
-          </div>
-          <div class="doc-workbench-body">
-            <aside class="doc-workbench-sidebar">
-              <div class="panel-label">Guides</div>
-              <div class="mini-nav-list">
-                <a href="getting-started.html">Install</a>
-                <a href="features.html">Capabilities</a>
-                <a href="examples.html">Recipes</a>
-                <a href="architecture.html">Runtime</a>
-              </div>
-            </aside>
-            <section class="doc-workbench-stage">
-              <div class="plot-toolbar">
-                <span>pan</span>
-                <span>inspect</span>
-                <span>export</span>
-                <strong>linked axes</strong>
-              </div>
-              <svg class="dashboard-chart" viewBox="0 0 620 360" role="img" aria-label="Spectra dashboard chart preview">
-                <rect x="0" y="0" width="620" height="360" rx="8" fill="#09111b" />
-                <g stroke="#203047" stroke-width="1">
-                  <path d="M68 48H580M68 104H580M68 160H580M68 216H580M68 272H580" />
-                  <path d="M130 38V300M210 38V300M290 38V300M370 38V300M450 38V300M530 38V300" />
-                </g>
-                <path d="M68 300H580M68 38V300" fill="none" stroke="#6f829f" stroke-width="2" />
-                <path d="M68 242C112 198 152 210 194 154C239 93 284 132 324 101C368 68 412 112 454 92C508 67 544 133 580 104" fill="none" stroke="#38dcca" stroke-width="5" stroke-linecap="round" />
-                <path d="M68 242C112 198 152 210 194 154C239 93 284 132 324 101C368 68 412 112 454 92C508 67 544 133 580 104V300H68Z" fill="rgba(56, 220, 202, 0.12)" />
-                <g fill="#09111b" stroke="#f7b267" stroke-width="3">
-                  <circle cx="130" cy="198" r="5" />
-                  <circle cx="194" cy="154" r="5" />
-                  <circle cx="324" cy="101" r="5" />
-                  <circle cx="454" cy="92" r="5" />
-                  <circle cx="544" cy="133" r="5" />
-                </g>
-                <g fill="rgba(123, 183, 255, 0.46)">
-                  <rect x="102" y="262" width="18" height="38" />
-                  <rect x="126" y="238" width="18" height="62" />
-                  <rect x="150" y="252" width="18" height="48" />
-                  <rect x="174" y="224" width="18" height="76" />
-                </g>
-                <g stroke="#ff7197" stroke-width="1.5" stroke-dasharray="6 7">
-                  <path d="M454 38V300M68 92H580" />
-                </g>
-              </svg>
-            </section>
-          </div>
-        </div>
+        <figure class="hero-shot">
+          <img src="images/hero/wall.gif" width="1280" height="720" alt="One Spectra window with six live plots: a sensor stream, a Lorenz attractor, a lit 3D surface, a reaction-diffusion heatmap, a particle flow and a histogram" />
+        </figure>
       </div>
     </header>
 
@@ -121,7 +73,7 @@
           <h2>Feature Map</h2>
           <p class="section-intro">
             Spectra spans rendering, interaction, animation, desktop workflows,
-            and Python interoperability.
+            and Python and Rust clients.
           </p>
           <div class="grid cards-3">
             <article class="card">
@@ -145,10 +97,66 @@
               <ul>
                 <li>Frame callbacks and real-time streaming</li>
                 <li>Timeline editor + keyframe interpolation</li>
-                <li>PNG/GIF/MP4 export and Python IPC bridge</li>
+                <li>PNG, SVG, PDF, GIF and MP4 export</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Your Data In</h3>
+              <ul>
+                <li>CSV, PX4 ULog and MCAP logs by drag and drop</li>
+                <li>Named live topics from any process, UDP bridge</li>
+                <li>Layout files that reopen a dashboard on new data</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Python</h3>
+              <ul>
+                <li>One-liners and a matplotlib-style <code>spectra.pyplot</code></li>
+                <li>pandas DataFrames, NumPy fast path, <code>savefig()</code></li>
+                <li>Inline plots and a live canvas in Jupyter</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3>Rust</h3>
+              <ul>
+                <li>Pure-Rust <code>spectra-plot</code> crate, no C++ toolchain</li>
+                <li>Same figures, series, streaming and export as Python</li>
+                <li>Topics and knobs for live tools</li>
               </ul>
             </article>
           </div>
+        </div>
+      </section>
+
+      <section class="section" id="performance">
+        <div class="container">
+          <h2>How Fast?</h2>
+          <p class="section-intro">
+            Time to redraw one 1600x900 line plot, rendered offscreen and read back to the CPU
+            (median of 30 frames, lower is better). Dense lines are reduced to what the screen
+            can show without dropping a single spike, so the cost stays flat as data grows.
+          </p>
+          <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Points</th><th>Spectra</th><th>matplotlib</th><th>pyqtgraph</th><th>Spectra, streaming</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>10k</td><td><strong>1.3 ms</strong></td><td>13.2 ms</td><td>7.2 ms</td><td>1.4 ms</td></tr>
+              <tr><td>100k</td><td><strong>1.2 ms</strong></td><td>23.5 ms</td><td>10.7 ms</td><td>2.4 ms</td></tr>
+              <tr><td>1M</td><td><strong>1.2 ms</strong></td><td>46.3 ms</td><td>36.6 ms</td><td>10.6 ms</td></tr>
+              <tr><td>10M</td><td><strong>1.2 ms</strong></td><td>230.2 ms</td><td>219.7 ms</td><td>84.5 ms</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="muted">
+            NVIDIA RTX 5080, Ryzen 9 9950X3D, Windows 11, Python 3.12, Spectra 0.4.1. Full table and
+            method in the <a href="https://github.com/danlil240/Spectra#how-fast">README</a>; run
+            <a href="https://github.com/danlil240/Spectra/blob/main/tools/bench_compare/bench_compare.py"><code>bench_compare.py</code></a>
+            on your own hardware.
+          </p>
+        </div>
+      </section>
         </div>
       </section>
 
@@ -164,7 +172,7 @@
                 <img src="images/diagrams/multiproc-architecture.png" alt="Spectra multiproc architecture diagram" loading="lazy" />
                 <figcaption>
                   <h3>Multiproc Runtime</h3>
-                  <p>Python and C++ clients, backend daemon, window agents.</p>
+                  <p>C++, Python and Rust clients, backend daemon, window agents.</p>
                   <a href="diagrams.html">Explore diagrams</a>
                 </figcaption>
               </figure>
@@ -185,7 +193,7 @@
                 <figcaption>
                   <h3>Live Topics</h3>
                   <p>Publisher-first streams into any open window.</p>
-                  <a href="topics.md">Topics guide</a>
+                  <a href="https://github.com/danlil240/Spectra/blob/main/docs/topics.md">Topics guide</a>
                 </figcaption>
               </figure>
             </article>
@@ -202,7 +210,7 @@
           <div class="grid cards-2 docs-grid">
             <article class="card link-card">
               <h3>Getting Started</h3>
-              <p>Install, build, and run your first C++ and Python plots.</p>
+              <p>Install, build, and run your first C++, Python and Rust plots.</p>
               <a href="getting-started.html">Open guide →</a>
             </article>
             <article class="card link-card">
@@ -248,17 +256,17 @@
             <article class="card link-card">
               <h3>Easy Embed (Headless)</h3>
               <p>One-liner offscreen rendering for web services, batch reports, and notebooks.</p>
-              <a href="easy_embed_guide.md">Open guide →</a>
+              <a href="https://github.com/danlil240/Spectra/blob/main/docs/easy_embed_guide.md">Open guide →</a>
             </article>
             <article class="card link-card">
               <h3>Plugin Developer Guide</h3>
               <p>Write shared-library plugins for commands, transforms, overlays, data sources, and export formats.</p>
-              <a href="plugin_developer_guide.md">Open guide →</a>
+              <a href="https://github.com/danlil240/Spectra/blob/main/docs/plugin_developer_guide.md">Open guide →</a>
             </article>
             <article class="card link-card">
               <h3>Topics (Live Streams)</h3>
               <p>ROS-style named topics published into <code>spectra-backend</code> and plotted from any window.</p>
-              <a href="topics.md">Open guide →</a>
+              <a href="https://github.com/danlil240/Spectra/blob/main/docs/topics.md">Open guide →</a>
             </article>
           </div>
         </div>
@@ -280,7 +288,7 @@
               <h3>2D Plot Quality</h3>
               <ul>
                 <li>Anti-aliased lines with SDF smoothing</li>
-                <li>18 marker types and dash pattern support</li>
+                <li>17 marker shapes and dash patterns</li>
                 <li>MATLAB-style format strings (e.g., <code>"r--o"</code>)</li>
               </ul>
             </article>
@@ -482,17 +490,17 @@
             <article class="card">
               <h3>Core API</h3>
               <ul>
-                <li>Figure/Axes/Series proxy model over IPC</li>
                 <li>Easy one-liners: <code>spectra.plot()</code>, <code>spectra.scatter()</code>, <code>spectra.show()</code></li>
-                <li>3D support: <code>plot3()</code>, <code>scatter3()</code>, <code>surf()</code>, <code>mesh()</code></li>
+                <li>matplotlib-style <code>spectra.pyplot</code>: <code>subplots</code>, <code>errorbar</code>, <code>imshow</code>, <code>twinx</code>, <code>savefig</code></li>
+                <li>pandas DataFrames and Series, datetime axes, 3D <code>plot3()</code>, <code>surf()</code></li>
               </ul>
             </article>
             <article class="card">
               <h3>Performance + Streaming</h3>
               <ul>
-                <li>Thread-safe live streaming API</li>
-                <li>NumPy fast path for array transfer</li>
-                <li>Automatic backend launch and session management</li>
+                <li>Thread-safe live streaming with <code>spectra.live()</code></li>
+                <li>NumPy arrays sent as one contiguous block</li>
+                <li>Inline PNGs and an interactive canvas in Jupyter</li>
               </ul>
             </article>
           </div>
@@ -506,8 +514,8 @@
             <article class="card">
               <h3>Headless Rendering</h3>
               <ul>
-                <li>Offscreen rendering for CI and servers</li>
-                <li>Deterministic image output workflows</li>
+                <li>Offscreen PNG, SVG and PDF for CI and servers</li>
+                <li>Export dialog with size, DPI, theme and transparency</li>
               </ul>
             </article>
             <article class="card">
@@ -515,7 +523,7 @@
               <ul>
                 <li>CMake install + <code>find_package(spectra)</code></li>
                 <li>Linux, macOS, Windows release artifacts</li>
-                <li>AppImage, Homebrew, AUR, Python wheels</li>
+                <li>apt repository, AppImage, Homebrew formula, AUR PKGBUILD, Python wheels</li>
               </ul>
             </article>
             <article class="card">
@@ -537,7 +545,7 @@
             <article class="card">
               <h3>Verification</h3>
               <ul>
-                <li>1,200+ unit tests</li>
+                <li>Nearly 7,000 unit tests</li>
                 <li>Golden image regression tests for 2D and 3D</li>
                 <li>Integration tests + benchmarks</li>
               </ul>
@@ -556,7 +564,7 @@
 
       <section class="section" id="quick-start">
         <div class="container">
-          <h2>Quick Start (C++)</h2>
+          <h2>Quick Start</h2>
           <pre><code>#include &lt;spectra/easy.hpp&gt;
 
 int main() {
@@ -570,7 +578,28 @@ int main() {
     spectra::show();
 }</code></pre>
           <p class="muted">
-            For deeper usage, see the repository README and docs directory.
+            Python (Linux and macOS; on Windows use WSL2):
+          </p>
+          <pre><code>pip install spectra-plot</code></pre>
+          <pre><code>import numpy as np
+import spectra as sp
+
+x = np.linspace(0, 10, 500)
+sp.plot(x, np.sin(x), "r--", label="sin")
+sp.title("Hello Spectra")
+sp.show()</code></pre>
+          <p class="muted">Rust:</p>
+          <pre><code>use spectra_plot::{linspace, Session};
+
+let session = Session::new()?;
+let ax = session.figure("Hello")?.subplot(1, 1, 1)?;
+let x = linspace(0.0, 10.0, 500);
+let y: Vec&lt;f64&gt; = x.iter().map(|v| v.sin()).collect();
+ax.plot(&amp;x, &amp;y, "r--")?;
+session.show()?;</code></pre>
+          <p class="muted">
+            More in the <a href="getting-started.html">Getting Started guide</a> and the
+            <a href="examples.html">examples</a>.
           </p>
         </div>
       </section>
@@ -578,7 +607,7 @@ int main() {
 
     <footer class="site-footer">
       <div class="container footer-wrap">
-        <p>Built with Spectra • GPU-accelerated plotting for C++20 and Python</p>
+        <p>Spectra · GPU-accelerated plotting for C++, Python and Rust · <a href="https://github.com/danlil240/Spectra">GitHub</a></p>
         <a href="#top">Back to top</a>
       </div>
     </footer>

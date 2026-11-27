@@ -18,10 +18,11 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "spectra-plot"
 dynamic = ["version"]
-description = "GPU-accelerated scientific plotting"
+description = "GPU-accelerated 2D and 3D plotting with live data, a matplotlib-style API and Jupyter support"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
+keywords = ["plotting", "visualization", "gpu", "vulkan", "matplotlib", "real-time", "3d", "jupyter"]
 dependencies = [
     # IPC codec (spectra/_codec_fb.py and the generated _fb_generated/ tree)
     "flatbuffers>=2.0",
@@ -37,7 +38,17 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Visualization",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Framework :: Jupyter",
 ]
+
+[project.urls]
+Homepage = "https://github.com/danlil240/Spectra"
+Documentation = "https://danlil240.github.io/Spectra/"
+Source = "https://github.com/danlil240/Spectra"
+Changelog = "https://github.com/danlil240/Spectra/blob/main/CHANGELOG.md"
+Issues = "https://github.com/danlil240/Spectra/issues"
 
 [project.optional-dependencies]
 # numpy: zero-copy array input; Pillow: EmbedSurface.render_pil(); Qt: backends.backend_qtagg

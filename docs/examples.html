@@ -38,7 +38,7 @@
           <span class="status-chip">Adapters</span>
         </div>
         <h1>Example Recipes</h1>
-        <p class="lead">40+ runnable C++ and Python programs covering every major Spectra feature.</p>
+        <p class="lead">50+ runnable C++, Python and Rust programs covering every major Spectra feature.</p>
       </div>
     </header>
 
@@ -77,8 +77,12 @@ cmake --build build -j$(nproc)
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_subplot.cpp"><code>multi_subplot.cpp</code></a></td><td>Grid-based subplot layout</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_figure_demo.cpp"><code>multi_figure_demo.cpp</code></a></td><td>Multiple figures with tabs</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_window_tabs_demo.cpp"><code>multi_window_tabs_demo.cpp</code></a></td><td>Tab tear-off and multi-window</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plot_styles_demo.cpp"><code>plot_styles_demo.cpp</code></a></td><td>All 18 markers, dash patterns, format strings</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plot_styles_demo.cpp"><code>plot_styles_demo.cpp</code></a></td><td>All 17 marker shapes, dash patterns, format strings</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/stats_demo.cpp"><code>stats_demo.cpp</code></a></td><td>Box plot, violin, histogram, bar chart</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/grid_plots_demo.cpp"><code>grid_plots_demo.cpp</code></a></td><td><code>imshow</code>, a labelled heatmap, <code>contour</code> and <code>contourf</code> with colorbars</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/twinx_demo.cpp"><code>twinx_demo.cpp</code></a></td><td>Second y axis on the right sharing the x axis (<code>twinx</code>)</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/precision_demo.cpp"><code>precision_demo.cpp</code></a></td><td>Log-log axes and epoch timestamps kept exact with double-precision data</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plot_extras_demo.cpp"><code>plot_extras_demo.cpp</code></a></td><td>Step lines, dense-line rendering, annotation boxes, halos and rotation</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/empty_launch_csv.cpp"><code>empty_launch_csv.cpp</code></a></td><td>Empty canvas + CSV data loading</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/comprehensive_subplot_demo.cpp"><code>comprehensive_subplot_demo.cpp</code></a></td><td>Full subplot grid feature tour</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multi_window_demo.cpp"><code>multi_window_demo.cpp</code></a></td><td>Independent OS windows, peer-equivalent</td></tr>
@@ -110,8 +114,58 @@ cmake --build build -j$(nproc)
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shapes3d_demo.cpp"><code>shapes3d_demo.cpp</code></a></td><td>3D primitives (cubes, spheres, arrows)</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/realtime_3d_stream.cpp"><code>realtime_3d_stream.cpp</code></a></td><td>Live-streaming 3D data</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/camera_animation_3d.cpp"><code>camera_animation_3d.cpp</code></a></td><td>Scripted 3D camera fly-through</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/depth_cues_3d.cpp"><code>depth_cues_3d.cpp</code></a></td><td>Depth shading, surface edge lines and floor contours</td></tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- PYTHON -->
+      <section class="section">
+        <div class="container">
+          <h2>Python Examples</h2>
+          <p>Located in <a href="https://github.com/danlil240/Spectra/tree/main/python/examples"><code>python/examples/</code></a>; the full list is in its <a href="https://github.com/danlil240/Spectra/blob/main/python/examples/README.md">README</a>.</p>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_minimal.py"><code>easy_minimal.py</code></a></td><td>The simplest possible example: one line to plot</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_one_liner.py"><code>easy_one_liner.py</code></a></td><td>A gallery of one-line plots</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_subplots.py"><code>easy_subplots.py</code></a></td><td>Several subplots in one window</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_3d.py"><code>easy_3d.py</code></a></td><td>3D one-liners: helix, scatter cloud, surface</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_showcase.py"><code>easy_showcase.py</code></a></td><td>Every Easy API feature in one script</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_live_dashboard.py"><code>easy_live_dashboard.py</code></a></td><td><code>sp.live()</code> callback-driven live dashboard</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/streaming_update.py"><code>streaming_update.py</code></a></td><td><code>Series.append()</code> and <code>FramePacer</code> at 60 FPS</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/topic_publisher.py"><code>topic_publisher.py</code></a></td><td>Publish a named topic and drag it onto a plot</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_embed_demo.py"><code>easy_embed_demo.py</code></a></td><td>Render to pixels or files without a window</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/qt_backend_demo.py"><code>qt_backend_demo.py</code></a></td><td>matplotlib-style Qt canvas with a navigation toolbar</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/notebook_widget.ipynb"><code>notebook_widget.ipynb</code></a></td><td>Live, pannable plots in Jupyter (<code>spectra.notebook</code>)</td></tr>
+            </tbody>
+          </table>
+          <pre><code>pip install spectra-plot
+python python/examples/easy_minimal.py
+python python/examples/easy_live_dashboard.py</code></pre>
+        </div>
+      </section>
+
+      <!-- RUST -->
+      <section class="section">
+        <div class="container">
+          <h2>Rust Examples</h2>
+          <p>Located in <a href="https://github.com/danlil240/Spectra/tree/main/rust/examples"><code>rust/examples/</code></a>; they need <code>spectra-backend</code> on your <code>PATH</code> (see the <a href="https://github.com/danlil240/Spectra/blob/main/rust/README.md">Rust README</a>).</p>
+          <table>
+            <thead><tr><th>Example</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/rust/examples/basic.rs"><code>basic.rs</code></a></td><td>Two lines and a legend</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/rust/examples/gallery.rs"><code>gallery.rs</code></a></td><td>Every chart type, saved as PNG</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/rust/examples/live_stream.rs"><code>live_stream.rs</code></a></td><td>Append at 60 fps from your own loop</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/rust/examples/animate.rs"><code>animate.rs</code></a></td><td>Timed animation driven by a slider</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/rust/examples/topic_publisher.rs"><code>topic_publisher.rs</code></a></td><td>Publish topics from Rust</td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/rust/examples/topic_subscriber.rs"><code>topic_subscriber.rs</code></a></td><td>Plot topics live in a window</td></tr>
+            </tbody>
+          </table>
+          <pre><code>cd rust
+cargo run --example basic
+cargo run --example gallery -- out</code></pre>
         </div>
       </section>
 
@@ -144,7 +198,7 @@ cmake --build build -j$(nproc)
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/plugin_api_demo.cpp"><code>plugin_api_demo.cpp</code></a></td><td>Plugin system demonstration</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/qt_embed_demo.cpp"><code>qt_embed_demo.cpp</code></a></td><td>Native Qt + Vulkan integration — see <a href="qt-embed.html">Qt Embedding</a></td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/embed_cpp_demo.cpp"><code>embed_cpp_demo.cpp</code></a></td><td>C++ embed surface (host any OS window)</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/easy_embed_demo.cpp"><code>easy_embed_demo.cpp</code></a></td><td>Headless one-liner rendering — see <a href="easy_embed_guide.md">guide</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/easy_embed_demo.cpp"><code>easy_embed_demo.cpp</code></a></td><td>Headless one-liner rendering — see <a href="https://github.com/danlil240/Spectra/blob/main/docs/easy_embed_guide.md">guide</a></td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/knob_demo.cpp"><code>knob_demo.cpp</code></a></td><td>Interactive knob overlay widgets</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/interactive_ref_demo.cpp"><code>interactive_ref_demo.cpp</code></a></td><td>Drag sliders to move reference lines and retune a curve live</td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/shortcut_usage_demo.cpp"><code>shortcut_usage_demo.cpp</code></a></td><td>Default shortcut tour</td></tr>
@@ -161,7 +215,7 @@ cmake --build build -j$(nproc)
           <table>
             <thead><tr><th>Example</th><th>Description</th></tr></thead>
             <tbody>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/topic_publisher.cpp"><code>topic_publisher.cpp</code></a></td><td>Publish a named topic to <code>spectra-backend</code> — see <a href="topics.md">Topics guide</a></td></tr>
+              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/topic_publisher.cpp"><code>topic_publisher.cpp</code></a></td><td>Publish a named topic to <code>spectra-backend</code> — see <a href="https://github.com/danlil240/Spectra/blob/main/docs/topics.md">Topics guide</a></td></tr>
               <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/examples/multiproc_demo.sh"><code>multiproc_demo.sh</code></a></td><td>End-to-end daemon + window agent walkthrough</td></tr>
             </tbody>
           </table>
@@ -203,28 +257,6 @@ cmake --build build -j$(nproc)
           <p>The PX4 adapter ships as a standalone <code>spectra-px4</code> binary rather than an example program. See the <a href="px4-adapter.html">PX4 Adapter guide</a> for ULog and MAVLink workflows.</p>
           <pre><code>./build/spectra-px4 flight.ulg
 ./build/spectra-px4 --connect --port 14540</code></pre>
-        </div>
-      </section>
-
-      <!-- PYTHON -->
-      <section class="section">
-        <div class="container">
-          <h2>Python Examples</h2>
-          <p>Located in <a href="https://github.com/danlil240/Spectra/tree/main/python/examples"><code>python/examples/</code></a>:</p>
-          <table>
-            <thead><tr><th>Example</th><th>Description</th></tr></thead>
-            <tbody>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/basic_line.py"><code>basic_line.py</code></a></td><td>Simple line plot</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_3d.py"><code>easy_3d.py</code></a></td><td>3D plotting from Python</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_live_dashboard.py"><code>easy_live_dashboard.py</code></a></td><td>Live streaming dashboard</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_multi_live.py"><code>easy_multi_live.py</code></a></td><td>Multi-signal live streams</td></tr>
-              <tr><td><a href="https://github.com/danlil240/Spectra/blob/main/python/examples/easy_subplots.py"><code>easy_subplots.py</code></a></td><td>Subplot layouts</td></tr>
-            </tbody>
-          </table>
-          <pre><code># Run Python examples
-cd python &amp;&amp; pip install -e ".[dev]"
-python examples/basic_line.py
-python examples/easy_live_dashboard.py</code></pre>
         </div>
       </section>
 

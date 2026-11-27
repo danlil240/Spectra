@@ -732,6 +732,28 @@ jobs:
         run: |
           gpg --armor --export "$GPG_KEY_ID" > dist/spectra-release-signing-key.asc
 
+      # "What's new" for the release page: this version's section of CHANGELOG.md.
+      - name: Extract changelog section
+        id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          notes="$(awk -v ver="$VERSION" '
+            index($0, "## [" ver "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md | sed -e 's/^### /#### /')"
+          if [ -z "$(printf '%s' "$notes" | tr -d '[:space:]')" ]; then
+            echo "::warning::No CHANGELOG.md section for $VERSION"
+            notes="See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md)."
+          fi
+          {
+            echo "notes<<SPECTRA_CHANGELOG_EOF"
+            printf '%s\n' "$notes"
+            echo "SPECTRA_CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
@@ -739,14 +761,22 @@ jobs:
           body: |
             ## Spectra v${{ steps.version.outputs.version }}
 
+            ### What's new
+
+            ${{ steps.changelog.outputs.notes }}
+
+            Full history in [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md).
+
             ### Installation
 
             **Python (Linux x86_64, macOS):**
             ```
             pip install spectra-plot
             ```
-            Windows is not supported by the Python package (the multiproc backend
-            needs Unix domain sockets).
+            On Windows, install the Python package inside WSL2 (the multiproc
+            backend needs Unix domain sockets).
+
+            **Rust:** `cargo add spectra-plot --git https://github.com/${{ github.repository }} --tag ${{ github.ref_name }}`
 
             **Linux (.deb):**
             ```

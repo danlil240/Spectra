@@ -144,13 +144,7 @@ std::unique_ptr<WindowUIContext> build_window_ui_context(const WindowUIContextBu
         {
             Figure* fig = registry ? registry->get(id) : nullptr;
             if (fig)
-            {
-                if (ui_raw->data_interaction)
-                    ui_raw->data_interaction->clear_figure_cache(fig);
-                ui_raw->input_handler.clear_figure_cache(fig);
-                if (ui_raw->imgui_ui)
-                    ui_raw->imgui_ui->clear_figure_cache(fig);
-            }
+                ui_raw->clear_figure_caches(fig);
 
             // Remove figure from the split pane tree so stale tabs don't linger
             auto& sv   = ui_raw->dock_system.split_view();

@@ -11,6 +11,10 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+### Fixed
+
+- File > Replace Active Figure from File no longer leaves the status bar and hover readout pointing at the replaced axes, which read freed memory and could throw "Invalid argument" on the next frame.
+
 ## [0.4.2] - 2026-11-27
 
 Documentation and packaging release; no library changes.

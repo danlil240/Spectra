@@ -190,6 +190,25 @@ struct WindowUIContext
     PluginExportCommands plugin_export_commands;
 #endif
 
+    // Drop every raw Axes / Series pointer the UI cached for `fig`.  Call it
+    // when the figure is destroyed, and before its axes are replaced (e.g.
+    // loading a file into an existing figure): the hover readout, status bar
+    // and input handler would otherwise keep reading freed axes until the
+    // cursor moves again.
+    void clear_figure_caches(Figure* fig)
+    {
+#ifdef SPECTRA_USE_IMGUI
+        if (data_interaction)
+            data_interaction->clear_figure_cache(fig);
+        if (imgui_ui)
+            imgui_ui->clear_figure_cache(fig);
+#endif
+#if defined(SPECTRA_USE_GLFW) || defined(SPECTRA_USE_SDL3)
+        input_handler.clear_figure_cache(fig);
+#endif
+        (void)fig;
+    }
+
     // Non-copyable, non-movable (contains unique_ptrs and non-movable types)
     WindowUIContext()                                  = default;
     ~WindowUIContext()                                 = default;

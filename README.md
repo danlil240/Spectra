@@ -185,7 +185,7 @@ session.show()?;
 
 The `spectra-plot` crate is a pure-Rust client for the Spectra backend (no C++ toolchain needed to
 build it). Add it with
-`cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.1`; see
+`cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.2`; see
 [`rust/README.md`](https://github.com/danlil240/Spectra/blob/main/rust/README.md).
 
 ---

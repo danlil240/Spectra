@@ -1,6 +1,6 @@
 [package]
 name = "spectra-plot"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 rust-version = "1.75"
 description = "Rust client for Spectra: GPU-accelerated interactive 2D/3D plotting with live streaming"

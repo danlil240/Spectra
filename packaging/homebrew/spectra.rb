@@ -9,7 +9,7 @@
 class Spectra < Formula
   desc "GPU-accelerated scientific plotting library"
   homepage "https://github.com/danlil240/Spectra"
-  url "https://github.com/danlil240/Spectra/archive/refs/tags/v0.4.1.tar.gz"
+  url "https://github.com/danlil240/Spectra/archive/refs/tags/v0.4.2.tar.gz"
   sha256 "spectra_hash_pending"
   license "MIT"
   head "https://github.com/danlil240/Spectra.git", branch: "main"

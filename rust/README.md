@@ -31,7 +31,7 @@ fn main() -> spectra_plot::Result<()> {
 The crate is not on crates.io yet; add it from the Git tag that matches your Spectra install:
 
 ```sh
-cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.1
+cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.2
 ```
 
 ## Getting the backend

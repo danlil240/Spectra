@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Feature Guide | Spectra Docs</title>
-    <meta name="description" content="Comprehensive Spectra feature guide — rendering, 3D, animation, UI, Python, export, and more." />
+    <meta name="description" content="Spectra feature guide: rendering, 2D and 3D plot types, Python and Rust clients, live data, log files, UI, export and integrations." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -55,21 +55,24 @@
             </thead>
             <tbody>
               <tr><td>Core Rendering</td><td>Vulkan backend, anti-aliased lines, 17 marker shapes, dash patterns, GPU text, MSAA 4x</td><td><code>Renderer</code>, Vulkan pipelines, format strings</td></tr>
+              <tr><td>2D Plot Types</td><td>Lines, scatter, step, error bars, bands, <code>twinx</code>, log and date-time axes, <code>imshow</code>, labelled heatmaps, <code>contour</code> / <code>contourf</code>, colorbars</td><td><a href="#plot-types">Plot types</a></td></tr>
               <tr><td>3D Visualization</td><td>Line3D / Scatter3D / Surface / Mesh, Blinn-Phong lighting, transparency, wireframe</td><td><code>Axes3D</code>, <code>series3d</code>, camera controls</td></tr>
               <tr><td>Easy API</td><td>MATLAB-style one-liners, progressive complexity (7 levels)</td><td><code>plot</code>, <code>scatter</code>, <code>subplot</code>, <code>plot3</code>, <code>surf</code></td></tr>
               <tr><td>Animation</td><td>Frame callbacks, timeline editor, curve editor, 7 interpolation modes</td><td><code>animate()</code>, timeline + keyframe systems</td></tr>
               <tr><td>Productivity UI</td><td>Command palette, shortcuts, undo/redo, dock/split, inspector, workspace</td><td>CommandRegistry, ShortcutManager, UndoManager</td></tr>
               <tr><td>Data Interaction</td><td>Tooltips, crosshair, markers, linked axes, shared cursor, 14 transforms</td><td>DataInteraction, AxisLinkManager, TransformPipeline</td></tr>
               <tr><td>Multi-window / IPC</td><td>Independent windows, tab tear-off, inproc + multiproc modes</td><td><code>spectra-backend</code>, <code>spectra-window</code></td></tr>
-              <tr><td>Python</td><td>Proxy API, easy one-liners, live streaming, NumPy zero-copy</td><td><code>spectra</code> package, Session / codec layers</td></tr>
-              <tr><td>Export</td><td>Headless rendering, PNG / GIF / MP4, plugin API</td><td>Offscreen framebuffer, RecordingSession</td></tr>
+              <tr><td>Python</td><td>Easy one-liners, matplotlib-style <code>spectra.pyplot</code>, <code>savefig</code>, pandas, live streaming, Jupyter inline and live canvas</td><td><code>pip install spectra-plot</code>, <a href="#python-api">Python API</a></td></tr>
+              <tr><td>Rust</td><td>Pure-Rust client with the Python client's surface: figures, every series type, streaming, topics, knobs, export</td><td><code>spectra-plot</code> crate, <a href="https://github.com/danlil240/Spectra/blob/main/rust/README.md">Rust README</a></td></tr>
+              <tr><td>Files &amp; Layouts</td><td>CSV, PX4 ULog and MCAP by drag and drop, data sidebar, layout files with data bindings</td><td><a href="#files-layouts">Files and layouts</a></td></tr>
+              <tr><td>Export</td><td>Headless rendering, PNG / SVG / PDF / GIF / MP4, export dialog, plugin API</td><td>Offscreen framebuffer, RecordingSession</td></tr>
               <tr><td>ROS2</td><td>Topic monitor, live plotter, bag player/recorder, TF tree, node graph</td><td><code>spectra-ros</code>, <a href="ros2-adapter.html">full docs →</a></td></tr>
               <tr><td>PX4 / ULog</td><td>Offline ULog browsing + live MAVLink telemetry, auto-plot groups</td><td><code>spectra-px4</code>, <a href="px4-adapter.html">full docs →</a></td></tr>
               <tr><td>Qt Embedding</td><td>Run Spectra rendering inside a <code>QWindow</code> via <code>QtRuntime</code></td><td><a href="qt-embed.html">Qt embed guide</a></td></tr>
               <tr><td>WebGPU / WASM</td><td>Experimental 2D backend; native (Dawn) and browser (Emscripten)</td><td><a href="webgpu.html">WebGPU guide</a></td></tr>
-              <tr><td>Headless embed</td><td>One-liner offscreen PNG rendering; no window, no daemon</td><td><a href="easy_embed_guide.md">Easy Embed guide</a></td></tr>
-              <tr><td>Plugins</td><td>C-ABI shared libraries: commands, transforms, overlays, data sources, exporters</td><td><a href="plugin_developer_guide.md">Plugin guide</a></td></tr>
-              <tr><td>Topics</td><td>Named live streams published into <code>spectra-backend</code></td><td><a href="topics.md">Topics guide</a></td></tr>
+              <tr><td>Headless embed</td><td>One-liner offscreen PNG rendering; no window, no daemon</td><td><a href="https://github.com/danlil240/Spectra/blob/main/docs/easy_embed_guide.md">Easy Embed guide</a></td></tr>
+              <tr><td>Plugins</td><td>C-ABI shared libraries: commands, transforms, overlays, data sources, exporters</td><td><a href="https://github.com/danlil240/Spectra/blob/main/docs/plugin_developer_guide.md">Plugin guide</a></td></tr>
+              <tr><td>Topics</td><td>Named live streams published into <code>spectra-backend</code></td><td><a href="https://github.com/danlil240/Spectra/blob/main/docs/topics.md">Topics guide</a></td></tr>
             </tbody>
           </table>
         </div>
@@ -82,10 +85,41 @@
           <ul>
             <li><strong>Vulkan-powered rendering</strong> — Explicit GPU control, multi-buffered frames, async buffer uploads, depth buffer, MSAA up to 4x</li>
             <li><strong>Anti-aliased lines</strong> — Screen-space quad expansion with SDF smoothing, resolution-independent</li>
-            <li><strong>18 marker types</strong> — SDF-based markers (circle, square, diamond, triangles, pentagon, hexagon, star, plus, cross, filled variants)</li>
+            <li><strong>17 marker shapes</strong> — SDF-based markers (circle, square, diamond, triangles, pentagon, hexagon, star, plus, cross, filled variants)</li>
             <li><strong>Dash patterns</strong> — GPU-accelerated dash rendering with 8 customizable dash values</li>
             <li><strong>GPU text rendering</strong> — Vulkan text pipeline with stb_truetype atlas (Inter font), depth-tested 3D labels, ImGui fallback</li>
+            <li><strong>Mathtext</strong> — <code>$\alpha_1 = 10^{-3}$</code> in titles, labels, legends and annotations, on screen and in SVG / PDF</li>
+            <li><strong>Style presets</strong> — <code>default</code>, <code>paper</code>, <code>talk</code>, <code>minimal</code>, <code>dark-paper</code>, from C++, Python or the Inspector</li>
+            <li><strong>Dense lines</strong> — lines with millions of points are reduced per pixel column (first, last, min, max), so redraws stay around a millisecond without losing spikes</li>
             <li><strong>MATLAB-style plot API</strong> — Format strings like <code>"r--o"</code>, <code>"b:*"</code> for quick styling, plus <code>PlotStyle</code> struct for full control</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- PLOT TYPES -->
+      <section class="section" id="plot-types">
+        <div class="container">
+          <h2>2D Plot Types</h2>
+          <ul>
+            <li><strong>Lines and scatter</strong> — format strings, step and stairs, per-point colours through a colormap, error bars (<code>xerr</code> / <code>yerr</code>, asymmetric), filled bands</li>
+            <li><strong>Axes</strong> — log scales, date-time axes, named categories, fixed ticks, a second y axis on the right (<code>twinx</code>), legends inside or outside the plot</li>
+            <li><strong>Grid data</strong> — <code>imshow</code> (colormapped or RGB), heatmaps with labelled cells, <code>contour</code> and <code>contourf</code>, colorbars; GPU colormap lookup</li>
+            <li><strong>Statistics</strong> — histograms, box plots, violins, bars (grouped, stacked, horizontal, categorical), stems</li>
+            <li><strong>Annotations</strong> — text and arrows with boxes, halos and rotation, reference lines</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- FILES AND LAYOUTS -->
+      <section class="section" id="files-layouts">
+        <div class="container">
+          <h2>Files &amp; Layouts</h2>
+          <ul>
+            <li><strong>Log files</strong> — PX4 ULog (<code>.ulg</code>) and MCAP (<code>.mcap</code>, JSON and ROS 2 CDR, no ROS install needed) open in the main <code>spectra</code> app by drag and drop or File &gt; Open</li>
+            <li><strong>Data sidebar</strong> — log files, CSV files, live topics and plugin sources in one searchable tree; drag a field onto a plot</li>
+            <li><strong>CSV / TSV</strong> — column picker, delimiter detection and preview</li>
+            <li><strong>Layout files</strong> — save a dashboard with data bindings (<code>topic://</code>, <code>csv://</code>) instead of data and reopen it on new data with <code>spectra --layout FILE</code></li>
+            <li><strong>Workspaces</strong> — save a window with its data to a <code>.spectra</code> file; autosave and crash recovery</li>
           </ul>
         </div>
       </section>
@@ -239,10 +273,11 @@
             <article class="card">
               <h3>Architecture</h3>
               <ul>
-                <li><strong>Full IPC bridge</strong> — Python ↔ <code>spectra-backend</code> daemon via Unix socket with TLV binary protocol</li>
+                <li><strong>IPC bridge</strong> — Python ↔ <code>spectra-backend</code> daemon over a Unix socket with a versioned FlatBuffers protocol</li>
                 <li><strong>Session-based</strong> — <code>Session</code> object manages connection, handshake, request/response, event handling</li>
                 <li><strong>Auto-launch</strong> — Backend auto-started on first connection</li>
-                <li><strong>NumPy fast path</strong> — Zero-copy data transfer for numpy arrays</li>
+                <li><strong>NumPy fast path</strong> — arrays sent as one contiguous float32 block; pandas, datetime and any <code>__array__</code> object accepted</li>
+                <li><strong>Platforms</strong> — Linux and macOS wheels for Python 3.9–3.13; on Windows, use WSL2</li>
               </ul>
             </article>
             <article class="card">
@@ -252,6 +287,8 @@
                 <li><strong>3D support</strong> — <code>spectra.plot3()</code>, <code>spectra.scatter3()</code>, <code>spectra.surf()</code>, <code>spectra.mesh()</code></li>
                 <li><strong>Live streaming</strong> — Thread-safe <code>spectra.live()</code> with concurrent socket access protection</li>
                 <li><strong>Figure / Axes / Series proxies</strong> — <code>figure()</code>, <code>subplot()</code>, <code>line()</code>, <code>scatter()</code>, <code>set_data()</code>, <code>show()</code></li>
+                <li><strong>matplotlib-style module</strong> — <code>import spectra.pyplot as plt</code>: <code>subplots</code>, <code>plot</code>, <code>errorbar</code>, <code>imshow</code>, <code>contourf</code>, <code>twinx</code>, <code>colorbar</code>, <code>savefig</code></li>
+                <li><strong>Jupyter</strong> — figures appear inline under each cell; <code>spectra.notebook</code> gives a live, pannable canvas</li>
               </ul>
             </article>
           </div>
@@ -285,20 +322,22 @@ sp.violin_plot(data, positions=[1, 2, 3])
 sp.title("Violin Plot")
 sp.show()</code></pre>
 
-          <pre><code># Live Streaming
+          <pre><code># Live Streaming: return a number and it is appended to a scrolling line
+import math, random
 import spectra as sp
-import numpy as np
 
-fig = sp.figure("Live Dashboard")
-ax = fig.subplot(1, 1, 1)
-line = ax.line([], [], label="sensor")
-
-def update(dt, t):
-    line.append(t, np.sin(t) + np.random.normal(0, 0.1))
-    ax.set_xlim(max(0, t - 10), t)
-
-sp.live(update, fps=30)
+sp.live(lambda t: math.sin(t) + random.gauss(0, 0.1), fps=30, title="Sensor")
 sp.show()</code></pre>
+
+          <pre><code># matplotlib-style code with pandas
+import pandas as pd
+import spectra.pyplot as plt
+
+df = pd.read_csv("flight.csv", index_col="time")
+fig, (ax1, ax2) = plt.subplots(2, 1)
+ax1.plot(df.index, df["altitude"], label="altitude")
+ax2.errorbar(df.index, df["speed"], yerr=df["speed_std"], fmt="o")
+plt.savefig("flight.pdf")</code></pre>
         </div>
       </section>
 
@@ -308,7 +347,7 @@ sp.show()</code></pre>
           <h2>Export &amp; Integration</h2>
           <ul>
             <li><strong>Headless mode</strong> — Offscreen rendering without a window (CI, servers, batch export)</li>
-            <li><strong>PNG export</strong> — Render to image via <code>stb_image_write</code></li>
+            <li><strong>PNG, SVG and PDF export</strong> — vector output for papers; an export dialog sets format, size in pixels or inches, DPI, theme and transparent background</li>
             <li><strong>GIF export</strong> — Custom GIF89a writer with LZW encoding and median-cut quantization</li>
             <li><strong>MP4 export</strong> — Frame piping to ffmpeg (behind <code>SPECTRA_USE_FFMPEG</code> flag)</li>
             <li><strong>Subplot layouts</strong> — Grid-based multi-axes figures with automatic margin / tick layout</li>

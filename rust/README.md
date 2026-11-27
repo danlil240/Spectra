@@ -26,12 +26,20 @@ fn main() -> spectra_plot::Result<()> {
 }
 ```
 
+## Install
+
+The crate is not on crates.io yet; add it from the Git tag that matches your Spectra install:
+
+```sh
+cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.2
+```
+
 ## Getting the backend
 
 Install Spectra from a [release](https://github.com/danlil240/Spectra/releases) (.deb, .rpm,
 AppImage or macOS package) or build it from source. The backend runs on Linux and macOS. On
 Windows, run your program and the backend inside WSL2; WSLg shows the windows. WSL's stock Mesa
-only offers software Vulkan, so for the GPU build Mesa's D3D12 driver
+only offers software Vulkan, so for GPU rendering build Mesa's D3D12 driver
 (`-Dvulkan-drivers=microsoft-experimental`) and point `VK_ICD_FILENAMES` at its ICD file. A
 native Windows build compiles but cannot connect yet. The client looks for the backend in this
 order:

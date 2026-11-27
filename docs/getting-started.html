@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Getting Started | Spectra Docs</title>
-    <meta name="description" content="Install, build, and run Spectra for C++20 and Python — platform setup, CMake options, packaging, deployment, and CI/CD." />
+    <meta name="description" content="Install, build, and run Spectra for C++20, Python and Rust — platform setup, CMake options, packaging, deployment, and CI/CD." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -38,7 +38,7 @@
           <span class="status-chip">Vulkan runtime</span>
         </div>
         <h1>Getting Started with Spectra</h1>
-        <p class="lead">From zero to GPU-accelerated plots in under five minutes — C++ and Python.</p>
+        <p class="lead">From zero to GPU-accelerated plots in under five minutes, from C++, Python or Rust.</p>
         <div class="metric-strip" aria-label="Setup flow">
           <div class="metric-tile"><strong>1</strong><span>install prerequisites</span></div>
           <div class="metric-tile"><strong>2</strong><span>configure CMake</span></div>
@@ -207,9 +207,9 @@ int main() {
           <pre><code># Install
 pip install spectra-plot
 
-# Or development install from source
-cd python &amp;&amp; pip install -e ".[dev]"</code></pre>
-          <p>The Python package (<code>spectra-plot</code>) communicates with the <code>spectra-backend</code> daemon over Unix sockets. The backend is auto-launched on first connection.</p>
+# Or a development install from the repository root (pure Python, uses ./build/ for the backend)
+pip install -e ".[dev]" -Cwheel.cmake=false</code></pre>
+          <p>The Python package (<code>spectra-plot</code>) communicates with the <code>spectra-backend</code> daemon over Unix sockets. The backend ships inside the wheel and is auto-launched on first connection. Wheels are available for Linux and macOS (Python 3.9–3.13); on Windows, install it inside WSL2, where WSLg shows the windows.</p>
           <article class="diagram-feature" style="margin: 1.25rem 0">
             <div class="diagram-feature-head">
               <h3>Python IPC sequence</h3>
@@ -225,6 +225,10 @@ cd python &amp;&amp; pip install -e ".[dev]"</code></pre>
           <pre><code>import spectra as sp
 sp.plot([1, 4, 9, 16, 25])
 sp.show()</code></pre>
+          <p>Existing matplotlib code can switch with one import: <code>import spectra.pyplot as plt</code> covers <code>subplots</code>, <code>plot</code>, <code>errorbar</code>, <code>imshow</code>, <code>twinx</code>, <code>savefig</code> and more. In Jupyter, figures appear inline under each cell.</p>
+          <h3 style="margin-top:1.5rem">Rust</h3>
+          <pre><code>cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.2</code></pre>
+          <p>The <code>spectra-plot</code> crate is pure Rust and talks to the same backend; install Spectra (a release package or the apt repository) so <code>spectra-backend</code> is on your <code>PATH</code>. See the <a href="https://github.com/danlil240/Spectra/blob/main/rust/README.md">Rust README</a>.</p>
           <div class="callout warn">For Qt embed mode, build with <code>-DSPECTRA_BUILD_EMBED_SHARED=ON</code>.</div>
         </div>
       </section>
@@ -398,7 +402,7 @@ cmake --build build-asan &amp;&amp; cd build-asan &amp;&amp; ctest --output-on-f
             <li><strong>package-linux</strong> — <code>.deb</code>, <code>.rpm</code>, <code>.tar.gz</code>, AppImage</li>
             <li><strong>package-macos</strong> — <code>.tar.gz</code> for ARM64</li>
             <li><strong>package-windows</strong> — <code>.zip</code> with Vulkan SDK</li>
-            <li><strong>python-wheels</strong> — via <code>cibuildwheel</code> for Linux/macOS/Windows × Python 3.9–3.13</li>
+            <li><strong>python-wheels</strong> — via <code>cibuildwheel</code> for Linux and macOS × Python 3.9–3.13</li>
             <li><strong>python-sdist</strong> — Source distribution</li>
             <li><strong>release</strong> — GitHub Release with all artifacts, publishes to PyPI</li>
           </ol>
@@ -428,7 +432,7 @@ vulkaninfo --summary</code></pre>
             </article>
             <article class="card link-card">
               <h3>Examples</h3>
-              <p>40+ C++ and Python examples by use case.</p>
+              <p>50+ C++, Python and Rust examples by use case.</p>
               <a href="examples.html">Browse examples →</a>
             </article>
             <article class="card link-card">

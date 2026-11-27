@@ -11,6 +11,21 @@ summarise the main changes rather than listing every commit.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-27
+
+Documentation and packaging release; no library changes.
+
+### Changed
+
+- README, docs site, examples index, CONTRIBUTING and the Rust and Python example READMEs updated for 0.4.x: Rust and matplotlib-style Python quick starts, the features added since 0.3 (images and contours, `twinx`, pandas, `spectra.pyplot` / `savefig`, ULog and MCAP files, layouts, PDF export), a benchmark section on the docs home page and the six-plot recording in place of the mock-up.
+- The PyPI page now shows the README's images and links to the docs, source, changelog and issue tracker (absolute links, project URLs, keywords and OS / Jupyter classifiers).
+- GitHub release notes start with the version's changelog section and a Rust install line.
+
+### Fixed
+
+- Docs site links to the Markdown guides open them on GitHub instead of as raw text, and wide tables and code blocks no longer make pages scroll sideways on phones.
+- Install commands: the editable Python install runs from the repository root, and the Rust crate installs from the Git tag (`cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.2`) until it is on crates.io.
+
 ## [0.4.1] - 2026-11-27
 
 ### Added
@@ -283,7 +298,8 @@ First tagged release.
 - Packaging: `.deb`, `.rpm`, AppImage, macOS and Windows installers, man page and shell
   completions.
 
-[Unreleased]: https://github.com/danlil240/Spectra/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/danlil240/Spectra/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/danlil240/Spectra/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/danlil240/Spectra/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/danlil240/Spectra/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/danlil240/Spectra/compare/v0.2.7...v0.3.0

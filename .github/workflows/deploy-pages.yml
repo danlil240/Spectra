@@ -108,7 +108,8 @@ jobs:
           }
           for f in docs/*.html; do copy "${f#docs/}"; done
           copy styles.css
-          for f in docs/images/diagrams/*.png docs/images/figma/*.png docs/images/screenshots/*; do
+          for f in docs/images/diagrams/*.png docs/images/figma/*.png docs/images/screenshots/* \
+                   docs/images/hero/wall.gif; do
             [ -f "$f" ] && copy "${f#docs/}"
           done
           # User-facing Markdown pages that the HTML pages link to.

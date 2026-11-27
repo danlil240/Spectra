@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icons/spectra_banner.png" alt="Spectra" width="600">
+  <img src="https://raw.githubusercontent.com/danlil240/Spectra/main/icons/spectra_banner.png" alt="Spectra" width="600">
 </p>
 
 <h3 align="center">GPU-accelerated scientific plotting for C++20, Python and Rust</h3>
@@ -8,19 +8,20 @@
   <a href="https://github.com/danlil240/Spectra/actions/workflows/ci.yml"><img src="https://github.com/danlil240/Spectra/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
   <a href="https://pypi.org/project/spectra-plot/"><img src="https://img.shields.io/pypi/v/spectra-plot.svg" alt="PyPI version"></a>
   <a href="https://danlil240.github.io/Spectra/"><img src="https://img.shields.io/badge/docs-online-blue.svg" alt="Documentation"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
+  <a href="https://github.com/danlil240/Spectra/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
 </p>
 
 <p align="center">
   <a href="https://danlil240.github.io/Spectra/">Documentation</a> ·
   <a href="https://danlil240.github.io/Spectra/getting-started.html">Getting Started</a> ·
-  <a href="examples/README.md">Examples</a> ·
-  <a href="https://danlil240.github.io/Spectra/ros2-adapter.html">ROS2 Adapter</a> ·
-  <a href="CHANGELOG.md">Changelog</a>
+  <a href="https://github.com/danlil240/Spectra/blob/main/examples/README.md">Examples</a> ·
+  <a href="https://github.com/danlil240/Spectra/blob/main/python/examples/README.md">Python</a> ·
+  <a href="https://github.com/danlil240/Spectra/blob/main/rust/README.md">Rust</a> ·
+  <a href="https://github.com/danlil240/Spectra/blob/main/CHANGELOG.md">Changelog</a>
 </p>
 
 <p align="center">
-  <img src="docs/images/hero/wall.gif" alt="One Spectra window with six live plots: a sensor stream, a Lorenz attractor, a lit 3D surface, a reaction-diffusion heatmap, a particle flow and a histogram" width="100%">
+  <img src="https://raw.githubusercontent.com/danlil240/Spectra/main/docs/images/hero/wall.gif" alt="One Spectra window with six live plots: a sensor stream, a Lorenz attractor, a lit 3D surface, a reaction-diffusion heatmap, a particle flow and a histogram" width="100%">
 </p>
 
 <p align="center">
@@ -29,12 +30,12 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/screenshots/next_level_scientific.png" alt="Colormapped scatter and uncertainty band"></td>
-    <td width="50%"><img src="docs/images/screenshots/lit_surface_demo.jpg" alt="Lit, transparent 3D surfaces"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/danlil240/Spectra/main/docs/images/screenshots/next_level_scientific.png" alt="Colormapped scatter and uncertainty band"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/danlil240/Spectra/main/docs/images/screenshots/lit_surface_demo.jpg" alt="Lit, transparent 3D surfaces"></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/images/screenshots/multi_subplot.png" alt="Stacked subplots"></td>
-    <td width="50%"><img src="docs/images/screenshots/transparency_demo.jpg" alt="3D surfaces, scatter, wireframe and point cloud"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/danlil240/Spectra/main/docs/images/screenshots/multi_subplot.png" alt="Stacked subplots"></td>
+    <td width="50%"><img src="https://raw.githubusercontent.com/danlil240/Spectra/main/docs/images/screenshots/transparency_demo.jpg" alt="3D surfaces, scatter, wireframe and point cloud"></td>
   </tr>
 </table>
 
@@ -46,8 +47,8 @@
 ## What is Spectra?
 
 Spectra is a plotting library and desktop app that draws everything on the GPU with Vulkan.
-You can call it from C++ or Python, use it for static figures or live data, and embed it in
-Qt or ROS2 tools.
+Call it from C++, Python or Rust, use it for static figures or live data, and embed it in Qt
+apps, Jupyter notebooks or your own tools.
 
 - **GPU rendering** — Vulkan 1.2+. Anti-aliased lines, 17 marker shapes, dash patterns and text
   are drawn on the GPU.
@@ -60,6 +61,8 @@ Qt or ROS2 tools.
 - **C++, Python and Rust** — a native C++20 library, plus Python and Rust clients that start the
   Spectra backend for you.
 - **Headless export** — render PNG, SVG, PDF, GIF or MP4 without a window, for CI and batch jobs.
+- **Open your data** — drop a CSV file, a PX4 ULog or an MCAP log on the window and drag fields
+  onto plots; save the dashboard as a layout file and reopen it on new data.
 
 ## Why Spectra?
 
@@ -103,7 +106,7 @@ single spike. The stream columns include that pass on every update.
 
 One machine: NVIDIA RTX 5080 (driver 621.40), Ryzen 9 9950X3D, Windows 11, Python 3.12, Spectra
 0.4.1, average of two runs; matplotlib on Agg and pyqtgraph on Qt's raster engine. Run it on your
-own hardware with [`tools/bench_compare/bench_compare.py`](tools/bench_compare/bench_compare.py);
+own hardware with [`tools/bench_compare/bench_compare.py`](https://github.com/danlil240/Spectra/blob/main/tools/bench_compare/bench_compare.py);
 results from other GPUs are very welcome in an issue.
 
 ---
@@ -152,6 +155,12 @@ sp.show()
 
 Format strings work like MATLAB and matplotlib: `sp.plot(x, y, "r--o")` (red, dashed,
 circle markers), `sp.plot(y, "g^")` (green triangles), or `linestyle=":"` / `marker="s"`.
+`sp.plot(df)` draws one line per column of a pandas DataFrame, and `sp.savefig("out.png")` (or
+`.svg`, `.pdf`) renders offscreen.
+
+Coming from matplotlib? `import spectra.pyplot as plt` covers the common calls (`plt.subplots`,
+`plt.plot`, `plt.errorbar`, `plt.imshow`, `plt.twinx`, `plt.savefig`, ...), so a lot of existing
+plotting code runs with only the import changed.
 
 In **Jupyter** the same calls draw inline: each cell's figures appear as PNG images under it,
 and `sp.show()` never blocks the kernel. `sp.use_window()` switches to native windows,
@@ -174,8 +183,10 @@ ax.plot(&x, &y, "r--")?;
 session.show()?;
 ```
 
-The `spectra-plot` crate is a pure-Rust client for the Spectra backend; see
-[`rust/README.md`](rust/README.md).
+The `spectra-plot` crate is a pure-Rust client for the Spectra backend (no C++ toolchain needed to
+build it). Add it with
+`cargo add spectra-plot --git https://github.com/danlil240/Spectra --tag v0.4.2`; see
+[`rust/README.md`](https://github.com/danlil240/Spectra/blob/main/rust/README.md).
 
 ---
 
@@ -241,7 +252,7 @@ cmake --build build -j$(nproc)
 
 GLFW, Dear ImGui and FlatBuffers are downloaded automatically by CMake. The full list of
 packages and CMake options, including the optional ROS2, PX4, Qt, WebGPU, Eigen and FFmpeg
-integrations, is in [`BUILD_ENVIRONMENT.md`](BUILD_ENVIRONMENT.md) and the
+integrations, is in [`BUILD_ENVIRONMENT.md`](https://github.com/danlil240/Spectra/blob/main/BUILD_ENVIRONMENT.md) and the
 [Getting Started guide](https://danlil240.github.io/Spectra/getting-started.html).
 
 To use Spectra from your own CMake project after `cmake --install build`:
@@ -257,51 +268,22 @@ target_link_libraries(my_app PRIVATE spectra::spectra)
 
 | Area | What you get |
 |---|---|
-| **Core rendering** | Vulkan pipeline, MSAA, GPU text, SDF anti-aliasing, MATLAB-style format strings (`"r--o"`) |
-| **3D** | Surface, mesh, scatter and line plots with lighting, transparency, wireframe and colormaps |
+| **Core rendering** | Vulkan pipeline, MSAA, GPU text, SDF anti-aliasing, 17 marker shapes, MATLAB-style format strings (`"r--o"`), mathtext (`$\alpha_1$`) in labels |
+| **2D plots** | Lines, scatter, step, error bars, bands, second y axis (`twinx`), log and date-time axes, `imshow`, labelled heatmaps, `contour` / `contourf`, colorbars |
+| **Statistics** | Histograms, box plots, violins, bars (grouped, stacked, horizontal), stems |
+| **3D** | Surface, mesh, scatter and line plots with lighting, transparency, wireframe, colormaps, depth cues, view cube and ortho/perspective camera |
 | **Easy API** | `plot()`, `scatter()`, `subplot()`, `plot3()`, `surf()` and friends in one header, `spectra/easy.hpp` |
-| **Statistics** | Histograms, box plots, violins, bars, uncertainty bands |
-| **Animation** | Frame callbacks, timeline editor, keyframe interpolation, camera animator |
-| **UI** | Command palette, undo/redo, docking and split views, inspector, configurable shortcuts |
-| **Data interaction** | Tooltips, crosshair, markers, linked axes, shared cursor, data transforms, CSV import |
-| **Multi-window** | Independent OS windows, tab tear-off, workspaces you can save and reload |
-| **Python** | `spectra.plot()` one-liners, NumPy fast path, live streaming, automatic backend launch |
-| **Export** | Headless PNG/SVG/PDF/GIF/MP4, plugin API, CMake `find_package` |
-| **ROS2** (preview) | Topic monitor, live plotter, bag player/recorder, TF tree, node graph, service caller |
-| **PX4 / ULog** (preview) | ULog file reader, flight-log plotting, live MAVLink bridge |
-| **Qt embed** (preview) | Spectra canvas inside Qt6 widgets (C++), plus PyQt/PySide integration |
-| **WebGPU** (preview) | Same 2D code in the browser through Emscripten |
+| **Python** | One-liners, a `spectra.pyplot` module for matplotlib-style code, `savefig()`, pandas DataFrames and Series, NumPy fast path, inline plots and a live canvas in Jupyter |
+| **Rust** | The `spectra-plot` crate: the same figures, series, streaming, topics and export as the Python client, in pure Rust |
+| **Live data** | Cheap appends, frame callbacks, named topics from any process, UDP JSON/CSV bridge, knobs (sliders your code reads) |
+| **Files and layouts** | CSV, PX4 ULog and MCAP (JSON and ROS 2 CDR, no ROS install needed) by drag and drop; layout files that save a dashboard without its data |
+| **UI** | Command palette, undo/redo, docking and split views, inspector, data sidebar, configurable shortcuts, style presets, colour-blind palettes |
+| **Data interaction** | Tooltips, crosshair, markers, linked axes, shared cursor, compare at x, data transforms |
+| **Animation** | Timeline editor, keyframe interpolation, camera animator |
+| **Export** | Headless PNG/SVG/PDF/GIF/MP4 with an export dialog (size, DPI, theme), plugin API, CMake `find_package` |
+| **Integrations** (preview) | ROS2 app (topic monitor, bag player, TF tree), PX4 app (ULog, live MAVLink), Qt6 widgets and PyQt/PySide, WebGPU (2D) |
 
 > **Full breakdown →** [Feature Guide](https://danlil240.github.io/Spectra/features.html)
-
----
-
-## ROS2 adapter (preview)
-
-One native app for live plotting, bag review and 3D context.
-
-```bash
-source /opt/ros/humble/setup.bash
-cmake -S . -B build -G Ninja -DSPECTRA_USE_ROS2=ON -DSPECTRA_ROS2_BAG=ON
-cmake --build build --target spectra-ros -j$(nproc)
-
-# Terminal 1 — synthetic publisher
-ros2 topic pub /cmd_vel geometry_msgs/msg/Twist "{ linear: { x: 0.5 } }" --rate 10
-
-# Terminal 2 — plot it
-./build/spectra-ros --topics /cmd_vel:linear.x
-```
-
-Ready-made session presets live in [`sessions/presets/`](sessions/presets/):
-
-```bash
-./build/spectra-ros --session sessions/presets/tuning.spectra-ros-session   # IMU / PID tuning
-```
-
-> **Docs →** [ROS2 Adapter](https://danlil240.github.io/Spectra/ros2-adapter.html) ·
-> [Tool comparison](https://danlil240.github.io/Spectra/ros2-comparison.html) ·
-> [PX4 Adapter](https://danlil240.github.io/Spectra/px4-adapter.html) ·
-> [Qt Embedding](https://danlil240.github.io/Spectra/qt-embed.html)
 
 ---
 
@@ -309,32 +291,15 @@ Ready-made session presets live in [`sessions/presets/`](sessions/presets/):
 
 Any process can publish named data streams ("topics") to Spectra from C++ or Python, before or
 after the UI is open; you then drag a topic onto an axes to plot it live. See the
-[Topics guide](docs/topics.md), including a Docker publisher-first workflow.
-
----
-
-## WebGPU / WebAssembly (preview)
-
-A WebGPU backend lets the same 2D C++ code run in the browser through Emscripten (WGSL shaders;
-line, scatter, grid, text and statistical series). It is in-process only, and 3D is not ported
-yet.
-
-```bash
-source /path/to/emsdk/emsdk_env.sh
-emcmake cmake -B build-wasm -DSPECTRA_USE_WEBGPU=ON -DCMAKE_BUILD_TYPE=Release
-cmake --build build-wasm --target webgpu_demo
-# Serve build-wasm/examples/ over HTTP and open webgpu_demo.html in Chrome/Edge 113+
-```
-
-> **Docs →** [WebGPU backend](https://danlil240.github.io/Spectra/webgpu.html) ·
-> [`examples/webgpu_demo.cpp`](examples/webgpu_demo.cpp)
+[Topics guide](https://github.com/danlil240/Spectra/blob/main/docs/topics.md), including a Docker publisher-first workflow.
 
 ---
 
 ## Examples
 
-More than 40 C++ examples and 18 Python scripts cover everything from a basic line plot to lit
-3D surfaces, timeline animation, multi-window tabs and headless export.
+More than 50 C++ examples, 18 Python scripts and a Jupyter notebook, and 6 Rust examples cover
+everything from a basic line plot to lit 3D surfaces, heatmaps, live streams, multi-window tabs
+and headless export.
 
 ```bash
 ./build/examples/basic_line
@@ -342,8 +307,26 @@ More than 40 C++ examples and 18 Python scripts cover everything from a basic li
 ./build/examples/lit_surface_demo
 ```
 
-> **Index →** [C++ examples](examples/README.md) · [Python examples](python/examples/README.md) ·
+> **Index →** [C++ examples](https://github.com/danlil240/Spectra/blob/main/examples/README.md) · [Python examples](https://github.com/danlil240/Spectra/blob/main/python/examples/README.md) ·
+> [Rust examples](https://github.com/danlil240/Spectra/blob/main/rust/README.md#examples) ·
 > [Examples page](https://danlil240.github.io/Spectra/examples.html)
+
+---
+
+## ROS2, PX4, Qt and WebGPU (preview)
+
+Optional integrations, enabled at build time:
+
+- **ROS2** — `spectra-ros`, one native app for live topic plotting, bag playback and recording,
+  TF tree and node graph. Build with `-DSPECTRA_USE_ROS2=ON`; see the
+  [ROS2 adapter docs](https://danlil240.github.io/Spectra/ros2-adapter.html).
+- **PX4** — `spectra-px4` for ULog flight logs and live MAVLink telemetry
+  ([PX4 docs](https://danlil240.github.io/Spectra/px4-adapter.html)). The main `spectra` app
+  opens ULog and MCAP files too.
+- **Qt** — a Spectra canvas inside Qt6 widgets from C++, PyQt or PySide
+  ([Qt embedding](https://danlil240.github.io/Spectra/qt-embed.html)).
+- **WebGPU** — the same 2D C++ code built for the browser with Emscripten, or natively with
+  Dawn. 3D is not ported yet ([WebGPU backend](https://danlil240.github.io/Spectra/webgpu.html)).
 
 ---
 
@@ -369,7 +352,7 @@ decides which binaries are built: `multiproc` also builds `spectra-backend` and
 
 ## Quality
 
-- **5,000+ unit tests** (Google Test), **50+ golden-image tests** rendered headlessly on
+- **Nearly 7,000 unit tests** (Google Test), **50+ golden-image tests** rendered headlessly on
   lavapipe, and benchmark suites.
 - CI on Linux (GCC and Clang), macOS (Apple Silicon) and Windows (MSVC), plus AddressSanitizer
   and UndefinedBehaviorSanitizer jobs.
@@ -386,13 +369,13 @@ ctest --test-dir build -LE gpu --output-on-failure
 
 ## Contributing
 
-Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, run
+Contributions are welcome. Please read [CONTRIBUTING.md](https://github.com/danlil240/Spectra/blob/main/CONTRIBUTING.md) for how to build, run
 the tests (including GPU tests on lavapipe), format code and write commit messages, and follow the
-[Code of Conduct](CODE_OF_CONDUCT.md). Report security issues privately as described in
-[SECURITY.md](SECURITY.md).
+[Code of Conduct](https://github.com/danlil240/Spectra/blob/main/CODE_OF_CONDUCT.md). Report security issues privately as described in
+[SECURITY.md](https://github.com/danlil240/Spectra/blob/main/SECURITY.md).
 
-If you use Spectra in research, see [CITATION.cff](CITATION.cff).
+If you use Spectra in research, see [CITATION.cff](https://github.com/danlil240/Spectra/blob/main/CITATION.cff).
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](https://github.com/danlil240/Spectra/blob/main/LICENSE) for details.

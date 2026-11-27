@@ -1614,3 +1614,47 @@ pre code {
     transform: translateY(0);
   }
 }
+
+/* Landing page hero: real recording of the app instead of a mock-up. */
+.hero-shot {
+  margin: 0;
+  min-width: 0;
+}
+
+.hero-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Wide tables scroll inside themselves on phones instead of widening the page. */
+@media (max-width: 700px) {
+  .docs-page main table {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .docs-page main pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .split-section {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .command-panel,
+  .code-showcase,
+  .architecture-panel {
+    min-width: 0;
+  }
+}

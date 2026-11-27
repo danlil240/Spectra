@@ -2,13 +2,13 @@ Origin: Spectra
 Label: Spectra
 Suite: stable
 Codename: resolute
-Date: Thu, 26 Nov 2026 23:53:45 UTC
+Date: Fri, 27 Nov 2026 11:38:13 UTC
 Architectures: amd64 arm64
 Components: main
 Description: Spectra plotting library APT repository (Ubuntu 26.04 Resolute)
 MD5Sum:
- b59041ed560c5d4a496c82107a1762a0 565 main/binary-amd64/Packages
- 088be4056bf37a78971497df8cf86573 403 main/binary-amd64/Packages.gz
+ 8b2e337f6936fd25fe7b54d52683b58f 565 main/binary-amd64/Packages
+ 5fc95a120736eff075cd3df98201443b 402 main/binary-amd64/Packages.gz
  f49087077b1bd9143541f89ba5454bb0 160 main/binary-amd64/Release
  d41d8cd98f00b204e9800998ecf8427e 0 main/binary-arm64/Packages
  7029066c27ac6f5ef18d660d5741979a 20 main/binary-arm64/Packages.gz
@@ -17,8 +17,8 @@ MD5Sum:
  7029066c27ac6f5ef18d660d5741979a 20 main/source/Sources.gz
  5e673fe4c6feb0d2f2fe23997a6e3056 161 main/source/Release
 SHA1:
- b56d98146b2ed9a1a2c0811d96c73c56fadae342 565 main/binary-amd64/Packages
- 61110c46bd367077f4615a88487ba9d872e98396 403 main/binary-amd64/Packages.gz
+ bd7d69550a9f4adf9ce2336343832a7147ef5808 565 main/binary-amd64/Packages
+ cabaca8af976041879d664797b2019951def9bbd 402 main/binary-amd64/Packages.gz
  7c7b97f62f71b21b5c461f55d1d59037ec0ac1ef 160 main/binary-amd64/Release
  da39a3ee5e6b4b0d3255bfef95601890afd80709 0 main/binary-arm64/Packages
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/binary-arm64/Packages.gz
@@ -27,8 +27,8 @@ SHA1:
  46c6643f07aa7f6bfe7118de926b86defc5087c4 20 main/source/Sources.gz
  bf9100423fe0a2c11bb44a90c8043afa6ed7b937 161 main/source/Release
 SHA256:
- 4ed3d204cff147105b6aeefcf31b57c1c5c4471c56a2ef20d83cbcc628ed79f8 565 main/binary-amd64/Packages
- f4b1b0cfec8c7850583db8cc4adfdebd848f4c5005f6fa073c408ebb1fc393b8 403 main/binary-amd64/Packages.gz
+ 3186bb44b0ce51d698863f0cc2ec61dd928f2e8f431568b4d3f79c3c72dd9b52 565 main/binary-amd64/Packages
+ b6741ff2e416583082690d20addd96c63f14c1437e17b761563d8ca1efdcdbd4 402 main/binary-amd64/Packages.gz
  ac0bebcdb15465e568e52039eafbf8949e0ffef7e8c15dddcfe60eddc146b3e0 160 main/binary-amd64/Release
  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 0 main/binary-arm64/Packages
  59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2 20 main/binary-arm64/Packages.gz

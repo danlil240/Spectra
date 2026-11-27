@@ -3,14 +3,14 @@ Architecture: amd64
 Depends: libvulkan1 (>= 1.3.204.0), libc6 (>= 2.38), libvulkan1 (>= 1.3.204.0)
 Priority: optional
 Section: science
-Filename: pool/main/s/spectra/spectra_0.4.1-1~noble_amd64.deb
-Size: 61397064
-SHA256: ac579ae00a5207a648ff05520e7449953cb6cea2910c5247507d8a4999b2be05
-SHA1: 46c1094400cb53917f7b0a5c298e6d5e229120fc
-MD5sum: 2dcbdfb7b0437d221105a4c247d3a32c
+Filename: pool/main/s/spectra/spectra_0.4.2-1~noble_amd64.deb
+Size: 61397094
+SHA256: f800be64f68ebe377ce3b2c7c1fe2a9dcf6d95f78f17107eae8edd9ceb9baec0
+SHA1: c1b97ee68e33a8798d0639c06f033a6602324a85
+MD5sum: ba34f9738110527b00962a6a6959bd43
 Description: GPU-accelerated scientific plotting library
 Maintainer: danlil240
 Suggests: libvulkan-dev, pkg-config, cmake
-Version: 0.4.1-1~noble
+Version: 0.4.2-1~noble
 Installed-Size: 114291
 

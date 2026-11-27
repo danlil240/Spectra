@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use Spectra in your research, please cite it using these metadata."
-title: "Spectra: GPU-accelerated scientific plotting for C++20 and Python"
+title: "Spectra: GPU-accelerated plotting for C++, Python and Rust"
 type: software
 authors:
   - given-names: Daniel
@@ -9,8 +9,8 @@ authors:
 repository-code: "https://github.com/danlil240/Spectra"
 url: "https://danlil240.github.io/Spectra/"
 license: MIT
-version: 0.3.0
-date-released: "2026-07-20"
+version: 0.4.2
+date-released: "2026-11-27"
 keywords:
   - plotting
   - visualization
@@ -18,5 +18,6 @@ keywords:
   - gpu
   - c++20
   - python
+  - rust
   - real-time
   - ros2

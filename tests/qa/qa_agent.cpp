@@ -1116,26 +1116,9 @@ class QAAgent
                 if (!fig)
                     return;
                 if (auto* ui = app_->ui_context())
-                {
-                    if (ui->data_interaction)
-                        ui->data_interaction->clear_figure_cache(fig);
-                    ui->input_handler.clear_figure_cache(fig);
-                    if (ui->imgui_ui)
-                        ui->imgui_ui->clear_figure_cache(fig);
-                }
+                    ui->clear_figure_caches(fig);
                 if (auto* local_wm = app_->window_manager())
-                {
-                    for (auto* wctx : local_wm->windows())
-                    {
-                        if (!wctx || !wctx->ui_ctx)
-                            continue;
-                        if (wctx->ui_ctx->data_interaction)
-                            wctx->ui_ctx->data_interaction->clear_figure_cache(fig);
-                        wctx->ui_ctx->input_handler.clear_figure_cache(fig);
-                        if (wctx->ui_ctx->imgui_ui)
-                            wctx->ui_ctx->imgui_ui->clear_figure_cache(fig);
-                    }
-                }
+                    local_wm->clear_figure_caches(fig);
             };
 
             const auto windows = wm->windows();
@@ -3351,6 +3334,12 @@ class QAAgent
         fig2.subplot(1, 1, 1);   // ensure at least one axes slot
         pump_frames(2);
 
+        // Loading replaces fig2's axes.  Drop the UI's pointers to the old
+        // ones first, as file.load_figure does; otherwise the status bar
+        // reads freed axes on the next frame.
+        ui->clear_figure_caches(&fig2);
+        if (auto* wm = app_->window_manager())
+            wm->clear_figure_caches(&fig2);
         bool loaded = FigureSerializer::load(save_path, fig2);
         if (!loaded)
         {

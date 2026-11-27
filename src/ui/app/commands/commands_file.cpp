@@ -961,6 +961,9 @@ std::vector<CommandDescriptor> make_file_commands(CommandContext& ctx)
                     {
                         if (!active_figure)
                             return;
+                        // Loading replaces the figure's axes; drop UI pointers
+                        // to the old ones first.
+                        ui_ctx.clear_figure_caches(active_figure);
                         if (data_interaction)
                         {
                             OverlaySnapshot snap;

@@ -103,11 +103,7 @@ void WindowManager::clear_figure_caches(Figure* fig)
     {
         if (!wctx || !wctx->ui_ctx)
             continue;
-        if (wctx->ui_ctx->data_interaction)
-            wctx->ui_ctx->data_interaction->clear_figure_cache(fig);
-        wctx->ui_ctx->input_handler.clear_figure_cache(fig);
-        if (wctx->ui_ctx->imgui_ui)
-            wctx->ui_ctx->imgui_ui->clear_figure_cache(fig);
+        wctx->ui_ctx->clear_figure_caches(fig);
     }
 #else
     (void)fig;
